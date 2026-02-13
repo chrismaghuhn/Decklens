@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Community Dashboard - DeckLens</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --primary: #8b5cf6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --text: #1f2937;
+            --text-secondary: #6b7280;
+            --border: #e5e7eb;
+            --bg: #ffffff;
+            --bg-secondary: #f9fafb;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .dashboard-header {
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .nav-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .nav-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .time-selector {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #7c3aed;
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+        }
+
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .dashboard-section {
+            margin-bottom: 3rem;
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--text);
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .kpi-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: all 0.2s;
+        }
+
+        .kpi-card:hover {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .kpi-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .kpi-label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .kpi-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+        }
+
+        .kpi-change {
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .trend-up {
+            color: var(--success);
+        }
+
+        .trend-down {
+            color: var(--error);
+        }
+
+        .trend-stable {
+            color: var(--text-secondary);
+        }
+
+        .kpi-description {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-container {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .chart-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .chart-content {
+            height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            color: var(--text-secondary);
+        }
+
+        .alert-banner {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .alert-warning {
+            border-left: 4px solid var(--warning);
+            background: #fef3c7;
+        }
+
+        .alert-success {
+            border-left: 4px solid var(--success);
+            background: #f0fdf4;
+        }
+
+        .alert-error {
+            border-left: 4px solid var(--error);
+            background: #fef2f2;
+        }
+
+        .alert-content {
+            flex: 1;
+        }
+
+        .alert-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .alert-message {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .alert-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            border: 2px solid var(--border);
+            border-top: 2px solid var(--primary);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+
+        .status-live {
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .sentiment-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .sentiment-label {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .sentiment-bar {
+            flex: 1;
+            height: 20px;
+            background: linear-gradient(90deg, 
+                var(--error) 0%, 
+                var(--warning) 50%, 
+                var(--success) 100%);
+            border-radius: 10px;
+            margin: 0 1rem;
+            position: relative;
+        }
+
+        .sentiment-indicator {
+            position: absolute;
+            top: -5px;
+            width: 30px;
+            height: 30px;
+            background: var(--primary);
+            border: 3px solid white;
+            border-radius: 50%;
+            transform: translateX(-50%);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .sentiment-value {
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .feedback-item {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .feedback-sentiment {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .feedback-sentiment.positive {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+
+        .feedback-sentiment.negative {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+        }
+
+        .feedback-sentiment.neutral {
+            background: rgba(107, 114, 128, 0.1);
+            color: var(--text-secondary);
+        }
+
+        .feedback-content {
+            flex: 1;
+        }
+
+        .feedback-message {
+            color: var(--text);
+            margin-bottom: 0.5rem;
+        }
+
+        .feedback-meta {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .support-queue {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+
+        .queue-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .queue-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .queue-label {
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 0.25rem;
+        }
+
+        .queue-description {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-container {
+                padding: 1rem;
+            }
+            
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .chart-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .nav-content {
+                flex-direction: column;
+                gap: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="dashboard-header">
+        <div class="nav-content">
+            <h1 class="nav-title">👥 Community Dashboard</h1>
+            <div class="nav-actions">
+                <select class="time-selector" id="timeRange">
+                    <option value="7">Last 7 days</option>
+                    <option value="30" selected>Last 30 days</option>
+                    <option value="90">Last 90 days</option>
+                </select>
+                <button class="btn btn-secondary" onclick="exportReport()">📥 Export</button>
+                <button class="btn btn-secondary" onclick="refreshData()">🔄 Refresh</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="dashboard-container">
+        <!-- Community Overview -->
+        <section class="dashboard-section">
+            <h2 class="section-title">Community Overview <span class="status-indicator status-live"></span></h2>
+            <div class="kpi-grid" id="kpiGrid">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading community metrics...
+                </div>
+            </div>
+        </section>
+
+        <!-- Sentiment Analysis -->
+        <section class="dashboard-section">
+            <h2 class="section-title">Sentiment Analysis</h2>
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h3 class="chart-title">Overall Community Sentiment</h3>
+                </div>
+                <div class="sentiment-container">
+                    <span class="sentiment-label">😞 Negative</span>
+                    <div class="sentiment-bar">
+                        <div class="sentiment-indicator" style="left: 72%;"></div>
+                    </div>
+                    <span class="sentiment-label">😊 Positive</span>
+                    <span class="sentiment-value">72%</span>
+                </div>
+                <div class="chart-grid">
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3 class="chart-title">Sentiment Trends</h3>
+                        </div>
+                        <div class="chart-content">
+                            <canvas id="sentimentChart"></canvas>
+                            <div style="color: var(--text-secondary);">Sentiment trends loading...</div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3 class="chart-title">Feedback Sources</h3>
+                        </div>
+                        <div class="chart-content">
+                            <canvas id="sourcesChart"></canvas>
+                            <div style="color: var(--text-secondary);">Feedback sources loading...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Support Queue -->
+        <section class="dashboard-section">
+            <h2 class="section-title">Support Queue</h2>
+            <div class="support-queue" id="supportQueue">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading support metrics...
+                </div>
+            </div>
+        </section>
+
+        <!-- Recent Feedback -->
+        <section class="dashboard-section">
+            <h2 class="section-title">Recent Feedback</h2>
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h3 class="chart-title">Latest Community Feedback</h3>
+                    <select class="time-selector">
+                        <option value="today">Today</option>
+                        <option value="week">This week</option>
+                    </select>
+                </div>
+                <div id="feedbackContainer">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading recent feedback...
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Community Insights -->
+        <section class="dashboard-section">
+            <h2 class="section-title">Community Insights</h2>
+            <div id="insightsContainer">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Analyzing community insights...
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Community Dashboard Controller
+        class CommunityDashboard {
+            constructor() {
+                this.apiBase = 'https://decklens-api.chrisgarkisch.workers.dev';
+                this.init();
+            }
+
+            async init() {
+                await this.loadKPIs();
+                await this.loadSupportQueue();
+                await this.loadFeedback();
+                await this.loadInsights();
+                this.initCharts();
+                this.startRealtimeUpdates();
+            }
+
+            async loadKPIs() {
+                try {
+                    const response = await fetch(`${this.apiBase}/api/analytics/kpi/community`);
+                    const result = await response.json();
+                    
+                    if (result.ok) {
+                        this.renderKPIs(result.data);
+                    } else {
+                        throw new Error('Failed to load community KPIs');
+                    }
+                } catch (error) {
+                    console.error('Error loading community KPIs:', error);
+                    this.renderError('kpiGrid', 'Failed to load community metrics');
+                }
+            }
+
+            renderKPIs(data) {
+                const kpiGrid = document.getElementById('kpiGrid');
+                const kpis = [
+                    {
+                        label: 'Total Feedback',
+                        value: data.feedback.total.toLocaleString(),
+                        change: 0.089,
+                        changeLabel: 'vs last week',
+                        description: `This week: ${data.feedback.weekly.toLocaleString()}`
+                    },
+                    {
+                        label: 'Sentiment Score',
+                        value: `${(data.sentiment.overall * 100).toFixed(0)}%`,
+                        change: 0.045,
+                        changeLabel: 'vs last week',
+                        description: 'Positive sentiment ratio'
+                    },
+                    {
+                        label: 'Response Time',
+                        value: `${data.support.avgResponseTime}h`,
+                        change: -0.156,
+                        changeLabel: 'vs last week',
+                        description: 'Average first response'
+                    },
+                    {
+                        label: 'Active Discussions',
+                        value: data.engagement.activeDiscussions.toLocaleString(),
+                        change: 0.123,
+                        changeLabel: 'vs last week',
+                        description: `Total: ${data.engagement.totalDiscussions.toLocaleString()}`
+                    },
+                    {
+                        label: 'Support Tickets',
+                        value: data.support.open.toLocaleString(),
+                        change: -0.089,
+                        changeLabel: 'vs yesterday',
+                        description: `Resolved: ${data.support.resolved.toLocaleString()}`
+                    },
+                    {
+                        label: 'CSAT Score',
+                        value: `${data.support.csat}/5`,
+                        change: 0.034,
+                        changeLabel: 'vs last month',
+                        description: 'Customer satisfaction'
+                    }
+                ];
+
+                kpiGrid.innerHTML = kpis.map(kpi => this.createKPICard(kpi)).join('');
+            }
+
+            createKPICard(kpi) {
+                const trendClass = kpi.change > 0 ? 'trend-up' : kpi.change < 0 ? 'trend-down' : 'trend-stable';
+                const trendIcon = kpi.change > 0 ? '↗️' : kpi.change < 0 ? '↘️' : '→';
+                const changeDisplay = kpi.change ? `${trendIcon} ${(kpi.change * 100).toFixed(1)}%` : '';
+                
+                return `
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <span class="kpi-label">${kpi.label}</span>
+                            <span class="${trendClass}">${trendIcon}</span>
+                        </div>
+                        <div class="kpi-value">${kpi.value}</div>
+                        <div class="kpi-change">
+                            <span class="${trendClass}">${changeDisplay}</span>
+                            ${kpi.changeLabel ? `<span style="color: var(--text-secondary);"> vs ${kpi.changeLabel}</span>` : ''}
+                        </div>
+                        <div class="kpi-description">${kpi.description}</div>
+                    </div>
+                `;
+            }
+
+            async loadSupportQueue() {
+                const queueContainer = document.getElementById('supportQueue');
+                const queueData = [
+                    { number: 12, label: 'Open Tickets', description: 'Awaiting response', priority: 'high' },
+                    { number: 8, label: 'In Progress', description: 'Being handled', priority: 'medium' },
+                    { number: 45, label: 'Resolved Today', description: 'Successfully closed', priority: 'low' },
+                    { number: 2.3, label: 'Avg Response Time', description: 'Hours to first reply', priority: 'low' }
+                ];
+
+                const queueHTML = queueData.map(item => `
+                    <div class="queue-card">
+                        <div class="queue-number">${item.number}</div>
+                        <div class="queue-label">${item.label}</div>
+                        <div class="queue-description">${item.description}</div>
+                    </div>
+                `).join('');
+
+                queueContainer.innerHTML = queueHTML;
+            }
+
+            async loadFeedback() {
+                const feedbackContainer = document.getElementById('feedbackContainer');
+                const feedback = [
+                    {
+                        sentiment: 'positive',
+                        message: 'Love the new deck analysis features! The combo detection is incredibly helpful for my EDH decks.',
+                        timestamp: new Date(Date.now() - 3600000),
+                        source: 'App Store'
+                    },
+                    {
+                        sentiment: 'neutral',
+                        message: 'Good tool, but would love to see more advanced export options. CSV would be great.',
+                        timestamp: new Date(Date.now() - 7200000),
+                        source: 'Website'
+                    },
+                    {
+                        sentiment: 'positive',
+                        message: 'The mana base analysis helped me optimize my modern deck significantly. Thanks!',
+                        timestamp: new Date(Date.now() - 10800000),
+                        source: 'Twitter'
+                    },
+                    {
+                        sentiment: 'negative',
+                        message: 'Having trouble importing decks from Moxfield. Keeps giving me parse errors.',
+                        timestamp: new Date(Date.now() - 14400000),
+                        source: 'Discord'
+                    }
+                ];
+
+                const feedbackHTML = feedback.map(item => `
+                    <div class="feedback-item">
+                        <span class="feedback-sentiment ${item.sentiment}">${item.sentiment}</span>
+                        <div class="feedback-content">
+                            <div class="feedback-message">${item.message}</div>
+                            <div class="feedback-meta">
+                                ${item.source} • ${item.timestamp.toLocaleString()}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                feedbackContainer.innerHTML = feedbackHTML;
+            }
+
+            async loadInsights() {
+                const insightsContainer = document.getElementById('insightsContainer');
+                const insights = [
+                    {
+                        type: 'success',
+                        title: 'High User Satisfaction',
+                        message: 'CSAT score has improved to 4.6/5 this month, with positive sentiment at 72%.',
+                        actions: ['View Details', 'Celebrate Team']
+                    },
+                    {
+                        type: 'warning',
+                        title: 'Response Time Increase',
+                        message: 'Average response time has increased by 15.6%. Consider scaling support team.',
+                        actions: ['Analyze Queue', 'Hiring Plan']
+                    },
+                    {
+                        type: 'info',
+                        title: 'Feature Request Trend',
+                        message: 'Multiple users requesting CSV export and Moxfield integration improvements.',
+                        actions: ['Review Requests', 'Prioritize Features']
+                    }
+                ];
+
+                insightsContainer.innerHTML = insights.map(insight => this.createAlert(insight)).join('');
+            }
+
+            createAlert(alert) {
+                const alertClass = alert.type === 'error' ? 'alert-error' : 
+                                  alert.type === 'success' ? 'alert-success' : 'alert-warning';
+                
+                const actions = alert.actions.map(action => 
+                    `<button class="btn btn-secondary" onclick="handleAction('${action}')">${action}</button>`
+                ).join('');
+
+                return `
+                    <div class="alert-banner ${alertClass}">
+                        <div class="alert-content">
+                            <div>
+                                <div class="alert-title">${alert.title}</div>
+                                <div class="alert-message">${alert.message}</div>
+                            </div>
+                        </div>
+                        <div class="alert-actions">${actions}</div>
+                    </div>
+                `;
+            }
+
+            renderError(containerId, message) {
+                const container = document.getElementById(containerId);
+                container.innerHTML = `
+                    <div class="alert-banner alert-error">
+                        <div class="alert-content">
+                            <div class="alert-title">Error</div>
+                            <div class="alert-message">${message}</div>
+                        </div>
+                        <div class="alert-actions">
+                            <button class="btn btn-secondary" onclick="refreshData()">Retry</button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            initCharts() {
+                // Placeholder for chart initialization
+                console.log('Community charts would be initialized here with Chart.js or similar');
+            }
+
+            startRealtimeUpdates() {
+                const eventSource = new EventSource(`${this.apiBase}/api/analytics/live/updates`);
+                
+                eventSource.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        console.log('Real-time community update:', data);
+                        // Update dashboard with real-time data
+                    } catch (error) {
+                        console.error('Failed to parse real-time update:', error);
+                    }
+                };
+
+                eventSource.onerror = (error) => {
+                    console.error('Real-time connection error:', error);
+                };
+            }
+        }
+
+        // Global functions
+        function handleAction(action) {
+            console.log('Action clicked:', action);
+            // Handle dashboard actions
+        }
+
+        function refreshData() {
+            location.reload();
+        }
+
+        function exportReport() {
+            console.log('Exporting community report...');
+            // Export functionality
+        }
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            new CommunityDashboard();
+        });
+    </script>
+<script type="module" src="/src/shared/discord-popup.ts"></script>
+</body>
+</html>

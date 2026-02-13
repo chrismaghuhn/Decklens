@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DeckLens - EDH Bot Arena</title>
+  <link rel="stylesheet" href="/shared.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* ==================== EDH Bot Arena Styles ==================== */
+
+    body { overflow: hidden; }
+
+    /* === Layout Grid === */
+    .pvb-container {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      grid-template-columns: 1fr 280px;
+      height: 100vh;
+      background: var(--bg-0);
+    }
+
+    /* === Top Bar (Action Panel) === */
+    .pvb-topbar {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1rem;
+      background: var(--bg-1);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      z-index: 20;
+    }
+    .pvb-turn { font-family: 'Cinzel', serif; font-size: 0.9rem; color: var(--gold); font-weight: 600; }
+    .pvb-phase { font-size: 0.78rem; color: var(--text-dim); padding: 0.2rem 0.6rem; background: var(--bg-3); border-radius: var(--radius-pill); }
+    .pvb-sep { width: 1px; height: 24px; background: var(--border-light); margin: 0 0.25rem; }
+    .pvb-life-display { display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; }
+    .pvb-life-display .life-val { font-weight: 700; font-size: 1rem; }
+    .pvb-life-display .you { color: var(--success); }
+    .pvb-life-display .bot { color: var(--danger); }
+    .pvb-priority {
+      padding: 0.25rem 0.75rem; border-radius: var(--radius-pill);
+      font-size: 0.75rem; font-weight: 600; transition: all 0.3s;
+    }
+    .pvb-priority.yours { background: var(--gold); color: #000; animation: priorityPulse 2s ease-in-out infinite; }
+    .pvb-priority.theirs { background: var(--bg-3); color: var(--text-dim); }
+
+    .pvb-actions { display: flex; gap: 0.35rem; margin-left: auto; }
+    .pvb-btn {
+      padding: 0.3rem 0.7rem; border: 1px solid var(--border-light); border-radius: var(--radius-pill);
+      background: var(--bg-3); color: var(--text); font-size: 0.75rem; font-weight: 500;
+      cursor: pointer; transition: var(--transition); font-family: 'Outfit', sans-serif;
+    }
+    .pvb-btn:hover:not(:disabled) { background: var(--bg-4); border-color: var(--gold); color: var(--gold); }
+    .pvb-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .pvb-btn.primary { background: linear-gradient(135deg, var(--gold), var(--gold-dark)); color: #000; border-color: var(--gold); font-weight: 700; }
+    .pvb-btn.primary:hover:not(:disabled) { box-shadow: 0 0 16px var(--gold-glow); }
+    .pvb-btn.danger { border-color: var(--danger); color: var(--danger); }
+    .pvb-btn.danger:hover:not(:disabled) { background: var(--danger); color: #fff; }
+
+    /* === Main Game Area === */
+    .pvb-main {
+      grid-column: 1; grid-row: 2;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Opponent Zone */
+    .pvb-opponent {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.6rem 1rem;
+      background: var(--bg-2);
+      border-bottom: 1px solid var(--border);
+      min-height: 80px;
+    }
+    .pvb-opp-info { display: flex; flex-direction: column; gap: 0.15rem; min-width: 120px; }
+    .pvb-opp-name { font-family: 'Cinzel', serif; font-size: 0.85rem; color: var(--text-bright); }
+    .pvb-opp-life { font-size: 0.8rem; color: var(--text-dim); }
+    .pvb-opp-hand {
+      display: flex; gap: 0.15rem; flex-wrap: nowrap; overflow-x: auto;
+    }
+    .pvb-card-back {
+      width: 32px; height: 45px; background: linear-gradient(135deg, var(--bg-4), var(--bg-3));
+      border: 1px solid var(--border-light); border-radius: 3px; flex-shrink: 0;
+    }
+    .pvb-opp-visible-card {
+      width: 40px; height: 56px; border-radius: 3px; overflow: hidden;
+      border: 1px solid var(--border-light); flex-shrink: 0; cursor: pointer;
+      transition: transform 0.15s; background: var(--bg-3);
+    }
+    .pvb-opp-visible-card img { width: 100%; height: 100%; object-fit: cover; }
+    .pvb-opp-visible-card:hover { transform: scale(1.4); z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.6); }
+    .pvb-opp-card-name {
+      display: flex; align-items: center; justify-content: center;
+      width: 100%; height: 100%; font-size: 0.4rem; text-align: center;
+      color: var(--text-dim); padding: 2px; line-height: 1.1;
+    }
+    .pvb-opp-commander {
+      width: 55px; height: 77px; border-radius: 5px; border: 2px solid var(--gold);
+      overflow: hidden; flex-shrink: 0; background: var(--bg-3);
+    }
+    .pvb-opp-commander img { width: 100%; height: 100%; object-fit: cover; }
+
+    /* Battlefield */
+    .pvb-battlefield {
+      flex: 1; display: flex; flex-direction: column;
+      min-height: 0;
+      position: relative;
+    }
+    .pvb-bf-zone {
+      flex: 1; display: flex; flex-wrap: wrap; align-content: flex-start;
+      gap: 0.4rem; padding: 0.5rem 0.75rem;
+      min-height: 80px; overflow-y: auto;
+    }
+    .pvb-bf-bot { border-bottom: 1px dashed var(--border); }
+    .pvb-bf-you { }
+    .pvb-bf-label {
+      font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--text-dim); padding: 0.15rem 0.5rem; flex-basis: 100%;
+      font-weight: 600;
+    }
+
+    /* Cards on battlefield */
+    .pvb-card {
+      width: 80px; height: 112px; border-radius: 5px;
+      border: 1px solid var(--border-light); overflow: hidden;
+      cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
+      position: relative; background: var(--bg-3); flex-shrink: 0;
+    }
+    .pvb-card img { width: 100%; height: 100%; object-fit: cover; }
+    .pvb-card:hover { transform: scale(1.08); z-index: 5; box-shadow: 0 4px 16px rgba(0,0,0,0.6); }
+    .pvb-card.tapped { transform: rotate(90deg); margin: 10px 18px; }
+    .pvb-card.tapped:hover { transform: rotate(90deg) scale(1.08); }
+    .pvb-card.selected { border: 2px solid var(--gold); box-shadow: 0 0 12px var(--gold-glow); }
+    .pvb-card.legal-target { border: 2px solid var(--gold); box-shadow: 0 0 12px var(--gold-glow); cursor: crosshair; }
+    .pvb-card.attacking { border: 2px solid var(--danger); box-shadow: 0 0 10px rgba(239,68,68,0.3); }
+    .pvb-card.blocking { border: 2px solid var(--accent); box-shadow: 0 0 10px rgba(99,102,241,0.3); }
+    .pvb-card .summoning-sick { position: absolute; bottom: 2px; right: 2px; font-size: 0.55rem; background: var(--warning); color: #000; padding: 0 3px; border-radius: 3px; }
+    .pvb-card .pt-badge {
+      position: absolute; bottom: 1px; left: 1px; font-size: 0.6rem; font-weight: 700;
+      background: rgba(0,0,0,0.8); color: #fff; padding: 1px 4px; border-radius: 3px;
+    }
+    .pvb-card-name-fallback {
+      display: flex; align-items: center; justify-content: center;
+      width: 100%; height: 100%; font-size: 0.55rem; text-align: center;
+      color: var(--text-dim); padding: 4px; line-height: 1.2;
+    }
+
+    /* Hand Zone */
+    .pvb-hand {
+      grid-column: 1 / -1; grid-row: 3;
+      padding: 0.5rem 1rem;
+      background: var(--bg-1);
+      border-top: 1px solid var(--border);
+      display: flex; gap: 0.5rem;
+      overflow-x: auto; overflow-y: hidden;
+      max-height: 170px; align-items: flex-end;
+    }
+    .pvb-your-commander {
+      width: 80px; height: 112px; border-radius: 6px; border: 2px solid var(--gold);
+      overflow: hidden; flex-shrink: 0; background: var(--bg-3);
+      box-shadow: 0 0 10px var(--gold-glow);
+    }
+    .pvb-your-commander img { width: 100%; height: 100%; object-fit: cover; }
+    .pvb-your-commander .pvb-cmd-label {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      font-size: 0.5rem; text-align: center; padding: 1px;
+      background: rgba(0,0,0,0.7); color: var(--gold); font-weight: 600;
+    }
+    .pvb-hand-cards {
+      display: flex; gap: 0.5rem; overflow-x: auto; align-items: flex-end; flex: 1;
+    }
+    .pvb-hand-cards .pvb-card {
+      width: 100px; height: 140px; flex-shrink: 0;
+      transition: transform 0.2s;
+    }
+    .pvb-hand-cards .pvb-card:hover { transform: translateY(-14px) scale(1.05); }
+    .pvb-hand-cards .pvb-card.selected { transform: translateY(-18px); }
+
+    /* === Side Panel === */
+    .pvb-side {
+      grid-column: 2; grid-row: 2 / 4;
+      display: flex; flex-direction: column; gap: 0.5rem;
+      padding: 0.75rem;
+      background: var(--bg-2);
+      border-left: 1px solid var(--border);
+      overflow-y: auto;
+      font-size: 0.78rem;
+    }
+    .pvb-zone-title {
+      font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 0.72rem;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--text-dim); padding-bottom: 0.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .pvb-zone-count { color: var(--gold); font-weight: 700; }
+
+    /* Stack */
+    .pvb-stack-panel { display: flex; flex-direction: column; gap: 0.3rem; }
+    .pvb-stack-item {
+      display: flex; gap: 0.5rem; padding: 0.35rem;
+      background: var(--bg-3); border-radius: var(--radius-sm);
+      border-left: 3px solid var(--accent);
+      align-items: center;
+    }
+    .pvb-stack-item img { width: 30px; height: 42px; border-radius: 2px; object-fit: cover; }
+    .pvb-stack-name { font-weight: 600; font-size: 0.72rem; color: var(--text-bright); }
+    .pvb-stack-controller { font-size: 0.65rem; color: var(--text-dim); }
+    .pvb-stack-empty { color: var(--text-dim); font-style: italic; font-size: 0.72rem; padding: 0.25rem 0; }
+
+    /* Zone browser (graveyard, exile, etc.) */
+    .pvb-zone-browser {
+      display: flex; flex-direction: column; gap: 0.15rem;
+    }
+    .pvb-zone-link {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0.3rem 0.4rem; cursor: pointer; border-radius: 6px;
+      transition: var(--transition);
+    }
+    .pvb-zone-link:hover { background: var(--bg-3); }
+
+    /* Game Log */
+    .pvb-log { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .pvb-log-scroll {
+      flex: 1; overflow-y: auto; font-family: 'JetBrains Mono', monospace;
+      font-size: 0.68rem; line-height: 1.6; padding-top: 0.25rem;
+    }
+    .pvb-log-entry { padding: 0.1rem 0; }
+    .pvb-log-turn { color: var(--text-dim); }
+    .pvb-log-you { color: var(--success); }
+    .pvb-log-bot { color: var(--danger); }
+    .pvb-log-phase { color: var(--text-dim); font-style: italic; border-top: 1px solid var(--border); margin-top: 0.15rem; padding-top: 0.15rem; }
+
+    /* === Overlays === */
+    .pvb-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(0,0,0,0.85); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .pvb-overlay.hidden { display: none; }
+
+    /* Deck Selector */
+    .pvb-deck-selector {
+      max-width: 700px; width: 90%;
+      text-align: center; padding: 2rem;
+    }
+    .pvb-deck-selector h1 { font-family: 'Cinzel', serif; font-size: 2rem; color: var(--gold); margin-bottom: 0.5rem; }
+    .pvb-deck-selector h2 { font-family: 'Outfit', sans-serif; font-size: 1rem; color: var(--text-dim); margin-bottom: 1.5rem; }
+    .pvb-deck-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 0.75rem; margin-bottom: 1.5rem;
+    }
+    .pvb-deck-option {
+      background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 0.5rem; cursor: pointer; transition: var(--transition);
+      text-align: center;
+    }
+    .pvb-deck-option:hover { border-color: var(--gold); box-shadow: 0 0 12px var(--gold-glow); }
+    .pvb-deck-option.selected { border-color: var(--gold); background: var(--bg-3); }
+    .pvb-deck-option img { width: 100%; aspect-ratio: 488/680; object-fit: cover; border-radius: 4px; margin-bottom: 0.35rem; }
+    .pvb-deck-name { font-size: 0.75rem; font-weight: 600; color: var(--text-bright); }
+    .pvb-deck-commander { font-size: 0.65rem; color: var(--text-dim); }
+
+    /* Bot Selector */
+    .pvb-bot-selector {
+      margin: 1.25rem 0; padding: 1rem;
+      background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius);
+    }
+    .pvb-bot-selector h3 {
+      font-family: 'Cinzel', serif; font-size: 0.9rem; color: var(--text-bright);
+      margin: 0 0 0.75rem 0;
+    }
+    .pvb-bot-options {
+      display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;
+    }
+    .pvb-bot-option {
+      display: flex; flex-direction: column; align-items: center; gap: 0.25rem;
+      padding: 0.75rem 1.25rem; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      background: var(--bg-1); cursor: pointer; transition: var(--transition);
+      min-width: 160px; position: relative;
+    }
+    .pvb-bot-option:hover { border-color: var(--gold); }
+    .pvb-bot-option:has(input:checked) {
+      border-color: var(--gold); background: var(--bg-3);
+      box-shadow: 0 0 12px var(--gold-glow);
+    }
+    .pvb-bot-option input[type="radio"] { display: none; }
+    .pvb-bot-label { font-weight: 600; font-size: 0.85rem; color: var(--text-bright); }
+    .pvb-bot-desc { font-size: 0.7rem; color: var(--text-dim); }
+    .pvb-bot-badge {
+      font-size: 0.6rem; padding: 0.1rem 0.4rem; border-radius: var(--radius-pill);
+      font-weight: 600; margin-top: 0.15rem;
+    }
+    .pvb-bot-badge.trained { background: var(--success); color: #000; }
+    .pvb-bot-badge.untrained { background: var(--bg-4); color: var(--text-dim); }
+    .pvb-train-link {
+      display: inline-block; margin-top: 0.75rem;
+      font-size: 0.75rem; color: var(--gold); text-decoration: none;
+      transition: var(--transition);
+    }
+    .pvb-train-link:hover { color: var(--gold); text-decoration: underline; }
+
+    .pvb-import-area {
+      background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 1rem; margin-top: 1rem;
+    }
+    .pvb-import-area textarea {
+      width: 100%; min-height: 150px; background: var(--bg-1); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text); padding: 0.5rem;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; resize: vertical;
+    }
+    .pvb-import-actions { display: flex; gap: 0.5rem; justify-content: center; margin-top: 0.75rem; }
+
+    /* Mulligan */
+    .pvb-mulligan-panel {
+      max-width: 800px; width: 95%; text-align: center; padding: 1.5rem;
+      background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius);
+    }
+    .pvb-mulligan-title { font-family: 'Cinzel', serif; font-size: 1.3rem; color: var(--gold); margin-bottom: 0.75rem; }
+    .pvb-mulligan-hand {
+      display: flex; gap: 0.5rem; justify-content: center; margin-bottom: 1rem; flex-wrap: wrap;
+    }
+    .pvb-mulligan-hand .pvb-card { width: 90px; height: 126px; }
+    .pvb-mulligan-hand .pvb-card.bottom-select {
+      border: 2px dashed var(--danger); opacity: 0.6;
+    }
+    .pvb-mulligan-hand .pvb-card.bottom-select::after {
+      content: 'BOTTOM'; position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.5); color: var(--danger); font-weight: 700; font-size: 0.6rem;
+    }
+    .pvb-mulligan-stats { font-size: 0.78rem; color: var(--text-dim); margin-bottom: 1rem; display: flex; gap: 1rem; justify-content: center; }
+    .pvb-mulligan-actions { display: flex; gap: 0.5rem; justify-content: center; }
+
+    /* Combat overlay */
+    .pvb-combat-overlay {
+      position: absolute; inset: 0; z-index: 15;
+      background: rgba(0,0,0,0.3); backdrop-filter: blur(1px);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 0.5rem; padding: 1rem;
+    }
+    .pvb-combat-overlay.hidden { display: none; }
+    .pvb-combat-title { font-family: 'Cinzel', serif; font-size: 1rem; color: var(--gold); }
+    .pvb-combat-creatures {
+      display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center;
+    }
+    .pvb-combat-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+
+    /* Game Over */
+    .pvb-gameover {
+      text-align: center; padding: 2rem;
+      background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius);
+    }
+    .pvb-gameover h2 { font-family: 'Cinzel', serif; font-size: 2rem; margin-bottom: 0.5rem; }
+    .pvb-gameover.win h2 { color: var(--gold); }
+    .pvb-gameover.loss h2 { color: var(--danger); }
+    .pvb-gameover-stats { font-size: 0.85rem; color: var(--text-dim); margin: 1rem 0; }
+    .pvb-gameover-actions { display: flex; gap: 0.5rem; justify-content: center; }
+
+    /* Bot thinking */
+    .pvb-bot-thinking {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-pill);
+      padding: 0.5rem 1.25rem; font-size: 0.78rem; color: var(--text-dim);
+      animation: botThinking 1.5s ease-in-out infinite;
+      z-index: 10; pointer-events: none;
+    }
+    .pvb-bot-thinking.hidden { display: none; }
+
+    /* Card hover preview */
+    .pvb-preview {
+      position: fixed; z-index: 200; pointer-events: none;
+      width: 250px; border-radius: 10px; overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+      transition: opacity 0.15s;
+      opacity: 0;
+    }
+    .pvb-preview.visible { opacity: 1; }
+    .pvb-preview img { width: 100%; display: block; }
+
+    /* === Animations === */
+    @keyframes priorityPulse {
+      0%, 100% { box-shadow: 0 0 6px var(--gold-glow); }
+      50% { box-shadow: 0 0 14px var(--gold-glow); }
+    }
+    @keyframes botThinking {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+    @keyframes cardEnter {
+      from { transform: translateY(30px) scale(0.9); opacity: 0; }
+      to { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    .pvb-card.entering { animation: cardEnter 0.25s ease-out; }
+  </style>
+</head>
+<body>
+  <!-- Deck Selector Overlay -->
+  <div id="deck-overlay" class="pvb-overlay">
+    <div class="pvb-deck-selector">
+      <h1>EDH Bot Arena</h1>
+      <h2>Select Your Commander Deck</h2>
+      <div id="deck-grid" class="pvb-deck-grid"></div>
+      <div class="pvb-bot-selector">
+        <h3>Opponent Bot</h3>
+        <div class="pvb-bot-options">
+          <label class="pvb-bot-option">
+            <input type="radio" name="bot-type" value="heuristic" checked>
+            <span class="pvb-bot-label">Heuristic Bot</span>
+            <span class="pvb-bot-desc">Rule-based decisions</span>
+          </label>
+          <label class="pvb-bot-option" id="ml-bot-option">
+            <input type="radio" name="bot-type" value="ml">
+            <span class="pvb-bot-label">ML Bot</span>
+            <span class="pvb-bot-desc">Neural network</span>
+            <span id="ml-bot-badge" class="pvb-bot-badge untrained">Not trained</span>
+          </label>
+        </div>
+        <a href="/train-bot.html" class="pvb-train-link">Train ML Bot &rarr;</a>
+      </div>
+      <div class="pvb-import-area">
+        <textarea id="deck-import" placeholder="Or paste a decklist (Arena/MTGO format)&#10;&#10;1 Sol Ring&#10;1 Command Tower&#10;1 Lightning Greaves&#10;..."></textarea>
+        <div class="pvb-import-actions">
+          <button class="pvb-btn primary" id="btn-start-import">Start Game</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mulligan Overlay -->
+  <div id="mulligan-overlay" class="pvb-overlay hidden">
+    <div class="pvb-mulligan-panel">
+      <div class="pvb-mulligan-title" id="mulligan-title">Opening Hand</div>
+      <div id="mulligan-hand" class="pvb-mulligan-hand"></div>
+      <div id="mulligan-stats" class="pvb-mulligan-stats"></div>
+      <div id="mulligan-actions" class="pvb-mulligan-actions"></div>
+    </div>
+  </div>
+
+  <!-- Game Over Overlay -->
+  <div id="gameover-overlay" class="pvb-overlay hidden">
+    <div id="gameover-panel" class="pvb-gameover"></div>
+  </div>
+
+  <!-- Main Game Board -->
+  <div id="game-container" class="pvb-container" style="display:none;">
+    <!-- Top Bar -->
+    <div class="pvb-topbar">
+      <span class="pvb-turn" id="turn-display">Turn 1</span>
+      <span class="pvb-phase" id="phase-display">Main 1</span>
+      <div class="pvb-sep"></div>
+      <div class="pvb-life-display">
+        You: <span class="life-val you" id="your-life">40</span>
+        <div class="pvb-sep"></div>
+        Bot: <span class="life-val bot" id="bot-life">40</span>
+      </div>
+      <div class="pvb-sep"></div>
+      <span class="pvb-priority yours" id="priority-display">Your Priority</span>
+      <div class="pvb-actions">
+        <button class="pvb-btn" id="btn-pass">Pass</button>
+        <button class="pvb-btn primary" id="btn-end-turn">End Turn</button>
+        <button class="pvb-btn" id="btn-undo" disabled>Undo</button>
+        <button class="pvb-btn danger" id="btn-concede">Concede</button>
+      </div>
+    </div>
+
+    <!-- Main Area -->
+    <div class="pvb-main">
+      <!-- Opponent Zone -->
+      <div class="pvb-opponent">
+        <div id="opp-commander" class="pvb-opp-commander"></div>
+        <div class="pvb-opp-info">
+          <span class="pvb-opp-name">Bot</span>
+          <span class="pvb-opp-life" id="opp-life-detail">Life: 40 | Poison: 0</span>
+        </div>
+        <div id="opp-hand-display" class="pvb-opp-hand"></div>
+      </div>
+
+      <!-- Battlefield -->
+      <div class="pvb-battlefield" id="battlefield">
+        <div class="pvb-bf-zone pvb-bf-bot" id="bf-bot">
+          <span class="pvb-bf-label">Bot's Battlefield</span>
+        </div>
+        <div class="pvb-bf-zone pvb-bf-you" id="bf-you">
+          <span class="pvb-bf-label">Your Battlefield</span>
+        </div>
+        <div class="pvb-bot-thinking hidden" id="bot-thinking">Bot is thinking...</div>
+        <div class="pvb-combat-overlay hidden" id="combat-overlay">
+          <div class="pvb-combat-title" id="combat-title"></div>
+          <div class="pvb-combat-creatures" id="combat-creatures"></div>
+          <div class="pvb-combat-actions" id="combat-actions"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Side Panel -->
+    <div class="pvb-side">
+      <!-- Stack -->
+      <div>
+        <div class="pvb-zone-title">Stack <span class="pvb-zone-count" id="stack-count">0</span></div>
+        <div class="pvb-stack-panel" id="stack-display">
+          <div class="pvb-stack-empty">Stack is empty</div>
+        </div>
+      </div>
+
+      <!-- Zones -->
+      <div>
+        <div class="pvb-zone-title">Zones</div>
+        <div class="pvb-zone-browser">
+          <div class="pvb-zone-link"><span>Your Library</span><span class="pvb-zone-count" id="your-library-count">0</span></div>
+          <div class="pvb-zone-link"><span>Your Graveyard</span><span class="pvb-zone-count" id="your-gy-count">0</span></div>
+          <div class="pvb-zone-link"><span>Your Exile</span><span class="pvb-zone-count" id="your-exile-count">0</span></div>
+          <div class="pvb-zone-link"><span>Bot Library</span><span class="pvb-zone-count" id="bot-library-count">0</span></div>
+          <div class="pvb-zone-link"><span>Bot Graveyard</span><span class="pvb-zone-count" id="bot-gy-count">0</span></div>
+          <div class="pvb-zone-link"><span>Bot Exile</span><span class="pvb-zone-count" id="bot-exile-count">0</span></div>
+        </div>
+      </div>
+
+      <!-- Game Log -->
+      <div class="pvb-log">
+        <div class="pvb-zone-title">Game Log</div>
+        <div class="pvb-log-scroll" id="game-log"></div>
+      </div>
+    </div>
+
+    <!-- Player Hand + Commander -->
+    <div class="pvb-hand">
+      <div id="your-commander" class="pvb-your-commander"></div>
+      <div id="player-hand" class="pvb-hand-cards"></div>
+    </div>
+  </div>
+
+  <!-- Card Hover Preview -->
+  <div class="pvb-preview" id="card-preview">
+    <img src="" alt="" />
+  </div>
+
+  <script type="module" src="/src/play-vs-bot/main.ts"></script>
+</body>
+</html>

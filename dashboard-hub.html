@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeckLens Dashboard Hub</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #3b82f6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --text: #1f2937;
+            --text-secondary: #6b7280;
+            --border: #e5e7eb;
+            --bg: #ffffff;
+            --bg-secondary: #f9fafb;
+            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .hero {
+            background: var(--bg-gradient);
+            color: white;
+            padding: 4rem 2rem 3rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.1'/%3E%3C/svg%3E");
+            }
+
+        .hero-content {
+            position: relative;
+            z-index: 2;
+        }
+
+        .hero-title {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            animation: fadeInUp 0.8s ease;
+        }
+
+        .hero-subtitle {
+            font-size: 1.25rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+            animation: fadeInUp 0.8s ease 0.2s both;
+        }
+
+        .hero-stats {
+            display: flex;
+            justify-content: center;
+            gap: 3rem;
+            margin-bottom: 2rem;
+            animation: fadeInUp 0.8s ease 0.4s both;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+            flex: 1;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .dashboard-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .dashboard-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--primary);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .dashboard-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+            border-color: var(--primary);
+        }
+
+        .dashboard-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+            gap: 1rem;
+        }
+
+        .card-icon {
+            font-size: 2.5rem;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .card-description {
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+
+        .card-features {
+            list-style: none;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-features li {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .card-features li::before {
+            content: '✓';
+            color: var(--success);
+            font-weight: bold;
+            margin-right: 0.75rem;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+            transform: translateY(-1px);
+        }
+
+        .btn-full {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: var(--success);
+            color: white;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-left: 0.5rem;
+        }
+
+        .badge-new {
+            background: var(--warning);
+        }
+
+        .status-indicator {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .quick-access {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 3rem;
+            text-align: center;
+        }
+
+        .quick-access h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1.5rem;
+            color: var(--text);
+        }
+
+        .quick-links {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .quick-link {
+            padding: 0.5rem 1rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .quick-link:hover {
+            background: var(--primary);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .footer {
+            background: var(--bg-secondary);
+            padding: 2rem;
+            text-align: center;
+            border-top: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .footer-links a:hover {
+            color: var(--primary);
+        }
+
+        @media (max-width: 768px) {
+            .hero {
+                padding: 2rem 1rem;
+            }
+
+            .hero-title {
+                font-size: 2rem;
+            }
+
+            .hero-subtitle {
+                font-size: 1rem;
+            }
+
+            .hero-stats {
+                gap: 1.5rem;
+                flex-direction: column;
+            }
+
+            .container {
+                padding: 2rem 1rem;
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+
+            .quick-links {
+                flex-direction: column;
+                align-items: center;
+                gap: 0.5rem;
+            }
+
+            .card-actions {
+                flex-direction: column;
+            }
+
+            .btn-full {
+                flex-direction: row;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Hero Section -->
+    <header class="hero">
+        <div class="hero-content">
+            <h1 class="hero-title">📊 DeckLens Dashboard Hub</h1>
+            <p class="hero-subtitle">Real-time insights for strategic decision-making</p>
+            <div class="hero-stats">
+                <div class="stat-item">
+                    <span class="stat-number">5</span>
+                    <span class="stat-label">Dashboards</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">24/7</span>
+                    <span class="stat-label">Live Data</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">100%</span>
+                    <span class="stat-label">Mobile Ready</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container">
+        <!-- Quick Access -->
+        <section class="quick-access">
+            <h2>🚀 Quick Access</h2>
+            <div class="quick-links">
+                <a href="https://decklens.pages.dev/mtg" class="quick-link">🎯 MTG App</a>
+                <a href="https://decklens.pages.dev/community" class="quick-link">👥 Community</a>
+                <a href="https://decklens.pages.dev/yugioh" class="quick-link">🎴 Yu-Gi-Oh!</a>
+            </div>
+        </section>
+
+        <!-- Dashboard Grid -->
+        <section class="dashboard-grid">
+            <!-- Executive Dashboard -->
+            <div class="dashboard-card">
+                <div class="status-indicator"></div>
+                <div class="card-header">
+                    <div class="card-icon">📊</div>
+                    <h3 class="card-title">Executive Dashboard</h3>
+                </div>
+                <p class="card-description">
+                    High-level business metrics and strategic KPIs for stakeholders. Revenue tracking, user analytics, and product performance.
+                </p>
+                <ul class="card-features">
+                    <li>Revenue & Business Analytics</li>
+                    <li>User & Product Metrics</li>
+                    <li>ARPU & LTV Tracking</li>
+                    <li>Strategic Insights</li>
+                </ul>
+                <div class="card-actions">
+                    <a href="/dashboard/executive" class="btn btn-primary btn-full">
+                        🚀 Open Dashboard
+                    </a>
+                    <a href="https://decklens-api.chrisgarkisch.workers.dev/api/analytics/kpi/business" class="btn btn-secondary">
+                        📡 API Endpoint
+                    </a>
+                </div>
+            </div>
+
+            <!-- Growth Dashboard -->
+            <div class="dashboard-card">
+                <div class="status-indicator"></div>
+                <div class="card-header">
+                    <div class="card-icon">📈</div>
+                    <h3 class="card-title">Growth Dashboard</h3>
+                </div>
+                <p class="card-description">
+                    Product metrics, funnel analysis, and user engagement for product teams. Conversion tracking and cohort retention analysis.
+                </p>
+                <ul class="card-features">
+                    <li>Conversion Funnel Analysis</li>
+                    <li>User Journey Tracking</li>
+                    <li>Cohort Retention</li>
+                    <li>Engagement Analytics</li>
+                </ul>
+                <div class="card-actions">
+                    <a href="/dashboard/growth" class="btn btn-primary btn-full">
+                        🚀 Open Dashboard
+                    </a>
+                    <a href="https://decklens-api.chrisgarkisch.workers.dev/api/analytics/kpi/growth" class="btn btn-secondary">
+                        📡 API Endpoint
+                    </a>
+                </div>
+            </div>
+
+            <!-- Technical Dashboard -->
+            <div class="dashboard-card">
+                <div class="status-indicator"></div>
+                <div class="card-header">
+                    <div class="card-icon">⚡</div>
+                    <h3 class="card-title">Technical Dashboard</h3>
+                </div>
+                <p class="card-description">
+                    System performance, infrastructure health, and quality metrics for engineering teams. Real-time monitoring and alerting.
+                </p>
+                <ul class="card-features">
+                    <li>API Performance Monitoring</li>
+                    <li>Infrastructure Health</li>
+                    <li>System Quality Metrics</li>
+                    <li>Alert Management</li>
+                </ul>
+                <div class="card-actions">
+                    <a href="/dashboard/technical" class="btn btn-primary btn-full">
+                        🚀 Open Dashboard
+                    </a>
+                    <a href="https://decklens-api.chrisgarkisch.workers.dev/api/analytics/kpi/technical" class="btn btn-secondary">
+                        📡 API Endpoint
+                    </a>
+                </div>
+            </div>
+
+            <!-- Community Dashboard -->
+            <div class="dashboard-card">
+                <div class="status-indicator"></div>
+                <div class="card-header">
+                    <div class="card-icon">👥</div>
+                    <h3 class="card-title">Community Dashboard</h3>
+                </div>
+                <p class="card-description">
+                    User feedback, sentiment analysis, and support metrics for community managers. Response time tracking and queue management.
+                </p>
+                <ul class="card-features">
+                    <li>Feedback Volume Analysis</li>
+                    <li>Sentiment Tracking</li>
+                    <li>Support Queue Management</li>
+                    <li>Community Insights</li>
+                </ul>
+                <div class="card-actions">
+                    <a href="/dashboard/community" class="btn btn-primary btn-full">
+                        🚀 Open Dashboard
+                    </a>
+                    <a href="https://decklens-api.chrisgarkisch.workers.dev/api/analytics/kpi/community" class="btn btn-secondary">
+                        📡 API Endpoint
+                    </a>
+                </div>
+            </div>
+
+            <!-- Public Dashboard -->
+            <div class="dashboard-card">
+                <div class="status-indicator"></div>
+                <div class="card-header">
+                    <div class="card-icon">🌍</div>
+                    <h3 class="card-title">Public Dashboard</h3>
+                </div>
+                <p class="card-description">
+                    Transparent metrics and platform insights for stakeholders and the community. Growth data and performance transparency.
+                </p>
+                <ul class="card-features">
+                    <li>Transparent Platform Metrics</li>
+                    <li>Growth & Adoption Data</li>
+                    <li>Performance Status</li>
+                    <li>Community Satisfaction</li>
+                </ul>
+                <div class="card-actions">
+                    <a href="/dashboard/public" class="btn btn-primary btn-full">
+                        🚀 Open Dashboard
+                    </a>
+                    <a href="https://decklens-api.chrisgarkisch.workers.dev/api/analytics/public/summary" class="btn btn-secondary">
+                        📡 API Endpoint
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- API Documentation -->
+        <section class="dashboard-card">
+            <div class="card-header">
+                <div class="card-icon">📡</div>
+                <h3 class="card-title">API Documentation</h3>
+            </div>
+            <p class="card-description">
+                Complete API documentation for all dashboard endpoints and real-time data streams. Authentication and response examples.
+            </p>
+            <ul class="card-features">
+                <li>Business KPIs API</li>
+                <li>Growth Metrics API</li>
+                <li>Technical Monitoring API</li>
+                <li>Real-time Updates SSE</li>
+            </ul>
+            <div class="card-actions">
+                <a href="https://decklens-api.chrisgarkisch.workers.dev/api/analytics/health" class="btn btn-primary btn-full">
+                    📚 API Documentation
+                </a>
+                <a href="https://decklens-api.chrisgarkisch.workers.dev" class="btn btn-secondary">
+                    🔗 API Base URL
+                </a>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-links">
+            <a href="https://decklens.pages.dev/mtg">🎯 MTG App</a>
+            <a href="https://decklens.pages.dev/community">👥 Community</a>
+            <a href="https://decklens.pages.dev/yugioh">🎴 Yu-Gi-Oh!</a>
+            <a href="https://decklens-api.chrisgarkisch.workers.dev">📡 API</a>
+        </div>
+        <p>
+            © 2026 DeckLens. Real-time deck optimization analytics for strategic decision-making.
+        </p>
+    </footer>
+<script type="module" src="/src/shared/discord-popup.ts"></script>
+</body>
+</html>

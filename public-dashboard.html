@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Public Dashboard - DeckLens</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --primary: #0ea5e9;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --text: #1f2937;
+            --text-secondary: #6b7280;
+            --border: #e5e7eb;
+            --bg: #ffffff;
+            --bg-secondary: #f9fafb;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .dashboard-header {
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+            gap: 1rem;
+        }
+
+        .nav-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .nav-actions {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: var(--bg-secondary);
+            color: var(--text);
+        }
+
+        .btn:hover { background: var(--border); }
+
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .dashboard-section { margin-bottom: 2rem; }
+
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1rem;
+        }
+
+        .kpi-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+        }
+
+        .kpi-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.35rem;
+        }
+
+        .kpi-value {
+            font-size: 1.7rem;
+            font-weight: 700;
+            color: var(--text);
+            line-height: 1.15;
+            margin-bottom: 0.35rem;
+        }
+
+        .kpi-detail {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .trend-up { color: var(--success); }
+        .trend-down { color: var(--error); }
+        .trend-flat { color: var(--text-secondary); }
+
+        .panel {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+        }
+
+        .panel-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1rem;
+        }
+
+        .metric-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.6rem 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+
+        .metric-line:last-child { border-bottom: none; }
+
+        .progress-wrap {
+            margin-top: 0.35rem;
+            width: 100%;
+            background: var(--bg-secondary);
+            border-radius: 999px;
+            height: 8px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #38bdf8, #0ea5e9);
+            border-radius: inherit;
+        }
+
+        .alert-banner {
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--primary);
+            border-radius: 8px;
+            background: #f0f9ff;
+            padding: 0.85rem 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .alert-title { font-weight: 600; margin-bottom: 0.2rem; }
+        .alert-message { color: var(--text-secondary); font-size: 0.9rem; }
+
+        .loading {
+            text-align: center;
+            color: var(--text-secondary);
+            padding: 2rem;
+        }
+
+        .spinner {
+            border: 2px solid var(--border);
+            border-top: 2px solid var(--primary);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 0.8rem;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-container { padding: 1rem; }
+            .nav-content { flex-direction: column; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+    <header class="dashboard-header">
+        <div class="nav-content">
+            <h1 class="nav-title">Public Dashboard</h1>
+            <div class="nav-actions">
+                <button class="btn" onclick="refreshData()">Refresh</button>
+                <button class="btn" onclick="window.location.href='/dashboard-hub.html'">Dashboard Hub</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="dashboard-container">
+        <section class="dashboard-section">
+            <h2 class="section-title">Public Overview</h2>
+            <div class="kpi-grid" id="kpiGrid">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading public summary...
+                </div>
+            </div>
+        </section>
+
+        <section class="dashboard-section">
+            <h2 class="section-title">Service Transparency</h2>
+            <div class="panel-row">
+                <div class="panel">
+                    <div class="metric-line">
+                        <span>Current Uptime</span>
+                        <strong id="uptimeNow">-</strong>
+                    </div>
+                    <div class="progress-wrap">
+                        <div id="uptimeBar" class="progress-fill" style="width: 0%;"></div>
+                    </div>
+                    <div class="metric-line">
+                        <span>Last Week Uptime</span>
+                        <strong id="uptimeWeek">-</strong>
+                    </div>
+                    <div class="metric-line">
+                        <span>Total Reviews</span>
+                        <strong id="totalReviews">-</strong>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="metric-line">
+                        <span>Monthly New Users</span>
+                        <strong id="newUsersMonth">-</strong>
+                    </div>
+                    <div class="metric-line">
+                        <span>Growth Rate</span>
+                        <strong id="growthRate">-</strong>
+                    </div>
+                    <div class="metric-line">
+                        <span>Recommendations Served</span>
+                        <strong id="recommendationsGiven">-</strong>
+                    </div>
+                    <div class="metric-line">
+                        <span>Community Decks Indexed</span>
+                        <strong id="totalDecks">-</strong>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="dashboard-section">
+            <h2 class="section-title">Highlights</h2>
+            <div id="insightsContainer">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Generating insights...
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        class PublicDashboard {
+            constructor() {
+                this.apiBase = 'https://decklens-api.chrisgarkisch.workers.dev';
+                this.summary = null;
+                this.init();
+            }
+
+            async init() {
+                await this.loadSummary();
+                this.startRealtimeUpdates();
+            }
+
+            async loadSummary() {
+                try {
+                    const response = await fetch(`${this.apiBase}/api/analytics/public/summary`);
+                    const result = await response.json();
+                    if (!result || !result.ok || !result.data) {
+                        throw new Error('Invalid public summary response');
+                    }
+                    this.summary = result.data;
+                    this.renderSummary(result.data);
+                    this.renderInsights(result.data);
+                } catch (error) {
+                    console.error('Failed to load public summary:', error);
+                    this.renderError('kpiGrid', 'Unable to load public summary data right now.');
+                    this.renderError('insightsContainer', 'Unable to generate insights right now.');
+                }
+            }
+
+            renderSummary(data) {
+                const kpis = [
+                    {
+                        label: 'Community Decks',
+                        value: this.formatNumber(data.totalDecks),
+                        detail: 'Decks shared by the community'
+                    },
+                    {
+                        label: 'Active Users (30d)',
+                        value: this.formatNumber(data.activeUsers),
+                        detail: 'Unique users in last 30 days'
+                    },
+                    {
+                        label: 'Recommendations Given',
+                        value: this.formatNumber(data.recommendationsGiven),
+                        detail: 'Recommendation views in last 30 days'
+                    },
+                    {
+                        label: 'Average Rating',
+                        value: `${this.toFixedSafe(data.satisfaction?.averageRating, 1)} / 5`,
+                        detail: `${this.formatNumber(data.satisfaction?.totalReviews)} total reviews`
+                    },
+                    {
+                        label: 'Current Uptime',
+                        value: `${this.toFixedSafe(data.uptime?.percentage, 1)}%`,
+                        detail: `Last week: ${this.toFixedSafe(data.uptime?.lastWeek, 1)}%`
+                    },
+                    {
+                        label: 'Monthly Growth',
+                        value: `${this.toFixedSafe(data.growth?.growthRatePercent, 1)}%`,
+                        detail: `${this.formatNumber(data.growth?.newUsersThisMonth)} new users this month`
+                    }
+                ];
+
+                const kpiGrid = document.getElementById('kpiGrid');
+                kpiGrid.innerHTML = kpis.map((kpi) => `
+                    <div class="kpi-card">
+                        <div class="kpi-label">${kpi.label}</div>
+                        <div class="kpi-value">${kpi.value}</div>
+                        <div class="kpi-detail">${kpi.detail}</div>
+                    </div>
+                `).join('');
+
+                const uptime = this.numberOrZero(data.uptime?.percentage);
+                const growth = this.numberOrZero(data.growth?.growthRatePercent);
+
+                this.setText('uptimeNow', `${this.toFixedSafe(data.uptime?.percentage, 1)}%`);
+                this.setText('uptimeWeek', `${this.toFixedSafe(data.uptime?.lastWeek, 1)}%`);
+                this.setText('totalReviews', this.formatNumber(data.satisfaction?.totalReviews));
+                this.setText('newUsersMonth', this.formatNumber(data.growth?.newUsersThisMonth));
+                this.setText('growthRate', `${growth >= 0 ? '+' : ''}${this.toFixedSafe(growth, 1)}%`);
+                this.setText('recommendationsGiven', this.formatNumber(data.recommendationsGiven));
+                this.setText('totalDecks', this.formatNumber(data.totalDecks));
+
+                const uptimeBar = document.getElementById('uptimeBar');
+                uptimeBar.style.width = `${Math.max(0, Math.min(100, uptime))}%`;
+            }
+
+            renderInsights(data) {
+                const growth = this.numberOrZero(data.growth?.growthRatePercent);
+                const satisfaction = this.numberOrZero(data.satisfaction?.averageRating);
+                const uptime = this.numberOrZero(data.uptime?.percentage);
+
+                const trendClass = growth > 0 ? 'trend-up' : growth < 0 ? 'trend-down' : 'trend-flat';
+                const trendWord = growth > 0 ? 'growing' : growth < 0 ? 'softening' : 'stable';
+
+                const insights = [
+                    `Platform health remains strong at ${this.toFixedSafe(uptime, 1)}% uptime.`,
+                    `User growth is currently <span class="${trendClass}">${trendWord}</span> (${growth >= 0 ? '+' : ''}${this.toFixedSafe(growth, 1)}% this month).`,
+                    `Community sentiment is ${this.toFixedSafe(satisfaction, 1)}/5 from ${this.formatNumber(data.satisfaction?.totalReviews)} reviews.`
+                ];
+
+                const insightsContainer = document.getElementById('insightsContainer');
+                insightsContainer.innerHTML = insights.map((line) => `
+                    <div class="alert-banner">
+                        <div class="alert-title">Update</div>
+                        <div class="alert-message">${line}</div>
+                    </div>
+                `).join('');
+            }
+
+            startRealtimeUpdates() {
+                try {
+                    const source = new EventSource(`${this.apiBase}/api/analytics/live/updates`);
+                    source.onmessage = () => {
+                        // Keep dashboard data reasonably fresh without aggressive polling.
+                        if (document.visibilityState === 'visible') {
+                            this.loadSummary();
+                        }
+                    };
+                    source.onerror = () => {
+                        // Silently tolerate SSE disconnects on public view.
+                    };
+                } catch (error) {
+                    console.warn('Live updates unavailable:', error);
+                }
+            }
+
+            setText(id, value) {
+                const node = document.getElementById(id);
+                if (node) node.textContent = value;
+            }
+
+            renderError(containerId, message) {
+                const container = document.getElementById(containerId);
+                if (!container) return;
+                container.innerHTML = `
+                    <div class="alert-banner" style="border-left-color: var(--error); background: #fef2f2;">
+                        <div class="alert-title">Error</div>
+                        <div class="alert-message">${message}</div>
+                    </div>
+                `;
+            }
+
+            numberOrZero(value) {
+                const num = Number(value);
+                return Number.isFinite(num) ? num : 0;
+            }
+
+            toFixedSafe(value, digits) {
+                return this.numberOrZero(value).toFixed(digits);
+            }
+
+            formatNumber(value) {
+                return this.numberOrZero(value).toLocaleString();
+            }
+        }
+
+        function refreshData() {
+            window.location.reload();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            new PublicDashboard();
+        });
+    </script>
+<script type="module" src="/src/shared/discord-popup.ts"></script>
+</body>
+</html>

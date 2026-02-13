@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DeckLens Deckbuilder - Public Deck</title>
+  <!-- G2: OpenGraph meta tags for share previews -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="DeckLens — Shared Deck" id="ogTitle" />
+  <meta property="og:description" content="View this MTG deck on DeckLens Deckbuilder — cards, pricing, and analytics." id="ogDescription" />
+  <meta property="og:image" content="https://decklens.chrisgarkisch.workers.dev/og-preview.png" id="ogImage" />
+  <meta property="og:url" content="" id="ogUrl" />
+  <meta property="og:site_name" content="DeckLens" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="DeckLens — Shared Deck" id="twitterTitle" />
+  <meta name="twitter:description" content="View this MTG deck on DeckLens Deckbuilder." id="twitterDescription" />
+  <meta name="twitter:image" content="https://decklens.chrisgarkisch.workers.dev/og-preview.png" id="twitterImage" />
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self';
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    connect-src 'self' https://decklens-api.chrisgarkisch.workers.dev;
+    img-src 'self' data: https:;
+    font-src 'self' data: https://fonts.gstatic.com;
+    frame-ancestors 'none';
+    base-uri 'self';
+    form-action 'self';
+  " />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --void: #08090f;
+      --abyss: #0c0e16;
+      --obsidian: #12141e;
+      --smoke: #1a1d2a;
+      --slate: #252838;
+      --line: rgba(255,255,255,0.06);
+      --line-light: rgba(255,255,255,0.10);
+
+      --gold: #c9a84c;
+      --gold-bright: #e8c84a;
+      --gold-dim: #8a7230;
+      --gold-glow: rgba(201,168,76,0.12);
+      --emerald: #34d399;
+      --emerald-glow: rgba(52,211,153,0.10);
+      --accent: #34d399;
+      --crimson: #ef4444;
+
+      --text: #e8e2d6;
+      --text-dim: #9a94a8;
+      --muted: #706b7f;
+
+      --danger: #ef4444;
+      --panel: rgba(18,20,30,0.85);
+      --input-bg: rgba(8,9,15,0.6);
+
+      --radius: 12px;
+      --radius-sm: 8px;
+      --ease: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--void);
+      color: var(--text);
+      font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+      font-weight: 400;
+      line-height: 1.5;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Atmospheric background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 900px 500px at 15% -5%, rgba(201,168,76,0.06) 0%, transparent 70%),
+        radial-gradient(ellipse 700px 400px at 85% 20%, rgba(52,211,153,0.04) 0%, transparent 60%),
+        radial-gradient(ellipse 1200px 800px at 50% 100%, rgba(18,20,30,0.5) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Noise texture */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: var(--void); }
+    ::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+    /* ═══ LAYOUT ═══ */
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 24px; position: relative; z-index: 1; }
+
+    .top {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 16px; flex-wrap: wrap;
+    }
+    .top h1 {
+      font-family: 'Cinzel', serif;
+      font-weight: 600;
+      font-size: 1.5rem;
+      letter-spacing: 0.04em;
+      background: linear-gradient(135deg, var(--gold-bright) 0%, var(--gold) 50%, var(--gold-dim) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* ═══ PANEL ═══ */
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-top: 14px;
+      backdrop-filter: blur(12px);
+      position: relative;
+    }
+    .panel::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: var(--radius);
+      padding: 1px;
+      background: linear-gradient(135deg, rgba(201,168,76,0.08) 0%, transparent 40%, transparent 60%, rgba(52,211,153,0.05) 100%);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    /* ═══ TYPOGRAPHY ═══ */
+    h2 {
+      font-family: 'Cinzel', serif;
+      font-weight: 600;
+      font-size: 1.1rem;
+      letter-spacing: 0.03em;
+      color: var(--text);
+    }
+    .muted { color: var(--muted); font-size: 0.84rem; }
+    .danger { color: var(--danger); }
+
+    /* ═══ BUTTONS ═══ */
+    .btn {
+      border: 1px solid var(--line-light);
+      background: var(--smoke);
+      color: var(--text);
+      border-radius: var(--radius-sm);
+      padding: 9px 16px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.84rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      transition: all 0.2s var(--ease);
+      white-space: nowrap;
+    }
+    .btn:hover { background: var(--slate); border-color: rgba(255,255,255,0.14); transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn.primary {
+      background: linear-gradient(135deg, rgba(52,211,153,0.15), rgba(52,211,153,0.08));
+      border-color: rgba(52,211,153,0.25);
+      color: var(--emerald);
+    }
+    .btn.primary:hover { background: linear-gradient(135deg, rgba(52,211,153,0.22), rgba(52,211,153,0.12)); border-color: rgba(52,211,153,0.4); }
+
+    /* ═══ INPUTS ═══ */
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    textarea {
+      width: 100%;
+      min-height: 140px;
+      background: var(--input-bg);
+      border: 1px solid var(--line);
+      color: var(--text);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.85rem;
+      resize: vertical;
+      transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+    }
+    textarea::placeholder { color: var(--muted); }
+    textarea:focus {
+      outline: none;
+      border-color: rgba(201,168,76,0.35);
+      box-shadow: 0 0 0 3px rgba(201,168,76,0.08);
+    }
+
+    /* ═══ BOARDS GRID ═══ */
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .board-section {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 16px;
+      background: rgba(12,14,22,0.5);
+      transition: border-color 0.2s var(--ease);
+    }
+    .board-section:hover { border-color: var(--line-light); }
+    .board-section h3 {
+      margin: 0 0 10px;
+      font-family: 'Cinzel', serif;
+      font-size: 0.88rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--gold);
+      text-transform: uppercase;
+    }
+    .board-section ul { margin: 0; padding-left: 18px; }
+    .board-section li {
+      margin-bottom: 4px;
+      font-size: 0.88rem;
+      color: var(--text-dim);
+    }
+
+    /* ═══ PRICING ═══ */
+    .price-kpi {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      align-items: baseline;
+    }
+    .price-kpi strong {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--gold-bright);
+    }
+
+    /* ═══ RESPONSIVE ═══ */
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) {
+      .wrap { padding: 16px; }
+      .top h1 { font-size: 1.2rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <h1 id="publicDeckTitle" style="margin:0;">Public Deck</h1>
+        <div id="publicDeckMeta" class="muted"></div>
+      </div>
+      <div class="row">
+        <button id="btnBackPublicList" class="btn">Back to Public List</button>
+        <button id="btnCloneDeck" class="btn primary">Clone to My Decks</button>
+      </div>
+    </div>
+
+    <div id="publicError" class="danger"></div>
+
+    <section class="panel">
+      <h2 style="margin-top:0;">Boards</h2>
+      <div id="publicBoards" class="grid"></div>
+    </section>
+
+    <section class="panel">
+      <h2 style="margin-top:0;">Pricing (Scryfall EUR/USD)</h2>
+      <div class="price-kpi">
+        <strong id="publicEurTotal">EUR 0.00</strong>
+        <strong id="publicUsdTotal">USD 0.00</strong>
+      </div>
+      <div id="publicPriceStatus" class="muted"></div>
+      <div class="row" style="margin-top:10px;">
+        <a id="publicCardmarketLink" class="btn" target="_blank" rel="noopener noreferrer">Search on Cardmarket</a>
+        <a id="publicTcgLink" class="btn" target="_blank" rel="noopener noreferrer">Search on TCGplayer</a>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 style="margin-top:0;">Exports</h2>
+      <div class="row" style="margin-bottom:10px;">
+        <button id="btnExportText" class="btn">Plain Text</button>
+        <button id="btnExportWants" class="btn">Cardmarket Wants</button>
+        <button id="btnExportMass" class="btn">TCGplayer Mass Entry</button>
+        <button id="btnCopyExport" class="btn primary">Copy</button>
+      </div>
+      <textarea id="publicExportOutput" placeholder="Choose an export format"></textarea>
+    </section>
+  </div>
+
+  <script type="module" src="/src/deckbuilder/public-deck-main.ts"></script>
+<script type="module" src="/src/shared/discord-popup.ts"></script>
+</body>
+</html>

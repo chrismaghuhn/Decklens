@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="
+ default-src 'self';
+ script-src 'self' 'unsafe-inline';
+ style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+ font-src 'self' https://fonts.gstatic.com;
+ img-src 'self' https://cards.scryfall.io https://images.ygoprodeck.com data:;
+ connect-src 'self' https://api.scryfall.com https://api2.moxfield.com https://archidekt.com https://db.ygoprodeck.com https://json.commanderspellbook.com https://backend.commanderspellbook.com https://decklens-api.chrisgarkisch.workers.dev;
+ frame-src 'none';
+ object-src 'none';
+ base-uri 'none';
+ form-action 'self';
+">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeckLens Dashboard Hub</title>
+<meta name="description" content="Free online deck analyzer for Magic: The Gathering and Yu-Gi-Oh! Mana curves, combo detection, probability calculator, hand simulator, deck DNA fingerprint — all client-side, no account needed.">
+<meta name="keywords" content="MTG deck analyzer, Yu-Gi-Oh deck builder, Magic The Gathering, mana curve, combo detection, hypergeometric calculator, deck DNA, opening hand simulator, deck comparison, free deck tool">
+<link rel="canonical" href="https://decklens.app/">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://decklens.app/">
+<meta property="og:title" content="DeckLens - Card Game Deck Analyzer">
+<meta property="og:description" content="Free deck analyzer for MTG & Yu-Gi-Oh. Mana curves, combo detection, probability calculator, hand simulator — all client-side, no account needed.">
+<meta property="og:site_name" content="DeckLens">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="DeckLens - Card Game Deck Analyzer">
+<meta name="twitter:description" content="Free deck analyzer for MTG & Yu-Gi-Oh. Mana curves, combo detection, probability calculator, hand simulator — all client-side, no account needed.">
+
+<!-- Structured Data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "DeckLens",
+  "url": "https://decklens.app",
+  "description": "Free online deck analyzer for Magic: The Gathering and Yu-Gi-Oh! with mana curves, combo detection, probability calculators, and hand simulators.",
+  "applicationCategory": "GameApplication",
+  "operatingSystem": "Any",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "browserRequirements": "Requires JavaScript",
+  "softwareVersion": "26",
+  "author": { "@type": "Organization", "name": "DeckLens" }
+}
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --void: #06060e;
+  --abyss: #0c0b18;
+  --obsidian: #141225;
+  --smoke: #1e1b33;
+  --gold: #c9a84c;
+  --gold-bright: #e8c84a;
+  --gold-dim: #8a7230;
+  --crimson: #a82035;
+  --crimson-glow: #d42a45;
+  --emerald: #1fa855;
+  --royal-blue: #2855cc;
+  --mystic-blue: #4080ff;
+  --text-primary: #ece4d4;
+  --text-secondary: #9e96ab;
+  --text-dim: #5c5670;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--void);
+  color: var(--text-primary);
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  overflow-x: hidden;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* Noise overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+}
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--void); }
+::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+/* ═══ NAV ═══ */
+nav {
+  position: fixed; top: 0; width: 100%; z-index: 1000;
+  padding: 1rem 2.5rem;
+  display: flex; justify-content: space-between; align-items: center;
+  backdrop-filter: blur(20px);
+  background: rgba(6,6,14,0.65);
+  border-bottom: 1px solid rgba(201,168,76,0.06);
+  transition: all 0.4s ease;
+}
+nav.scrolled {
+  padding: 0.7rem 2.5rem;
+  background: rgba(6,6,14,0.92);
+  border-bottom-color: rgba(201,168,76,0.12);
+}
+.nav-logo {
+  font-family: 'Cinzel', serif;
+  font-size: 1.2rem; font-weight: 700;
+  background: linear-gradient(135deg, var(--gold-bright), var(--gold), var(--gold-dim));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  letter-spacing: 0.06em;
+}
+.nav-logo em {
+  font-style: normal;
+  -webkit-text-fill-color: var(--text-primary);
+}
+.nav-right { display: flex; gap: 2rem; align-items: center; }
+.nav-links { display: flex; gap: 2rem; list-style: none; }
+.nav-links a {
+  font-family: 'Outfit', sans-serif; font-weight: 400; font-size: 0.78rem;
+  color: var(--text-secondary); text-decoration: none;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  position: relative; transition: color 0.3s;
+}
+.nav-links a::after {
+  content: ''; position: absolute; bottom: -3px; left: 0;
+  width: 0; height: 1px; background: var(--gold); transition: width 0.3s ease;
+}
+.nav-links a:hover { color: var(--gold); }
+.nav-links a:hover::after { width: 100%; }
+
+/* ═══ HERO ═══ */
+.hero {
+  position: relative; min-height: 100vh;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  text-align: center; overflow: hidden;
+}
+.hero-bg {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 40%, rgba(168,32,53,0.07) 0%, transparent 60%),
+    radial-gradient(ellipse 55% 50% at 25% 60%, rgba(40,85,204,0.05) 0%, transparent 50%),
+    radial-gradient(ellipse 65% 35% at 70% 30%, rgba(201,168,76,0.04) 0%, transparent 50%),
+    var(--void);
+}
+.hero-particles { position: absolute; inset: 0; overflow: hidden; }
+.particle {
+  position: absolute; width: 2px; height: 2px;
+  background: var(--gold); border-radius: 50%;
+  opacity: 0; animation: float-up linear infinite;
+}
+@keyframes float-up {
+  0% { opacity: 0; transform: translateY(100vh) scale(0); }
+  10% { opacity: 0.7; }
+  90% { opacity: 0.2; }
+  100% { opacity: 0; transform: translateY(-10vh) scale(1); }
+}
+.hero-content {
+  position: relative; z-index: 2; max-width: 860px; padding: 0 2rem;
+}
+.hero-badge {
+  font-family: 'Outfit', sans-serif; font-size: 0.65rem; font-weight: 500;
+  letter-spacing: 0.35em; text-transform: uppercase; color: var(--gold);
+  margin-bottom: 1.8rem;
+  opacity: 0; animation: fade-in 1s 0.3s forwards;
+  display: inline-flex; align-items: center; gap: 1rem;
+}
+.hero-badge::before, .hero-badge::after {
+  content: ''; width: 35px; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-dim));
+}
+.hero-badge::after { background: linear-gradient(90deg, var(--gold-dim), transparent); }
+
+.hero-icon {
+  width: 72px; height: 72px; margin: 0 auto 1.8rem;
+  background: linear-gradient(135deg, rgba(201,168,76,0.15), rgba(201,168,76,0.05));
+  border: 1px solid rgba(201,168,76,0.2);
+  border-radius: 18px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2rem;
+  box-shadow: 0 8px 40px rgba(201,168,76,0.1), 0 0 0 1px rgba(201,168,76,0.1);
+  opacity: 0; animation: fade-in 1s 0.4s forwards;
+}
+
+.hero h1 {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(2.8rem, 7vw, 5rem); font-weight: 900;
+  line-height: 1.05; margin-bottom: 0.3rem;
+  opacity: 0; animation: fade-in 1s 0.6s forwards;
+}
+.hero h1 .deck { color: var(--text-primary); }
+.hero h1 .lens {
+  background: linear-gradient(135deg, var(--gold-bright), var(--gold), var(--gold-dim));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+
+.hero-tagline {
+  font-family: 'Outfit', sans-serif; font-size: 0.85rem; font-weight: 400;
+  color: var(--text-dim); letter-spacing: 0.15em; text-transform: uppercase;
+  margin-bottom: 1.8rem;
+  opacity: 0; animation: fade-in 1s 0.8s forwards;
+}
+
+.hero-sub {
+  font-size: 1.2rem; color: var(--text-secondary);
+  max-width: 520px; margin: 0 auto 3.5rem;
+  font-style: italic;
+  opacity: 0; animation: fade-in 1s 1s forwards;
+}
+
+/* ═══ GAME CARDS ═══ */
+.game-portals {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;
+  max-width: 720px; width: 100%; margin: 0 auto;
+  opacity: 0; animation: fade-in 1s 1.2s forwards;
+}
+.portal {
+  position: relative; text-decoration: none; color: inherit;
+  border-radius: 16px; overflow: hidden;
+  padding: 2.5rem 2rem 2rem;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 0.8rem; cursor: pointer;
+  transition: all 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  border: 1px solid rgba(255,255,255,0.04);
+}
+.portal::before {
+  content: ''; position: absolute; inset: 0; opacity: 0; transition: opacity 0.4s;
+}
+.portal.mtg::before {
+  background: radial-gradient(ellipse at 50% 80%, rgba(168,32,53,0.12) 0%, transparent 65%);
+}
+.portal.ygo::before {
+  background: radial-gradient(ellipse at 50% 80%, rgba(201,168,76,0.1) 0%, transparent 65%);
+}
+.portal:hover { transform: translateY(-6px); border-color: rgba(255,255,255,0.08); }
+.portal:hover::before { opacity: 1; }
+
+.portal-bg {
+  position: absolute; inset: 0; z-index: 0;
+}
+.portal.mtg .portal-bg {
+  background: linear-gradient(160deg, #0d0810 0%, #140a12 40%, #0f0c18 100%);
+}
+.portal.ygo .portal-bg {
+  background: linear-gradient(160deg, #0d0b06 0%, #14100a 40%, #0f0c18 100%);
+}
+
+.portal-content { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 0.8rem; }
+
+.portal-mana {
+  display: flex; gap: 5px; justify-content: center; margin-bottom: 0.2rem;
+}
+.mana-dot {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.08); opacity: 0.6;
+  transition: opacity 0.3s, transform 0.3s;
+}
+.portal:hover .mana-dot { opacity: 1; transform: scale(1.1); }
+
+.portal-icon {
+  font-size: 2.8rem; line-height: 1;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
+  transition: transform 0.4s;
+}
+.portal:hover .portal-icon { transform: scale(1.1); }
+
+.portal-title {
+  font-family: 'Cinzel', serif; font-weight: 700;
+  font-size: 1.15rem; color: var(--text-primary); letter-spacing: 0.02em;
+  transition: color 0.3s;
+}
+.portal.mtg:hover .portal-title { color: var(--crimson-glow); }
+.portal.ygo:hover .portal-title { color: var(--gold-bright); }
+
+.portal-subtitle {
+  font-family: 'Outfit', sans-serif; font-size: 0.7rem;
+  color: var(--text-dim); letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500;
+}
+
+.portal-features {
+  display: flex; flex-wrap: wrap; gap: 0.35rem; justify-content: center; margin-top: 0.2rem;
+}
+.feat-tag {
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 100px; padding: 0.18rem 0.6rem;
+  font-family: 'Outfit', sans-serif; font-size: 0.65rem; color: var(--text-dim); font-weight: 500;
+  transition: all 0.3s;
+}
+.portal.mtg:hover .feat-tag { border-color: rgba(168,32,53,0.3); color: var(--text-secondary); }
+.portal.ygo:hover .feat-tag { border-color: rgba(201,168,76,0.25); color: var(--text-secondary); }
+
+.portal-arrow {
+  font-family: 'Outfit', sans-serif; font-size: 1.1rem; color: var(--text-dim);
+  transition: all 0.3s; opacity: 0.4; margin-top: auto; padding-top: 0.3rem;
+}
+.portal.mtg:hover .portal-arrow { color: var(--crimson-glow); transform: translateX(4px); opacity: 1; }
+.portal.ygo:hover .portal-arrow { color: var(--gold); transform: translateX(4px); opacity: 1; }
+
+/* Holographic border glow */
+.portal::after {
+  content: ''; position: absolute; inset: 0;
+  border-radius: 16px; padding: 1px;
+  background: linear-gradient(135deg, transparent 30%, rgba(201,168,76,0.15) 50%, transparent 70%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  opacity: 0; transition: opacity 0.5s; z-index: 2;
+}
+.portal.mtg::after {
+  background: linear-gradient(135deg, transparent 30%, rgba(212,42,69,0.2) 50%, transparent 70%);
+}
+.portal:hover::after { opacity: 1; }
+
+.hero-scroll {
+  position: absolute; bottom: 2.5rem; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 0.4rem;
+  opacity: 0; animation: fade-in 1s 2s forwards;
+}
+.hero-scroll span {
+  font-family: 'Outfit', sans-serif; font-size: 0.6rem;
+  letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-dim);
+}
+.scroll-line {
+  width: 1px; height: 35px;
+  background: linear-gradient(to bottom, var(--gold-dim), transparent);
+  animation: pulse-line 2s ease-in-out infinite;
+}
+@keyframes pulse-line { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+@keyframes fade-in { to { opacity: 1; } }
+
+/* ═══ FEATURES ═══ */
+.features {
+  padding: 6rem 2.5rem;
+  background: var(--abyss);
+}
+.features-inner {
+  max-width: 1000px; margin: 0 auto;
+}
+.features-header {
+  text-align: center; margin-bottom: 3.5rem;
+}
+.section-label {
+  font-family: 'Outfit', sans-serif; font-size: 0.62rem; font-weight: 500;
+  letter-spacing: 0.4em; text-transform: uppercase; color: var(--gold-dim);
+  margin-bottom: 0.8rem;
+}
+.section-title {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 700; margin-bottom: 0.8rem;
+  color: var(--text-primary);
+}
+.section-desc {
+  color: var(--text-secondary); font-size: 1.05rem;
+  max-width: 520px; margin: 0 auto; font-style: italic;
+}
+
+.features-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem;
+}
+.feature-card {
+  background: rgba(255,255,255,0.015);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 12px; padding: 2rem 1.5rem;
+  transition: all 0.4s ease; position: relative; overflow: hidden;
+}
+.feature-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+  opacity: 0; transition: opacity 0.4s;
+}
+.feature-card:hover {
+  border-color: rgba(201,168,76,0.1);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 35px rgba(0,0,0,0.3);
+}
+.feature-card:hover::before { opacity: 1; }
+
+.feature-icon {
+  font-size: 1.6rem; margin-bottom: 1rem;
+  width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(201,168,76,0.06);
+  border: 1px solid rgba(201,168,76,0.12);
+  border-radius: 10px;
+}
+.feature-title {
+  font-family: 'Cinzel', serif; font-weight: 700;
+  font-size: 1rem; margin-bottom: 0.5rem; color: var(--text-primary);
+}
+.feature-text {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6;
+}
+
+/* ═══ SPLIT WORLDS ═══ */
+.worlds {
+  display: grid; grid-template-columns: 1fr 1fr;
+  min-height: 70vh; position: relative;
+}
+.worlds::after {
+  content: ''; position: absolute;
+  top: 12%; bottom: 12%; left: 50%; width: 1px;
+  background: linear-gradient(to bottom, transparent, var(--gold-dim), transparent);
+  transform: translateX(-50%); z-index: 5;
+}
+.world-half {
+  padding: 5rem 3.5rem;
+  display: flex; flex-direction: column; justify-content: center;
+  position: relative; overflow: hidden;
+}
+.world-mtg { background: linear-gradient(135deg, #0d0508 0%, #160a0f 50%, var(--abyss) 100%); }
+.world-ygo { background: linear-gradient(225deg, #0d0a04 0%, #161008 50%, var(--abyss) 100%); }
+.world-half::before {
+  content: ''; position: absolute;
+  width: 250px; height: 250px; border-radius: 50%;
+  filter: blur(90px); opacity: 0.12;
+}
+.world-mtg::before { background: var(--crimson); top: 20%; right: -40px; }
+.world-ygo::before { background: var(--gold); top: 20%; left: -40px; }
+
+.world-icon {
+  width: 50px; height: 50px; margin-bottom: 1.5rem;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; font-size: 1.3rem;
+}
+.world-mtg .world-icon {
+  background: rgba(168,32,53,0.12); border: 1px solid rgba(168,32,53,0.25);
+}
+.world-ygo .world-icon {
+  background: rgba(201,168,76,0.12); border: 1px solid rgba(201,168,76,0.25);
+}
+.world-title {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(1.4rem, 2.5vw, 2rem); font-weight: 700;
+  margin-bottom: 1.2rem; line-height: 1.2;
+}
+.world-mtg .world-title {
+  background: linear-gradient(135deg, #ff6060, var(--crimson-glow), var(--crimson));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.world-ygo .world-title {
+  background: linear-gradient(135deg, var(--gold-bright), var(--gold), var(--gold-dim));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.world-text {
+  color: var(--text-secondary); font-size: 1rem;
+  margin-bottom: 1.8rem; max-width: 380px; line-height: 1.7;
+}
+.world-stats { display: flex; gap: 2rem; margin-bottom: 2rem; }
+.stat-num {
+  font-family: 'Cinzel', serif; font-size: 1.5rem; font-weight: 700;
+}
+.world-mtg .stat-num { color: var(--crimson-glow); }
+.world-ygo .stat-num { color: var(--gold); }
+.stat-label {
+  font-family: 'Outfit', sans-serif; font-size: 0.62rem;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-top: 0.2rem;
+}
+.world-link {
+  font-family: 'Outfit', sans-serif; font-size: 0.75rem; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  text-decoration: none; display: inline-flex; align-items: center;
+  gap: 0.7rem; transition: all 0.3s;
+}
+.world-mtg .world-link { color: var(--crimson-glow); }
+.world-ygo .world-link { color: var(--gold); }
+.world-link:hover { gap: 1.1rem; }
+.world-link .arrow {
+  display: inline-block; width: 25px; height: 1px; position: relative;
+}
+.world-mtg .arrow { background: var(--crimson-glow); }
+.world-ygo .arrow { background: var(--gold); }
+.arrow::after {
+  content: ''; position: absolute; right: 0; top: -3px;
+  width: 6px; height: 6px;
+  border-right: 1px solid currentColor; border-top: 1px solid currentColor;
+  transform: rotate(45deg);
+}
+.world-mtg .arrow::after { border-color: var(--crimson-glow); }
+.world-ygo .arrow::after { border-color: var(--gold); }
+
+/* ═══ SEO FEATURES ═══ */
+.seo-section {
+  padding: 5rem 2.5rem;
+  background: var(--void);
+}
+.seo-inner {
+  max-width: 1000px; margin: 0 auto; text-align: center;
+}
+.seo-inner .section-title span {
+  background: linear-gradient(135deg, var(--gold-bright), var(--gold));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.seo-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem;
+  text-align: left; margin-top: 2.5rem;
+}
+.seo-card {
+  background: var(--abyss); border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 10px; padding: 1.5rem;
+  transition: all 0.3s;
+}
+.seo-card:hover {
+  border-color: rgba(201,168,76,0.1);
+  transform: translateY(-2px);
+}
+.seo-card h3 {
+  font-family: 'Cinzel', serif; font-size: 0.95rem;
+  font-weight: 700; color: var(--gold); margin-bottom: 0.6rem;
+}
+.seo-card p {
+  font-family: 'Outfit', sans-serif; font-size: 0.8rem;
+  color: var(--text-secondary); line-height: 1.6;
+}
+
+/* ═══ CTA BANNER ═══ */
+.cta-banner {
+  text-align: center; padding: 6rem 2.5rem;
+  position: relative; overflow: hidden;
+}
+.cta-banner::before {
+  content: ''; position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 55% 50% at 50% 50%, rgba(201,168,76,0.05) 0%, transparent 65%),
+    var(--abyss);
+}
+.cta-content { position: relative; z-index: 2; }
+.cta-content .section-title { margin-bottom: 1.2rem; }
+.cta-content .section-title span {
+  background: linear-gradient(135deg, var(--gold-bright), var(--gold));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.cta-content .section-desc { margin: 0 auto 2.5rem; text-align: center; }
+.cta-stats {
+  display: flex; justify-content: center; gap: 4rem; margin-bottom: 2.5rem; flex-wrap: wrap;
+}
+.cta-stat-num {
+  font-family: 'Cinzel', serif; font-size: 2rem; font-weight: 900;
+  background: linear-gradient(135deg, var(--text-primary), var(--gold));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.cta-stat-label {
+  font-family: 'Outfit', sans-serif; font-size: 0.65rem;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-top: 0.2rem;
+}
+.btn-cta {
+  font-family: 'Outfit', sans-serif; font-size: 0.78rem; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 0.9rem 2.2rem; border: none; border-radius: 3px; cursor: pointer;
+  text-decoration: none; transition: all 0.4s ease;
+  background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+  color: var(--void);
+  box-shadow: 0 4px 20px rgba(201,168,76,0.2);
+}
+.btn-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 35px rgba(201,168,76,0.35);
+}
+
+/* ═══ FOOTER ═══ */
+footer {
+  border-top: 1px solid rgba(255,255,255,0.04);
+  background: var(--void);
+}
+.footer-inner {
+  max-width: 1000px; margin: 0 auto;
+  padding: 3rem 2.5rem 1.5rem;
+}
+.footer-top {
+  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 2.5rem; margin-bottom: 2.5rem;
+}
+.footer-brand-text {
+  color: var(--text-secondary); font-size: 0.9rem;
+  max-width: 260px; line-height: 1.6; margin-top: 0.8rem;
+}
+.footer-col h4 {
+  font-family: 'Outfit', sans-serif; font-size: 0.65rem; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-dim);
+  margin-bottom: 1rem;
+}
+.footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+.footer-col a {
+  color: var(--text-secondary); text-decoration: none;
+  font-family: 'Outfit', sans-serif; font-size: 0.82rem;
+  transition: color 0.3s; cursor: pointer;
+}
+.footer-col a:hover { color: var(--gold); }
+
+.footer-bottom {
+  border-top: 1px solid rgba(255,255,255,0.04);
+  padding-top: 1.5rem;
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 0.8rem;
+}
+.footer-copy {
+  font-family: 'Outfit', sans-serif; font-size: 0.7rem; color: var(--text-dim);
+}
+.footer-legal {
+  display: flex; gap: 1.2rem; align-items: center;
+}
+.footer-legal a {
+  font-family: 'Outfit', sans-serif; font-size: 0.7rem;
+  color: var(--text-dim); text-decoration: none; cursor: pointer; transition: color 0.3s;
+}
+.footer-legal a:hover { color: var(--gold); }
+.footer-legal .sep { color: rgba(255,255,255,0.1); font-size: 0.6rem; }
+.footer-note {
+  font-family: 'Outfit', sans-serif; font-size: 0.65rem;
+  color: var(--text-dim); opacity: 0.5; margin-top: 0.8rem;
+}
+
+/* ═══ MODAL ═══ */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.75); z-index: 1000;
+  align-items: center; justify-content: center; padding: 1.5rem;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.modal-overlay.active { display: flex; animation: fade-in 0.2s ease; }
+.modal {
+  background: var(--abyss); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px; max-width: 680px; width: 100%; max-height: 85vh;
+  overflow-y: auto; position: relative;
+  animation: modal-in 0.3s ease;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+}
+@keyframes modal-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.modal-close {
+  position: absolute; top: 1rem; right: 1rem;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-dim); width: 32px; height: 32px; border-radius: 8px;
+  cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s; z-index: 2;
+}
+.modal-close:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
+.legal-content { padding: 2rem; }
+.legal-content h2 {
+  font-family: 'Cinzel', serif; font-weight: 700; font-size: 1.2rem;
+  color: var(--text-primary); margin-bottom: 1rem;
+}
+.legal-content h3 {
+  font-family: 'Cinzel', serif; font-weight: 600; font-size: 0.95rem;
+  color: var(--text-primary); margin: 1.2rem 0 0.5rem;
+}
+.legal-content p {
+  font-family: 'Outfit', sans-serif; font-size: 0.85rem;
+  line-height: 1.7; color: var(--text-secondary); margin-bottom: 0.6rem;
+}
+.legal-content ul {
+  margin: 0.4rem 0 0.8rem 1.2rem;
+  font-family: 'Outfit', sans-serif; font-size: 0.82rem;
+  line-height: 1.6; color: var(--text-secondary);
+}
+.legal-content li { margin-bottom: 0.3rem; }
+.legal-content a { color: var(--gold); text-decoration: none; }
+.legal-content a:hover { text-decoration: underline; }
+
+/* ═══ SCROLL REVEAL ═══ */
+.reveal {
+  opacity: 0; transform: translateY(25px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.reveal.visible { opacity: 1; transform: translateY(0); }
+
+/* ═══ RESPONSIVE ═══ */
+@media (max-width: 900px) {
+  .worlds { grid-template-columns: 1fr; }
+  .worlds::after { display: none; }
+  .world-half { padding: 3.5rem 2rem; }
+  .features-grid { grid-template-columns: 1fr; }
+  .seo-grid { grid-template-columns: 1fr; }
+  .footer-top { grid-template-columns: 1fr 1fr; }
+  nav { padding: 0.8rem 1.5rem; }
+  .nav-links { gap: 1.2rem; }
+  .nav-links a { font-size: 0.7rem; }
+}
+@media (max-width: 600px) {
+  .game-portals { grid-template-columns: 1fr; max-width: 360px; }
+  .nav-links { display: none; }
+  .footer-top { grid-template-columns: 1fr; }
+  .cta-stats { gap: 2rem; }
+  .features { padding: 4rem 1.5rem; }
+  .seo-section { padding: 3.5rem 1.5rem; }
+  .cta-banner { padding: 4rem 1.5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">Deck<em>Lens</em></div>
+  <div class="nav-right">
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#worlds">Games</a></li>
+      <li><a href="/decks.html">Deckbuilder</a></li>
+      <li><a href="/play">Bot Arena</a></li>
+      <li><a href="#about">About</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-particles" id="particles"></div>
+  <div class="hero-content">
+    <div class="hero-badge">Free Deck Analyzer</div>
+    <div class="hero-icon">&#127183;</div>
+    <h1><span class="deck">Deck</span><span class="lens">Lens</span></h1>
+    <div class="hero-tagline">Deck Viewer &amp; Analyzer</div>
+    <p class="hero-sub">Where the arcane art of deckbuilding meets precision analysis. MTG &amp; Yu-Gi-Oh! — all client-side, no account needed.</p>
+
+    <div class="game-portals">
+      <a href="mtg.html" class="portal mtg">
+        <div class="portal-bg"></div>
+        <div class="portal-content">
+          <div class="portal-mana">
+            <div class="mana-dot" style="background:#f0e6b2;"></div>
+            <div class="mana-dot" style="background:#4a90d9;"></div>
+            <div class="mana-dot" style="background:#a070a0;"></div>
+            <div class="mana-dot" style="background:#e8604a;"></div>
+            <div class="mana-dot" style="background:#4cb050;"></div>
+          </div>
+          <span class="portal-icon">&#9876;&#65039;</span>
+          <span class="portal-title">Magic: The Gathering</span>
+          <span class="portal-subtitle">Deck Analyzer</span>
+          <div class="portal-features">
+            <span class="feat-tag">Mana Curve</span>
+            <span class="feat-tag">Legality Check</span>
+            <span class="feat-tag">Price Tracker</span>
+            <span class="feat-tag">Scryfall API</span>
+          </div>
+          <span class="portal-arrow">&rarr;</span>
+        </div>
+      </a>
+
+      <a href="yugioh.html" class="portal ygo">
+        <div class="portal-bg"></div>
+        <div class="portal-content">
+          <div class="portal-mana">
+            <div class="mana-dot" style="background:#e8604a;"></div>
+            <div class="mana-dot" style="background:#cfb53b;"></div>
+            <div class="mana-dot" style="background:#a070a0;"></div>
+            <div class="mana-dot" style="background:#4a90d9;"></div>
+            <div class="mana-dot" style="background:#9e9e9e;"></div>
+          </div>
+          <span class="portal-icon">&#127156;</span>
+          <span class="portal-title">Yu-Gi-Oh!</span>
+          <span class="portal-subtitle">Deck Analyzer</span>
+          <div class="portal-features">
+            <span class="feat-tag">Card Types</span>
+            <span class="feat-tag">Deck Stats</span>
+            <span class="feat-tag">Collection</span>
+            <span class="feat-tag">YGOProDeck API</span>
+          </div>
+          <span class="portal-arrow">&rarr;</span>
+        </div>
+      </a>
+    </div>
+
+    <div style="margin-top:1.4rem;">
+      <a href="/decks.html" class="btn-cta">Open EDH Deckbuilder MVP</a>
+    </div>
+  </div>
+  <div class="hero-scroll">
+    <span>Scroll</span>
+    <div class="scroll-line"></div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features" id="features">
+  <div class="features-inner">
+    <div class="features-header reveal">
+      <div class="section-label">Powerful Tools</div>
+      <div class="section-title">Everything You Need</div>
+      <p class="section-desc">Deep analysis tools for both card games, running entirely in your browser.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card reveal">
+        <div class="feature-icon">&#128202;</div>
+        <div class="feature-title">Mana Curves</div>
+        <p class="feature-text">Visualize mana distribution, color ratios, and casting cost breakdowns for optimal deck construction.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon">&#127183;</div>
+        <div class="feature-title">Hand Simulator</div>
+        <p class="feature-text">Test opening hands with brick tracking, mulligan analysis, and hypergeometric probability calculations.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon">&#128270;</div>
+        <div class="feature-title">Combo Detection</div>
+        <p class="feature-text">Discover combos via Commander Spellbook integration and card synergy scoring for MTG decks.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon">&#9878;</div>
+        <div class="feature-title">Legality Check</div>
+        <p class="feature-text">Verify format legality and banlist compliance across TCG, OCG, Master Duel, Goat, Edison, and more.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon">&#128257;</div>
+        <div class="feature-title">Import Anywhere</div>
+        <p class="feature-text">Paste, upload, or import via URL from Moxfield, Archidekt, and other popular deckbuilding platforms.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon">&#128274;</div>
+        <div class="feature-title">100% Private</div>
+        <p class="feature-text">Zero backend, zero tracking, zero cookies. All analysis runs client-side. Your data never leaves your device.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SPLIT WORLDS -->
+<section class="worlds" id="worlds">
+  <div class="world-half world-mtg">
+    <div class="world-icon reveal">&#9876;&#65039;</div>
+    <div class="world-title reveal">Magic: The Gathering</div>
+    <p class="world-text reveal">The original trading card game. Tap lands, summon creatures, and wage war across the multiverse with five colors of magic and thirty years of strategy.</p>
+    <div class="world-stats reveal">
+      <div>
+        <div class="stat-num">27K+</div>
+        <div class="stat-label">Unique Cards</div>
+      </div>
+      <div>
+        <div class="stat-num">35+</div>
+        <div class="stat-label">Years Running</div>
+      </div>
+    </div>
+    <a href="mtg.html" class="world-link reveal">Open MTG Analyzer <span class="arrow"></span></a>
+  </div>
+
+  <div class="world-half world-ygo">
+    <div class="world-icon reveal">&#127156;</div>
+    <div class="world-title reveal">Yu-Gi-Oh!</div>
+    <p class="world-text reveal">From ancient shadow games to modern dueling arenas. Set traps, fusion summon legends, and claim victory with the heart of the cards.</p>
+    <div class="world-stats reveal">
+      <div>
+        <div class="stat-num">13K+</div>
+        <div class="stat-label">Unique Cards</div>
+      </div>
+      <div>
+        <div class="stat-num">6</div>
+        <div class="stat-label">Ban Formats</div>
+      </div>
+    </div>
+    <a href="yugioh.html" class="world-link reveal">Open Yu-Gi-Oh! Analyzer <span class="arrow"></span></a>
+  </div>
+</section>
+
+<!-- SEO FEATURES -->
+<section class="seo-section" id="about">
+  <div class="seo-inner">
+    <div class="section-label reveal">Deep Analysis</div>
+    <div class="section-title reveal">Free Deck Analysis — <span>No Account, No Tracking</span></div>
+    <p class="section-desc reveal">DeckLens runs entirely in your browser. Import via paste, file upload, or URL — get instant analysis with no data leaving your device.</p>
+    <div class="seo-grid">
+      <div class="seo-card reveal">
+        <h3>MTG Features</h3>
+        <p>Mana curve &amp; color distribution, format legality checking, Deck DNA fingerprint, hypergeometric probability calculator, opening hand simulator, combo detection via Commander Spellbook, card synergy scores, Moxfield &amp; Archidekt import, budget alternatives, and deck comparison.</p>
+      </div>
+      <div class="seo-card reveal">
+        <h3>Yu-Gi-Oh! Features</h3>
+        <p>Level/rank charts, archetype detection, multi-banlist support for TCG, OCG, Master Duel, Goat Format, Edison, Speed Duel &amp; Duel Links, opening hand calculator, test hand simulator with brick tracking, YDK/YDKE/Omega import, deck comparison, and tournament PDF export.</p>
+      </div>
+      <div class="seo-card reveal">
+        <h3>Privacy by Design</h3>
+        <p>Zero backend, zero tracking, zero cookies. All analysis runs client-side in your browser. Your deck data never leaves your device. Works offline after first load. Open source and free forever.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-banner">
+  <div class="cta-content">
+    <div class="section-label reveal">Start Analyzing</div>
+    <div class="section-title reveal">Ready to <span>Optimize</span> Your Deck?</div>
+    <p class="section-desc reveal">Import your deck and get instant, deep analysis — completely free and private.</p>
+    <div class="cta-stats reveal">
+      <div>
+        <div class="cta-stat-num">40K+</div>
+        <div class="cta-stat-label">Cards Supported</div>
+      </div>
+      <div>
+        <div class="cta-stat-num">2</div>
+        <div class="cta-stat-label">Card Games</div>
+      </div>
+      <div>
+        <div class="cta-stat-num">0</div>
+        <div class="cta-stat-label">Data Collected</div>
+      </div>
+    </div>
+    <a href="#" class="btn-cta reveal" onclick="window.scrollTo({top:0,behavior:'smooth'});return false;">Choose Your Game</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-top">
+      <div>
+        <div class="nav-logo" style="font-size:1rem;">Deck<em>Lens</em></div>
+        <p class="footer-brand-text">Your sanctum for Magic: The Gathering &amp; Yu-Gi-Oh! deck analysis — free, private, and powerful.</p>
+      </div>
+      <div class="footer-col">
+        <h4>MTG</h4>
+        <ul>
+          <li><a href="mtg.html">Deck Analyzer</a></li>
+          <li><a href="mtg.html">Mana Curve</a></li>
+          <li><a href="mtg.html">Hand Simulator</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Yu-Gi-Oh!</h4>
+        <ul>
+          <li><a href="yugioh.html">Deck Analyzer</a></li>
+          <li><a href="yugioh.html">Banlist Check</a></li>
+          <li><a href="yugioh.html">Hand Simulator</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Resources</h4>
+        <ul>
+          <li><a id="linkImpressum" href="#">Impressum</a></li>
+          <li><a id="linkDatenschutz" href="#">Privacy Policy</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div class="footer-copy">&copy; 2026 DeckLens. All rights reserved.</div>
+      <div class="footer-note">Card data via Scryfall &amp; YGOProDeck</div>
+    </div>
+  </div>
+</footer>
+
+<!-- LEGAL MODAL -->
+<div class="modal-overlay" id="legalModal">
+  <div class="modal">
+    <button class="modal-close">&times;</button>
+    <div id="legalContent" class="legal-content"></div>
+  </div>
+</div>
+
+<script>
+// Particles
+const pc = document.getElementById('particles');
+for (let i = 0; i < 35; i++) {
+  const p = document.createElement('div');
+  p.classList.add('particle');
+  p.style.left = Math.random() * 100 + '%';
+  p.style.animationDuration = (7 + Math.random() * 9) + 's';
+  p.style.animationDelay = Math.random() * 12 + 's';
+  p.style.width = p.style.height = (1 + Math.random() * 2) + 'px';
+  const r = Math.random();
+  if (r > 0.7) p.style.background = '#d42a45';
+  else if (r > 0.5) p.style.background = '#4080ff';
+  pc.appendChild(p);
+}
+
+// Nav scroll
+const nav = document.querySelector('nav');
+window.addEventListener('scroll', () => {
+  nav.classList.toggle('scrolled', window.scrollY > 50);
+});
+
+// Scroll reveal
+const reveals = document.querySelectorAll('.reveal');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((entry, i) => {
+    if (entry.isIntersecting) {
+      setTimeout(() => entry.target.classList.add('visible'), i * 70);
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.12, rootMargin: '0px 0px -30px 0px' });
+reveals.forEach(el => observer.observe(el));
+
+// Portal tilt
+document.querySelectorAll('.portal').forEach(card => {
+  card.addEventListener('mousemove', (e) => {
+    const r = card.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width;
+    const y = (e.clientY - r.top) / r.height;
+    card.style.transform = `translateY(-6px) rotateX(${(0.5-y)*8}deg) rotateY(${(x-0.5)*8}deg)`;
+  });
+  card.addEventListener('mouseleave', () => { card.style.transform = ''; });
+});
+
+// Smooth anchor scroll
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', (e) => {
+    const t = document.querySelector(a.getAttribute('href'));
+    if (t) { e.preventDefault(); t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  });
+});
+
+// Modal
+const modal = document.getElementById('legalModal');
+const modalContent = document.getElementById('legalContent');
+const closeBtn = modal.querySelector('.modal-close');
+
+document.getElementById('linkImpressum').addEventListener('click', (e) => {
+  e.preventDefault();
+  modalContent.innerHTML = '<h2>Impressum</h2><p>Information according to &sect; 5 TMG</p><h3>Contact</h3><p>DeckLens<br>Email: contact@decklens.app</p><h3>Disclaimer</h3><p>DeckLens is a free, non-commercial tool. All card names, images, and related content are the property of their respective owners (Wizards of the Coast, Konami). DeckLens is not affiliated with or endorsed by any card game company.</p>';
+  modal.classList.add('active');
+});
+
+document.getElementById('linkDatenschutz').addEventListener('click', (e) => {
+  e.preventDefault();
+  modalContent.innerHTML = '<h2>Privacy Policy</h2><h3>Data Collection</h3><p>DeckLens does not collect, store, or transmit any personal data. The application runs entirely in your browser.</p><h3>Third-Party Services</h3><p>DeckLens connects to the following APIs to fetch card data:</p><ul><li><a href="https://scryfall.com" target="_blank">Scryfall</a> (MTG card data)</li><li><a href="https://ygoprodeck.com" target="_blank">YGOProDeck</a> (Yu-Gi-Oh! card data)</li></ul><p>These services have their own privacy policies. DeckLens only sends card queries and does not transmit personal information.</p><h3>Cookies</h3><p>DeckLens does not use cookies or any form of tracking.</p><h3>Local Storage</h3><p>DeckLens may use your browser\'s local storage to cache card data for performance. This data stays on your device and is never transmitted.</p>';
+  modal.classList.add('active');
+});
+
+closeBtn.addEventListener('click', () => modal.classList.remove('active'));
+modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('active'); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') modal.classList.remove('active'); });
+</script>
+
+<script type="module" src="/src/shared/discord-popup.ts"></script>
+</body>
+</html>
