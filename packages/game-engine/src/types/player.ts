@@ -1,0 +1,72 @@
+import type { Card } from './card.ts';
+import type { Permanent } from './permanent.ts';
+import type { ManaPool } from './mana.ts';
+
+/** Complete state for one player */
+export interface PlayerState {
+  id: 0 | 1;
+  name: string;
+
+  // --- Zones ---
+  library: Card[];
+  hand: Card[];
+  battlefield: Permanent[];
+  graveyard: Card[];
+  exile: Card[];
+  commandZone: Card[];
+
+  // --- Resources ---
+  life: number;
+  manaPool: ManaPool;
+  poisonCounters: number;
+  /** Commander damage received, keyed by commander instance ID */
+  commanderDamage: Record<string, number>;
+
+  // --- Commander ---
+  commanderTax: number;
+
+  // --- Turn state ---
+  landPlayedThisTurn: boolean;
+  landsPlayedThisTurn: number;
+  maxLandPlays: number;
+
+  // --- Game state ---
+  /** Whether this player has had their first draw (skipped on turn 1 for starting player) */
+  hasDrawnThisGame: boolean;
+}
+
+/** Starting life total for Commander */
+export const STARTING_LIFE = 40;
+
+/** Create an empty mana pool */
+export function emptyManaPool(): ManaPool {
+  return { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0, S: 0, generic: 0 };
+}
+
+/** Create initial player state */
+export function createPlayerState(
+  id: 0 | 1,
+  name: string,
+  deck: Card[],
+  commander: Card
+): PlayerState {
+  return {
+    id,
+    name,
+    library: deck.filter((c) => c.id !== commander.id),
+    hand: [],
+    battlefield: [],
+    graveyard: [],
+    exile: [],
+    commandZone: [commander],
+    life: STARTING_LIFE,
+    manaPool: emptyManaPool(),
+    poisonCounters: 0,
+    commanderDamage: {},
+    commanderTax: 0,
+    landPlayedThisTurn: false,
+    landsPlayedThisTurn: 0,
+    maxLandPlays: 1,
+    hasDrawnThisGame: false,
+  };
+}

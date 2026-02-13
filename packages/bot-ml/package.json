@@ -1,0 +1,22 @@
+{
+  "name": "@mtg/bot-ml",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "train": "tsx src/training/self-play.ts"
+  },
+  "dependencies": {
+    "@mtg/game-engine": "workspace:*",
+    "@mtg/bot-core": "workspace:*",
+    "@mtg/card-data": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@mtg/card-data",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "download": "tsx src/scryfall-loader.ts"
+  },
+  "dependencies": {
+    "@mtg/game-engine": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}
