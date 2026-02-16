@@ -1,0 +1,12 @@
+name = "decklens"
+main = "./frontend-worker.ts"
+compatibility_date = "2026-02-09"
+
+[assets]
+directory = "../dist"
+binding = "ASSETS"
+run_worker_first = true
+
+[[migrations]]
+tag = "v1-migration-cleanup"
+deleted_classes = ["CollabSession"]

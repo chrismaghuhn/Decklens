@@ -100,8 +100,10 @@ export class Game {
       };
 
       // Check if both players passed and stack needs resolution
+      // CRITICAL FIX: Check if bothPlayersPassed is TRUE (not false)
+      // The logic was inverted - both players must have passed to resolve
       if (
-        !this.state.bothPlayersPassed &&
+        this.state.bothPlayersPassed &&
         beforeStack > 0 &&
         this.state.stack.length === beforeStack
       ) {

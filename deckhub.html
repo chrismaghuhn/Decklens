@@ -47,6 +47,10 @@
   --hub-orange: #f59e42;
   --hub-orange-dim: rgba(245,158,66,0.10);
 
+  /* QOL Features */
+  --hub-tooltip-bg: #141722;
+  --hub-tooltip-border: rgba(201,168,76,0.4);
+
   /* Mana Colors */
   --mana-w: #f9e4a1;
   --mana-u: #5ea3f8;
@@ -59,6 +63,9 @@
   --hub-radius-lg: 12px;
   --hub-shadow: 0 2px 8px rgba(0,0,0,0.4);
   --hub-transition: 0.15s ease;
+
+  /* Card Hover Tooltip */
+  --tooltip-w: 250px;
 
   --hub-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   --hub-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'SF Mono', Consolas, monospace;
@@ -715,6 +722,80 @@ a:hover { text-decoration: underline; }
 .card-table tr:last-child td { border-bottom: none; }
 .card-table tr:hover td { background: var(--hub-hover); }
 
+/* QOL Enhancements */
+.card-hover-tooltip {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  background: var(--hub-surface);
+  border: 1px solid var(--hub-border-accent);
+  border-radius: var(--hub-radius-lg);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+  display: none;
+  overflow: hidden;
+  width: var(--tooltip-w);
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+@keyframes tooltipFadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+.card-hover-tooltip img { width: 100%; display: block; height: auto; min-height: 100px; background: var(--hub-void); }
+
+/* Visual Diff Enhancements */
+.diff-image-preview {
+  width: 40px;
+  height: 56px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--hub-border);
+  flex-shrink: 0;
+  background: var(--hub-void);
+  cursor: help;
+  transition: transform 0.1s;
+}
+.diff-image-preview:hover {
+  transform: scale(3) translateX(10px);
+  z-index: 100;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+}
+.diff-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.table-filter-bar {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  background: var(--hub-surface);
+  border-bottom: 1px solid var(--hub-border);
+  gap: 12px;
+}
+.table-filter-input {
+  flex: 1;
+  background: var(--hub-void);
+  border: 1px solid var(--hub-border);
+  border-radius: var(--hub-radius-sm);
+  padding: 6px 12px;
+  color: var(--hub-text-bright);
+  font-size: 0.9rem;
+  transition: border-color 0.1s;
+}
+.table-filter-input:focus { outline: none; border-color: var(--hub-gold); }
+
+.deck-price-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--hub-gold-glow);
+  border: 1px solid var(--hub-gold-dim);
+  border-radius: 100px;
+  color: var(--hub-gold);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .card-table__qty {
   font-family: var(--hub-mono);
   color: var(--hub-text-dim);
@@ -748,6 +829,14 @@ a:hover { text-decoration: underline; }
 .hub-chip--engine { background: var(--hub-purple-dim); color: var(--hub-purple); }
 .hub-chip--land { background: var(--hub-orange-dim); color: var(--hub-orange); }
 .hub-chip--protection { background: rgba(255,255,255,0.06); color: var(--hub-text-dim); }
+.hub-chip--counter { background: rgba(94,163,248,0.15); color: var(--hub-blue); }
+.hub-chip--tutor { background: rgba(167,139,250,0.15); color: var(--hub-purple); }
+.hub-chip--token { background: rgba(255,255,255,0.08); color: var(--hub-text-bright); }
+.hub-chip--graveyard { background: rgba(107,112,132,0.15); color: var(--hub-text-muted); }
+.hub-chip--artifact { background: rgba(192,192,192,0.1); color: #c0c0c0; }
+.hub-chip--enchantment { background: rgba(255,105,180,0.1); color: #ff69b4; }
+.hub-chip--legend { background: var(--hub-gold-glow); color: var(--hub-gold); }
+.hub-chip--recursion { background: rgba(61,214,140,0.1); color: var(--hub-green); }
 
 /* Primer preview */
 .primer-preview {
@@ -1267,6 +1356,20 @@ a:hover { text-decoration: underline; }
 }
 .regression-item__detail span { color: var(--hub-red); font-weight: 600; }
 
+/* ── Mana Balance Pro ── */
+.mana-balance-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+.mana-balance-table th { text-align: left; padding: 4px 8px; color: var(--hub-text-muted); font-weight: 600; border-bottom: 1px solid var(--hub-border); }
+.mana-balance-table td { padding: 6px 8px; border-bottom: 1px solid var(--hub-border); vertical-align: middle; }
+.mana-balance-table tr:last-child td { border-bottom: none; }
+.mana-symbol-icon { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 11px; color: #000; box-shadow: inset 0 0 2px rgba(0,0,0,0.5); }
+.mana-symbol-icon--w { background: var(--mana-w); }
+.mana-symbol-icon--u { background: var(--mana-u); }
+.mana-symbol-icon--b { background: var(--mana-b); color: #fff; }
+.mana-symbol-icon--r { background: var(--mana-r); color: #fff; }
+.mana-symbol-icon--g { background: var(--mana-g); }
+.mana-balance-bar { height: 6px; background: var(--hub-void); border-radius: 3px; overflow: hidden; position: relative; margin-top: 4px; width: 100px; }
+.mana-balance-fill { height: 100%; position: absolute; left: 0; top: 0; transition: width 0.3s ease; }
+
 /* ── Settings Tab ── */
 .settings-section {
   margin-bottom: 24px;
@@ -1517,6 +1620,43 @@ a:hover { text-decoration: underline; }
 .pr-modal__diff-line--remove { background: var(--hub-red-dim); color: var(--hub-red); }
 .pr-modal__diff-line--move { background: var(--hub-blue-dim); color: var(--hub-blue); }
 .pr-modal__diff-line--meta { background: var(--hub-purple-dim); color: var(--hub-purple); }
+
+/* ── Diff Card Images ── */
+.diff-image-preview {
+  position: relative;
+  width: 48px;
+  height: 66px;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.diff-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.diff-image-preview:hover {
+  transform: scale(1.5);
+  z-index: 10;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+.diff-image-preview:hover img {
+  image-rendering: -webkit-optimize-contrast;
+}
+
+/* Move operation: side-by-side images */
+.pr-modal__diff-line--move .diff-move-images {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.pr-modal__diff-line--move .diff-move-arrow {
+  font-size: 14px;
+  color: var(--hub-text-muted);
+}
 
 /* ── Risk Badge ── */
 .pr-modal__risk-badge {
@@ -2001,6 +2141,7 @@ a:hover { text-decoration: underline; }
   background: var(--hub-border);
   margin: 4px 0;
 }
+.hub-dropdown-menu.open { display: block !important; }
 
 /* ── PR Comments ── */
 .pr-modal__comment {
@@ -2342,9 +2483,27 @@ a:hover { text-decoration: underline; }
       </div>
     </div>
     <div class="repo-header__actions">
-      <button class="hub-btn" id="btnCreateBranch">&#x1F500; Create Branch</button>
-      <button class="hub-btn hub-btn--gold" id="btnNewPR">&#x2795; New PR</button>
-      <button class="hub-btn" id="btnSettings">&#x2699;&#xFE0F; Settings</button>
+      <button class="hub-btn" id="btnExportDeck" title="Export deck to clipboard">&#x1F4E5; Export</button>
+      <button class="hub-btn hub-btn--primary" id="btnAddCardHeader" onclick="document.getElementById('btnAddCard').click()">&#x2795; Add Card</button>
+      <div class="hub-dropdown" style="position:relative;display:inline-block">
+        <button class="hub-btn" id="btnMoreActions" onclick="this.nextElementSibling.classList.toggle('open')">&#x22EE;</button>
+        <div class="hub-dropdown-menu" style="position:absolute;top:100%;right:0;background:var(--hub-raised);border:1px solid var(--hub-border);border-radius:6px;min-width:160px;z-index:100;display:none;box-shadow:0 8px 20px rgba(0,0,0,0.4);padding:4px 0">
+           <button class="hub-dropdown-item" id="btnWatch" style="display:block;width:100%;text-align:left;background:none;border:none;color:var(--hub-text);padding:8px 12px;cursor:pointer;font-size:13px;transition:background 0.2s" onmouseover="this.style.background='var(--hub-hover)'" onmouseout="this.style.background='none'">&#x1F441;&#xFE0F; Watch</button>
+           <button class="hub-dropdown-item" id="btnCreateBranch" style="display:block;width:100%;text-align:left;background:none;border:none;color:var(--hub-text);padding:8px 12px;cursor:pointer;font-size:13px;transition:background 0.2s" onmouseover="this.style.background='var(--hub-hover)'" onmouseout="this.style.background='none'">&#x1F500; Create Branch</button>
+           <button class="hub-dropdown-item" id="btnSettings" style="display:block;width:100%;text-align:left;background:none;border:none;color:var(--hub-text);padding:8px 12px;cursor:pointer;font-size:13px;transition:background 0.2s" onmouseover="this.style.background='var(--hub-hover)'" onmouseout="this.style.background='none'">&#x2699;&#xFE0F; Settings</button>
+           <div style="height:1px;background:var(--hub-border);margin:4px 0"></div>
+           <button class="hub-dropdown-item" id="btnNewPR" style="display:block;width:100%;text-align:left;background:none;border:none;color:var(--hub-text);padding:8px 12px;cursor:pointer;font-size:13px;transition:background 0.2s" onmouseover="this.style.background='var(--hub-hover)'" onmouseout="this.style.background='none'">&#x2795; New PR</button>
+        </div>
+      </div>
+    </div>
+    <script>
+      // Close dropdowns when clicking outside
+      document.addEventListener('click', function(e) {
+        if (!e.target.closest('.hub-dropdown')) {
+           document.querySelectorAll('.hub-dropdown-menu').forEach(el => el.classList.remove('open'));
+        }
+      });
+    </script>
     </div>
   </div>
 
@@ -2426,24 +2585,34 @@ a:hover { text-decoration: underline; }
 <div class="tab-panel" id="panel-code" role="tabpanel" aria-labelledby="tab-code" aria-hidden="false">
   <div class="code-layout">
     <div class="code-main">
-      <!-- File tree -->
-      <div class="file-tree">
-        <div class="file-tree__header">
+      <!-- File tree (Hidden by default) -->
+      <details class="file-tree" style="margin-bottom:16px;border:1px solid var(--hub-border);border-radius:6px;background:var(--hub-surface)">
+        <summary class="file-tree__header" style="cursor:pointer;padding:8px 12px;list-style:none;display:flex;align-items:center;gap:8px">
+          <span style="font-size:14px">&#x1F4C1;</span>
           <span>Deck Files</span>
-          <span style="font-weight:400;color:var(--hub-text-muted)" id="fileCount">5 files</span>
-        </div>
-        <div id="fileTreeBody"><!-- JS fills --></div>
-      </div>
+          <span style="font-weight:400;color:var(--hub-text-muted);font-size:12px;margin-left:auto" id="fileCount">5 files</span>
+        </summary>
+        <div id="fileTreeBody" style="border-top:1px solid var(--hub-border)"><!-- JS fills --></div>
+      </details>
 
       <!-- Card table -->
       <div class="card-table">
-        <div class="card-table__header">Card List Preview</div>
+        <div class="card-table__header">
+          <span>Card List Preview</span>
+          <div id="deckPriceBadge" class="deck-price-badge" style="display:none; margin-left: auto;">
+            <span>$0.00</span>
+          </div>
+        </div>
+
         <div id="cardTableBody"><!-- JS fills --></div>
       </div>
 
       <!-- Primer preview -->
       <div class="primer-preview">
-        <div class="primer-preview__header">&#x1F4D6; README / Primer Preview</div>
+        <div class="primer-preview__header" style="display:flex;justify-content:space-between;align-items:center">
+          <span>&#x1F4D6; README / Primer Preview</span>
+          <button class="hub-btn hub-btn--xs" id="btnEditReadme" style="display:none">&#x270F; Edit</button>
+        </div>
         <div class="primer-preview__body" id="primerBody">
           <h3>Azorius Control — Primer</h3>
           <p>This is a permission-based control deck built around <strong>Grand Arbiter Augustin IV</strong> as the commander. The primary gameplan is to establish an early tax advantage, then transition into a hard-lock win condition through stax pieces and card advantage engines.</p>
@@ -2489,21 +2658,29 @@ a:hover { text-decoration: underline; }
         </div>
       </div>
 
-      <div class="sidebar-card">
-        <div class="sidebar-card__header">Checks</div>
+      <details class="sidebar-card">
+        <summary class="sidebar-card__header" style="cursor:pointer;list-style:none">Checks <span style="float:right;font-size:10px;opacity:0.6">▼</span></summary>
         <div class="sidebar-card__body">
           <div class="checks-list" id="checksBody"><!-- JS fills --></div>
         </div>
-      </div>
+      </details>
 
-      <div class="sidebar-card">
-        <div class="sidebar-card__header">Contributors</div>
+      <details class="sidebar-card">
+        <summary class="sidebar-card__header" style="cursor:pointer;list-style:none">Contributors <span style="float:right;font-size:10px;opacity:0.6">▼</span></summary>
         <div class="sidebar-card__body">
           <div class="contributors" id="contributorsBody">
             <div class="contributor" style="background:linear-gradient(135deg,#a78bfa,#5ea3f8)" title="arcane_user">CG</div>
             <div class="contributor" style="background:linear-gradient(135deg,#f59e42,#ef5350)" title="meta_drafter">MD</div>
             <div class="contributor" style="background:linear-gradient(135deg,#3dd68c,#5ea3f8)" title="budget_brewer">BB</div>
           </div>
+        </div>
+      </details>
+
+      <!-- Pinned Items -->
+      <div class="sidebar-card" id="pinnedItemsSidebar" style="display:none">
+        <div class="sidebar-card__header">&#x2605; Pinned</div>
+        <div class="sidebar-card__body">
+          <!-- JS fills -->
         </div>
       </div>
 
@@ -2555,6 +2732,11 @@ a:hover { text-decoration: underline; }
 <!-- ─── INSIGHTS TAB ─── -->
 <div class="tab-panel" id="panel-insights" role="tabpanel" aria-labelledby="tab-insights" aria-hidden="true">
   <div class="insights-grid">
+    <div class="insight-card">
+      <div class="insight-card__header">&#x1F4CA; Mana Balance (Sources vs Symbols)</div>
+      <div class="insight-card__body" id="insightManaBody"><!-- JS fills --></div>
+    </div>
+
     <div class="insight-card">
       <div class="insight-card__header">&#x2705; CI / Deck Checks</div>
       <div class="insight-card__body" id="insightChecksBody"><!-- JS fills --></div>
@@ -2629,6 +2811,27 @@ a:hover { text-decoration: underline; }
       <textarea id="settingsReviewChecklist" class="hub-textarea" rows="4" placeholder="Ramp count ≥8?&#10;Draw count ≥10?&#10;Interaction ≥8?"></textarea>
     </div>
 
+    <div class="settings-section">
+      <div class="settings-section__title">&#x1F50D; Saved Searches</div>
+      <div class="settings-section__desc">Quick access to frequently used queries in the command palette</div>
+      <div id="savedSearchesContainer" style="margin-bottom:12px">
+        <!-- JS fills -->
+      </div>
+      <div style="background:var(--hub-raised);padding:12px;border-radius:6px;border:1px dashed var(--hub-border)">
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px">Add New Search</div>
+        <div style="display:flex;gap:8px;align-items:flex-start">
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+            <input type="text" id="savedSearchName" class="hub-input" placeholder="Search name (e.g., 'My Open PRs')" style="width:100%;font-size:13px">
+            <input type="text" id="savedSearchQuery" class="hub-input" placeholder="Query (e.g., type:pr status:open)" style="width:100%;font-size:12px;font-family:var(--hub-mono)">
+          </div>
+          <button class="hub-btn hub-btn--sm hub-btn--primary" id="btnAddSavedSearch" style="margin-top:2px">+ Add</button>
+        </div>
+        <div style="font-size:11px;color:var(--hub-text-muted);margin-top:8px">
+          Syntax: <code>type:pr</code>, <code>type:issue</code>, <code>status:open</code>, <code>label:bug</code>
+        </div>
+      </div>
+    </div>
+
     <div style="margin-top:16px;margin-bottom:24px">
       <button class="hub-btn hub-btn--primary" id="btnSaveSettings">&#x1F4BE; Save Settings</button>
     </div>
@@ -2662,6 +2865,24 @@ a:hover { text-decoration: underline; }
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section__title">&#x1F517; Integrations &amp; Webhooks</div>
+      <div class="settings-section__desc">Connect to external services like Discord or Slack</div>
+      <div id="webhookSettingsContainer" style="margin-bottom:12px">
+        <!-- JS fills -->
+      </div>
+      <div style="background:var(--hub-raised);padding:12px;border-radius:6px;border:1px dashed var(--hub-border)">
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px">Add New Webhook</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <input type="text" id="webhookInputUrl" class="hub-input" placeholder="https://discord.com/api/webhooks/..." style="width:100%">
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="text" id="webhookInputEvents" class="hub-input" placeholder="pr.open, pr.merge, *" style="flex:1">
+            <button class="hub-btn hub-btn--sm hub-btn--primary" id="btnAddWebhook">+ Add</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="danger-zone">
@@ -2768,6 +2989,44 @@ a:hover { text-decoration: underline; }
   </div>
 </div>
 
+<!-- README Editor Modal -->
+<div class="pr-modal-overlay" id="readmeModal" role="dialog" aria-modal="true" aria-labelledby="readmeModalTitle" aria-hidden="true">
+  <div class="pr-modal" style="max-width:800px;max-height:90vh;display:flex;flex-direction:column">
+    <div class="pr-modal__header">
+      <div class="pr-modal__title" id="readmeModalTitle">&#x1F4D6; Edit README</div>
+      <button class="pr-modal__close" id="readmeModalClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="pr-modal__body" style="flex:1;display:flex;flex-direction:column;gap:14px;overflow:hidden">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="hub-btn hub-btn--xs primer-tpl-btn" data-template="strategy">Strategy</button>
+        <button class="hub-btn hub-btn--xs primer-tpl-btn" data-template="wincons">Win Conditions</button>
+        <button class="hub-btn hub-btn--xs primer-tpl-btn" data-template="matchups">Matchups</button>
+        <button class="hub-btn hub-btn--xs primer-tpl-btn" data-template="budget">Budget Options</button>
+        <button class="hub-btn hub-btn--xs primer-tpl-btn" data-template="full">Full Template</button>
+      </div>
+      <textarea class="hub-input" id="readmeEditor" placeholder="# Deck Primer
+
+## Strategy
+Describe your deck's game plan...
+
+## Win Conditions
+- Combo A
+- Combo B
+
+## Matchups
+Good against: ...
+Bad against: ..." style="flex:1;width:100%;resize:none;font-family:var(--hub-mono);font-size:13px;line-height:1.6"></textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:12px;color:var(--hub-text-muted)">Markdown supported</span>
+        <div style="display:flex;gap:8px">
+          <button class="hub-btn hub-btn--secondary" id="btnPreviewReadme">Preview</button>
+          <button class="hub-btn hub-btn--primary" id="btnSaveReadme">&#x1F4BE; Save README</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Branch Compare Modal -->
 <div class="pr-modal-overlay" id="branchCompareModal" role="dialog" aria-modal="true" aria-hidden="true">
   <div class="pr-modal" style="max-width:720px">
@@ -2785,6 +3044,67 @@ a:hover { text-decoration: underline; }
       <div id="branchCompareResult" style="margin-top:16px"></div>
     </div>
   </div>
+</div>
+
+<!-- Watch Modal (8C) -->
+<div class="pr-modal-overlay" id="watchModal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="pr-modal" style="max-width:400px">
+    <div class="pr-modal__header">
+      <div class="pr-modal__title">&#x1F441;&#xFE0F; Watch Settings</div>
+      <button class="pr-modal__close" id="watchModalClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="pr-modal__body">
+      <p style="font-size:13px;color:var(--hub-text-muted);margin-bottom:16px">Choose which events you want to be notified about for this repository.</p>
+      <div style="display:flex;flex-direction:column;gap:10px" id="watchEventList">
+        <label class="hub-checkbox"><input type="checkbox" value="pr.open"> New Pull Requests</label>
+        <label class="hub-checkbox"><input type="checkbox" value="pr.merge"> Merged Pull Requests</label>
+        <label class="hub-checkbox"><input type="checkbox" value="issue.create"> New Issues</label>
+        <label class="hub-checkbox"><input type="checkbox" value="release.create"> New Releases</label>
+        <label class="hub-checkbox"><input type="checkbox" value="check.run"> Failed Checks</label>
+      </div>
+      <div style="margin-top:20px;display:flex;justify-content:flex-end">
+        <button class="hub-btn hub-btn--primary" id="btnSaveWatch">Save Settings</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bisect Modal (8A) -->
+<div class="pr-modal-overlay" id="bisectModal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="pr-modal" style="max-width:600px">
+    <div class="pr-modal__header">
+      <div class="pr-modal__title">&#x1F50D; Deck Bisect</div>
+      <button class="pr-modal__close" id="bisectModalClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="pr-modal__body" id="bisectModalBody">
+      <!-- JS fills -->
+    </div>
+  </div>
+</div>
+
+<!-- Export Modal (QOL 2) -->
+<div class="pr-modal-overlay" id="exportModal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="pr-modal" style="max-width:500px">
+    <div class="pr-modal__header">
+      <div class="pr-modal__title">&#x1F4E4; Export Deck</div>
+      <button class="pr-modal__close" id="exportModalClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="pr-modal__body">
+      <p style="font-size:13px;color:var(--hub-text-dim);margin-bottom:16px">Choose a format to copy to your clipboard:</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <button class="hub-btn" id="btnExportText">Plain Text</button>
+        <button class="hub-btn" id="btnExportArena">MTG Arena</button>
+        <button class="hub-btn" id="btnExportMoxfield">Moxfield</button>
+        <button class="hub-btn" id="btnExportArchidekt">Archidekt</button>
+      </div>
+      <textarea id="exportArea" style="width:100%;height:150px;margin-top:16px;background:var(--hub-void);color:var(--hub-text-muted);font-family:var(--hub-mono);font-size:11px;padding:8px;border:1px solid var(--hub-border);border-radius:4px" readonly></textarea>
+    </div>
+  </div>
+</div>
+
+<!-- Card Hover Tooltip -->
+<div id="cardHoverTooltip" class="card-hover-tooltip">
+  <img id="cardHoverImg" src="" alt="Card Art">
 </div>
 
 <script type="module" src="/src/deckhub/deckhub-main.ts"></script>

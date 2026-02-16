@@ -1,0 +1,187 @@
+/* Deck Solver Widget Styles */
+.solver-widget-empty {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--text-dim);
+}
+
+.solver-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.solver-icon {
+  font-size: 1.2rem;
+}
+
+.solver-title {
+  flex: 1;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-bright);
+}
+
+.solver-status {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.25rem 0.7rem;
+  border-radius: var(--radius-pill);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.solver-status--ok {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #22c55e;
+}
+
+.solver-status--warning {
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  color: #fbbf24;
+}
+
+.solver-section-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Violations */
+.solver-violations {
+  margin-bottom: 1.5rem;
+}
+
+.solver-violation-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition);
+}
+
+.solver-violation-card:hover {
+  border-color: var(--border-light);
+  transform: translateX(2px);
+}
+
+.solver-violation-tag {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-bright);
+  text-transform: capitalize;
+}
+
+.solver-violation-details {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.solver-violation-deficit {
+  font-size: 0.78rem;
+  color: var(--warning);
+  font-weight: 500;
+}
+
+.solver-violation-ratio {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  background: var(--bg-3);
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-pill);
+}
+
+/* Suggestions */
+.solver-suggestions {
+  margin-bottom: 1rem;
+}
+
+.solver-suggestion {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition);
+}
+
+.solver-suggestion:hover {
+  border-color: var(--border-light);
+  background: var(--bg-2);
+}
+
+.solver-suggestion--add {
+  border-left: 3px solid var(--success);
+}
+
+.solver-suggestion--cut {
+  border-left: 3px solid var(--danger);
+}
+
+.solver-suggestion--swap {
+  border-left: 3px solid var(--accent);
+}
+
+.solver-action-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+
+.solver-suggestion-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.solver-suggestion-card {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-bright);
+  margin-bottom: 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.solver-suggestion-reason {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+/* Summary OK */
+.solver-summary-ok {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 1.5rem 1rem;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), transparent);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: var(--radius);
+  color: var(--success);
+  font-weight: 600;
+  font-size: 0.9rem;
+}

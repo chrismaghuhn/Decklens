@@ -35,6 +35,7 @@ export function createCard(
     loyalty?: string;
     colors?: string[];
     color_identity?: string[];
+    rarity?: string;
     image_uris?: { normal?: string; small?: string };
   },
   owner: 0 | 1
@@ -52,6 +53,7 @@ export function createCard(
     loyalty: scryfallData.loyalty,
     colors: (scryfallData.colors || []) as Color[],
     colorIdentity: (scryfallData.color_identity || []) as Color[],
+    rarity: (scryfallData.rarity || 'common') as Card['rarity'],
     tags: [],
     imageUrl:
       scryfallData.image_uris?.normal ||
@@ -81,6 +83,7 @@ export function createSimpleCard(
     oracleText: '',
     colors: [],
     colorIdentity: [],
+    rarity: 'common',
     tags: [],
     imageUrl: '',
     owner,

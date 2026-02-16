@@ -1,0 +1,165 @@
+/* ==================== GOLDFISH COACH WIDGET ==================== */
+.gf-coach-widget {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.coach-widget-disabled,
+.coach-widget-empty {
+  text-align: center;
+  padding: 1.5rem 1rem;
+  color: var(--text-dim);
+}
+
+.coach-widget-disabled p:first-child,
+.coach-widget-empty p:first-child {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+coach-widget-disabled .coach-hint,
+.coach-widget-empty .coach-hint {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.coach-widget-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.coach-widget-header .coach-icon {
+  font-size: 1.2rem;
+}
+
+.coach-widget-header .coach-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-bright);
+  flex: 1;
+}
+
+.coach-widget-header .coach-mode-badge {
+  background: var(--gold-glow);
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-pill);
+}
+
+.coach-widget-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.coach-hint-card {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem;
+  transition: all var(--transition);
+}
+
+.coach-hint-card:hover {
+  border-color: var(--border-light);
+  transform: translateY(-1px);
+}
+
+.coach-hint-card--combo {
+  border-left: 3px solid var(--success);
+}
+
+.coach-hint-card--sequencing {
+  border-left: 3px solid var(--accent);
+}
+
+.coach-hint-card--mulligan {
+  border-left: 3px solid var(--warning);
+}
+
+.coach-hint-card--advice {
+  border-left: 3px solid var(--gold);
+}
+
+.coach-hint-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+
+.coach-hint-header .coach-hint-icon {
+  font-size: 1rem;
+}
+
+.coach-hint-header .coach-hint-short {
+  flex: 1;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-bright);
+}
+
+.coach-hint-expand-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  transition: all var(--transition);
+}
+
+.coach-hint-expand-btn:hover {
+  color: var(--text);
+}
+
+.coach-hint-details {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.coach-hint-details--visible {
+  max-height: 500px;
+  opacity: 1;
+  margin-top: 0.5rem;
+}
+
+.coach-hint-details p {
+  font-size: 0.82rem;
+  color: var(--text);
+  line-height: 1.5;
+  margin-bottom: 0.5rem;
+}
+
+.coach-hint-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.coach-card-badge {
+  display: inline-block;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 0.2rem 0.6rem;
+  font-size: 0.72rem;
+  color: var(--text-bright);
+  font-weight: 500;
+}

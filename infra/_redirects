@@ -1,0 +1,35 @@
+/decks.html /decks 301
+/decks /decks.html 200
+
+/decks-public.html /decks/public 301
+/decks/public /decks-public.html 200
+
+/decks/* /deck-editor.html 200
+/d/* /deck-public.html 200
+
+/dashboard /dashboard-hub.html 200
+/dashboard/ /dashboard-hub.html 200
+
+/dashboard/executive /executive-dashboard.html 200
+/dashboard/executive/ /executive-dashboard.html 200
+
+/dashboard/growth /growth-dashboard.html 200
+/dashboard/growth/ /growth-dashboard.html 200
+
+/dashboard/technical /technical-dashboard.html 200
+/dashboard/technical/ /technical-dashboard.html 200
+
+/dashboard/community /community-dashboard.html 200
+/dashboard/community/ /community-dashboard.html 200
+
+/dashboard/public /public-dashboard.html 200
+/dashboard/public/ /public-dashboard.html 200
+
+/dashboard/* /dashboard-hub.html 200
+
+/play /play-vs-bot.html 200
+/play/ /play-vs-bot.html 200
+/play/* /play-vs-bot.html 200
+
+/train-bot /train-bot.html 200
+/train-bot/ /train-bot.html 200

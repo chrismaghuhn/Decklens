@@ -430,6 +430,7 @@ function permanentToCard(perm: Permanent): Card {
     loyalty: perm.loyalty,
     colors: perm.colors,
     colorIdentity: perm.colorIdentity,
+    rarity: perm.rarity,
     tags: perm.tags,
     imageUrl: perm.imageUrl,
     owner: perm.owner,

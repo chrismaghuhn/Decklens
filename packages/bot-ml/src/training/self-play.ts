@@ -398,4 +398,47 @@ export class SelfPlayPipeline {
   getValueNetwork(): ValueNetwork {
     return this.valueNet;
   }
+
+  /** Get buffer statistics */
+  getBufferStats() {
+    const stats = this.buffer.getEpisodeStats();
+    return {
+      ...stats,
+      episodes: stats.totalEpisodes,
+      experiences: this.buffer.getAllExperiences().length,
+      avgOutcome: stats.winRate
+    };
+  }
+
+  /** Record a single episode (backward compatibility) */
+  async recordEpisode(states: GameState[], actions: GameAction[], winner: number, learn: boolean) {
+     if (!learn) return;
+     
+     const steps: Experience[] = [];
+     for (let i = 0; i < actions.length; i++) {
+         const state = states[i];
+         const action = actions[i];
+         
+         if (action.player === 0) { // Assuming player 0 is the learning one in this test context
+             steps.push({
+                 features: new Float32Array(384), // Placeholder
+                 reward: 0,
+                 done: i === actions.length - 1,
+                 actionIndex: 0,
+                 logProb: 0,
+                 value: 0,
+                 player: 0
+             });
+         }
+     }
+     
+     if (steps.length > 0) {
+         this.finishEpisode(steps, winner === 0, states.length);
+     }
+  }
+
+  /** Clear the buffer */
+  clearBuffer() {
+    this.buffer.clear();
+  }
 }

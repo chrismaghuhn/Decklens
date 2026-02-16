@@ -1,0 +1,225 @@
+/* Simulation Widget Styles */
+.sim-widget-empty {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--text-dim);
+}
+
+.sim-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.sim-icon {
+  font-size: 1.2rem;
+}
+
+.sim-title {
+  flex: 1;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-bright);
+}
+
+/* Controls */
+.sim-controls {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 1rem;
+}
+
+.sim-iter-select {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-3);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.sim-run-btn {
+  padding: 0.5rem 1.5rem;
+  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: transform var(--transition);
+}
+
+.sim-run-btn:hover {
+  transform: translateY(-1px);
+}
+
+/* Results */
+.sim-results {
+  min-height: 200px;
+}
+
+.sim-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  color: var(--text-dim);
+  gap: 0.5rem;
+}
+
+.sim-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  gap: 1rem;
+}
+
+.sim-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--bg-3);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Summary Stats */
+.sim-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.sim-stat {
+  padding: 1rem;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.sim-stat-label {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.sim-stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  font-family: var(--font-display);
+}
+
+/* Manabase Health */
+.sim-manabase {
+  padding: 1rem;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 1.5rem;
+}
+
+.sim-section-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.sim-health-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  font-size: 0.85rem;
+}
+
+.sim-health-label {
+  color: var(--text-dim);
+}
+
+.sim-health-value {
+  font-weight: 600;
+}
+
+.sim-health-ok {
+  color: var(--success);
+}
+
+.sim-health-bad {
+  color: var(--danger);
+}
+
+/* Distribution Chart */
+.sim-distribution {
+  padding: 1rem;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 1rem;
+}
+
+.sim-distribution-bar {
+  display: grid;
+  grid-template-columns: 30px 1fr 50px;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.sim-turn-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.sim-bar-fill {
+  height: 20px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-dark));
+  border-radius: var(--radius-pill);
+  transition: width 0.3s ease;
+}
+
+.sim-percentage {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: right;
+}
+
+/* Footer */
+.sim-footer {
+  padding: 0.75rem;
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  border-top: 1px solid var(--border);
+}

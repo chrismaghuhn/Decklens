@@ -6,7 +6,7 @@ import { validateAction } from './validation.ts';
 import { retainPriorityAfterAction } from '../rules/priority.ts';
 import { addSpellToStack, addAbilityToStack } from '../rules/stack.ts';
 import { payCost, parseManaCost, canPayCost, autoTapLandsForCost } from '../rules/mana.ts';
-import { keepHand, performLondonMulligan } from './factory.ts';
+import { keepHand, performLondonMulligan, startMulligan } from './factory.ts';
 import { passPriority } from '../rules/priority.ts';
 import { applyStepEffects } from './turn-manager.ts';
 
@@ -26,6 +26,25 @@ export function executeAction(
 
   switch (action.type) {
     case 'pass':
+      if (state.mulliganPhase) {
+        // Treat pass as 'keep hand' during mulligan phase
+        newState = keepHand(state, action.player);
+        
+        // Check if both kept (copied from mulligan case)
+        const keepCount = newState.log.filter(e => e.message && e.message.includes('keeps their hand')).length;
+        if (keepCount >= 2) {
+             newState = {
+              ...newState,
+              mulliganPhase: false,
+              step: 'draw',
+              priorityPlayer: newState.activePlayer,
+              bothPlayersPassed: false,
+            };
+            newState = applyStepEffects(newState);
+        }
+        return newState;
+      }
+
       // Pass is handled by priority system, just record it
       return {
         ...state,
@@ -54,6 +73,13 @@ export function executeAction(
 
     case 'mulligan':
       // Handle London Mulligan: keep hand or put cards on bottom
+      
+      // Sentinel value to trigger a new mulligan (shuffle & draw)
+      if (action.toBottom.length === 1 && action.toBottom[0] === 'MULLIGAN') {
+         newState = startMulligan(state, action.player);
+         break; // startMulligan handles state update and log
+      }
+
       if (action.toBottom.length === 0) {
         // Player keeps their hand
         newState = keepHand(state, action.player);
@@ -196,7 +222,9 @@ function executeActivateAbility(
   return addAbilityToStack(state, action.sourceId, action.abilityIndex, action.player, action.targets);
 }
 
-/** Declare attackers: mark creatures as attacking and tap them. */
+/** Declare attackers: mark creatures as attacking and tap them.
+ *  CRITICAL FIX: Creatures with vigilance don't tap when attacking
+ */
 function executeDeclareAttackers(
   state: GameState,
   action: Extract<GameAction, { type: 'declare-attackers' }>
@@ -206,7 +234,13 @@ function executeDeclareAttackers(
 
   const updatedBattlefield = player.battlefield.map((perm) => {
     if (action.attackers.includes(perm.id)) {
-      return { ...perm, attacking: true, tapped: true };
+      // Check for vigilance keyword
+      const hasVigilance = perm.oracleText?.toLowerCase().includes('vigilance') ?? false;
+      return { 
+        ...perm, 
+        attacking: true, 
+        tapped: !hasVigilance  // Don't tap if has vigilance
+      };
     }
     return perm;
   });

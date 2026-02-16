@@ -1,0 +1,7 @@
+{
+  "main": [
+    { "name": "Lightning Bolt", "qty": 4 },
+    { "name": "Mountain", "qty": 20 }
+  ,
+  "sideboard": []
+}

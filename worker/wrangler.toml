@@ -1,0 +1,44 @@
+name = "decklens-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+workers_dev = true
+
+[vars]
+ENVIRONMENT = "production"
+FRONTEND_URL = "https://decklens.pages.dev"
+
+[[kv_namespaces]]
+binding = "COMMUNITY_KV"
+id = "1901193fd2da44eabb8d7fdf978df522"
+preview_id = "1901193fd2da44eabb8d7fdf978df522"
+
+[[kv_namespaces]]
+binding = "CACHE_KV"
+id = "03372b77c83e40ca8f063768920d2981"
+preview_id = "03372b77c83e40ca8f063768920d2981"
+
+[[d1_databases]]
+binding = "COMMUNITY_DB"
+database_name = "decklens-community"
+database_id = "de7be9e3-f841-40e0-8956-b0543454ac26"
+
+[[analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "decklens_events"
+
+# Collaborative editing Durable Objects
+[durable_objects]
+bindings = [
+  { name = "COLLAB_SESSION", class_name = "CollabSession" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CollabSession"]
+
+# Auth: OAuth secrets (set via `npx wrangler secret put <NAME>`)
+# GITHUB_CLIENT_ID = set via wrangler secret
+# GITHUB_CLIENT_SECRET = set via wrangler secret
+# GOOGLE_CLIENT_ID = set via wrangler secret
+# GOOGLE_CLIENT_SECRET = set via wrangler secret

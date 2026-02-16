@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+    "declaration": false,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@shared/*": ["src/shared/*"],
+      "@mtg/game-engine": ["packages/game-engine/src/index.ts"],
+      "@mtg/bot-core": ["packages/bot-core/src/index.ts"],
+      "@mtg/bot-ml": ["packages/bot-ml/src/index.ts"],
+      "@mtg/card-data": ["packages/card-data/src/index.ts"],
+      "@mtg/*": ["src/mtg/*"]
+    },
+    /* Incremental migration: allow JS files */
+    "allowJs": true,
+    "checkJs": false
+  },
+  "include": ["packages/*/src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "src", "worker", "tests"]
+}

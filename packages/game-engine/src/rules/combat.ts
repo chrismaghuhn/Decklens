@@ -250,14 +250,34 @@ export function hasFirstStrikeCombatants(state: GameState): boolean {
   return false;
 }
 
-/** Check if a permanent is a commander for the given player */
+/** Check if a permanent is a commander for the given player
+ *  CRITICAL FIX: Properly identify commanders by checking:
+ *  1. If commandZone has cards, check if permanent matches one
+ *  2. If commandZone is empty (commander cast), check if permanent is legendary and owned by player
+ *  3. Also check commanderDamage map for the card ID
+ */
 function isCommanderPermanent(perm: Permanent, player: PlayerState): boolean {
-  // Commander is identified by matching the name of the card in command zone
-  // Since commander can be on battlefield, we check if this permanent's name matches
-  // any card that started in the command zone
-  return player.commandZone.length === 0 &&
-    perm.typeLine.toLowerCase().includes('legendary') &&
-    perm.owner === player.id;
+  // If commandZone has cards, the commander hasn't been cast yet
+  if (player.commandZone.length > 0) {
+    // Check if this permanent matches a card in command zone (by name or ID)
+    return player.commandZone.some(cmd => 
+      cmd.id === perm.id || cmd.name === perm.name
+    );
+  }
+  
+  // Command zone is empty - commander was cast
+  // Check if this is the cast commander (legendary, owned by player, 
+  // and matches an ID in the commanderDamage map)
+  const isLegendary = perm.typeLine.toLowerCase().includes('legendary');
+  const isOwner = perm.owner === player.id;
+  
+  // Check if this permanent's ID is tracked in commander damage
+  // (indicates it dealt damage as a commander)
+  const hasDealtCommanderDamage = Object.keys(player.commanderDamage || {}).includes(perm.id);
+  
+  // Also check if the commander was cast (track by name in cast history)
+  // This is a heuristic for the case where commander just entered battlefield
+  return isLegendary && isOwner && (hasDealtCommanderDamage || player.commanderTax > 0);
 }
 
 /** Check if a permanent has a keyword ability (simplified — checks oracle text) */

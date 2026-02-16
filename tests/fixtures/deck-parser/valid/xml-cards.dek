@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Deck>
+  <Cards CatID="0" Quantity="4" Sideboard="false" Name="Lightning Bolt" />
+  <Cards CatID="0" Quantity="20" Sideboard="false" Name="Mountain" />
+  <Cards CatID="0" Quantity="2" Sideboard="true" Name="Pyroblast" />
+</Deck>

@@ -1,0 +1,7 @@
+# Burn deck
+// main
+4 Goblin Guide
+4 Lava Spike
+; sideboard below
+sideboard:
+2 Smash to Smithereens

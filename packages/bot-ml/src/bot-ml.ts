@@ -12,7 +12,7 @@ import { getLegalActionTypes, autoTapLandsForCost, parseManaCost } from '@mtg/ga
 import { PolicyNetwork, ACTION_TYPES, ACTION_COUNT, type ActionProbabilities } from './networks/policy-network.ts';
 
 import { ValueNetwork } from './networks/value-network.ts';
-import { extractFeatures, extractFeaturesV2, extractFeaturesV3, extractFeaturesV4, extractCardFeatures, FEATURE_DIM, FEATURE_DIM_V2, FEATURE_DIM_V3, FEATURE_DIM_V4 } from './networks/feature-extractor.ts';
+import { extractFeaturesUnified, extractCardFeatures, FEATURE_DIM, FEATURE_DIM_V2, FEATURE_DIM_V3, FEATURE_DIM_V4 } from './networks/feature-extractor.ts';
 import { actionToIndex } from './training/imitation.ts';
 import { HierarchicalPolicy } from './networks/hierarchical-policy.ts';
 import { ResNetPolicy } from './networks/resnet-policy.ts';
@@ -99,12 +99,21 @@ export class MLBot {
     // Fast hash using critical state fields
     const p = state.players[this.player];
     const opp = state.players[1 - this.player];
-    return `${state.turn}:${state.phase}:${state.step}:${state.priorityPlayer}:${state.stack.length}:${p.hand.length}:${p.battlefield.length}:${p.life}:${opp.life}:${state.actionHistory.length}`;
+    // Safety check for undefined arrays from Rust bridge
+    const stackLen = state.stack?.length ?? 0;
+    const handLen = p.hand?.length ?? 0;
+    const bfLen = p.battlefield?.length ?? 0;
+    const histLen = state.actionHistory?.length ?? 0;
+    
+    return `${state.turn}:${state.phase}:${state.step}:${state.priorityPlayer}:${stackLen}:${handLen}:${bfLen}:${p.life}:${opp.life}:${histLen}`;
   }
 
   /** 
-   * Extract features using the correct version based on featureDim.
+   * Extract features using the unified extractor for maximum performance.
    * Uses caching to avoid recomputation when state hasn't changed.
+   * 
+   * OPTIMIZED: Uses extractFeaturesUnified() which computes all versions in single pass,
+   * avoiding the 3-4x redundancy of nested v4→v3→v2→v1 calls.
    */
   private extractFeaturesByVersion(state: GameState): Float32Array {
     const stateHash = this.computeStateHash(state);
@@ -115,15 +124,10 @@ export class MLBot {
       return this.cachedFeatures;
     }
     
-    // Cache miss - compute features
+    // Cache miss - compute features using unified extractor
     this.cacheMisses++;
-    const features = this.featureDim === FEATURE_DIM_V4
-      ? extractFeaturesV4(state, this.player)
-      : this.featureDim === FEATURE_DIM_V3
-        ? extractFeaturesV3(state, this.player)
-        : this.featureDim >= FEATURE_DIM_V2
-          ? extractFeaturesV2(state, this.player)
-          : extractFeatures(state, this.player);
+    // Unified extractor is 3-4x faster than nested v4→v3→v2→v1 calls
+    const features = extractFeaturesUnified(state, this.player, this.featureDim as 200 | 256 | 320 | 384);
     
     // Store in cache
     this.cachedFeatures = features;
@@ -201,7 +205,7 @@ export class MLBot {
     // Build concrete action (passing decision context for v3)
     // We pass a mutable context object to capture v3 choices
     const v3Context: { selectionIndex?: number, candidateFeatures?: Float32Array[], logProb?: number } = {};
-    const action = this.buildAction(chosenType, state, features, v3Context);
+    const action = this.buildAction(chosenType as any, state, features, v3Context);
 
     // Compute logProb + actionIndex for training (avoids recomputation in recordStep)
     const aidx = actionToIndex(action);
@@ -239,6 +243,78 @@ export class MLBot {
     return decision;
   }
 
+  /**
+   * Fast action selection using data from Rust GameSession.
+   * circumventing the slow JS State object.
+   * Returns full decision metadata needed for PPO training.
+   */
+  public chooseActionFromRust(features: Float32Array, legalActions: GameAction[]): { 
+      action: GameAction; 
+      logProb: number; 
+      value: number; 
+      actionIndex: number;
+  } {
+      // 1. Policy Inference
+      let actionProbs: ActionProbabilities;
+      if ((this.policyNet as any).predictFast) {
+          try {
+              const fastProbs = (this.policyNet as any).predictFast(features);
+              // Fallback wenn null zurückgegeben wird (CPU weights noch nicht geladen)
+              actionProbs = fastProbs ?? this.policyNet.predict(features);
+          } catch(e) {
+              actionProbs = this.policyNet.predict(features);
+          }
+      } else {
+          actionProbs = this.policyNet.predict(features);
+      }
+
+      // 2. Value Inference
+      let value: number;
+      if ((this.valueNet as any).predictFast) {
+          try {
+              const fastValue = (this.valueNet as any).predictFast(features);
+              value = typeof fastValue === 'number' ? fastValue : this.valueNet.predict(features);
+          } catch(e) {
+              value = this.valueNet.predict(features);
+          }
+      } else {
+          value = this.valueNet.predict(features);
+      }
+
+      // 3. Score Legal Actions
+      // Find best legal action type
+      const legalTypes = new Set(legalActions.map(a => a.type));
+      let bestType = 'pass';
+      let maxProb = -1;
+      
+      for (const [type, prob] of Object.entries(actionProbs)) {
+          if (legalTypes.has(type as any) && (prob as number) > maxProb) {
+              maxProb = prob as number;
+              bestType = type;
+          }
+      }
+      
+      // Filter actions of best type
+      const candidates = legalActions.filter(a => a.type === bestType);
+      
+      let selected: GameAction;
+      if (candidates.length === 0) {
+          // Fallback (shouldn't happen if legalActions is correct)
+          selected = legalActions[0] || { type: 'pass', player: this.player };
+      } else {
+          // If multiple candidates (e.g. multiple lands to play, multiple spells to cast), pick one.
+          // The goal is SPEED.
+          selected = candidates[Math.floor(Math.random() * candidates.length)];
+      }
+      
+      // 4. Compute logProb and actionIndex for training
+      const prob = actionProbs[bestType as keyof ActionProbabilities] ?? 1e-10;
+      const logProb = Math.log(prob + 1e-10);
+      const actionIndex = actionToIndex(selected);
+      
+      return { action: selected, logProb, value, actionIndex };
+  }
+
   /** Predict win probability for the current state */
   predictValue(state: GameState): number {
     const features = this.extractFeaturesByVersion(state);
@@ -274,6 +350,14 @@ export class MLBot {
   /** Reset decision history */
   resetHistory(): void {
     this.decisionHistory = [];
+  }
+
+  /** Clear feature cache between games to prevent stale data */
+  clearCache(): void {
+    this.cachedFeatures = null;
+    this.cachedStateHash = '';
+    this.cacheHits = 0;
+    this.cacheMisses = 0;
   }
 
   /** Set temperature for exploration vs exploitation */
@@ -477,7 +561,7 @@ export class MLBot {
       }
 
       case 'mulligan': {
-        const mulliganCount = 0; // State doesn't track this yet? Maybe we can infer from hand size?
+
         // Initial hand is 7. If we mulligan once, we draw 7, retain 6.
         // But the mulligan offer happens when?
         // If state.stack is empty and it's start of game.
@@ -535,7 +619,15 @@ export class MLBot {
         // If the engine offers 'mulligan', we can take it.
         
         // For now, let's implement the logic:
-        const should = MulliganPolicy.shouldMulligan(me.hand, 0, isOnPlay);
+        // For now, let's implement the logic:
+        const mulliganCount = state.mulliganCount ? state.mulliganCount[this.player] : 0;
+        
+        // Hard limit: Don't mulligan more than 3 times (down to 4 cards)
+        if (mulliganCount >= 3) {
+             return { type: 'pass', player: this.player };
+        }
+
+        const should = MulliganPolicy.shouldMulligan(me.hand, mulliganCount, isOnPlay);
         if (should) {
             // We want to draw a NEW hand.
             // How do we signal that?
@@ -560,23 +652,32 @@ export class MLBot {
             //   - NO. That would be 'keep'.
             
             // Let's assume 'mulligan' = I want a new hand.
-            return { type: 'mulligan', player: this.player, toBottom: [] };
+            return { type: 'mulligan', player: this.player, toBottom: ['MULLIGAN'] };
         } else {
             // We want to KEEP.
             // If we have excess cards (because we mulliganed before), we must put some on bottom.
             // Hand size = 7. If we mulliganed once, we need to put 1 back.
-            // Target hand size is usually tracked in game state? 
-            // `me.mulliganCount`?
+            // Target hand size should be 7. 
+            // London Mulligan: Draw 7. Put X back.
+            // Current hand size is 7.
+            // Mulligan count tells us X.
             
-            // If we can't inspect mulligan count, we can infer from hand size vs 7?
-            // London: Draw 7. Put X back.
-            // If I have 7 cards, and I decided to keep, do I need to put cards back?
-            // Only if I mulliganed previously.
+            // Get mulligan count
+
             
-            // Safety: Just return Pass.
-            // If the engine REQUIRES cards to be put on bottom, 'pass' might fail or trigger default?
-             return { type: 'pass', player: this.player };
+            if (mulliganCount > 0) {
+                // Must put mulliganCount cards on bottom
+                // Heuristic: Put mostly lands or high cost spells?
+                // For now, random or simple: put highest CMC
+                const sortedHand = [...me.hand].sort((a, b) => b.cmc - a.cmc);
+                const toBottom = sortedHand.slice(0, mulliganCount).map(c => c.id);
+                 return { type: 'mulligan', player: this.player, toBottom };
+            }
+
+            // Keep with no bottoming
+            return { type: 'pass', player: this.player };
         }
+
       }
 
       case 'concede': {

@@ -137,6 +137,13 @@ export class OpponentPool {
   }
 
   /**
+   * For backward compatibility with tests.
+   */
+  getRandomOpponent(): OpponentSnapshot | null {
+    return this.getOpponent();
+  }
+
+  /**
    * Update Elo ratings after a game.
    */
   updateElo(winnerId: string, loserId: string, isDraw: boolean): void {

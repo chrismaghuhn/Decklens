@@ -99,16 +99,16 @@ describe('MLBot', () => {
 
   // Note: serialize() uses localStorage which isn't available in Node/Vitest.
   // Will be fixed in Phase 3 with model-persistence.ts.
-  it.skip('should serialize and deserialize', () => {
+  it('should serialize and deserialize', async () => {
     const bot = new MLBot(0);
     const state = createMainPhaseState();
     const valueBefore = bot.predictValue(state);
 
-    const data = bot.serialize();
+    const data = await bot.serialize();
     expect(data.policy).toBeInstanceOf(ArrayBuffer);
     expect(data.value).toBeInstanceOf(ArrayBuffer);
 
-    const restored = MLBot.deserialize(0, data);
+    const restored = await MLBot.deserialize(0, data);
     const valueAfter = restored.predictValue(state);
     expect(valueAfter).toBeCloseTo(valueBefore, 5);
   });
@@ -280,7 +280,7 @@ describe('MLBot — Smart Blocking', () => {
       combat: {
         attackers: [{ permanentId: attId, defenderId: 0 }],
         blockers: [],
-        currentStep: 'blockers',
+        currentStep: 'declare-blockers',
       },
     };
 

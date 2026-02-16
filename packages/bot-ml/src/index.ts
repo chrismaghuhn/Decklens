@@ -62,3 +62,4 @@ export { runBenchmark } from './training/benchmark.ts';
 
 // === Bots ===
 export { SimpleBot } from './bots/simple-bot.ts';
+export { HeuristicBot } from '@mtg/bot-core';

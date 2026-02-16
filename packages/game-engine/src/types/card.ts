@@ -40,6 +40,7 @@ export interface Card {
   loyalty?: string;
   colors: Color[];
   colorIdentity: Color[];
+  rarity: 'common' | 'uncommon' | 'rare' | 'mythic' | 'special' | 'bonus';
   tags: CardTag[];
   imageUrl: string;
   /** Which player owns this card (in their deck) */

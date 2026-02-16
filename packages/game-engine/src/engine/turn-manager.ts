@@ -2,8 +2,7 @@ import type { GameState, Phase, Step } from '../types/game-state.ts';
 import type { PlayerState } from '../types/player.ts';
 import { PHASES, PHASE_STEPS } from '../types/game-state.ts';
 import { emptyManaPool } from '../types/player.ts';
-import { resolveCombatDamage, hasFirstStrikeCombatants } from '../rules/combat.ts';
-import { trackCommanderDamage } from '../rules/commander.ts';
+
 
 /**
  * Get the next step within the current phase.
@@ -119,6 +118,7 @@ export function startNewTurn(state: GameState): GameState {
     stack: [],
     combat: null,
     bothPlayersPassed: false,
+    mulliganPhase: false, // Ensure mulligan phase is over for new turns
   };
 
   return applyStepEffects(newState);
@@ -190,26 +190,10 @@ export function applyStepEffects(state: GameState): GameState {
     return state;
   }
 
-  // Combat Damage Steps: Resolve damage as a Turn-Based Action
-  if (state.step === 'first-strike-damage') {
-    if (hasFirstStrikeCombatants(state)) {
-      const result = resolveCombatDamage(state, true);
-      let newState = result.state;
-      for (const { commanderId, damage, defenderId } of result.commanderDamageDealt) {
-        newState = trackCommanderDamage(newState, commanderId, damage, defenderId);
-      }
-      return newState;
-    }
-  }
-
-  if (state.step === 'combat-damage') {
-    const result = resolveCombatDamage(state, false);
-    let newState = result.state;
-    for (const { commanderId, damage, defenderId } of result.commanderDamageDealt) {
-      newState = trackCommanderDamage(newState, commanderId, damage, defenderId);
-    }
-    return newState;
-  }
+  // Combat Damage Steps: Damage is resolved by Game.resolveCombat() called by UI/bot
+  // NOT automatically here to avoid double resolution
+  // CRITICAL FIX: Removed duplicate combat damage resolution
+  // The damage is resolved in Game.resolveCombat() which is called explicitly
 
   // Cleanup step: discard to hand size, remove damage, etc.
   if (state.step === 'cleanup') {
@@ -240,14 +224,19 @@ export function getCurrentStepActions(state: GameState): string[] {
 
   switch (state.step) {
     case 'untap':
-      // No actions during untap
-      return [];
+      // Allow mulligan during mulligan phase
+      if (state.mulliganPhase) {
+        actions.push('mulligan');
+      }
+      return actions;
 
     case 'upkeep':
+      if (state.mulliganPhase) actions.push('mulligan');
       actions.push('cast-instant', 'activate-ability');
       break;
 
     case 'draw':
+      if (state.mulliganPhase) actions.push('mulligan');
       actions.push('cast-instant', 'activate-ability');
       break;
 

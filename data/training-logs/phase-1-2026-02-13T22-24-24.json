@@ -1,0 +1,917 @@
+{
+  "startTime": 1771021274263,
+  "episodes": [
+    {
+      "episodeNum": 1,
+      "phase": 1,
+      "length": 10,
+      "outcome": 0,
+      "totalReward": -17.835,
+      "avgReward": -0.06755681818181819,
+      "timestamp": 1771021275685
+    },
+    {
+      "episodeNum": 2,
+      "phase": 1,
+      "length": 14,
+      "outcome": 0,
+      "totalReward": -15.150000000000006,
+      "avgReward": -0.04469026548672568,
+      "timestamp": 1771021277143
+    },
+    {
+      "episodeNum": 3,
+      "phase": 1,
+      "length": 20,
+      "outcome": 0,
+      "totalReward": -20.370000000000008,
+      "avgReward": -0.038003731343283595,
+      "timestamp": 1771021279700
+    },
+    {
+      "episodeNum": 4,
+      "phase": 1,
+      "length": 21,
+      "outcome": 0,
+      "totalReward": -18.29000000000001,
+      "avgReward": -0.03393320964749538,
+      "timestamp": 1771021282182
+    },
+    {
+      "episodeNum": 5,
+      "phase": 1,
+      "length": 7,
+      "outcome": 0,
+      "totalReward": -14.525,
+      "avgReward": -0.08024861878453039,
+      "timestamp": 1771021282876
+    },
+    {
+      "episodeNum": 6,
+      "phase": 1,
+      "length": 26,
+      "outcome": 1,
+      "totalReward": -7.83,
+      "avgReward": -0.012234375,
+      "timestamp": 1771021286376
+    },
+    {
+      "episodeNum": 7,
+      "phase": 1,
+      "length": 23,
+      "outcome": 0,
+      "totalReward": -20.99500000000001,
+      "avgReward": -0.035108695652173935,
+      "timestamp": 1771021289267
+    },
+    {
+      "episodeNum": 8,
+      "phase": 1,
+      "length": 14,
+      "outcome": 0,
+      "totalReward": -17.675,
+      "avgReward": -0.049648876404494384,
+      "timestamp": 1771021290873
+    },
+    {
+      "episodeNum": 9,
+      "phase": 1,
+      "length": 18,
+      "outcome": 0,
+      "totalReward": -18.160000000000004,
+      "avgReward": -0.039478260869565227,
+      "timestamp": 1771021293103
+    },
+    {
+      "episodeNum": 10,
+      "phase": 1,
+      "length": 12,
+      "outcome": 0,
+      "totalReward": -16.125,
+      "avgReward": -0.054110738255033555,
+      "timestamp": 1771021294374
+    },
+    {
+      "episodeNum": 11,
+      "phase": 1,
+      "length": 18,
+      "outcome": 0,
+      "totalReward": -20.095000000000002,
+      "avgReward": -0.042484143763213536,
+      "timestamp": 1771021296643
+    },
+    {
+      "episodeNum": 12,
+      "phase": 1,
+      "length": 12,
+      "outcome": 0,
+      "totalReward": -14.315000000000001,
+      "avgReward": -0.05005244755244756,
+      "timestamp": 1771021297933
+    },
+    {
+      "episodeNum": 13,
+      "phase": 1,
+      "length": 16,
+      "outcome": 0,
+      "totalReward": -6.244999999999998,
+      "avgReward": -0.01512106537530266,
+      "timestamp": 1771021299830
+    },
+    {
+      "episodeNum": 14,
+      "phase": 1,
+      "length": 18,
+      "outcome": 0,
+      "totalReward": -19.35,
+      "avgReward": -0.042715231788079476,
+      "timestamp": 1771021301987
+    },
+    {
+      "episodeNum": 15,
+      "phase": 1,
+      "length": 16,
+      "outcome": 0,
+      "totalReward": -17.29500000000001,
+      "avgReward": -0.04323750000000002,
+      "timestamp": 1771021303986
+    },
+    {
+      "episodeNum": 16,
+      "phase": 1,
+      "length": 17,
+      "outcome": 0,
+      "totalReward": -19.750000000000007,
+      "avgReward": -0.04398663697104679,
+      "timestamp": 1771021306080
+    },
+    {
+      "episodeNum": 17,
+      "phase": 1,
+      "length": 8,
+      "outcome": 0,
+      "totalReward": -14.445,
+      "avgReward": -0.07186567164179104,
+      "timestamp": 1771021306857
+    },
+    {
+      "episodeNum": 18,
+      "phase": 1,
+      "length": 19,
+      "outcome": 0,
+      "totalReward": -20.215000000000003,
+      "avgReward": -0.04117107942973524,
+      "timestamp": 1771021309140
+    },
+    {
+      "episodeNum": 19,
+      "phase": 1,
+      "length": 9,
+      "outcome": 0,
+      "totalReward": -16.545,
+      "avgReward": -0.07916267942583732,
+      "timestamp": 1771021310021
+    },
+    {
+      "episodeNum": 20,
+      "phase": 1,
+      "length": 25,
+      "outcome": 0,
+      "totalReward": -20.055000000000014,
+      "avgReward": -0.03066513761467892,
+      "timestamp": 1771021313254
+    },
+    {
+      "episodeNum": 21,
+      "phase": 1,
+      "length": 21,
+      "outcome": 0,
+      "totalReward": -17.885000000000005,
+      "avgReward": -0.03287683823529413,
+      "timestamp": 1771021315993
+    },
+    {
+      "episodeNum": 22,
+      "phase": 1,
+      "length": 17,
+      "outcome": 0,
+      "totalReward": -20.450000000000006,
+      "avgReward": -0.04595505617977529,
+      "timestamp": 1771021317906
+    },
+    {
+      "episodeNum": 23,
+      "phase": 1,
+      "length": 13,
+      "outcome": 0,
+      "totalReward": -19.615000000000002,
+      "avgReward": -0.06054012345679013,
+      "timestamp": 1771021319244
+    },
+    {
+      "episodeNum": 24,
+      "phase": 1,
+      "length": 13,
+      "outcome": 0,
+      "totalReward": -16.865,
+      "avgReward": -0.051733128834355824,
+      "timestamp": 1771021320588
+    },
+    {
+      "episodeNum": 25,
+      "phase": 1,
+      "length": 20,
+      "outcome": 0,
+      "totalReward": -20.43500000000001,
+      "avgReward": -0.03960271317829459,
+      "timestamp": 1771021322949
+    },
+    {
+      "episodeNum": 26,
+      "phase": 1,
+      "length": 24,
+      "outcome": 0,
+      "totalReward": -17.290000000000006,
+      "avgReward": -0.028159609120521182,
+      "timestamp": 1771021326160
+    },
+    {
+      "episodeNum": 27,
+      "phase": 1,
+      "length": 16,
+      "outcome": 0,
+      "totalReward": -17.895,
+      "avgReward": -0.04322463768115942,
+      "timestamp": 1771021327982
+    },
+    {
+      "episodeNum": 28,
+      "phase": 1,
+      "length": 20,
+      "outcome": 0,
+      "totalReward": -21.50000000000001,
+      "avgReward": -0.04378818737270878,
+      "timestamp": 1771021330336
+    },
+    {
+      "episodeNum": 29,
+      "phase": 1,
+      "length": 15,
+      "outcome": 0,
+      "totalReward": -19.135,
+      "avgReward": -0.05062169312169312,
+      "timestamp": 1771021331876
+    },
+    {
+      "episodeNum": 30,
+      "phase": 1,
+      "length": 20,
+      "outcome": 0,
+      "totalReward": -19.43500000000001,
+      "avgReward": -0.037231800766283546,
+      "timestamp": 1771021334295
+    },
+    {
+      "episodeNum": 31,
+      "phase": 1,
+      "length": 11,
+      "outcome": 0,
+      "totalReward": -18.095000000000002,
+      "avgReward": -0.06652573529411765,
+      "timestamp": 1771021335423
+    },
+    {
+      "episodeNum": 32,
+      "phase": 1,
+      "length": 15,
+      "outcome": 0,
+      "totalReward": -9.19,
+      "avgReward": -0.025670391061452514,
+      "timestamp": 1771021337150
+    },
+    {
+      "episodeNum": 33,
+      "phase": 1,
+      "length": 7,
+      "outcome": 0,
+      "totalReward": -13.725,
+      "avgReward": -0.07933526011560693,
+      "timestamp": 1771021337808
+    },
+    {
+      "episodeNum": 34,
+      "phase": 1,
+      "length": 14,
+      "outcome": 0,
+      "totalReward": -14.895,
+      "avgReward": -0.04149025069637883,
+      "timestamp": 1771021339347
+    },
+    {
+      "episodeNum": 35,
+      "phase": 1,
+      "length": 14,
+      "outcome": 0,
+      "totalReward": -19.875000000000004,
+      "avgReward": -0.055672268907563036,
+      "timestamp": 1771021340846
+    },
+    {
+      "episodeNum": 36,
+      "phase": 1,
+      "length": 13,
+      "outcome": 0,
+      "totalReward": -17.985,
+      "avgReward": -0.053847305389221556,
+      "timestamp": 1771021342223
+    },
+    {
+      "episodeNum": 37,
+      "phase": 1,
+      "length": 18,
+      "outcome": 0,
+      "totalReward": -18.695,
+      "avgReward": -0.03952431289640592,
+      "timestamp": 1771021344430
+    },
+    {
+      "episodeNum": 38,
+      "phase": 1,
+      "length": 22,
+      "outcome": 0,
+      "totalReward": -19.45500000000001,
+      "avgReward": -0.03395287958115185,
+      "timestamp": 1771021347359
+    },
+    {
+      "episodeNum": 39,
+      "phase": 1,
+      "length": 22,
+      "outcome": 0,
+      "totalReward": -19.460000000000015,
+      "avgReward": -0.03426056338028172,
+      "timestamp": 1771021350267
+    },
+    {
+      "episodeNum": 40,
+      "phase": 1,
+      "length": 9,
+      "outcome": 0,
+      "totalReward": -13.515,
+      "avgReward": -0.05850649350649351,
+      "timestamp": 1771021351220
+    },
+    {
+      "episodeNum": 41,
+      "phase": 1,
+      "length": 16,
+      "outcome": 0,
+      "totalReward": -20.395000000000003,
+      "avgReward": -0.04950242718446603,
+      "timestamp": 1771021353083
+    },
+    {
+      "episodeNum": 42,
+      "phase": 1,
+      "length": 18,
+      "outcome": 1,
+      "totalReward": -10.550000000000004,
+      "avgReward": -0.023977272727272736,
+      "timestamp": 1771021355120
+    },
+    {
+      "episodeNum": 43,
+      "phase": 1,
+      "length": 19,
+      "outcome": 1,
+      "totalReward": -7.505000000000003,
+      "avgReward": -0.015968085106382986,
+      "timestamp": 1771021357325
+    },
+    {
+      "episodeNum": 44,
+      "phase": 1,
+      "length": 29,
+      "outcome": 1,
+      "totalReward": -7.790000000000007,
+      "avgReward": -0.010864714086471418,
+      "timestamp": 1771021361469
+    },
+    {
+      "episodeNum": 45,
+      "phase": 1,
+      "length": 14,
+      "outcome": 0,
+      "totalReward": -16.535000000000004,
+      "avgReward": -0.04877581120943954,
+      "timestamp": 1771021362957
+    },
+    {
+      "episodeNum": 46,
+      "phase": 1,
+      "length": 11,
+      "outcome": 0,
+      "totalReward": -14.1,
+      "avgReward": -0.05300751879699248,
+      "timestamp": 1771021364199
+    },
+    {
+      "episodeNum": 47,
+      "phase": 1,
+      "length": 24,
+      "outcome": 0,
+      "totalReward": -21.765000000000008,
+      "avgReward": -0.03443829113924052,
+      "timestamp": 1771021367662
+    },
+    {
+      "episodeNum": 48,
+      "phase": 1,
+      "length": 12,
+      "outcome": 0,
+      "totalReward": -11.38,
+      "avgReward": -0.03806020066889632,
+      "timestamp": 1771021368982
+    },
+    {
+      "episodeNum": 49,
+      "phase": 1,
+      "length": 14,
+      "outcome": 0,
+      "totalReward": -19.47,
+      "avgReward": -0.05378453038674033,
+      "timestamp": 1771021370506
+    },
+    {
+      "episodeNum": 50,
+      "phase": 1,
+      "length": 20,
+      "outcome": 0,
+      "totalReward": -17.570000000000004,
+      "avgReward": -0.03385356454720617,
+      "timestamp": 1771021373059
+    },
+    {
+      "episodeNum": 51,
+      "phase": 1,
+      "length": 20,
+      "outcome": 1,
+      "totalReward": -1.234999999999998,
+      "avgReward": -0.0024503968253968217,
+      "timestamp": 1771021375455
+    },
+    {
+      "episodeNum": 52,
+      "phase": 1,
+      "length": 15,
+      "outcome": 0,
+      "totalReward": -19.995000000000005,
+      "avgReward": -0.05360589812332441,
+      "timestamp": 1771021376935
+    },
+    {
+      "episodeNum": 53,
+      "phase": 1,
+      "length": 9,
+      "outcome": 0,
+      "totalReward": -13.49,
+      "avgReward": -0.060493273542600895,
+      "timestamp": 1771021377920
+    },
+    {
+      "episodeNum": 54,
+      "phase": 1,
+      "length": 21,
+      "outcome": 0,
+      "totalReward": -18.86500000000001,
+      "avgReward": -0.03430000000000002,
+      "timestamp": 1771021380497
+    },
+    {
+      "episodeNum": 55,
+      "phase": 1,
+      "length": 14,
+      "outcome": 0,
+      "totalReward": -19.845000000000006,
+      "avgReward": -0.055125000000000014,
+      "timestamp": 1771021381937
+    },
+    {
+      "episodeNum": 56,
+      "phase": 1,
+      "length": 8,
+      "outcome": 0,
+      "totalReward": -16.825,
+      "avgReward": -0.08808900523560209,
+      "timestamp": 1771021382681
+    },
+    {
+      "episodeNum": 57,
+      "phase": 1,
+      "length": 13,
+      "outcome": 0,
+      "totalReward": -19.115000000000002,
+      "avgReward": -0.05810030395136779,
+      "timestamp": 1771021384056
+    },
+    {
+      "episodeNum": 58,
+      "phase": 1,
+      "length": 18,
+      "outcome": 0,
+      "totalReward": -18.415,
+      "avgReward": -0.039180851063829784,
+      "timestamp": 1771021386083
+    },
+    {
+      "episodeNum": 59,
+      "phase": 1,
+      "length": 24,
+      "outcome": 1,
+      "totalReward": -11.045000000000005,
+      "avgReward": -0.017930194805194814,
+      "timestamp": 1771021389177
+    },
+    {
+      "episodeNum": 60,
+      "phase": 1,
+      "length": 23,
+      "outcome": 0,
+      "totalReward": -16.600000000000005,
+      "avgReward": -0.02818336162988116,
+      "timestamp": 1771021392080
+    },
+    {
+      "episodeNum": 61,
+      "phase": 1,
+      "length": 15,
+      "outcome": 1,
+      "totalReward": 0.17000000000000054,
+      "avgReward": 0.00048433048433048587,
+      "timestamp": 1771021393677
+    },
+    {
+      "episodeNum": 62,
+      "phase": 1,
+      "length": 25,
+      "outcome": 0,
+      "totalReward": -19.755000000000017,
+      "avgReward": -0.03135714285714288,
+      "timestamp": 1771021396803
+    },
+    {
+      "episodeNum": 63,
+      "phase": 1,
+      "length": 16,
+      "outcome": 0,
+      "totalReward": -17.320000000000004,
+      "avgReward": -0.04362720403022671,
+      "timestamp": 1771021398590
+    },
+    {
+      "episodeNum": 64,
+      "phase": 1,
+      "length": 16,
+      "outcome": 0,
+      "totalReward": -19.895000000000003,
+      "avgReward": -0.048643031784841084,
+      "timestamp": 1771021400251
+    },
+    {
+      "episodeNum": 65,
+      "phase": 1,
+      "length": 13,
+      "outcome": 0,
+      "totalReward": -18.79,
+      "avgReward": -0.056767371601208455,
+      "timestamp": 1771021401614
+    },
+    {
+      "episodeNum": 66,
+      "phase": 1,
+      "length": 14,
+      "outcome": 0,
+      "totalReward": -19.445,
+      "avgReward": -0.05327397260273973,
+      "timestamp": 1771021403207
+    },
+    {
+      "episodeNum": 67,
+      "phase": 1,
+      "length": 10,
+      "outcome": 0,
+      "totalReward": -18.235,
+      "avgReward": -0.07264940239043824,
+      "timestamp": 1771021404250
+    },
+    {
+      "episodeNum": 68,
+      "phase": 1,
+      "length": 11,
+      "outcome": 0,
+      "totalReward": -11.915000000000001,
+      "avgReward": -0.04210247349823322,
+      "timestamp": 1771021405607
+    },
+    {
+      "episodeNum": 69,
+      "phase": 1,
+      "length": 21,
+      "outcome": 0,
+      "totalReward": -20.195000000000007,
+      "avgReward": -0.03691956124314444,
+      "timestamp": 1771021408313
+    },
+    {
+      "episodeNum": 70,
+      "phase": 1,
+      "length": 19,
+      "outcome": 0,
+      "totalReward": -20.445000000000007,
+      "avgReward": -0.04130303030303032,
+      "timestamp": 1771021410684
+    },
+    {
+      "episodeNum": 71,
+      "phase": 1,
+      "length": 7,
+      "outcome": 0,
+      "totalReward": -18.195,
+      "avgReward": -0.11162576687116564,
+      "timestamp": 1771021411343
+    },
+    {
+      "episodeNum": 72,
+      "phase": 1,
+      "length": 10,
+      "outcome": 0,
+      "totalReward": -12.895000000000001,
+      "avgReward": -0.053506224066390044,
+      "timestamp": 1771021412347
+    },
+    {
+      "episodeNum": 73,
+      "phase": 1,
+      "length": 20,
+      "outcome": 1,
+      "totalReward": -12.610000000000005,
+      "avgReward": -0.02522000000000001,
+      "timestamp": 1771021414793
+    },
+    {
+      "episodeNum": 74,
+      "phase": 1,
+      "length": 7,
+      "outcome": 0,
+      "totalReward": -14.125,
+      "avgReward": -0.08071428571428571,
+      "timestamp": 1771021415461
+    },
+    {
+      "episodeNum": 75,
+      "phase": 1,
+      "length": 16,
+      "outcome": 0,
+      "totalReward": -16.945000000000007,
+      "avgReward": -0.04143031784841077,
+      "timestamp": 1771021417523
+    },
+    {
+      "episodeNum": 76,
+      "phase": 1,
+      "length": 16,
+      "outcome": 0,
+      "totalReward": -20.330000000000005,
+      "avgReward": -0.05044665012406949,
+      "timestamp": 1771021419254
+    },
+    {
+      "episodeNum": 77,
+      "phase": 1,
+      "length": 10,
+      "outcome": 0,
+      "totalReward": -14.01,
+      "avgReward": -0.05672064777327935,
+      "timestamp": 1771021420269
+    },
+    {
+      "episodeNum": 78,
+      "phase": 1,
+      "length": 19,
+      "outcome": 0,
+      "totalReward": -17.61500000000001,
+      "avgReward": -0.03755863539445631,
+      "timestamp": 1771021422423
+    },
+    {
+      "episodeNum": 79,
+      "phase": 1,
+      "length": 19,
+      "outcome": 0,
+      "totalReward": -21.17500000000001,
+      "avgReward": -0.042951318458417875,
+      "timestamp": 1771021424541
+    },
+    {
+      "episodeNum": 80,
+      "phase": 1,
+      "length": 17,
+      "outcome": 0,
+      "totalReward": -18.425,
+      "avgReward": -0.041970387243735766,
+      "timestamp": 1771021426596
+    },
+    {
+      "episodeNum": 81,
+      "phase": 1,
+      "length": 18,
+      "outcome": 0,
+      "totalReward": -20.775000000000006,
+      "avgReward": -0.04429637526652453,
+      "timestamp": 1771021428877
+    },
+    {
+      "episodeNum": 82,
+      "phase": 1,
+      "length": 19,
+      "outcome": 1,
+      "totalReward": -13.550000000000011,
+      "avgReward": -0.030656108597285094,
+      "timestamp": 1771021431507
+    },
+    {
+      "episodeNum": 83,
+      "phase": 1,
+      "length": 18,
+      "outcome": 1,
+      "totalReward": -9.775,
+      "avgReward": -0.021770601336302896,
+      "timestamp": 1771021433858
+    },
+    {
+      "episodeNum": 84,
+      "phase": 1,
+      "length": 10,
+      "outcome": 0,
+      "totalReward": -14.165,
+      "avgReward": -0.058053278688524584,
+      "timestamp": 1771021434986
+    },
+    {
+      "episodeNum": 85,
+      "phase": 1,
+      "length": 15,
+      "outcome": 0,
+      "totalReward": -17.065000000000005,
+      "avgReward": -0.0425561097256858,
+      "timestamp": 1771021436801
+    },
+    {
+      "episodeNum": 86,
+      "phase": 1,
+      "length": 17,
+      "outcome": 0,
+      "totalReward": -19.615000000000002,
+      "avgReward": -0.04478310502283105,
+      "timestamp": 1771021438807
+    },
+    {
+      "episodeNum": 87,
+      "phase": 1,
+      "length": 14,
+      "outcome": 0,
+      "totalReward": -19.735000000000007,
+      "avgReward": -0.05622507122507124,
+      "timestamp": 1771021440303
+    },
+    {
+      "episodeNum": 88,
+      "phase": 1,
+      "length": 16,
+      "outcome": 0,
+      "totalReward": -18.775000000000002,
+      "avgReward": -0.045460048426150125,
+      "timestamp": 1771021442287
+    },
+    {
+      "episodeNum": 89,
+      "phase": 1,
+      "length": 8,
+      "outcome": 0,
+      "totalReward": -12.785,
+      "avgReward": -0.0652295918367347,
+      "timestamp": 1771021443040
+    },
+    {
+      "episodeNum": 90,
+      "phase": 1,
+      "length": 12,
+      "outcome": 0,
+      "totalReward": -17.619999999999997,
+      "avgReward": -0.059728813559322025,
+      "timestamp": 1771021444238
+    },
+    {
+      "episodeNum": 91,
+      "phase": 1,
+      "length": 19,
+      "outcome": 0,
+      "totalReward": -19.690000000000005,
+      "avgReward": -0.038836291913215,
+      "timestamp": 1771021446972
+    },
+    {
+      "episodeNum": 92,
+      "phase": 1,
+      "length": 18,
+      "outcome": 0,
+      "totalReward": -19.800000000000008,
+      "avgReward": -0.04186046511627908,
+      "timestamp": 1771021449569
+    },
+    {
+      "episodeNum": 93,
+      "phase": 1,
+      "length": 12,
+      "outcome": 0,
+      "totalReward": -17.79,
+      "avgReward": -0.05542056074766355,
+      "timestamp": 1771021450971
+    },
+    {
+      "episodeNum": 94,
+      "phase": 1,
+      "length": 14,
+      "outcome": 0,
+      "totalReward": -10.955,
+      "avgReward": -0.03203216374269006,
+      "timestamp": 1771021452887
+    },
+    {
+      "episodeNum": 95,
+      "phase": 1,
+      "length": 17,
+      "outcome": 0,
+      "totalReward": -20.495000000000005,
+      "avgReward": -0.04534292035398231,
+      "timestamp": 1771021455129
+    },
+    {
+      "episodeNum": 96,
+      "phase": 1,
+      "length": 11,
+      "outcome": 0,
+      "totalReward": -10.265,
+      "avgReward": -0.039179389312977105,
+      "timestamp": 1771021456249
+    },
+    {
+      "episodeNum": 97,
+      "phase": 1,
+      "length": 16,
+      "outcome": 0,
+      "totalReward": -20.245000000000005,
+      "avgReward": -0.049378048780487814,
+      "timestamp": 1771021458150
+    },
+    {
+      "episodeNum": 98,
+      "phase": 1,
+      "length": 16,
+      "outcome": 0,
+      "totalReward": -18.029999999999998,
+      "avgReward": -0.04440886699507388,
+      "timestamp": 1771021459938
+    },
+    {
+      "episodeNum": 99,
+      "phase": 1,
+      "length": 23,
+      "outcome": 0,
+      "totalReward": -21.79500000000001,
+      "avgReward": -0.036878172588832504,
+      "timestamp": 1771021462918
+    },
+    {
+      "episodeNum": 100,
+      "phase": 1,
+      "length": 13,
+      "outcome": 0,
+      "totalReward": -17.549999999999997,
+      "avgReward": -0.05116618075801749,
+      "timestamp": 1771021464335
+    }
+  ],
+  "trainingCycles": [],
+  "phaseSummaries": [],
+  "cacheMetrics": {
+    "hits": 0,
+    "misses": 0,
+    "hitRate": 0
+  },
+  "metadata": {
+    "version": "1.0",
+    "networkVersion": "v4",
+    "featureDims": 384
+  }
+}

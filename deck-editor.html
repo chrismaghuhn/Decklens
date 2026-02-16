@@ -1433,12 +1433,23 @@
         font-weight: 600;
       }
       .board-tab.board-badge--warn {
-        color: var(--banned, #ef4444);
+        color: var(--warn) !important;
+      }
+      .board-tab.board-badge--danger {
+        color: var(--danger) !important;
       }
       .board-tab.active.board-badge--warn {
-        color: var(--banned, #ef4444);
+        color: var(--warn) !important;
+        background: rgba(245, 158, 11, 0.12);
+      }
+      .board-tab.active.board-badge--danger {
+        color: var(--danger) !important;
         background: rgba(239, 68, 68, 0.12);
       }
+
+      /* Utility classes */
+      .text-danger { color: var(--danger) !important; }
+      .text-warn { color: var(--warn) !important; }
 
       /* ═══ SEARCH ═══ */
       #searchInput {

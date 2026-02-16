@@ -42,19 +42,16 @@ describe('PolicyNetwork', () => {
     expect(logits.length).toBe(ACTION_COUNT);
   });
 
-  // Note: serialize/deserialize is broken (serialize() returns invalid buffer).
-  // In practice, models are saved via saveModel() in train-bot-cli using getWeights().
-  // This will be fixed in Phase 3 with model-persistence.ts.
-  it.skip('should serialize and deserialize weights', () => {
+  it('should serialize and deserialize weights', async () => {
     const net = new PolicyNetwork(FEATURE_DIM);
     const features = new Float32Array(FEATURE_DIM);
     features[0] = 0.5;
     features[10] = 1.0;
 
     const probsBefore = net.predict(features);
-    const buffer = net.serialize();
+    const buffer = await net.serialize();
 
-    const restored = PolicyNetwork.deserialize(buffer);
+    const restored = await PolicyNetwork.deserialize(buffer);
     const probsAfter = restored.predict(features);
 
     for (const type of ACTION_TYPES) {

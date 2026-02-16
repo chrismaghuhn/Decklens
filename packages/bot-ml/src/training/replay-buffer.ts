@@ -44,18 +44,49 @@ export interface Episode {
 export class ReplayBuffer {
   private episodes: Episode[] = [];
   private maxEpisodes: number;
+  private head: number = 0; // Ring buffer head index
+  private count: number = 0; // Current number of episodes
 
   constructor(maxEpisodes: number = 1000) {
     this.maxEpisodes = maxEpisodes;
+    // Pre-allocate array for ring buffer
+    this.episodes = new Array(maxEpisodes);
   }
 
-  /** Add a completed episode */
+  /** Add a completed episode using O(1) ring buffer */
   addEpisode(episode: Episode): void {
-    this.episodes.push(episode);
-    // Evict oldest if over capacity
-    while (this.episodes.length > this.maxEpisodes) {
-      this.episodes.shift();
+    // Write at head position (overwrites old episode if buffer full)
+    this.episodes[this.head] = episode;
+    
+    // Advance head
+    this.head = (this.head + 1) % this.maxEpisodes;
+    
+    // Update count (caps at maxEpisodes)
+    if (this.count < this.maxEpisodes) {
+      this.count++;
     }
+  }
+  
+  /** Get episodes in chronological order (oldest first) */
+  private getOrderedEpisodes(): Episode[] {
+    const result: Episode[] = [];
+    
+    if (this.count < this.maxEpisodes) {
+      // Buffer not full yet: 0 to count-1
+      for (let i = 0; i < this.count; i++) {
+        if (this.episodes[i]) result.push(this.episodes[i]);
+      }
+    } else {
+      // Buffer full: head to end, then 0 to head-1
+      for (let i = this.head; i < this.maxEpisodes; i++) {
+        if (this.episodes[i]) result.push(this.episodes[i]);
+      }
+      for (let i = 0; i < this.head; i++) {
+        if (this.episodes[i]) result.push(this.episodes[i]);
+      }
+    }
+    
+    return result;
   }
 
   /** Get all experiences from the buffer (flattened) */
@@ -63,7 +94,7 @@ export class ReplayBuffer {
     minEpisodeLength?: number;
     minQuality?: number;
   }): Experience[] {
-    let filteredEpisodes = this.episodes;
+    let filteredEpisodes = this.getOrderedEpisodes();
 
     // Phase 1: Apply episode filtering
     if (filter) {
@@ -85,46 +116,49 @@ export class ReplayBuffer {
 
   /** Get experiences for a specific player only */
   getPlayerExperiences(player: 0 | 1): Experience[] {
-    return this.episodes.flatMap(ep =>
+    return this.getOrderedEpisodes().flatMap(ep =>
       ep.steps.filter(s => s.player === player)
     );
   }
 
   /** Get the most recent N episodes */
   getRecentEpisodes(count: number): Episode[] {
-    return this.episodes.slice(-count);
+    const ordered = this.getOrderedEpisodes();
+    return ordered.slice(-count);
   }
 
   /** Get all episodes */
   getEpisodes(): Episode[] {
-    return [...this.episodes];
+    return this.getOrderedEpisodes();
   }
 
   /** Total experiences across all episodes */
   get totalExperiences(): number {
-    return this.episodes.reduce((sum, ep) => sum + ep.steps.length, 0);
+    return this.getOrderedEpisodes().reduce((sum, ep) => sum + ep.steps.length, 0);
   }
 
   /** Number of episodes stored */
   get episodeCount(): number {
-    return this.episodes.length;
+    return this.count;
   }
 
   /** Average episode length */
   get averageEpisodeLength(): number {
-    if (this.episodes.length === 0) return 0;
-    return this.totalExperiences / this.episodes.length;
+    if (this.count === 0) return 0;
+    return this.totalExperiences / this.count;
   }
 
   /** Average outcome (win rate) */
   get averageOutcome(): number {
-    if (this.episodes.length === 0) return 0;
-    return this.episodes.reduce((sum, ep) => sum + ep.outcome, 0) / this.episodes.length;
+    if (this.count === 0) return 0;
+    return this.getOrderedEpisodes().reduce((sum, ep) => sum + ep.outcome, 0) / this.count;
   }
 
   /** Clear all stored episodes */
   clear(): void {
-    this.episodes = [];
+    this.episodes = new Array(this.maxEpisodes);
+    this.head = 0;
+    this.count = 0;
   }
 
   /** Sample a random batch of experiences */
