@@ -8,7 +8,7 @@
  * - Game over → show result screen
  */
 
-import type { GameState, GameAction, Card, Permanent, Target, Ability } from '@mtg/game-engine';
+import type { GameState, GameAction, Card, Permanent, Target, Ability, ManaPool, TargetFilter } from '@mtg/game-engine';
 import {
   Game,
   createInitialGameState,
@@ -19,12 +19,20 @@ import {
   autoPayCost,
   autoTapLandsForCost,
   parseManaCost,
+  totalMana,
+  emptyPool,
+  addMana,
   isCreature,
   isInstant,
   hasFlash,
   parseCost,
   canPayAbilityCost,
   resolveModalChoices,
+  checkMultiBlockerAssignment,
+  validateDamageAssignment,
+  applyDamageAssignment,
+  parseTargetFilter,
+  getValidTargets,
 } from '@mtg/game-engine';
 import { HeuristicBot } from '@mtg/bot-core';
 import { renderBoard, clearDomCache, type BoardCallbacks } from './board-renderer.ts';
@@ -37,6 +45,17 @@ export interface BotInterface {
 }
 
 export type ActionResolver = (action: GameAction) => void;
+
+/** Enhanced targeting state for multi-target and zone-based targeting */
+interface TargetingState {
+  card: Card;
+  requiredTargets: number;
+  collectedTargets: Target[];
+  filter?: TargetFilter | null;
+  zone?: 'battlefield' | 'graveyard';
+  onComplete: (targets: Target[]) => void;
+  onCancel: () => void;
+}
 
 export class GameLoop {
   private game: Game;
@@ -54,6 +73,10 @@ export class GameLoop {
   private inCombatSelection = false;
   private targetingMode = false;
   private targetingCard: Card | null = null;
+  private targetingState: TargetingState | null = null;
+  private manualManaPool: ManaPool = emptyPool();
+  private manuallyTappedIds: Set<string> = new Set();
+  private manaTappingMode = false;
 
   constructor(playerDeck: Card[], botDeck: Card[], playerCommander: Card, botCommander: Card, bot?: BotInterface) {
     const playerState = createPlayerState(0, 'You', playerDeck, playerCommander);
@@ -154,6 +177,78 @@ export class GameLoop {
           logMessage(`<span style="color:var(--gold)">${state.pendingModalChoice!.cardName}: ${modeTexts.join(', ')}</span>`);
         }
         continue;
+      }
+
+      // ─── Fix 5: Combat Damage Assignment Pending ───
+      if (state.pendingDamageAssignment && state.pendingDamageAssignment.player === this.humanPlayer) {
+        const pending = state.pendingDamageAssignment;
+        const attackerPerm = state.players[state.activePlayer].battlefield.find(
+          p => p.id === pending.attackerId
+        );
+        const defendingPlayer: 0 | 1 = state.activePlayer === 0 ? 1 : 0;
+        const blockerPerms = pending.blockerIds
+          .map(id => state.players[defendingPlayer].battlefield.find(p => p.id === id))
+          .filter((p): p is Permanent => p !== undefined);
+
+        if (attackerPerm && blockerPerms.length > 0) {
+          const hasTrample = (attackerPerm.oracleText ?? '').toLowerCase().includes('trample') ||
+            attackerPerm.abilities?.some(a => a.text.toLowerCase().includes('trample'));
+
+          const result = await this.showDamageAssignmentModal(
+            attackerPerm, blockerPerms, pending.totalDamage, pending.hasDeathtouch, !!hasTrample,
+          );
+
+          if (result) {
+            // Validate and submit
+            const error = validateDamageAssignment(state, result.assignments, result.trampleDamage);
+            if (error) {
+              logMessage(`<span style="color:var(--warning)">Invalid assignment: ${error}</span>`);
+            } else {
+              const newState = applyDamageAssignment(state, result.assignments, result.trampleDamage);
+              this.game.setState(newState);
+              this.executeAction({
+                type: 'assign-damage',
+                player: this.humanPlayer,
+                assignments: result.assignments,
+                trampleDamage: result.trampleDamage,
+              });
+            }
+          } else {
+            // Auto-assign: distribute lethal to each in DAO order
+            const autoAssignments: Record<string, number> = {};
+            let remaining = pending.totalDamage;
+            for (const blocker of blockerPerms) {
+              const lethal = pending.hasDeathtouch ? 1 : Math.max(0, (blocker.currentToughness ?? 1) - (blocker.damage || 0));
+              const assign = Math.min(remaining, lethal);
+              autoAssignments[blocker.id] = assign;
+              remaining -= assign;
+            }
+            // Give any leftover to first blocker (or trample to player)
+            if (remaining > 0 && blockerPerms.length > 0) {
+              autoAssignments[blockerPerms[0].id] += remaining;
+            }
+            const newState = applyDamageAssignment(state, autoAssignments, 0);
+            this.game.setState(newState);
+            this.executeAction({
+              type: 'assign-damage',
+              player: this.humanPlayer,
+              assignments: autoAssignments,
+              trampleDamage: 0,
+            });
+          }
+          continue;
+        }
+      }
+
+      // Also check for multi-blocker assignment at combat-damage step
+      if (state.step === 'combat-damage' && state.activePlayer === this.humanPlayer &&
+          state.combat && state.combat.attackers.length > 0 && !state.pendingDamageAssignment) {
+        const pending = checkMultiBlockerAssignment(state);
+        if (pending) {
+          // Set the pending state and re-loop
+          this.game.setState({ ...state, pendingDamageAssignment: pending });
+          continue;
+        }
       }
 
       if (state.priorityPlayer === this.humanPlayer) {
@@ -585,6 +680,15 @@ export class GameLoop {
         return;
       }
 
+      // ─── Fix 1: X-Cost Handling ───
+      const hasXCost = (card.manaCost ?? '').includes('{X}');
+
+      if (hasXCost) {
+        // Async X-cost flow — break out of sync callback
+        this.handleXCostCast(card, me, state);
+        return;
+      }
+
       const cost = parseManaCost(card.manaCost);
 
       // Try auto-tapping lands to generate mana
@@ -599,9 +703,29 @@ export class GameLoop {
         };
         this.game.setState(updatedState);
 
-        // Check if spell needs targeting
+        // ─── Fix 4: Enhanced targeting ───
         if (this.spellNeedsTarget(card)) {
-          this.enterTargetingMode(card);
+          const targetCount = this.parseTargetCount(card);
+          const filter = this.parseTargetFilterFromCard(card);
+          this.enterEnhancedTargetingMode(
+            card,
+            Math.max(1, targetCount),
+            filter,
+            (targets) => {
+              this.submitAction({
+                type: 'cast-spell',
+                player: this.humanPlayer,
+                cardId: card.id,
+                targets,
+                manaPayment: tapResult.payment,
+              });
+            },
+            () => {
+              // Cancel — undo the tap by restoring state
+              this.game.setState(state);
+              this.render();
+            },
+          );
           return;
         }
         // Cast without targets
@@ -618,20 +742,119 @@ export class GameLoop {
     }
   }
 
+  /**
+   * Handle casting an X-cost spell asynchronously.
+   * Shows the X-cost modal, then casts the spell with the chosen X value.
+   */
+  private async handleXCostCast(card: Card, me: typeof this.game extends Game ? never : any, state: GameState): Promise<void> {
+    // Calculate max X the player can afford
+    const baseCostStr = (card.manaCost ?? '').replace(/\{X\}/g, '');
+    const baseCost = parseManaCost(baseCostStr);
+    const baseTotal = baseCost.W + baseCost.U + baseCost.B + baseCost.R + baseCost.G + baseCost.C + baseCost.generic;
+
+    // Count total mana from untapped sources
+    let totalAvailable = 0;
+    for (const perm of (state.players[this.humanPlayer] as any).battlefield) {
+      if (perm.tapped) continue;
+      const typeLine = (perm.typeLine ?? '').toLowerCase();
+      const oracleText = (perm.oracleText ?? '').toLowerCase();
+      const isManaSource = typeLine.includes('land') || oracleText.includes('{t}: add');
+      if (isManaSource) totalAvailable++;
+      // Sol Ring produces 2
+      if (oracleText.includes('add {c}{c}')) totalAvailable++;
+    }
+
+    const maxX = Math.max(0, totalAvailable - baseTotal);
+
+    if (maxX <= 0) {
+      logMessage(`<span style="color:var(--warning)">Not enough mana to cast ${card.name} with X > 0</span>`);
+      return;
+    }
+
+    const xValue = await this.showXCostModal(card, maxX);
+    if (xValue === 0) return; // Cancelled
+
+    // Build the full cost with X value added as generic
+    const fullCost = parseManaCost(card.manaCost);
+    fullCost.generic += xValue; // X is paid as generic mana
+    fullCost.X = 0; // Clear X since we've converted it
+
+    const currentState = this.game.getState();
+    const currentMe = currentState.players[this.humanPlayer];
+    const tapResult = autoTapLandsForCost(currentMe, fullCost);
+
+    if (!tapResult) {
+      logMessage(`<span style="color:var(--warning)">Not enough mana to cast ${card.name} for X=${xValue}</span>`);
+      return;
+    }
+
+    // Update payment with X value
+    tapResult.payment.xValue = xValue;
+
+    const updatedState = {
+      ...currentState,
+      players: currentState.players.map((p, i) =>
+        i === this.humanPlayer ? tapResult.updatedPlayer : p,
+      ) as [typeof currentState.players[0], typeof currentState.players[1]],
+    };
+    this.game.setState(updatedState);
+
+    // Check if spell needs targeting
+    if (this.spellNeedsTarget(card)) {
+      const targetCount = this.parseTargetCount(card);
+      const filter = this.parseTargetFilterFromCard(card);
+      this.enterEnhancedTargetingMode(
+        card,
+        Math.max(1, targetCount),
+        filter,
+        (targets) => {
+          this.submitAction({
+            type: 'cast-spell',
+            player: this.humanPlayer,
+            cardId: card.id,
+            targets,
+            manaPayment: tapResult.payment,
+          });
+        },
+        () => {
+          this.game.setState(currentState);
+          this.render();
+        },
+      );
+      return;
+    }
+
+    this.submitAction({
+      type: 'cast-spell',
+      player: this.humanPlayer,
+      cardId: card.id,
+      targets: [],
+      manaPayment: tapResult.payment,
+    });
+  }
+
   /** Handle battlefield card click — targeting, combat selection, blocking */
   private onBattlefieldClick(perm: Permanent, controller: 0 | 1): void {
     if (!this.actionResolver) return;
     const state = this.game.getState();
 
-    // Targeting mode — select target for spell
-    if (this.targetingMode && this.targetingCard) {
+    // ─── Fix 4: Enhanced targeting mode — add target to collection ───
+    if (this.targetingMode && this.targetingState) {
+      const legalIds = this.getLegalTargetIds();
+      if (legalIds.includes(perm.id)) {
+        this.addTargetToCollection({ type: 'permanent', id: perm.id });
+      }
+      return;
+    }
+
+    // Legacy targeting mode (fallback)
+    if (this.targetingMode && this.targetingCard && !this.targetingState) {
       const legalIds = this.getLegalTargetIds();
       if (legalIds.includes(perm.id)) {
         const me = state.players[this.humanPlayer];
         const cost = parseManaCost(this.targetingCard.manaCost);
         const tapResult = autoTapLandsForCost(me, cost);
         if (tapResult) {
-          // Update game state with tapped lands
           const updatedState = {
             ...state,
             players: state.players.map((p, i) =>
@@ -651,6 +874,13 @@ export class GameLoop {
         }
       }
       return;
+    }
+
+    // ─── Fix 2: Manual mana tapping — click your own lands to tap/untap ───
+    if (controller === this.humanPlayer && state.step === 'main' && state.activePlayer === this.humanPlayer) {
+      if (this.handleManualManaTap(perm, state)) {
+        return;
+      }
     }
 
     // Declare attackers — click your creatures to toggle
@@ -939,6 +1169,221 @@ export class GameLoop {
         actionsEl.appendChild(noBlockBtn);
       }
     }
+  }
+
+  // ==================== Phase 8 Styles (All 5 Fix Modals) ====================
+
+  private static phase8StylesInjected = false;
+  private injectPhase8Styles(): void {
+    if (GameLoop.phase8StylesInjected) return;
+    GameLoop.phase8StylesInjected = true;
+
+    const style = document.createElement('style');
+    style.textContent = `
+      /* ─── Shared Overlay Base ─── */
+      .p8-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(10, 14, 23, 0.85);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 1000;
+        animation: p8FadeIn 0.2s ease;
+      }
+      @keyframes p8FadeIn {
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      .p8-content {
+        background: linear-gradient(135deg, #1a1f2e, #0f1623);
+        border: 1px solid rgba(201, 168, 76, 0.3);
+        border-radius: 16px; padding: 24px;
+        max-width: 440px; width: 90%;
+        color: #e2e8f0; font-family: 'Outfit', sans-serif;
+      }
+      .p8-content h3 {
+        color: #c9a84c; font-family: 'Cinzel', serif;
+        margin: 0 0 12px 0; font-size: 18px; text-align: center;
+      }
+      .p8-content p { margin: 0 0 12px 0; font-size: 14px; text-align: center; color: #94a3b8; }
+      .p8-btn-primary {
+        background: linear-gradient(135deg, #c9a84c, #b8963f);
+        border: none; border-radius: 50px;
+        color: #0a0e17; font-weight: 600;
+        padding: 10px 24px; cursor: pointer; width: 100%;
+        font-family: 'Outfit', sans-serif; font-size: 14px;
+        transition: opacity 0.2s;
+      }
+      .p8-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+      .p8-btn-primary:not(:disabled):hover { opacity: 0.9; }
+      .p8-btn-cancel {
+        display: block; width: 100%; padding: 8px; margin-top: 10px;
+        background: transparent; color: #666; border: none; cursor: pointer;
+        font-family: 'Outfit', sans-serif; font-size: 13px;
+      }
+
+      /* ─── Fix 1: X-Cost Modal ─── */
+      .x-cost-card-name { color: #e2e8f0 !important; font-size: 16px !important; font-weight: 600; }
+      .x-cost-slider {
+        width: 100%; margin: 12px 0; accent-color: #c9a84c;
+        -webkit-appearance: none; appearance: none; height: 6px;
+        background: #2d3748; border-radius: 3px; outline: none;
+      }
+      .x-cost-slider::-webkit-slider-thumb {
+        -webkit-appearance: none; appearance: none;
+        width: 20px; height: 20px; border-radius: 50%;
+        background: linear-gradient(135deg, #c9a84c, #e8d48b);
+        cursor: pointer; border: 2px solid #0a0e17;
+      }
+      .x-cost-value {
+        text-align: center; font-size: 28px; font-weight: 700;
+        color: #c9a84c; font-family: 'Cinzel', serif; margin: 8px 0 16px;
+      }
+
+      /* ─── Fix 2: Mana Pool Display ─── */
+      .mana-pool-display {
+        position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%);
+        background: linear-gradient(135deg, #1a1f2e, #0f1623);
+        border: 1px solid rgba(201, 168, 76, 0.3);
+        border-radius: 16px; padding: 10px 18px;
+        display: flex; align-items: center; gap: 10px;
+        z-index: 900; font-family: 'Outfit', sans-serif;
+        color: #e2e8f0; font-size: 14px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      }
+      .mana-pool-display.hidden { display: none; }
+      .mana-pool-pip {
+        display: inline-flex; align-items: center; gap: 3px;
+        padding: 2px 8px; border-radius: 10px;
+        font-weight: 600; font-size: 13px; min-width: 32px; justify-content: center;
+      }
+      .mana-pool-pip.mana-w { background: #f9faf4; color: #333; }
+      .mana-pool-pip.mana-u { background: #0e68ab; color: #fff; }
+      .mana-pool-pip.mana-b { background: #150b00; color: #ccc; border: 1px solid #333; }
+      .mana-pool-pip.mana-r { background: #d3202a; color: #fff; }
+      .mana-pool-pip.mana-g { background: #00733e; color: #fff; }
+      .mana-pool-pip.mana-c { background: #94a3b8; color: #0a0e17; }
+      .mana-pool-pip.mana-generic { background: #555; color: #e2e8f0; }
+      .mana-pool-label { color: #94a3b8; font-size: 12px; margin-right: 4px; }
+      .mana-pool-autopay {
+        background: rgba(201, 168, 76, 0.2); border: 1px solid rgba(201, 168, 76, 0.4);
+        border-radius: 50px; color: #c9a84c; padding: 4px 12px; cursor: pointer;
+        font-size: 12px; font-family: 'Outfit', sans-serif; margin-left: 6px;
+        transition: background 0.2s;
+      }
+      .mana-pool-autopay:hover { background: rgba(201, 168, 76, 0.4); }
+      .mana-pool-clear {
+        background: rgba(100, 116, 139, 0.2); border: 1px solid rgba(100, 116, 139, 0.3);
+        border-radius: 50px; color: #94a3b8; padding: 4px 10px; cursor: pointer;
+        font-size: 12px; font-family: 'Outfit', sans-serif;
+        transition: background 0.2s;
+      }
+      .mana-pool-clear:hover { background: rgba(100, 116, 139, 0.4); }
+      .manually-tapped { outline: 2px solid #c9a84c; outline-offset: 2px; }
+
+      /* ─── Fix 3: Mana Color Choice ─── */
+      .mana-color-buttons {
+        display: flex; gap: 10px; justify-content: center; margin: 16px 0;
+      }
+      .mana-btn {
+        width: 52px; height: 52px; border-radius: 50%; border: 2px solid transparent;
+        font-size: 20px; font-weight: 700; cursor: pointer;
+        font-family: 'Cinzel', serif; transition: all 0.2s;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .mana-btn:hover { transform: scale(1.15); box-shadow: 0 0 16px rgba(201,168,76,0.5); }
+      .mana-btn.mana-w { background: #f9faf4; color: #333; border-color: #ddd; }
+      .mana-btn.mana-u { background: #0e68ab; color: #fff; border-color: #1a7ec5; }
+      .mana-btn.mana-b { background: #150b00; color: #ccc; border-color: #333; }
+      .mana-btn.mana-r { background: #d3202a; color: #fff; border-color: #e84040; }
+      .mana-btn.mana-g { background: #00733e; color: #fff; border-color: #009950; }
+
+      /* ─── Fix 4: Targeting Banner ─── */
+      .targeting-banner {
+        position: fixed; top: 0; left: 0; right: 0;
+        background: linear-gradient(135deg, rgba(201,168,76,0.15), rgba(201,168,76,0.05));
+        border-bottom: 1px solid rgba(201,168,76,0.4);
+        padding: 10px 20px; display: flex; align-items: center;
+        justify-content: center; gap: 16px; z-index: 950;
+        font-family: 'Outfit', sans-serif; color: #e2e8f0; font-size: 14px;
+        animation: p8FadeIn 0.2s ease;
+      }
+      .targeting-banner span { color: #c9a84c; }
+      .targeting-count { color: #94a3b8 !important; font-size: 13px; }
+      .targeting-confirm, .targeting-cancel {
+        padding: 6px 16px; border-radius: 50px; cursor: pointer;
+        font-family: 'Outfit', sans-serif; font-size: 13px; border: none;
+      }
+      .targeting-confirm {
+        background: linear-gradient(135deg, #c9a84c, #b8963f);
+        color: #0a0e17; font-weight: 600;
+      }
+      .targeting-confirm:disabled { opacity: 0.4; cursor: not-allowed; }
+      .targeting-cancel {
+        background: rgba(100,116,139,0.2); color: #94a3b8;
+        border: 1px solid rgba(100,116,139,0.3);
+      }
+      .targeting-valid-glow {
+        box-shadow: 0 0 12px rgba(52, 211, 153, 0.6), 0 0 4px rgba(52, 211, 153, 0.3);
+        outline: 2px solid #34d399; outline-offset: 1px;
+        cursor: crosshair !important;
+      }
+      .targeting-dimmed { opacity: 0.35; pointer-events: none; }
+      .targeting-player-btn {
+        padding: 8px 20px; border-radius: 10px; cursor: crosshair;
+        border: 2px solid rgba(52,211,153,0.4); background: rgba(52,211,153,0.1);
+        color: #34d399; font-family: 'Outfit', sans-serif; font-size: 14px;
+        transition: all 0.2s;
+      }
+      .targeting-player-btn:hover {
+        background: rgba(52,211,153,0.25); border-color: #34d399;
+      }
+
+      /* ─── Fix 4: Graveyard Browser ─── */
+      .graveyard-browser {
+        max-height: 300px; overflow-y: auto; margin: 12px 0;
+        scrollbar-width: thin; scrollbar-color: #c9a84c #1a1f2e;
+      }
+      .graveyard-card-row {
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 12px; border-radius: 10px; margin: 4px 0;
+        background: rgba(201,168,76,0.05); border: 1px solid rgba(201,168,76,0.1);
+        cursor: pointer; transition: all 0.2s;
+      }
+      .graveyard-card-row:hover {
+        background: rgba(201,168,76,0.15); border-color: rgba(201,168,76,0.4);
+      }
+      .graveyard-card-row.selected {
+        background: rgba(52,211,153,0.15); border-color: #34d399;
+      }
+      .graveyard-card-name { color: #e2e8f0; font-weight: 500; flex: 1; }
+      .graveyard-card-type { color: #94a3b8; font-size: 12px; }
+
+      /* ─── Fix 5: Damage Assignment ─── */
+      .damage-assign-blockers { margin: 16px 0; }
+      .damage-blocker {
+        display: flex; align-items: center; gap: 12px;
+        padding: 10px 14px; margin: 6px 0;
+        background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.15);
+        border-radius: 10px;
+      }
+      .damage-blocker-info { flex: 1; }
+      .damage-blocker-name { color: #e2e8f0; font-weight: 500; }
+      .damage-blocker-stats { color: #94a3b8; font-size: 12px; }
+      .damage-input {
+        width: 60px; padding: 6px 8px; text-align: center;
+        background: #0a0e17; border: 1px solid rgba(201,168,76,0.3);
+        border-radius: 8px; color: #c9a84c; font-size: 16px; font-weight: 700;
+        font-family: 'JetBrains Mono', monospace;
+      }
+      .damage-input:focus { outline: none; border-color: #c9a84c; }
+      .damage-remaining {
+        text-align: center; font-size: 14px; margin-top: 12px;
+        padding: 8px; border-radius: 8px;
+        background: rgba(201,168,76,0.08);
+      }
+      .damage-remaining.over-assigned { color: #d3202a !important; }
+      .damage-remaining.valid { color: #34d399 !important; }
+    `;
+    document.head.appendChild(style);
   }
 
   // ==================== Response Prompt ====================
@@ -1533,6 +1978,615 @@ export class GameLoop {
       content.appendChild(confirmBtn);
 
       overlay.appendChild(content);
+      document.body.appendChild(overlay);
+    });
+  }
+
+  // ==================== Fix 1: X-Spell Cost Input Modal ====================
+
+  /**
+   * Show a modal for choosing X value when casting X-cost spells.
+   * Returns the chosen X value (1 to maxX).
+   */
+  private showXCostModal(card: Card, maxX: number): Promise<number> {
+    this.injectPhase8Styles();
+    return new Promise<number>((resolve) => {
+      document.getElementById('x-cost-modal')?.remove();
+
+      const overlay = document.createElement('div');
+      overlay.id = 'x-cost-modal';
+      overlay.className = 'p8-overlay';
+
+      const content = document.createElement('div');
+      content.className = 'p8-content';
+
+      content.innerHTML = `
+        <h3>Choose X Value</h3>
+        <p class="x-cost-card-name">${card.name}</p>
+        <p>Available mana for X: ${maxX}</p>
+        <input type="range" min="0" max="${maxX}" value="1" class="x-cost-slider">
+        <div class="x-cost-value">X = <span>1</span></div>
+        <button class="p8-btn-primary x-cost-confirm">Cast for X = 1</button>
+        <button class="p8-btn-cancel">Cancel</button>
+      `;
+
+      const slider = content.querySelector('.x-cost-slider') as HTMLInputElement;
+      const valueDisplay = content.querySelector('.x-cost-value span') as HTMLElement;
+      const confirmBtn = content.querySelector('.x-cost-confirm') as HTMLButtonElement;
+      const cancelBtn = content.querySelector('.p8-btn-cancel') as HTMLButtonElement;
+
+      slider.addEventListener('input', () => {
+        const val = parseInt(slider.value, 10);
+        valueDisplay.textContent = String(val);
+        confirmBtn.textContent = `Cast for X = ${val}`;
+      });
+
+      confirmBtn.addEventListener('click', () => {
+        overlay.remove();
+        resolve(parseInt(slider.value, 10));
+      });
+
+      cancelBtn.addEventListener('click', () => {
+        overlay.remove();
+        resolve(0); // 0 means cancel
+      });
+
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) { overlay.remove(); resolve(0); }
+      });
+
+      overlay.appendChild(content);
+      document.body.appendChild(overlay);
+    });
+  }
+
+  // ==================== Fix 2: Manual Mana Tapping ====================
+
+  /**
+   * Toggle manual tapping of a land/mana source on the battlefield.
+   * Returns true if the tap was handled (so caller can skip normal click handling).
+   */
+  private handleManualManaTap(perm: Permanent, state: GameState): boolean {
+    const typeLine = perm.typeLine.toLowerCase();
+    const oracleText = (perm.oracleText ?? '').toLowerCase();
+    const isManaSource = typeLine.includes('land') || oracleText.includes('{t}: add');
+    if (!isManaSource) return false;
+
+    // Already manually tapped — untap it
+    if (this.manuallyTappedIds.has(perm.id)) {
+      this.manuallyTappedIds.delete(perm.id);
+      // Remove the mana this land contributed
+      const manaColor = this.getManaColorFromPerm(perm);
+      if (manaColor) {
+        if (manaColor === 'generic') {
+          this.manualManaPool.generic = Math.max(0, this.manualManaPool.generic - 1);
+        } else {
+          this.manualManaPool[manaColor] = Math.max(0, this.manualManaPool[manaColor] - 1);
+        }
+      }
+      // Untap the permanent in state
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      const ps = players[this.humanPlayer];
+      const newBf = ps.battlefield.map(p =>
+        p.id === perm.id ? { ...p, tapped: false } : p
+      );
+      players[this.humanPlayer] = { ...ps, battlefield: newBf, manaPool: { ...this.manualManaPool } };
+      this.game.setState({ ...state, players });
+      this.renderManaPoolDisplay();
+      this.render();
+      return true;
+    }
+
+    // Not yet tapped — tap it
+    if (perm.tapped) return false; // Already tapped by engine, can't manually tap
+
+    // Check if it produces "any color" — need color choice
+    if (oracleText.includes('any color')) {
+      this.handleAnyColorTap(perm, state);
+      return true;
+    }
+
+    const manaColor = this.getManaColorFromPerm(perm);
+    if (!manaColor) return false;
+
+    this.manuallyTappedIds.add(perm.id);
+    if (manaColor === 'generic') {
+      this.manualManaPool.generic++;
+    } else {
+      this.manualManaPool[manaColor]++;
+    }
+
+    // Tap the permanent in state
+    const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+    const ps = players[this.humanPlayer];
+    const newBf = ps.battlefield.map(p =>
+      p.id === perm.id ? { ...p, tapped: true } : p
+    );
+    players[this.humanPlayer] = { ...ps, battlefield: newBf, manaPool: { ...this.manualManaPool } };
+    this.game.setState({ ...state, players });
+    this.renderManaPoolDisplay();
+    this.render();
+    return true;
+  }
+
+  /** Handle tapping a land that produces "any color" — shows color choice modal first */
+  private async handleAnyColorTap(perm: Permanent, state: GameState): Promise<void> {
+    const color = await this.showManaColorChoice();
+    if (!color) return;
+
+    this.manuallyTappedIds.add(perm.id);
+    this.manualManaPool[color]++;
+
+    const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+    const ps = players[this.humanPlayer];
+    const newBf = ps.battlefield.map(p =>
+      p.id === perm.id ? { ...p, tapped: true } : p
+    );
+    players[this.humanPlayer] = { ...ps, battlefield: newBf, manaPool: { ...this.manualManaPool } };
+    this.game.setState({ ...state, players });
+    this.renderManaPoolDisplay();
+    this.render();
+  }
+
+  /** Determine what color of mana a permanent produces */
+  private getManaColorFromPerm(perm: Permanent): 'W' | 'U' | 'B' | 'R' | 'G' | 'C' | 'generic' | null {
+    const text = (perm.oracleText ?? '').toLowerCase();
+    const typeLine = perm.typeLine.toLowerCase();
+
+    if (typeLine.includes('forest') || text.includes('add {g}')) return 'G';
+    if (typeLine.includes('island') || text.includes('add {u}')) return 'U';
+    if (typeLine.includes('plains') || text.includes('add {w}')) return 'W';
+    if (typeLine.includes('swamp') || text.includes('add {b}')) return 'B';
+    if (typeLine.includes('mountain') || text.includes('add {r}')) return 'R';
+    if (text.includes('add {c}{c}')) return 'C'; // Sol Ring, etc.
+    if (text.includes('add {c}')) return 'C';
+    if (text.includes('any color')) return 'generic'; // handled by color choice modal
+    return null;
+  }
+
+  /** Render the floating mana pool display */
+  private renderManaPoolDisplay(): void {
+    this.injectPhase8Styles();
+    let el = document.getElementById('mana-pool-display');
+
+    const total = totalMana(this.manualManaPool);
+    if (total === 0 && !this.manaTappingMode) {
+      if (el) el.classList.add('hidden');
+      return;
+    }
+
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'mana-pool-display';
+      el.className = 'mana-pool-display';
+      document.body.appendChild(el);
+    }
+
+    el.classList.remove('hidden');
+
+    const pips: string[] = [];
+    pips.push('<span class="mana-pool-label">Mana:</span>');
+    const colorMap: [keyof ManaPool, string, string][] = [
+      ['W', 'mana-w', 'W'],
+      ['U', 'mana-u', 'U'],
+      ['B', 'mana-b', 'B'],
+      ['R', 'mana-r', 'R'],
+      ['G', 'mana-g', 'G'],
+      ['C', 'mana-c', 'C'],
+      ['generic', 'mana-generic', '?'],
+    ];
+
+    for (const [key, cls, label] of colorMap) {
+      const count = this.manualManaPool[key];
+      if (count > 0) {
+        pips.push(`<span class="mana-pool-pip ${cls}">${label}:${count}</span>`);
+      }
+    }
+
+    if (total === 0) {
+      pips.push('<span style="color:#666">Empty</span>');
+    }
+
+    pips.push('<button class="mana-pool-clear" id="mana-pool-clear-btn">Clear</button>');
+
+    el.innerHTML = pips.join('');
+
+    // Re-attach clear button handler
+    const clearBtn = document.getElementById('mana-pool-clear-btn');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        this.clearManualMana();
+      });
+    }
+  }
+
+  /** Clear all manual mana tapping */
+  private clearManualMana(): void {
+    if (this.manuallyTappedIds.size === 0) return;
+
+    const state = this.game.getState();
+    const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+    const ps = players[this.humanPlayer];
+    const newBf = ps.battlefield.map(p =>
+      this.manuallyTappedIds.has(p.id) ? { ...p, tapped: false } : p
+    );
+    this.manuallyTappedIds.clear();
+    this.manualManaPool = emptyPool();
+    players[this.humanPlayer] = { ...ps, battlefield: newBf, manaPool: emptyPool() };
+    this.game.setState({ ...state, players });
+    this.renderManaPoolDisplay();
+    this.render();
+  }
+
+  // ==================== Fix 3: Mana Color Choice Modal ====================
+
+  /**
+   * Show a modal for choosing mana color when tapping an "any color" source.
+   * Returns the chosen color, or null if cancelled.
+   */
+  private showManaColorChoice(): Promise<'W' | 'U' | 'B' | 'R' | 'G' | null> {
+    this.injectPhase8Styles();
+    return new Promise((resolve) => {
+      document.getElementById('mana-color-modal')?.remove();
+
+      const overlay = document.createElement('div');
+      overlay.id = 'mana-color-modal';
+      overlay.className = 'p8-overlay';
+
+      const content = document.createElement('div');
+      content.className = 'p8-content';
+
+      content.innerHTML = `
+        <h3>Choose Mana Color</h3>
+        <p>This source can produce any color of mana.</p>
+        <div class="mana-color-buttons">
+          <button data-color="W" class="mana-btn mana-w">W</button>
+          <button data-color="U" class="mana-btn mana-u">U</button>
+          <button data-color="B" class="mana-btn mana-b">B</button>
+          <button data-color="R" class="mana-btn mana-r">R</button>
+          <button data-color="G" class="mana-btn mana-g">G</button>
+        </div>
+        <button class="p8-btn-cancel">Cancel</button>
+      `;
+
+      content.querySelectorAll('.mana-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const color = (btn as HTMLElement).dataset.color as 'W' | 'U' | 'B' | 'R' | 'G';
+          overlay.remove();
+          resolve(color);
+        });
+      });
+
+      content.querySelector('.p8-btn-cancel')?.addEventListener('click', () => {
+        overlay.remove();
+        resolve(null);
+      });
+
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) { overlay.remove(); resolve(null); }
+      });
+
+      overlay.appendChild(content);
+      document.body.appendChild(overlay);
+    });
+  }
+
+  // ==================== Fix 4: Enhanced Target Selection System ====================
+
+  /**
+   * Enter enhanced targeting mode with multi-target and zone support.
+   */
+  private enterEnhancedTargetingMode(
+    card: Card,
+    requiredTargets: number,
+    filter: TargetFilter | null,
+    onComplete: (targets: Target[]) => void,
+    onCancel: () => void,
+  ): void {
+    this.injectPhase8Styles();
+    this.targetingMode = true;
+    this.targetingCard = card;
+
+    this.targetingState = {
+      card,
+      requiredTargets,
+      collectedTargets: [],
+      filter,
+      zone: filter?.zone ?? 'battlefield',
+      onComplete,
+      onCancel,
+    };
+
+    // If targeting a graveyard, show graveyard browser
+    if (filter?.zone === 'graveyard') {
+      this.showGraveyardBrowser();
+      return;
+    }
+
+    this.render();
+    this.showTargetingBanner();
+  }
+
+  /** Show the targeting banner at the top of the screen */
+  private showTargetingBanner(): void {
+    document.getElementById('targeting-banner')?.remove();
+
+    if (!this.targetingState) return;
+    const ts = this.targetingState;
+
+    const banner = document.createElement('div');
+    banner.id = 'targeting-banner';
+    banner.className = 'targeting-banner';
+
+    banner.innerHTML = `
+      <span>Select target for <strong>${ts.card.name}</strong></span>
+      <span class="targeting-count">${ts.collectedTargets.length}/${ts.requiredTargets} targets</span>
+      <button class="targeting-confirm" ${ts.collectedTargets.length < ts.requiredTargets ? 'disabled' : ''}>Confirm</button>
+      <button class="targeting-cancel">Cancel</button>
+    `;
+
+    const confirmBtn = banner.querySelector('.targeting-confirm') as HTMLButtonElement;
+    const cancelBtn = banner.querySelector('.targeting-cancel') as HTMLButtonElement;
+
+    confirmBtn.addEventListener('click', () => {
+      if (ts.collectedTargets.length >= ts.requiredTargets) {
+        banner.remove();
+        const targets = [...ts.collectedTargets];
+        this.cancelTargeting();
+        ts.onComplete(targets);
+      }
+    });
+
+    cancelBtn.addEventListener('click', () => {
+      banner.remove();
+      this.cancelTargeting();
+      ts.onCancel();
+    });
+
+    // Add player targeting buttons if no filter or filter allows players
+    if (!ts.filter || !ts.filter.cardType) {
+      const playerDiv = document.createElement('div');
+      playerDiv.style.cssText = 'display:flex;gap:8px;margin-left:8px;';
+
+      for (const pi of [0, 1] as const) {
+        const label = pi === this.humanPlayer ? 'You' : 'Opponent';
+        const btn = document.createElement('button');
+        btn.className = 'targeting-player-btn';
+        btn.textContent = `Target ${label}`;
+        btn.addEventListener('click', () => {
+          this.addTargetToCollection({ type: 'player', id: String(pi) });
+        });
+        playerDiv.appendChild(btn);
+      }
+      banner.appendChild(playerDiv);
+    }
+
+    document.body.appendChild(banner);
+  }
+
+  /** Add a target to the current targeting state collection */
+  private addTargetToCollection(target: Target): void {
+    if (!this.targetingState) return;
+    const ts = this.targetingState;
+
+    // Don't add duplicate targets
+    if (ts.collectedTargets.some(t => t.id === target.id && t.type === target.type)) return;
+
+    ts.collectedTargets.push(target);
+
+    // Update banner
+    this.showTargetingBanner();
+    this.render();
+
+    // If we have enough targets, auto-confirm for single-target spells
+    if (ts.requiredTargets === 1 && ts.collectedTargets.length === 1) {
+      document.getElementById('targeting-banner')?.remove();
+      const targets = [...ts.collectedTargets];
+      const onComplete = ts.onComplete;
+      this.cancelTargeting();
+      onComplete(targets);
+    }
+  }
+
+  /** Show a graveyard browser for targeting cards in graveyards */
+  private showGraveyardBrowser(): void {
+    if (!this.targetingState) return;
+    const ts = this.targetingState;
+    const state = this.game.getState();
+
+    document.getElementById('graveyard-browser-modal')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'graveyard-browser-modal';
+    overlay.className = 'p8-overlay';
+
+    const content = document.createElement('div');
+    content.className = 'p8-content';
+    content.style.maxWidth = '500px';
+
+    content.innerHTML = `<h3>Select Target in Graveyard</h3><p>Choose a card for ${ts.card.name}</p>`;
+
+    const browser = document.createElement('div');
+    browser.className = 'graveyard-browser';
+
+    // Get valid targets from all graveyards
+    const validTargets = ts.filter
+      ? getValidTargets(state, this.humanPlayer, ts.filter)
+      : [];
+
+    if (validTargets.length === 0) {
+      browser.innerHTML = '<p style="text-align:center;color:#666;padding:20px;">No valid targets in graveyards</p>';
+    } else {
+      for (const target of validTargets) {
+        // Find the card
+        let cardName = '';
+        let cardType = '';
+        for (const p of state.players) {
+          const card = p.graveyard.find(c => c.id === target.id);
+          if (card) { cardName = card.name; cardType = card.typeLine; break; }
+        }
+
+        const row = document.createElement('div');
+        row.className = 'graveyard-card-row';
+        row.innerHTML = `
+          <span class="graveyard-card-name">${cardName}</span>
+          <span class="graveyard-card-type">${cardType}</span>
+        `;
+        row.addEventListener('click', () => {
+          overlay.remove();
+          const targets = [target];
+          const onComplete = ts.onComplete;
+          this.cancelTargeting();
+          onComplete(targets);
+        });
+        browser.appendChild(row);
+      }
+    }
+
+    content.appendChild(browser);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'p8-btn-cancel';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', () => {
+      overlay.remove();
+      const onCancel = ts.onCancel;
+      this.cancelTargeting();
+      onCancel();
+    });
+    content.appendChild(cancelBtn);
+
+    overlay.appendChild(content);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        overlay.remove();
+        const onCancel = ts.onCancel;
+        this.cancelTargeting();
+        onCancel();
+      }
+    });
+    document.body.appendChild(overlay);
+  }
+
+  /** Parse oracle text to determine how many targets a spell needs */
+  private parseTargetCount(card: Card): number {
+    const text = (card.oracleText ?? '').toLowerCase();
+    // Count "target" occurrences that reference different things
+    const targetMatches = text.match(/target\s+\w+/g);
+    if (!targetMatches) return 0;
+    // Deduplicate: "target creature" appearing twice still means 2 targets for "destroy two target creatures"
+    // But "target creature and target player" means 2 different targets
+    // Simple heuristic: count distinct target phrases
+    const distinctTargets = new Set(targetMatches);
+    return distinctTargets.size;
+  }
+
+  /** Parse oracle text to get a target filter */
+  private parseTargetFilterFromCard(card: Card): TargetFilter | null {
+    const text = (card.oracleText ?? '').toLowerCase();
+    // Find the first "target X" phrase
+    const match = text.match(/target\s+([^.,:;]+)/);
+    if (!match) return null;
+    return parseTargetFilter(match[0]);
+  }
+
+  // ==================== Fix 5: Combat Damage Assignment UI ====================
+
+  /**
+   * Show a modal for assigning combat damage from an attacker to multiple blockers.
+   * Returns a map of blockerId -> damage amount.
+   */
+  private showDamageAssignmentModal(
+    attackerPerm: Permanent,
+    blockerPerms: Permanent[],
+    totalDamage: number,
+    hasDeathtouch: boolean,
+    hasTrample: boolean,
+  ): Promise<{ assignments: Record<string, number>; trampleDamage: number } | null> {
+    this.injectPhase8Styles();
+
+    return new Promise((resolve) => {
+      document.getElementById('damage-assign-modal')?.remove();
+
+      const overlay = document.createElement('div');
+      overlay.id = 'damage-assign-modal';
+      overlay.className = 'p8-overlay';
+
+      const content = document.createElement('div');
+      content.className = 'p8-content';
+      content.style.maxWidth = '480px';
+
+      const assignments: Record<string, number> = {};
+      // Initialize: assign lethal to each blocker in order
+      let remaining = totalDamage;
+      for (const blocker of blockerPerms) {
+        const lethal = hasDeathtouch ? 1 : Math.max(0, (blocker.currentToughness ?? 1) - (blocker.damage || 0));
+        const assign = Math.min(remaining, lethal);
+        assignments[blocker.id] = assign;
+        remaining -= assign;
+      }
+
+      const renderModal = () => {
+        const totalAssigned = Object.values(assignments).reduce((a, b) => a + b, 0);
+        const leftover = totalDamage - totalAssigned;
+        const isValid = leftover === 0 || (hasTrample && leftover >= 0);
+
+        content.innerHTML = `
+          <h3>Assign Combat Damage</h3>
+          <p style="color:#e2e8f0 !important;font-size:15px;font-weight:500;">${attackerPerm.name} <span style="color:#c9a84c">(Power: ${totalDamage})</span></p>
+          <div class="damage-assign-blockers" id="damage-blocker-list"></div>
+          ${hasTrample ? `<div class="damage-remaining ${leftover < 0 ? 'over-assigned' : 'valid'}">Trample damage to player: ${Math.max(0, leftover)}</div>` : ''}
+          <div class="damage-remaining ${totalAssigned === totalDamage ? 'valid' : totalAssigned > totalDamage ? 'over-assigned' : ''}">${totalAssigned}/${totalDamage} damage assigned</div>
+          <button class="p8-btn-primary" id="damage-confirm-btn" ${(!hasTrample && totalAssigned !== totalDamage) || (hasTrample && totalAssigned > totalDamage) ? 'disabled' : ''}>Assign Damage</button>
+          <button class="p8-btn-cancel" id="damage-cancel-btn">Auto-Assign</button>
+        `;
+
+        const list = content.querySelector('#damage-blocker-list')!;
+        for (const blocker of blockerPerms) {
+          const lethal = hasDeathtouch ? 1 : Math.max(0, (blocker.currentToughness ?? 1) - (blocker.damage || 0));
+          const blockerEl = document.createElement('div');
+          blockerEl.className = 'damage-blocker';
+          blockerEl.innerHTML = `
+            <div class="damage-blocker-info">
+              <div class="damage-blocker-name">${blocker.name}</div>
+              <div class="damage-blocker-stats">${blocker.currentPower ?? 0}/${blocker.currentToughness ?? 0} (lethal: ${lethal})</div>
+            </div>
+          `;
+
+          const input = document.createElement('input');
+          input.type = 'number';
+          input.className = 'damage-input';
+          input.min = '0';
+          input.max = String(totalDamage);
+          input.value = String(assignments[blocker.id] || 0);
+          input.addEventListener('input', () => {
+            assignments[blocker.id] = Math.max(0, parseInt(input.value, 10) || 0);
+            renderModal();
+          });
+
+          blockerEl.appendChild(input);
+          list.appendChild(blockerEl);
+        }
+
+        content.querySelector('#damage-confirm-btn')?.addEventListener('click', () => {
+          const totalAssignedFinal = Object.values(assignments).reduce((a, b) => a + b, 0);
+          const trampleDmg = hasTrample ? Math.max(0, totalDamage - totalAssignedFinal) : 0;
+          overlay.remove();
+          resolve({ assignments, trampleDamage: trampleDmg });
+        });
+
+        content.querySelector('#damage-cancel-btn')?.addEventListener('click', () => {
+          overlay.remove();
+          resolve(null); // null = auto-assign
+        });
+      };
+
+      renderModal();
+
+      overlay.appendChild(content);
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) { overlay.remove(); resolve(null); }
+      });
       document.body.appendChild(overlay);
     });
   }
