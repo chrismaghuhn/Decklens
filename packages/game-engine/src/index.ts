@@ -249,5 +249,17 @@ export type {
 export { parseCost, canPayAbilityCost, payAbilityCost } from './rules/cost-parser.ts';
 export type { AbilityCost } from './rules/cost-parser.ts';
 
+// === Targeting System ===
+export {
+  parseTargetFilter,
+  getValidTargets,
+  validateTarget,
+} from './rules/targeting.ts';
+export type { TargetFilter } from './rules/targeting.ts';
+
+// === Modal Spell System ===
+export { parseModalSpell, resolveModalChoices } from './rules/modal.ts';
+export type { ModalSpell, ModalMode } from './rules/modal.ts';
+
 // === Game ===
 export { Game } from './engine/game.ts';

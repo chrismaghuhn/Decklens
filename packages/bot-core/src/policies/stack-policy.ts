@@ -33,7 +33,19 @@ function getInstantSpeedOptions(state: GameState, player: 0 | 1): Card[] {
 }
 
 /**
+ * Check if a card is a counterspell by tags or oracle text.
+ */
+function isCounterSpell(card: Card): boolean {
+  if (card.tags.includes('counter')) return true;
+  const text = (card.oracleText ?? '').toLowerCase();
+  return /counter\s+target\s+spell/.test(text);
+}
+
+/**
  * Decide if we should counter the top spell on the stack.
+ *
+ * Uses tag-based detection first, then falls back to oracle text
+ * matching for "counter target spell" patterns.
  */
 export function shouldCounterTopSpell(state: GameState, player: 0 | 1): GameAction | null {
   if (state.stack.length === 0) return null;
@@ -47,11 +59,9 @@ export function shouldCounterTopSpell(state: GameState, player: 0 | 1): GameActi
   const threat = evaluateStackThreat(topSpell, player);
   if (!threat || threat.score < COUNTER_THRESHOLD) return null;
 
-  // Find a counterspell in hand
+  // Find a counterspell in hand (by tag or oracle text)
   const ps = state.players[player];
-  const counterSpells = getInstantSpeedOptions(state, player).filter((c) =>
-    c.tags.includes('counter')
-  );
+  const counterSpells = getInstantSpeedOptions(state, player).filter(isCounterSpell);
 
   if (counterSpells.length === 0) return null;
 

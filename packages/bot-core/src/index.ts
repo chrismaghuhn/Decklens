@@ -3,7 +3,7 @@ export { HeuristicBot } from './bot.ts';
 
 // === Decision Tree ===
 export type { Decision } from './decision-tree.ts';
-export { makeDecision } from './decision-tree.ts';
+export { makeDecision, evaluateModalMode, chooseBestModes } from './decision-tree.ts';
 
 // === Evaluators ===
 export type { BoardScore } from './evaluators/board-evaluator.ts';

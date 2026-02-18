@@ -18,7 +18,7 @@ import { attachEquipment, getEquipCost } from '../rules/equipment.ts';
 import { parseLoyaltyCost } from '../rules/abilities.ts';
 import { checkAttackTriggers, checkCastTriggers, checkETBTriggers } from '../rules/triggers.ts';
 import { handleCommanderDeath, handleCommanderExile } from '../rules/commander.ts';
-import { validateDamageAssignment, applyDamageAssignment, hasKeyword } from '../rules/combat.ts';
+import { validateDamageAssignment, applyDamageAssignment, hasKeyword, processAnnihilator } from '../rules/combat.ts';
 import { parseCost as parseCostFromString, canPayAbilityCost, payAbilityCost } from '../rules/cost-parser.ts';
 
 /**
@@ -510,6 +510,11 @@ function executeDeclareAttackers(
     .filter((p): p is NonNullable<typeof p> => p != null);
   if (attackingPerms.length > 0) {
     result = checkAttackTriggers(result, attackingPerms, action.player);
+  }
+
+  // Annihilator (CR 702.85): when creature with annihilator attacks, defending player sacrifices permanents
+  for (const atkPerm of attackingPerms) {
+    result = processAnnihilator(result, atkPerm, defenderId);
   }
 
   return result;

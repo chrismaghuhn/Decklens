@@ -736,6 +736,78 @@ export function applyDamageAssignment(
 }
 
 /**
+ * Annihilator N (CR 702.85): When a creature with annihilator N attacks,
+ * defending player sacrifices N permanents.
+ * Parses the annihilator value from oracle text and removes permanents
+ * from the defending player's battlefield.
+ */
+export function processAnnihilator(
+  state: GameState,
+  attackerPerm: Permanent,
+  defendingPlayer: 0 | 1
+): GameState {
+  const oracle = (attackerPerm.oracleText || '').toLowerCase();
+  const match = oracle.match(/annihilator\s+(\d+)/i);
+  if (!match) return state;
+
+  const n = parseInt(match[1], 10);
+  if (n <= 0) return state;
+
+  const players = [...state.players] as [PlayerState, PlayerState];
+  const defender = players[defendingPlayer];
+  const bf = [...defender.battlefield];
+
+  // Sacrifice N permanents from end of battlefield array (simplest default)
+  const sacrificed: Permanent[] = [];
+  const toSacrifice = Math.min(n, bf.length);
+
+  for (let i = 0; i < toSacrifice; i++) {
+    const perm = bf.pop()!;
+    sacrificed.push(perm);
+  }
+
+  // Move sacrificed permanents to graveyard as cards
+  const sacrificedCards = sacrificed.map(p => ({
+    id: p.id,
+    oracleId: p.oracleId,
+    name: p.name,
+    manaCost: p.manaCost,
+    cmc: p.cmc,
+    typeLine: p.typeLine,
+    oracleText: p.oracleText,
+    power: p.power,
+    toughness: p.toughness,
+    loyalty: p.loyalty,
+    colors: p.colors,
+    colorIdentity: p.colorIdentity,
+    rarity: p.rarity,
+    tags: p.tags,
+    imageUrl: p.imageUrl,
+    owner: p.owner,
+  }));
+
+  players[defendingPlayer] = {
+    ...defender,
+    battlefield: bf,
+    graveyard: [...defender.graveyard, ...sacrificedCards],
+  };
+
+  const sacNames = sacrificed.map(p => p.name).join(', ');
+  return {
+    ...state,
+    players,
+    log: [...state.log, {
+      timestamp: Date.now(),
+      turn: state.turn,
+      phase: state.phase,
+      step: state.step,
+      player: defendingPlayer,
+      message: `Annihilator ${n} — ${state.players[defendingPlayer].name} sacrifices ${toSacrifice} permanent(s): ${sacNames}.`,
+    }],
+  };
+}
+
+/**
  * Get IDs of creatures that MUST attack this combat (goaded creatures, CR 701.38).
  * In 1v1, goaded creatures must attack the other player if able.
  */

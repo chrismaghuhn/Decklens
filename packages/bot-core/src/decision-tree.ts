@@ -54,7 +54,10 @@ export function makeDecision(state: GameState, botPlayer: 0 | 1): Decision {
   if (winAction) return winAction;
 
   // --- 2. Stack interactions (highest urgency when stack has items) ---
-  if (state.stack.length > 0 && legalTypes.includes('cast-spell')) {
+  // Check for responses whenever the stack is non-empty, regardless of
+  // whether cast-spell is listed as legal (it may not be if the bot has
+  // only non-instant cards, but the stack check looks for instants/flash).
+  if (state.stack.length > 0) {
     const stackAction = chooseStackAction(state, botPlayer);
     if (stackAction.type !== 'pass') {
       return {
@@ -202,4 +205,56 @@ function findWinningAction(
   }
 
   return null;
+}
+
+// ─── Modal Mode Evaluation ───
+
+/** Keyword-based heuristic values for modal mode text */
+const MODE_KEYWORD_VALUES: { pattern: RegExp; value: number }[] = [
+  { pattern: /destroy|exile/i, value: 5 },
+  { pattern: /draw/i, value: 4 },
+  { pattern: /counter\s+target/i, value: 4 },
+  { pattern: /return.*from.*graveyard/i, value: 3 },
+  { pattern: /damage/i, value: 3 },
+  { pattern: /create.*token/i, value: 3 },
+  { pattern: /\+\d+\/\+\d+/i, value: 2 },
+  { pattern: /discard/i, value: 2 },
+  { pattern: /scry|surveil/i, value: 2 },
+  { pattern: /gain.*life/i, value: 1 },
+  { pattern: /tap.*target/i, value: 1 },
+];
+
+/**
+ * Evaluate a modal mode's value using keyword heuristics.
+ * Higher score = more desirable mode for the bot.
+ */
+export function evaluateModalMode(modeText: string): number {
+  let score = 0;
+  for (const { pattern, value } of MODE_KEYWORD_VALUES) {
+    if (pattern.test(modeText)) {
+      score += value;
+    }
+  }
+  return score;
+}
+
+/**
+ * Choose the best N modes from a modal spell for the bot.
+ *
+ * @param modes - Available mode texts
+ * @param count - How many modes to choose (minChoices)
+ * @returns Indices of the chosen modes, sorted by preference (highest first)
+ */
+export function chooseBestModes(
+  modes: { index: number; text: string }[],
+  count: number,
+): number[] {
+  const scored = modes.map(m => ({
+    index: m.index,
+    score: evaluateModalMode(m.text),
+  }));
+
+  // Sort by score descending, pick top N
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, count).map(s => s.index);
 }

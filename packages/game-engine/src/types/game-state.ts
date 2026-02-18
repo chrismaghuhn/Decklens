@@ -156,4 +156,14 @@ export interface GameState {
     /** Current damage assignment map: blockerId → assigned damage */
     assignments: Record<string, number>;
   } | null;
+
+  /** Modal choice pending — player must choose modes for a modal spell */
+  pendingModalChoice?: {
+    stackObjectId: string;
+    controller: 0 | 1;
+    modes: { index: number; text: string; oracleText: string }[];
+    minChoices: number;
+    maxChoices: number;
+    cardName?: string;
+  } | null;
 }

@@ -9,6 +9,8 @@ import { resolveEffect } from './effects.ts';
 import { parseAbilities } from './abilities.ts';
 import { checkETBTriggers } from './triggers.ts';
 import { isAura, getAuraBonuses } from './equipment.ts';
+import { parseTargetFilter, validateTarget } from './targeting.ts';
+import { parseModalSpell, resolveModalChoices } from './modal.ts';
 
 let nextStackId = 0;
 
@@ -238,6 +240,69 @@ export function resolveTopOfStack(state: GameState): GameState {
     };
 
     return giveActivePlayerPriority(newState);
+  }
+
+  // ─── Modal Spell Check ───
+  // If the spell/ability is modal, we need mode choices before resolving.
+  const resolvingOracleText = resolving.oracleText || resolving.card?.oracleText || '';
+  const modalInfo = parseModalSpell(resolvingOracleText);
+  if (modalInfo && modalInfo.modes.length > 0) {
+    if (resolving.controller === 0 && !newState.pendingModalChoice) {
+      // Human player — pause resolution and ask for mode choices via UI
+      // Put the resolving object back on the stack so it can be resolved later
+      newState = {
+        ...newState,
+        stack: [...newState.stack, resolving],
+        pendingModalChoice: {
+          stackObjectId: resolving.id,
+          controller: 0,
+          modes: modalInfo.modes.map(m => ({ index: m.index, text: m.text, oracleText: m.oracleText })),
+          minChoices: modalInfo.minChoices,
+          maxChoices: modalInfo.maxChoices,
+          cardName: resolving.card?.name ?? resolving.source?.name ?? resolving.text,
+        },
+      };
+      return newState; // Wait for player choice — don't resolve yet
+    } else if (resolving.controller === 1) {
+      // Bot player — auto-choose the first N modes (simple heuristic)
+      const autoChoices: number[] = [];
+      for (let i = 0; i < modalInfo.minChoices && i < modalInfo.modes.length; i++) {
+        autoChoices.push(modalInfo.modes[i].index);
+      }
+      newState = resolveModalChoices(newState, resolving, autoChoices);
+
+      // Move instant/sorcery to graveyard after modal resolution
+      if (resolving.type === 'spell' && resolving.card && !isPermanentType(resolving.card)) {
+        const ctrl = resolving.controller;
+        const players = [...newState.players] as [PlayerState, PlayerState];
+        if (resolving.isFlashback) {
+          players[ctrl] = { ...players[ctrl], exile: [...players[ctrl].exile, resolving.card] };
+        } else {
+          players[ctrl] = { ...players[ctrl], graveyard: [...players[ctrl].graveyard, resolving.card] };
+        }
+        newState = { ...newState, players };
+      }
+
+      newState = {
+        ...newState,
+        log: [
+          ...newState.log,
+          {
+            timestamp: Date.now(),
+            turn: newState.turn,
+            phase: newState.phase,
+            step: newState.step,
+            player: resolving.controller,
+            message: `${resolving.card?.name ?? resolving.text} resolves (bot chose modes: ${autoChoices.map(i => modalInfo.modes[i]?.text ?? i).join(', ')}).`,
+            cardName: resolving.card?.name ?? resolving.source?.name,
+            actionType: 'effect',
+          },
+        ],
+      };
+      return giveActivePlayerPriority(newState);
+    }
+    // If human player already made their choice (pendingModalChoice is set but controller matches),
+    // fall through to normal resolution — the game-loop will call resolveModalChoices directly.
   }
 
   if (resolving.type === 'spell' && resolving.card) {
@@ -608,10 +673,25 @@ export function checkSpellFizzle(state: GameState, stackObj: StackObject): boole
     return false;
   }
 
+  // Try to parse a structured target filter from the spell's oracle text.
+  // If available, use filter-aware validation (checks type, power, etc. — not just existence).
+  const oracleText = stackObj.oracleText || stackObj.card?.oracleText || '';
+  const targetFilter = oracleText ? parseTargetFilter(oracleText) : null;
+
   // Check each target for legality — if ANY target is still legal, no fizzle
   for (const target of stackObj.targets) {
-    if (isTargetLegal(state, target)) {
-      return false;
+    if (targetFilter) {
+      // Filter-aware validation: checks existence AND that the target still
+      // meets the spell's targeting criteria (type, power, color, etc.)
+      const sourceId = stackObj.source?.id;
+      if (validateTarget(state, target, targetFilter, sourceId)) {
+        return false;
+      }
+    } else {
+      // Fallback: basic existence check
+      if (isTargetLegal(state, target)) {
+        return false;
+      }
     }
   }
 

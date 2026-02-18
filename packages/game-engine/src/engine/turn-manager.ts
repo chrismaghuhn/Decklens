@@ -614,6 +614,10 @@ export function applyStepEffects(state: GameState): GameState {
 /**
  * Get the actions that are generally allowed in the current step.
  * This is a high-level list; actual legality depends on game state.
+ *
+ * CR 116.1: Instant-speed spells (instants and cards with flash) can be
+ * cast whenever a player has priority, including during other players' turns
+ * and while spells/abilities are on the stack.
  */
 export function getCurrentStepActions(state: GameState): string[] {
   // CR 502.1: No player gets priority during the untap step (unless in mulligan phase)
@@ -630,51 +634,60 @@ export function getCurrentStepActions(state: GameState): string[] {
 
     case 'upkeep':
       if (state.mulliganPhase) actions.push('mulligan');
-      actions.push('cast-instant', 'activate-ability');
+      // Flash (CR 702.8): cards with flash can be cast any time you have priority
+      actions.push('cast-instant', 'cast-spell', 'activate-ability');
       break;
 
     case 'draw':
       if (state.mulliganPhase) actions.push('mulligan');
-      actions.push('cast-instant', 'activate-ability');
+      actions.push('cast-instant', 'cast-spell', 'activate-ability');
       break;
 
     case 'main':
-      actions.push(
-        'play-land',
-        'cast-spell',
-        'activate-ability'
-      );
+      // Active player with empty stack: full sorcery-speed actions
+      if (state.activePlayer === state.priorityPlayer && state.stack.length === 0) {
+        actions.push(
+          'play-land',
+          'cast-spell',
+          'activate-ability'
+        );
+      } else {
+        // Non-active player during main, or stack is non-empty:
+        // instant-speed spells and abilities only. cast-spell is included
+        // because validation.ts enforces instant-only timing constraints.
+        actions.push('cast-instant', 'cast-spell', 'activate-ability');
+      }
       break;
 
     case 'begin-combat':
-      actions.push('cast-instant', 'activate-ability');
+      actions.push('cast-instant', 'cast-spell', 'activate-ability');
       break;
 
     case 'declare-attackers':
       if (state.activePlayer === state.priorityPlayer) {
         actions.push('declare-attackers');
       }
-      actions.push('cast-instant', 'activate-ability');
+      actions.push('cast-instant', 'cast-spell', 'activate-ability');
       break;
 
     case 'declare-blockers':
       if (state.activePlayer !== state.priorityPlayer) {
         actions.push('declare-blockers');
       }
-      actions.push('cast-instant', 'activate-ability');
+      actions.push('cast-instant', 'cast-spell', 'activate-ability');
       break;
 
     case 'first-strike-damage':
     case 'combat-damage':
-      actions.push('cast-instant', 'activate-ability');
+      actions.push('cast-instant', 'cast-spell', 'activate-ability');
       break;
 
     case 'end-combat':
-      actions.push('cast-instant', 'activate-ability');
+      actions.push('cast-instant', 'cast-spell', 'activate-ability');
       break;
 
     case 'end':
-      actions.push('cast-instant', 'activate-ability');
+      actions.push('cast-instant', 'cast-spell', 'activate-ability');
       break;
 
     case 'cleanup':

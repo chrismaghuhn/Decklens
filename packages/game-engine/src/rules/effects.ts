@@ -388,35 +388,33 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /counter\s+target\s+spell/i,
     requiresTarget: true,
     apply: (state, controller, targets) => {
-      // Find the target on the stack
+      // Determine which stack object to counter:
+      // 1. Look for a card-in-zone target with zone 'stack'
+      // 2. Fall back to any target and look it up by ID on the stack
       const spellTarget = targets.find(t => t.type === 'card-in-zone' && t.zone === 'stack');
-      if (!spellTarget) {
-        // Try any target — assume it's a stack object ID
-        const anyTarget = targets[0];
-        if (!anyTarget) return { state, resolved: false };
+      const targetId = spellTarget?.id ?? targets[0]?.id;
+      if (!targetId) return { state, resolved: false };
 
-        const stackIdx = state.stack.findIndex(s => s.id === anyTarget.id);
-        if (stackIdx === -1) return { state, resolved: false };
+      const stackIdx = state.stack.findIndex(s => s.id === targetId);
+      if (stackIdx === -1) return { state, resolved: false };
 
-        const countered = state.stack[stackIdx];
-        const updatedStack = [...state.stack];
-        updatedStack.splice(stackIdx, 1);
+      const countered = state.stack[stackIdx];
+      const updatedStack = [...state.stack];
+      updatedStack.splice(stackIdx, 1);
 
-        // Move the card to graveyard
-        if (countered.card) {
-          const owner = countered.card.owner;
-          const player = state.players[owner];
-          const players = [...state.players] as [PlayerState, PlayerState];
-          players[owner] = { ...player, graveyard: [...player.graveyard, countered.card] };
-          state = { ...state, players, stack: updatedStack };
-        } else {
-          state = { ...state, stack: updatedStack };
-        }
-
-        state = addLog(state, controller, `Counters ${countered.text || 'a spell'}.`);
-        return { state, resolved: true, description: `counter ${countered.text}` };
+      // Move the countered card to its owner's graveyard
+      if (countered.card) {
+        const owner = countered.card.owner;
+        const player = state.players[owner];
+        const players = [...state.players] as [PlayerState, PlayerState];
+        players[owner] = { ...player, graveyard: [...player.graveyard, countered.card] };
+        state = { ...state, players, stack: updatedStack };
+      } else {
+        state = { ...state, stack: updatedStack };
       }
-      return { state, resolved: false };
+
+      state = addLog(state, controller, `Counters ${countered.text || 'a spell'}.`);
+      return { state, resolved: true, description: `counter ${countered.text}` };
     },
   },
 

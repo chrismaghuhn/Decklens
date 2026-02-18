@@ -20,8 +20,11 @@ import {
   autoTapLandsForCost,
   parseManaCost,
   isCreature,
+  isInstant,
+  hasFlash,
   parseCost,
   canPayAbilityCost,
+  resolveModalChoices,
 } from '@mtg/game-engine';
 import { HeuristicBot } from '@mtg/bot-core';
 import { renderBoard, clearDomCache, type BoardCallbacks } from './board-renderer.ts';
@@ -105,10 +108,64 @@ export class GameLoop {
 
       this.render();
 
+      // ─── Modal Choice Pending ───
+      // If a modal spell is waiting for mode selection, show the modal UI
+      if (state.pendingModalChoice && state.pendingModalChoice.controller === this.humanPlayer) {
+        const chosenModes = await this.showModalChoicePrompt(state);
+        // Find the stack object and resolve chosen modes
+        const stackObj = state.stack.find(s => s.id === state.pendingModalChoice!.stackObjectId);
+        if (stackObj) {
+          // Pop the modal spell off the stack
+          const stackWithout = state.stack.filter(s => s.id !== stackObj.id);
+          let resolvedState: GameState = { ...state, stack: stackWithout, pendingModalChoice: null };
+          resolvedState = resolveModalChoices(resolvedState, stackObj, chosenModes);
+
+          // Move instant/sorcery to graveyard after resolution
+          const card = stackObj.card;
+          if (card && !card.typeLine.toLowerCase().match(/creature|artifact|enchantment|planeswalker|battle/)) {
+            const ctrl = stackObj.controller;
+            const players = [...resolvedState.players] as [typeof resolvedState.players[0], typeof resolvedState.players[1]];
+            if (stackObj.isFlashback) {
+              players[ctrl] = { ...players[ctrl], exile: [...players[ctrl].exile, card] };
+            } else {
+              players[ctrl] = { ...players[ctrl], graveyard: [...players[ctrl].graveyard, card] };
+            }
+            resolvedState = { ...resolvedState, players };
+          }
+
+          const modeTexts = chosenModes.map(i => state.pendingModalChoice!.modes.find(m => m.index === i)?.text ?? String(i));
+          resolvedState = {
+            ...resolvedState,
+            log: [
+              ...resolvedState.log,
+              {
+                timestamp: Date.now(),
+                turn: resolvedState.turn,
+                phase: resolvedState.phase,
+                step: resolvedState.step,
+                player: stackObj.controller,
+                message: `${state.pendingModalChoice!.cardName ?? 'Modal spell'} resolves (chose: ${modeTexts.join(', ')}).`,
+                cardName: stackObj.card?.name,
+                actionType: 'effect',
+              },
+            ],
+          };
+          this.game.setState(resolvedState);
+          logMessage(`<span style="color:var(--gold)">${state.pendingModalChoice!.cardName}: ${modeTexts.join(', ')}</span>`);
+        }
+        continue;
+      }
+
       if (state.priorityPlayer === this.humanPlayer) {
-        // Human turn — wait for UI action
-        const action = await this.waitForPlayerAction();
-        this.executeAction(action);
+        // If the stack has items and we're not in a main phase, show response prompt
+        if (state.stack.length > 0 && state.step !== 'main') {
+          const action = await this.showResponsePrompt(state);
+          this.executeAction(action);
+        } else {
+          // Human turn — wait for UI action
+          const action = await this.waitForPlayerAction();
+          this.executeAction(action);
+        }
       } else {
         // Bot turn
         await this.botTurn();
@@ -136,6 +193,7 @@ export class GameLoop {
    * - Main phases (play lands, cast spells)
    * - Declare-attackers (active player picks attackers)
    * - Declare-blockers (defending player picks blockers)
+   * - When the stack is non-empty and the human has priority (response window)
    * Everything else auto-passes to keep the game flowing.
    */
   private shouldAutoPass(state: GameState): boolean {
@@ -149,6 +207,19 @@ export class GameLoop {
 
     // Declare blockers — stop for the defending player
     if (step === 'declare-blockers' && activePlayer !== priorityPlayer) return false;
+
+    // Stack is non-empty and human has priority — show response window
+    // so the player can cast instants/flash spells in response
+    if (state.stack.length > 0 && priorityPlayer === this.humanPlayer) {
+      // Check if human has any instant-speed cards they could cast
+      const hand = state.players[this.humanPlayer].hand;
+      const hasResponse = hand.some(card => {
+        if (!isInstant(card) && !hasFlash(card)) return false;
+        const cost = parseManaCost(card.manaCost);
+        return autoTapLandsForCost(state.players[this.humanPlayer], cost) !== null;
+      });
+      if (hasResponse) return false; // Stop to show response prompt
+    }
 
     // Everything else auto-passes: untap, upkeep, draw, begin-combat,
     // first-strike-damage, combat-damage, end-combat, end, cleanup
@@ -870,6 +941,206 @@ export class GameLoop {
     }
   }
 
+  // ==================== Response Prompt ====================
+
+  /** Inject response prompt CSS into document head (once) */
+  private static responseStylesInjected = false;
+  private injectResponseStyles(): void {
+    if (GameLoop.responseStylesInjected) return;
+    GameLoop.responseStylesInjected = true;
+
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes responsePromptFadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      .response-prompt {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(10, 14, 23, 0.85);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 1000;
+        animation: responsePromptFadeIn 0.2s ease;
+      }
+      .response-prompt-content {
+        background: linear-gradient(135deg, #1a1f2e, #0f1623);
+        border: 1px solid rgba(201, 168, 76, 0.3);
+        border-radius: 16px;
+        padding: 24px;
+        max-width: 400px;
+        width: 90%;
+        text-align: center;
+        font-family: 'Outfit', sans-serif;
+        color: #e2e8f0;
+      }
+      .response-prompt-content h3 {
+        color: #c9a84c;
+        font-family: 'Cinzel', serif;
+        margin: 0 0 12px 0;
+        font-size: 18px;
+      }
+      .response-prompt-content p {
+        color: #94a3b8;
+        margin: 0 0 16px 0;
+        font-size: 14px;
+      }
+      .response-card-btn {
+        display: block; width: 100%;
+        background: rgba(201, 168, 76, 0.15);
+        border: 1px solid rgba(201, 168, 76, 0.3);
+        border-radius: 10px;
+        color: #c9a84c;
+        padding: 10px 16px;
+        margin: 6px 0;
+        cursor: pointer;
+        font-family: 'Outfit', sans-serif;
+        font-size: 14px;
+        transition: all 0.2s;
+      }
+      .response-card-btn:hover {
+        background: rgba(201, 168, 76, 0.3);
+        border-color: #c9a84c;
+      }
+      .response-pass-btn {
+        background: rgba(100, 116, 139, 0.2);
+        border: 1px solid rgba(100, 116, 139, 0.3);
+        border-radius: 50px;
+        color: #94a3b8;
+        padding: 10px 24px;
+        margin-top: 12px;
+        cursor: pointer;
+        font-family: 'Outfit', sans-serif;
+        font-size: 14px;
+      }
+      .response-pass-btn:hover {
+        background: rgba(100, 116, 139, 0.3);
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  /**
+   * Show a response prompt overlay when the stack is non-empty and
+   * the human has priority. Lists instant-speed cards from hand that
+   * can be cast, plus a "Pass" button.
+   *
+   * Returns the chosen GameAction (cast-spell or pass).
+   */
+  private showResponsePrompt(state: GameState): Promise<GameAction> {
+    this.injectResponseStyles();
+
+    return new Promise<GameAction>((resolve) => {
+      const hand = state.players[this.humanPlayer].hand;
+      const playerState = state.players[this.humanPlayer];
+
+      // Find instant-speed cards that can be afforded
+      const instantSpeedCards = hand.filter(card => {
+        if (!isInstant(card) && !hasFlash(card)) return false;
+        const cost = parseManaCost(card.manaCost);
+        return autoTapLandsForCost(playerState, cost) !== null;
+      });
+
+      // Describe what we're responding to
+      const topSpell = state.stack[state.stack.length - 1];
+      const spellDescription = topSpell?.card?.name || topSpell?.text || 'a spell';
+
+      // If no instant-speed cards available, auto-pass after brief delay
+      if (instantSpeedCards.length === 0) {
+        logMessage(`<span style="color:#94a3b8">No responses available — passing</span>`);
+        setTimeout(() => {
+          resolve({ type: 'pass', player: this.humanPlayer });
+        }, 400);
+        return;
+      }
+
+      // Remove any existing response prompt
+      document.getElementById('response-prompt')?.remove();
+
+      const overlay = document.createElement('div');
+      overlay.id = 'response-prompt';
+      overlay.className = 'response-prompt';
+
+      const content = document.createElement('div');
+      content.className = 'response-prompt-content';
+
+      const title = document.createElement('h3');
+      title.textContent = 'Respond?';
+      content.appendChild(title);
+
+      const desc = document.createElement('p');
+      desc.textContent = `Opponent cast: ${spellDescription}`;
+      content.appendChild(desc);
+
+      // Card buttons
+      const cardContainer = document.createElement('div');
+      for (const card of instantSpeedCards) {
+        const btn = document.createElement('button');
+        btn.className = 'response-card-btn';
+        btn.textContent = `${card.name} (${card.manaCost})`;
+        btn.addEventListener('click', () => {
+          overlay.remove();
+
+          // If the spell needs a target, enter targeting mode
+          const needsTarget = this.spellNeedsTarget(card);
+          if (needsTarget) {
+            // Enter targeting mode and resolve once target is picked
+            this.targetingMode = true;
+            this.targetingCard = card;
+            this.selectedHandCard = { card, index: 0 };
+            this.render();
+            logMessage(`<span style="color:var(--gold)">Select a target for ${card.name}</span>`);
+
+            // Set up action resolver for targeting
+            this.actionResolver = (action: GameAction) => {
+              resolve(action);
+            };
+            this.updateActionButtons();
+            return;
+          }
+
+          // Cast without targets — auto-tap lands for mana
+          const cost = parseManaCost(card.manaCost);
+          const tapResult = autoTapLandsForCost(playerState, cost);
+          if (tapResult) {
+            // Update game state with tapped lands
+            const updatedState = {
+              ...state,
+              players: state.players.map((p, i) =>
+                i === this.humanPlayer ? tapResult.updatedPlayer : p,
+              ) as [typeof state.players[0], typeof state.players[1]],
+            };
+            this.game.setState(updatedState);
+
+            resolve({
+              type: 'cast-spell',
+              player: this.humanPlayer,
+              cardId: card.id,
+              targets: [],
+              manaPayment: tapResult.payment,
+            });
+          } else {
+            resolve({ type: 'pass', player: this.humanPlayer });
+          }
+        });
+        cardContainer.appendChild(btn);
+      }
+      content.appendChild(cardContainer);
+
+      // Pass button
+      const passBtn = document.createElement('button');
+      passBtn.className = 'response-pass-btn';
+      passBtn.textContent = 'Pass (No Response)';
+      passBtn.addEventListener('click', () => {
+        overlay.remove();
+        resolve({ type: 'pass', player: this.humanPlayer });
+      });
+      content.appendChild(passBtn);
+
+      overlay.appendChild(content);
+      document.body.appendChild(overlay);
+    });
+  }
+
   /** Pass priority */
   pass(): void {
     this.submitAction({ type: 'pass', player: this.humanPlayer });
@@ -1074,6 +1345,195 @@ export class GameLoop {
 
       renderMulliganHand();
       updateActions();
+    });
+  }
+
+  // ==================== Modal Choice UI ====================
+
+  /** Inject modal choice CSS into document head (once) */
+  private static modalStylesInjected = false;
+  private injectModalStyles(): void {
+    if (GameLoop.modalStylesInjected) return;
+    GameLoop.modalStylesInjected = true;
+
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes modalChoiceFadeIn {
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      .modal-choice-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(10, 14, 23, 0.85);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 1000;
+        animation: modalChoiceFadeIn 0.2s ease;
+      }
+      .modal-choice-content {
+        background: linear-gradient(135deg, #1a1f2e, #0f1623);
+        border: 1px solid rgba(201, 168, 76, 0.3);
+        border-radius: 16px;
+        padding: 24px;
+        max-width: 420px;
+        width: 90%;
+        color: #e2e8f0;
+        font-family: 'Outfit', sans-serif;
+      }
+      .modal-choice-content h3 {
+        color: #c9a84c;
+        font-family: 'Cinzel', serif;
+        margin: 0 0 8px 0;
+        font-size: 18px;
+      }
+      .modal-choice-content .modal-subtitle {
+        color: #94a3b8;
+        font-size: 13px;
+        margin: 0 0 16px 0;
+      }
+      .modal-mode-option {
+        display: flex; align-items: center; gap: 10px;
+        background: rgba(201, 168, 76, 0.1);
+        border: 1px solid rgba(201, 168, 76, 0.2);
+        border-radius: 10px;
+        padding: 10px 14px;
+        margin: 6px 0;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 14px;
+      }
+      .modal-mode-option:hover {
+        background: rgba(201, 168, 76, 0.2);
+        border-color: rgba(201, 168, 76, 0.5);
+      }
+      .modal-mode-option.selected {
+        background: rgba(201, 168, 76, 0.25);
+        border-color: #c9a84c;
+      }
+      .modal-mode-option input[type="radio"],
+      .modal-mode-option input[type="checkbox"] {
+        accent-color: #c9a84c;
+        width: 16px; height: 16px;
+      }
+      .modal-confirm-btn {
+        background: linear-gradient(135deg, #c9a84c, #b8963f);
+        border: none; border-radius: 50px;
+        color: #0a0e17; font-weight: 600;
+        padding: 10px 24px; margin-top: 14px;
+        cursor: pointer; width: 100%;
+        font-family: 'Outfit', sans-serif;
+        font-size: 14px;
+        transition: opacity 0.2s;
+      }
+      .modal-confirm-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .modal-confirm-btn:not(:disabled):hover {
+        opacity: 0.9;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  /**
+   * Show modal choice prompt for a modal spell.
+   * Returns the chosen mode indices.
+   */
+  private showModalChoicePrompt(state: GameState): Promise<number[]> {
+    this.injectModalStyles();
+    const pending = state.pendingModalChoice!;
+
+    return new Promise<number[]>((resolve) => {
+      // Remove any existing modal
+      document.getElementById('modal-choice-overlay')?.remove();
+
+      const overlay = document.createElement('div');
+      overlay.id = 'modal-choice-overlay';
+      overlay.className = 'modal-choice-overlay';
+
+      const content = document.createElement('div');
+      content.className = 'modal-choice-content';
+
+      const title = document.createElement('h3');
+      title.textContent = pending.cardName ?? 'Modal Spell';
+      content.appendChild(title);
+
+      const subtitle = document.createElement('p');
+      subtitle.className = 'modal-subtitle';
+      if (pending.minChoices === pending.maxChoices) {
+        subtitle.textContent = `Choose ${pending.minChoices === 1 ? 'one' : pending.minChoices === 2 ? 'two' : String(pending.minChoices)}:`;
+      } else if (pending.maxChoices >= pending.modes.length) {
+        subtitle.textContent = 'Choose one or more:';
+      } else {
+        subtitle.textContent = `Choose ${pending.minChoices} to ${pending.maxChoices}:`;
+      }
+      content.appendChild(subtitle);
+
+      const selected = new Set<number>();
+      const isRadio = pending.maxChoices === 1;
+
+      const confirmBtn = document.createElement('button');
+      confirmBtn.className = 'modal-confirm-btn';
+      confirmBtn.textContent = 'Confirm';
+      confirmBtn.disabled = true;
+
+      const updateConfirm = () => {
+        confirmBtn.disabled = selected.size < pending.minChoices;
+      };
+
+      // Mode options
+      const optionsContainer = document.createElement('div');
+      for (const mode of pending.modes) {
+        const option = document.createElement('label');
+        option.className = 'modal-mode-option';
+
+        const input = document.createElement('input');
+        input.type = isRadio ? 'radio' : 'checkbox';
+        input.name = 'modal-mode';
+        input.value = String(mode.index);
+
+        input.addEventListener('change', () => {
+          if (isRadio) {
+            selected.clear();
+            selected.add(mode.index);
+            // Update visual selection
+            optionsContainer.querySelectorAll('.modal-mode-option').forEach(el => el.classList.remove('selected'));
+            option.classList.add('selected');
+          } else {
+            if (input.checked) {
+              if (selected.size < pending.maxChoices) {
+                selected.add(mode.index);
+                option.classList.add('selected');
+              } else {
+                input.checked = false; // Enforce max
+              }
+            } else {
+              selected.delete(mode.index);
+              option.classList.remove('selected');
+            }
+          }
+          updateConfirm();
+        });
+
+        const label = document.createElement('span');
+        label.textContent = mode.text;
+
+        option.appendChild(input);
+        option.appendChild(label);
+        optionsContainer.appendChild(option);
+      }
+      content.appendChild(optionsContainer);
+
+      confirmBtn.addEventListener('click', () => {
+        if (selected.size >= pending.minChoices) {
+          overlay.remove();
+          resolve(Array.from(selected).sort((a, b) => a - b));
+        }
+      });
+      content.appendChild(confirmBtn);
+
+      overlay.appendChild(content);
+      document.body.appendChild(overlay);
     });
   }
 

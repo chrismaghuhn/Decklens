@@ -1,6 +1,7 @@
 import type { GameState } from '../types/game-state.ts';
 import type { PlayerState } from '../types/player.ts';
 import type { Permanent } from '../types/permanent.ts';
+import { cardToPermanent } from '../types/permanent.ts';
 import type { Card } from '../types/card.ts';
 import { isLegendary, isCreature, isPlaneswalker } from '../types/card.ts';
 import { hasKeyword } from './combat.ts';
@@ -202,8 +203,44 @@ function checkCreatureDeath(state: GameState): SBAResult {
 
       // Distribute dying cards — check replacement effects (CR 614) for each
       // e.g., "If a creature would die, exile it instead" (Rest in Peace, Leyline of the Void)
+      // Also check Undying (CR 702.92) and Persist (CR 702.78)
       for (const perm of dying) {
         const ownerIdx: 0 | 1 = perm.owner ?? (i as 0 | 1);
+
+        // Undying (CR 702.92): creature with undying and no +1/+1 counters
+        // returns to battlefield with a +1/+1 counter instead of dying
+        if (hasKeyword(perm, 'undying') && (perm.counters['+1/+1'] ?? 0) === 0) {
+          const card = permanentToCard(perm);
+          const returned = cardToPermanent(card, i as 0 | 1, state.turn);
+          returned.counters = { ...returned.counters, '+1/+1': 1 };
+          if (returned.currentPower !== undefined) returned.currentPower += 1;
+          if (returned.currentToughness !== undefined) returned.currentToughness += 1;
+          returned.summoningSick = true;
+          players[i as 0 | 1] = {
+            ...players[i as 0 | 1],
+            battlefield: [...players[i as 0 | 1].battlefield, returned],
+          };
+          logs.push(`${perm.name} returns to the battlefield with a +1/+1 counter (undying).`);
+          continue;
+        }
+
+        // Persist (CR 702.78): creature with persist and no -1/-1 counters
+        // returns to battlefield with a -1/-1 counter instead of dying
+        if (hasKeyword(perm, 'persist') && (perm.counters['-1/-1'] ?? 0) === 0) {
+          const card = permanentToCard(perm);
+          const returned = cardToPermanent(card, i as 0 | 1, state.turn);
+          returned.counters = { ...returned.counters, '-1/-1': 1 };
+          if (returned.currentPower !== undefined) returned.currentPower -= 1;
+          if (returned.currentToughness !== undefined) returned.currentToughness -= 1;
+          returned.summoningSick = true;
+          players[i as 0 | 1] = {
+            ...players[i as 0 | 1],
+            battlefield: [...players[i as 0 | 1].battlefield, returned],
+          };
+          logs.push(`${perm.name} returns to the battlefield with a -1/-1 counter (persist).`);
+          continue;
+        }
+
         const card = permanentToCard(perm);
 
         // Check death replacement effects
@@ -288,8 +325,44 @@ function checkZeroToughness(state: GameState): SBAResult {
         battlefield: surviving,
       };
       // Distribute dying cards — check replacement effects (CR 614)
+      // Also check Undying (CR 702.92) and Persist (CR 702.78)
       for (const perm of dying) {
         const ownerIdx: 0 | 1 = perm.owner ?? (i as 0 | 1);
+
+        // Undying (CR 702.92): creature with undying and no +1/+1 counters
+        // returns to battlefield with a +1/+1 counter instead of dying
+        if (hasKeyword(perm, 'undying') && (perm.counters['+1/+1'] ?? 0) === 0) {
+          const card = permanentToCard(perm);
+          const returned = cardToPermanent(card, i as 0 | 1, state.turn);
+          returned.counters = { ...returned.counters, '+1/+1': 1 };
+          if (returned.currentPower !== undefined) returned.currentPower += 1;
+          if (returned.currentToughness !== undefined) returned.currentToughness += 1;
+          returned.summoningSick = true;
+          players[i as 0 | 1] = {
+            ...players[i as 0 | 1],
+            battlefield: [...players[i as 0 | 1].battlefield, returned],
+          };
+          logs.push(`${perm.name} returns to the battlefield with a +1/+1 counter (undying).`);
+          continue;
+        }
+
+        // Persist (CR 702.78): creature with persist and no -1/-1 counters
+        // returns to battlefield with a -1/-1 counter instead of dying
+        if (hasKeyword(perm, 'persist') && (perm.counters['-1/-1'] ?? 0) === 0) {
+          const card = permanentToCard(perm);
+          const returned = cardToPermanent(card, i as 0 | 1, state.turn);
+          returned.counters = { ...returned.counters, '-1/-1': 1 };
+          if (returned.currentPower !== undefined) returned.currentPower -= 1;
+          if (returned.currentToughness !== undefined) returned.currentToughness -= 1;
+          returned.summoningSick = true;
+          players[i as 0 | 1] = {
+            ...players[i as 0 | 1],
+            battlefield: [...players[i as 0 | 1].battlefield, returned],
+          };
+          logs.push(`${perm.name} returns to the battlefield with a -1/-1 counter (persist).`);
+          continue;
+        }
+
         const card = permanentToCard(perm);
 
         const tempState: GameState = { ...state, players };
