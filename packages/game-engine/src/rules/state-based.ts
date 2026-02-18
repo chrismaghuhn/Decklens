@@ -63,6 +63,14 @@ export function checkStateBasedActions(state: GameState): GameState {
     if (r6.changed) { current = r6.state; changed = true; }
     if (current.gameOver) return current;
 
+    // CR 704.5b: Player who attempted to draw from empty library loses
+    const r6a0 = checkEmptyLibraryLoss(current, 0);
+    if (r6a0.changed) { current = r6a0.state; changed = true; }
+    if (current.gameOver) return current;
+    const r6a1 = checkEmptyLibraryLoss(current, 1);
+    if (r6a1.changed) { current = r6a1.state; changed = true; }
+    if (current.gameOver) return current;
+
     const r6b = checkCounterCancellation(current);
     if (r6b.changed) { current = r6b.state; changed = true; }
 
@@ -77,6 +85,22 @@ export function checkStateBasedActions(state: GameState): GameState {
         current.players[1].battlefield.length !== preAttachBf1) {
       changed = true;
     }
+
+    // CR 714.4: Saga with lore counters >= max chapter → sacrifice
+    const r8 = checkSagaSacrifice(current);
+    if (r8.changed) { current = r8.state; changed = true; }
+
+    // CR 704.5j: Planeswalker uniqueness rule (same subtype under one controller → legend-rule style)
+    const r9 = checkPlaneswalkerUniqueness(current);
+    if (r9.changed) { current = r9.state; changed = true; }
+
+    // CR 702.73: Evoke sacrifice — creature with sacrificeOnETB is sacrificed immediately
+    const r10 = checkEvokeSacrifice(current);
+    if (r10.changed) { current = r10.state; changed = true; }
+
+    // Equipment attached to non-creature → unattach (not destroy)
+    const r11 = checkEquipmentOnNonCreature(current);
+    if (r11.changed) { current = r11.state; changed = true; }
   }
 
   return current;
@@ -665,6 +689,275 @@ function checkTokensInWrongZone(state: GameState): SBAResult {
   if (!changed) return { state, changed: false };
 
   const logEntries = logs.map((message) => ({
+    timestamp: Date.now(),
+    turn: state.turn,
+    phase: state.phase,
+    step: state.step,
+    player: null as 0 | 1 | null,
+    message,
+  }));
+
+  return {
+    state: { ...state, players, log: [...state.log, ...logEntries] },
+    changed: true,
+  };
+}
+
+/**
+ * CR 714.4: Saga sacrifice — if a Saga has lore counters >= its max chapter, sacrifice it.
+ * Max chapter = count of roman numeral chapter markers (I, II, III, IV, V, etc.) in oracle text.
+ */
+function checkSagaSacrifice(state: GameState): SBAResult {
+  let changed = false;
+  const players = [...state.players] as [PlayerState, PlayerState];
+  const logs: string[] = [];
+
+  for (let i = 0; i < 2; i++) {
+    const player = players[i as 0 | 1];
+    const surviving: Permanent[] = [];
+    const dying: Permanent[] = [];
+
+    for (const perm of player.battlefield) {
+      if (!perm.typeLine.toLowerCase().includes('saga')) {
+        surviving.push(perm);
+        continue;
+      }
+      const lore = perm.counters['lore'] || 0;
+      const maxChapter = countSagaChapters(perm.oracleText || '');
+      if (maxChapter > 0 && lore >= maxChapter) {
+        dying.push(perm);
+        logs.push(`${perm.name} is sacrificed (final chapter reached).`);
+      } else {
+        surviving.push(perm);
+      }
+    }
+
+    if (dying.length > 0) {
+      changed = true;
+      const deadCards = dying.map(p => permanentToCard(p));
+      players[i as 0 | 1] = {
+        ...player,
+        battlefield: surviving,
+        graveyard: [...player.graveyard, ...deadCards],
+      };
+    }
+  }
+
+  if (!changed) return { state, changed: false };
+
+  const logEntries = logs.map((message) => ({
+    timestamp: Date.now(),
+    turn: state.turn,
+    phase: state.phase,
+    step: state.step,
+    player: null as 0 | 1 | null,
+    message,
+  }));
+
+  return {
+    state: { ...state, players, log: [...state.log, ...logEntries] },
+    changed: true,
+  };
+}
+
+/** Count the number of chapter markers in a Saga's oracle text (I, II, III, IV, V, VI) */
+function countSagaChapters(oracleText: string): number {
+  // Match chapter markers: "I —", "II —", "III —", "IV —" etc.
+  const chapters = oracleText.match(/^(I{1,3}|IV|V|VI{0,3})\s*[—–\-]/gm);
+  return chapters ? chapters.length : 0;
+}
+
+/**
+ * CR 704.5j: Planeswalker uniqueness rule.
+ * If a player controls two or more planeswalkers with the same planeswalker subtype,
+ * they choose one to keep and the rest go to graveyard (same as legend rule).
+ * Note: Since WAR (2019), this is effectively identical to the legend rule for PW names.
+ * We check by name (modern rules) since subtypes aren't explicitly tracked.
+ */
+function checkPlaneswalkerUniqueness(state: GameState): SBAResult {
+  // If there's already a pending legend choice, skip — wait for player input
+  if (state.pendingLegendChoice) return { state, changed: false };
+
+  for (let i = 0; i < 2; i++) {
+    const player = state.players[i as 0 | 1];
+    const pwByName = new Map<string, Permanent[]>();
+
+    for (const perm of player.battlefield) {
+      if (isPlaneswalker(perm)) {
+        const existing = pwByName.get(perm.name) || [];
+        existing.push(perm);
+        pwByName.set(perm.name, existing);
+      }
+    }
+
+    for (const [name, perms] of pwByName) {
+      if (perms.length > 1) {
+        // If the planeswalker is also legendary, the legend rule already handles it.
+        // Only trigger PW uniqueness for non-legendary duplicates (rare but possible).
+        if (isLegendary(perms[0])) continue;
+
+        return {
+          state: {
+            ...state,
+            pendingLegendChoice: {
+              player: i as 0 | 1,
+              legendName: name,
+              permanentIds: perms.map(p => p.id),
+            },
+            log: [...state.log, {
+              timestamp: Date.now(),
+              turn: state.turn,
+              phase: state.phase,
+              step: state.step,
+              player: i as 0 | 1,
+              message: `${name}: Planeswalker uniqueness rule — choose which copy to keep.`,
+            }],
+          },
+          changed: true,
+        };
+      }
+    }
+  }
+
+  return { state, changed: false };
+}
+
+/**
+ * CR 702.73: Evoke sacrifice.
+ * When a creature with sacrificeOnETB is on the battlefield, sacrifice it.
+ * This SBA handles the sacrifice after ETB triggers have been queued.
+ */
+function checkEvokeSacrifice(state: GameState): SBAResult {
+  let changed = false;
+  const players = [...state.players] as [PlayerState, PlayerState];
+  const logs: string[] = [];
+
+  for (let i = 0; i < 2; i++) {
+    const player = players[i as 0 | 1];
+    const dying: Permanent[] = [];
+    const surviving: Permanent[] = [];
+
+    for (const perm of player.battlefield) {
+      if (perm.sacrificeOnETB) {
+        dying.push(perm);
+        logs.push(`${perm.name} is sacrificed (evoke).`);
+      } else {
+        surviving.push(perm);
+      }
+    }
+
+    if (dying.length > 0) {
+      changed = true;
+      players[i as 0 | 1] = {
+        ...player,
+        battlefield: surviving,
+      };
+
+      // Move to owner's graveyard (check replacement effects)
+      for (const perm of dying) {
+        const ownerIdx: 0 | 1 = perm.owner ?? (i as 0 | 1);
+        const card = permanentToCard(perm);
+
+        const tempState: GameState = { ...state, players };
+        const replacement = applyDeathReplacement(tempState, perm);
+        const destZone = replacement.zone;
+
+        if (replacement.description) {
+          logs.push(replacement.description);
+        }
+
+        if (destZone === 'exile') {
+          players[ownerIdx] = { ...players[ownerIdx], exile: [...players[ownerIdx].exile, card] };
+        } else if (destZone === 'library') {
+          players[ownerIdx] = { ...players[ownerIdx], library: [...players[ownerIdx].library, card] };
+        } else {
+          players[ownerIdx] = { ...players[ownerIdx], graveyard: [...players[ownerIdx].graveyard, card] };
+        }
+      }
+    }
+  }
+
+  if (!changed) return { state, changed: false };
+
+  const logEntries = logs.map(message => ({
+    timestamp: Date.now(),
+    turn: state.turn,
+    phase: state.phase,
+    step: state.step,
+    player: null as 0 | 1 | null,
+    message,
+  }));
+
+  let newState: GameState = { ...state, players, log: [...state.log, ...logEntries] };
+
+  // Check death triggers for evoked creatures
+  for (let i = 0; i < 2; i++) {
+    const dyingPerms = state.players[i as 0 | 1].battlefield.filter(p => p.sacrificeOnETB);
+    if (dyingPerms.length > 0) {
+      newState = checkDeathTriggers(newState, dyingPerms, i as 0 | 1);
+    }
+  }
+
+  return { state: newState, changed: true };
+}
+
+/**
+ * Equipment attached to a non-creature permanent → unattach (not destroy).
+ * This can happen if an animated artifact stops being a creature while
+ * equipment is attached to it.
+ */
+function checkEquipmentOnNonCreature(state: GameState): SBAResult {
+  let changed = false;
+  const players = [...state.players] as [PlayerState, PlayerState];
+  const logs: string[] = [];
+
+  for (let i = 0; i < 2; i++) {
+    const player = players[i as 0 | 1];
+    let playerChanged = false;
+    const updatedBf: Permanent[] = [];
+
+    for (const perm of player.battlefield) {
+      if (perm.attachedTo && perm.typeLine.toLowerCase().includes('equipment')) {
+        // Find the attached-to permanent
+        let attachedCreature: Permanent | undefined;
+        for (let j = 0; j < 2; j++) {
+          attachedCreature = players[j as 0 | 1].battlefield.find(p => p.id === perm.attachedTo);
+          if (attachedCreature) break;
+        }
+
+        if (attachedCreature && !isCreature(attachedCreature)) {
+          // Unattach equipment
+          updatedBf.push({ ...perm, attachedTo: undefined });
+          // Also remove from the creature's attachments list
+          for (let j = 0; j < 2; j++) {
+            players[j as 0 | 1] = {
+              ...players[j as 0 | 1],
+              battlefield: players[j as 0 | 1].battlefield.map(p =>
+                p.id === attachedCreature!.id
+                  ? { ...p, attachments: p.attachments.filter(a => a !== perm.id) }
+                  : p
+              ),
+            };
+          }
+          playerChanged = true;
+          logs.push(`${perm.name} falls off ${attachedCreature.name} (no longer a creature).`);
+        } else {
+          updatedBf.push(perm);
+        }
+      } else {
+        updatedBf.push(perm);
+      }
+    }
+
+    if (playerChanged) {
+      changed = true;
+      players[i as 0 | 1] = { ...player, battlefield: updatedBf };
+    }
+  }
+
+  if (!changed) return { state, changed: false };
+
+  const logEntries = logs.map(message => ({
     timestamp: Date.now(),
     turn: state.turn,
     phase: state.phase,

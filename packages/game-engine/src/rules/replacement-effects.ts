@@ -24,6 +24,7 @@
 import type { GameState } from '../types/game-state.ts';
 import type { Permanent } from '../types/permanent.ts';
 import type { Card } from '../types/card.ts';
+import { cardToPermanent } from '../types/permanent.ts';
 
 // ─── Types ───
 
@@ -458,6 +459,78 @@ export const REPLACEMENT_EFFECTS: ReplacementEffectDef[] = [
         replaced: true,
         modifiedEvent: event,
         description: `${source.name}: additional +1/+1 counter on ETB`,
+      };
+    },
+  },
+
+  // ─── Undying (CR 702.92): creature without +1/+1 counters dies → returns with a +1/+1 counter ───
+  {
+    name: 'undying',
+    eventType: 'die',
+    match: /\bundying\b/i,
+    controllerOnly: false,
+    apply: (state, event, source, _m) => {
+      // Only applies to the permanent itself dying
+      if (!event.source || (event.source as Permanent).id !== source.id) return { replaced: false };
+      // Check: no +1/+1 counters on it when it dies
+      if ((source.counters?.['+1/+1'] ?? 0) > 0) return { replaced: false };
+      // Return to battlefield with a +1/+1 counter
+      const newPerm = cardToPermanent(source as unknown as Card, source.controller, state.turn);
+      newPerm.counters = { '+1/+1': 1 };
+      newPerm.summoningSick = true;
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      players[source.controller] = {
+        ...players[source.controller],
+        battlefield: [...players[source.controller].battlefield, newPerm],
+      };
+      return {
+        replaced: true,
+        modifiedEvent: null,
+        state: { ...state, players },
+        description: `${source.name} returns with a +1/+1 counter (undying)`,
+      };
+    },
+  },
+
+  // ─── Persist (CR 702.78): creature without -1/-1 counters dies → returns with a -1/-1 counter ───
+  {
+    name: 'persist',
+    eventType: 'die',
+    match: /\bpersist\b/i,
+    controllerOnly: false,
+    apply: (state, event, source, _m) => {
+      if (!event.source || (event.source as Permanent).id !== source.id) return { replaced: false };
+      if ((source.counters?.['-1/-1'] ?? 0) > 0) return { replaced: false };
+      const newPerm = cardToPermanent(source as unknown as Card, source.controller, state.turn);
+      newPerm.counters = { '-1/-1': 1 };
+      newPerm.summoningSick = true;
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      players[source.controller] = {
+        ...players[source.controller],
+        battlefield: [...players[source.controller].battlefield, newPerm],
+      };
+      return {
+        replaced: true,
+        modifiedEvent: null,
+        state: { ...state, players },
+        description: `${source.name} returns with a -1/-1 counter (persist)`,
+      };
+    },
+  },
+
+  // ─── Madness (CR 702.34): discard → exile instead, may cast for madness cost ───
+  {
+    name: 'madness-exile-on-discard',
+    eventType: 'discard',
+    match: /\bmadness\b/i,
+    controllerOnly: false,
+    apply: (_state, event, source, _m) => {
+      // Only applies to the card itself being discarded
+      if (!event.source || event.source.name !== source.name) return { replaced: false };
+      return {
+        replaced: true,
+        modifiedEvent: { ...event, toZone: 'exile' },
+        description: `${source.name} is exiled instead of discarded (madness)`,
       };
     },
   },

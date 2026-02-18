@@ -50,6 +50,32 @@ export function renderBoard(
   const oppDetail = el('opp-life-detail');
   if (oppDetail) oppDetail.textContent = `Life: ${opp.life} | Poison: ${opp.poisonCounters}`;
 
+  // Monarch crown display
+  const yourName = el('your-name');
+  const botName = el('bot-name');
+  if (yourName) {
+    const existingCrown = yourName.querySelector('.monarch-crown');
+    if (existingCrown) existingCrown.remove();
+    if ((state as any).monarch === humanPlayer) {
+      const crown = document.createElement('span');
+      crown.className = 'monarch-crown';
+      crown.textContent = ' \u{1F451}';
+      crown.title = 'Monarch — draws an extra card at end step';
+      yourName.appendChild(crown);
+    }
+  }
+  if (botName) {
+    const existingCrown = botName.querySelector('.monarch-crown');
+    if (existingCrown) existingCrown.remove();
+    if ((state as any).monarch === botPlayer) {
+      const crown = document.createElement('span');
+      crown.className = 'monarch-crown';
+      crown.textContent = ' \u{1F451}';
+      crown.title = 'Monarch — draws an extra card at end step';
+      botName.appendChild(crown);
+    }
+  }
+
   // Priority
   const prioEl = el('priority-display');
   if (prioEl) {
@@ -170,6 +196,26 @@ function renderBattlefieldZone(
     // Pending blocker selection
     if (callbacks.pendingBlockerId === perm.id) {
       cardEl.classList.add('selected');
+    }
+
+    // Goad badge — creature must attack this turn
+    if ((perm as any).goaded) {
+      const badge = document.createElement('span');
+      badge.className = 'goaded-badge';
+      badge.textContent = '!';
+      badge.title = 'Goaded — must attack if able';
+      cardEl.style.position = 'relative';
+      cardEl.appendChild(badge);
+    }
+
+    // Dash badge — will return to hand at end of turn
+    if ((perm as any).dashedThisTurn) {
+      const badge = document.createElement('span');
+      badge.className = 'dashed-badge';
+      badge.textContent = '\u21A9';
+      badge.title = 'Dashed — returns to hand at end step';
+      cardEl.style.position = 'relative';
+      cardEl.appendChild(badge);
     }
 
     container.appendChild(cardEl);

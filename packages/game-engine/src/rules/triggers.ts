@@ -19,7 +19,7 @@ import type { StackObject } from '../types/action.ts';
 // ─── Trigger Types ───
 
 export interface TriggerEvent {
-  type: 'etb' | 'death' | 'upkeep' | 'draw' | 'damage' | 'cast' | 'attack' | 'leaves' | 'endstep' | 'lifegain' | 'sacrifice' | 'blocked' | 'discard';
+  type: 'etb' | 'death' | 'upkeep' | 'draw' | 'damage' | 'cast' | 'attack' | 'leaves' | 'endstep' | 'lifegain' | 'sacrifice' | 'blocked' | 'discard' | 'cycle' | 'monarch' | 'gain-energy' | 'token-created' | 'noncombat-damage' | 'begin-combat';
   /** The permanent/card that triggered the event */
   source?: Permanent | Card;
   /** Which player controls the source */
@@ -108,6 +108,20 @@ const TRIGGER_PATTERNS: TriggerPattern[] = [
   {
     name: 'cast-noncreature-spell',
     match: /whenever\s+you\s+cast\s+an?\s+(?:instant|sorcery|noncreature|instant\s+or\s+sorcery)\s+spell/i,
+    eventType: 'cast',
+    selfOnly: false,
+  },
+  // Prowess — whenever you cast a noncreature spell, this creature gets +1/+1 until EOT (CR 702.107)
+  {
+    name: 'prowess',
+    match: /\bprowess\b/i,
+    eventType: 'cast',
+    selfOnly: false,
+  },
+  // Extort — whenever you cast a spell, you may drain 1 life from each opponent (CR 702.100)
+  {
+    name: 'extort',
+    match: /\bextort\b/i,
     eventType: 'cast',
     selfOnly: false,
   },
@@ -272,6 +286,118 @@ const TRIGGER_PATTERNS: TriggerPattern[] = [
     eventType: 'discard',
     selfOnly: false,
   },
+
+  // ─── Phase 2: Extended Trigger Patterns ───
+
+  // LTB — whenever a creature you control leaves the battlefield
+  {
+    name: 'ltb-creature-you-control',
+    match: /whenever\s+a\s+creature\s+you\s+control\s+leaves\s+the\s+battlefield/i,
+    eventType: 'leaves',
+    selfOnly: false,
+  },
+  // Artifact ETB — whenever an artifact enters the battlefield under your control
+  {
+    name: 'artifact-etb',
+    match: /whenever\s+an?\s+artifact\s+enters?\s+the\s+battlefield\s+under\s+your\s+control/i,
+    eventType: 'etb',
+    selfOnly: false,
+  },
+  // Enchantment ETB — whenever an enchantment enters the battlefield under your control
+  {
+    name: 'enchantment-etb',
+    match: /whenever\s+an?\s+enchantment\s+enters?\s+the\s+battlefield\s+under\s+your\s+control/i,
+    eventType: 'etb',
+    selfOnly: false,
+  },
+  // Cast artifact spell
+  {
+    name: 'cast-artifact-spell',
+    match: /whenever\s+you\s+cast\s+an?\s+artifact\s+spell/i,
+    eventType: 'cast',
+    selfOnly: false,
+  },
+  // Cast enchantment spell
+  {
+    name: 'cast-enchantment-spell',
+    match: /whenever\s+you\s+cast\s+an?\s+enchantment\s+spell/i,
+    eventType: 'cast',
+    selfOnly: false,
+  },
+  // Any player casts a spell
+  {
+    name: 'any-player-casts',
+    match: /whenever\s+a\s+player\s+casts?\s+a\s+spell/i,
+    eventType: 'cast',
+    selfOnly: false,
+  },
+  // Whenever you lose life
+  {
+    name: 'lose-life-you',
+    match: /whenever\s+you\s+lose\s+life/i,
+    eventType: 'damage',
+    selfOnly: false,
+  },
+  // Whenever a counter is placed on ~
+  {
+    name: 'gain-counter-self',
+    match: /whenever\s+(?:a|one\s+or\s+more)\s+(?:\+1\/\+1\s+)?counters?\s+(?:is|are)\s+(?:put|placed)\s+on\s+~/i,
+    eventType: 'etb',
+    selfOnly: true,
+  },
+  // Whenever a creature attacks you
+  {
+    name: 'creature-attacks-you',
+    match: /whenever\s+a\s+creature\s+attacks\s+you/i,
+    eventType: 'attack',
+    selfOnly: false,
+  },
+  // Whenever an opponent draws a card
+  {
+    name: 'opponent-draws',
+    match: /whenever\s+an\s+opponent\s+draws?\s+a\s+card/i,
+    eventType: 'draw',
+    selfOnly: false,
+  },
+
+  // ─── Phase 3 Trigger Patterns ───
+
+  // Cycling: "Whenever you cycle a card" / "When you cycle ~"
+  { name: 'cycling-self', match: /when(?:ever)?\s+(?:you\s+cycle\s+~|~\s+is\s+cycled)/i, eventType: 'cycle', selfOnly: true },
+  { name: 'cycling-any', match: /whenever\s+(?:you|a\s+player)\s+cycles?\s+a\s+card/i, eventType: 'cycle', selfOnly: false },
+
+  // Monarch: "Whenever you become the monarch"
+  { name: 'become-monarch-trigger', match: /whenever\s+you\s+become\s+the\s+monarch/i, eventType: 'monarch', selfOnly: false },
+
+  // Exalted: keyword that triggers when a creature you control attacks alone
+  { name: 'exalted', match: /\bexalted\b/i, eventType: 'attack', selfOnly: false },
+
+  // Energy: "Whenever you get one or more {E}"
+  { name: 'gain-energy-trigger', match: /whenever\s+you\s+(?:get|gain)\s+(?:one\s+or\s+more\s+)?\{E\}/i, eventType: 'gain-energy', selfOnly: false },
+
+  // Token creation: "Whenever you create a token" / "Whenever a token enters"
+  { name: 'token-created', match: /whenever\s+(?:you\s+create|a\s+token\s+(?:enters|is\s+created))/i, eventType: 'token-created', selfOnly: false },
+
+  // Planeswalker ETB: "Whenever a planeswalker enters the battlefield under your control"
+  { name: 'planeswalker-etb', match: /whenever\s+a\s+planeswalker\s+enters\s+the\s+battlefield\s+under\s+your\s+control/i, eventType: 'etb', selfOnly: false },
+
+  // Noncombat damage: "Whenever a source deals noncombat damage"
+  { name: 'noncombat-damage', match: /whenever\s+(?:a\s+source|~)\s+deals?\s+noncombat\s+damage/i, eventType: 'noncombat-damage', selfOnly: false },
+
+  // Counter removed: "Whenever a counter is removed from ~"
+  { name: 'counter-removed', match: /whenever\s+(?:a|one\s+or\s+more)\s+counters?\s+(?:is|are)\s+removed\s+from\s+~/i, eventType: 'etb', selfOnly: true },
+
+  // Begin combat - your turn
+  { name: 'begin-combat-your', match: /at\s+the\s+beginning\s+of\s+combat\s+on\s+your\s+turn/i, eventType: 'begin-combat', selfOnly: true },
+  // Begin combat - each player
+  { name: 'begin-combat-each', match: /(?:at\s+the\s+beginning\s+of\s+combat|whenever\s+you\s+attack)/i, eventType: 'begin-combat', selfOnly: false },
+
+  // Conditional ETB - from graveyard (Kroxa, Murktide Regent)
+  { name: 'etb-from-graveyard', match: /when\s+~\s+enters\s+(?:the\s+battlefield\s+)?from\s+(?:a\s+)?graveyard/i, eventType: 'etb', selfOnly: true },
+  // Conditional ETB - from exile (Flicker returns)
+  { name: 'etb-from-exile', match: /when\s+~\s+enters\s+(?:the\s+battlefield\s+)?from\s+exile/i, eventType: 'etb', selfOnly: true },
+  // Conditional ETB - if you control N or more (threshold ETB)
+  { name: 'etb-if-you-control', match: /when\s+~\s+enters\s+(?:the\s+battlefield)?.*if\s+you\s+control\s+(\d+)\s+or\s+more/i, eventType: 'etb', selfOnly: true },
 ];
 
 // ─── Stack ID counter ───
@@ -402,11 +528,12 @@ export function checkTriggers(
 /**
  * Check for ETB triggers when a permanent enters the battlefield.
  */
-export function checkETBTriggers(state: GameState, permanent: Permanent): GameState {
+export function checkETBTriggers(state: GameState, permanent: Permanent, meta?: Record<string, any>): GameState {
   return checkTriggers(state, {
     type: 'etb',
     source: permanent,
     controller: permanent.controller,
+    meta,
   });
 }
 
@@ -452,11 +579,13 @@ export function checkCastTriggers(state: GameState, card: Card, caster: 0 | 1): 
  */
 export function checkAttackTriggers(state: GameState, attackers: Permanent[], controller: 0 | 1): GameState {
   let current = state;
+  const loneAttacker = attackers.length === 1;
   for (const attacker of attackers) {
     current = checkTriggers(current, {
       type: 'attack',
       source: attacker,
       controller,
+      meta: { loneAttacker },
     });
   }
   return current;
@@ -519,6 +648,13 @@ export function checkSacrificeTriggers(state: GameState, sacrificedPerm: Permane
   });
 }
 
+/**
+ * Check begin-combat triggers at the beginning of combat (CR 507.1).
+ */
+export function checkBeginCombatTriggers(state: GameState): GameState {
+  return checkTriggers(state, { type: 'begin-combat', controller: state.activePlayer });
+}
+
 // ─── Helpers ───
 
 /** Escape special regex characters in a string for use in new RegExp() */
@@ -541,6 +677,9 @@ function findMatchingTriggers(
       if (event.type === 'etb') {
         // For ETB self-triggers, the entering permanent must be this permanent
         if (event.source && (event.source as Permanent).id !== perm.id) return false;
+        // Conditional ETB: check fromZone requirement
+        if (tp.name === 'etb-from-graveyard' && event.meta?.fromZone !== 'graveyard') return false;
+        if (tp.name === 'etb-from-exile' && event.meta?.fromZone !== 'exile') return false;
       }
       if (event.type === 'attack') {
         // For attack self-triggers, the attacking creature must be this permanent
@@ -621,7 +760,10 @@ function findMatchingTriggers(
 
     // Cast triggers: "whenever you cast" only triggers for the controller
     if (tp.eventType === 'cast') {
-      if (controller !== event.controller) return false;
+      // 'any-player-casts' triggers for any player, no controller check
+      if (tp.name !== 'any-player-casts') {
+        if (controller !== event.controller) return false;
+      }
 
       // Check spell type constraints from meta data
       if (event.meta?.spellType) {
@@ -629,6 +771,12 @@ function findMatchingTriggers(
         if (tp.name === 'cast-creature-spell' && !spellType.includes('creature')) return false;
         if (tp.name === 'cast-noncreature-spell' &&
             (spellType.includes('creature') && !spellType.includes('instant') && !spellType.includes('sorcery'))) return false;
+        // Prowess: only triggers on noncreature spells (CR 702.107)
+        if (tp.name === 'prowess' && spellType.includes('creature') &&
+            !spellType.includes('instant') && !spellType.includes('sorcery')) return false;
+        // Artifact/Enchantment cast triggers
+        if (tp.name === 'cast-artifact-spell' && !spellType.includes('artifact')) return false;
+        if (tp.name === 'cast-enchantment-spell' && !spellType.includes('enchantment')) return false;
       }
     }
 
@@ -650,6 +798,68 @@ function findMatchingTriggers(
     // "creature you control" death triggers: only if we control the dying creature
     if (tp.name === 'death-creature' && tp.match.source.includes('you\\s+control')) {
       if (event.controller !== controller) return false;
+    }
+
+    // Artifact/Enchantment ETB triggers: only fire for matching types
+    if (tp.name === 'artifact-etb') {
+      if (!event.source) return false;
+      if (event.controller !== controller) return false;
+      if (!(event.source as any).typeLine?.toLowerCase().includes('artifact')) return false;
+    }
+    if (tp.name === 'enchantment-etb') {
+      if (!event.source) return false;
+      if (event.controller !== controller) return false;
+      if (!(event.source as any).typeLine?.toLowerCase().includes('enchantment')) return false;
+    }
+
+    // LTB creature you control: only fire for your creatures
+    if (tp.name === 'ltb-creature-you-control') {
+      if (event.controller !== controller) return false;
+      if (!event.source) return false;
+      if (!(event.source as any).typeLine?.toLowerCase().includes('creature')) return false;
+    }
+
+    // Opponent draws trigger
+    if (tp.name === 'opponent-draws') {
+      if (event.controller === controller) return false; // must be opponent's draw
+    }
+
+    // Exalted: only fires when exactly 1 creature attacks alone (CR 702.83)
+    if (tp.name === 'exalted') {
+      if (event.type !== 'attack') return false;
+      // Must be controller's creature attacking
+      if (event.controller !== controller) return false;
+      // Exalted fires from ANY permanent the controller controls, not just the attacker
+      // Check is done in checkAttackTriggers: only call if attackers.length === 1
+      // (handled by the meta.loneAttacker flag)
+      if (!event.meta?.loneAttacker) return false;
+    }
+
+    // Cycling triggers
+    if (tp.name === 'cycling-any' && tp.eventType === 'cycle') {
+      if (event.controller !== controller) return false;
+    }
+
+    // Monarch triggers
+    if (tp.name === 'become-monarch-trigger') {
+      if (event.controller !== controller) return false;
+    }
+
+    // Energy triggers
+    if (tp.name === 'gain-energy-trigger') {
+      if (event.controller !== controller) return false;
+    }
+
+    // Token creation triggers
+    if (tp.name === 'token-created') {
+      if (event.controller !== controller) return false;
+    }
+
+    // Planeswalker ETB: check type
+    if (tp.name === 'planeswalker-etb') {
+      if (!event.source) return false;
+      if (event.controller !== controller) return false;
+      if (!(event.source as any).typeLine?.toLowerCase().includes('planeswalker')) return false;
     }
 
     // Landfall triggers: only fire for land permanents entering

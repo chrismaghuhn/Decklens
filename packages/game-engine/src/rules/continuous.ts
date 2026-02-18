@@ -28,6 +28,7 @@ import {
   getEquipmentBonuses,
   getAuraBonuses,
 } from './equipment.ts';
+import { hasKeyword } from './combat.ts';
 
 // ─── Types ───
 
@@ -491,7 +492,19 @@ export function applyContinuousEffects(state: GameState): GameState {
       totalToughness += plusCounters - minusCounters;
 
       // --- Layer 7e: Switching P/T (e.g. "switch power and toughness") ---
-      // Not yet implemented — would swap totalPower/totalToughness here
+      // Check oracle text for self-switch effects (e.g., "switch its power and toughness")
+      const oracleLower = (creature.oracleText || '').toLowerCase();
+      if (oracleLower.includes('switch') && oracleLower.includes('power and toughness')) {
+        const temp = totalPower;
+        totalPower = totalToughness;
+        totalToughness = temp;
+      }
+      // Check temporary keywords for switch effects (e.g., "target creature switches P/T until EOT")
+      if (creature.temporaryKeywords?.some(tk => tk.keyword === 'switch-pt')) {
+        const temp = totalPower;
+        totalPower = totalToughness;
+        totalToughness = temp;
+      }
 
       // Only update if values actually changed (avoid unnecessary object creation)
       if (
@@ -568,22 +581,9 @@ export function hasKeywordWithContinuous(
 ): boolean {
   const lowerKw = keyword.toLowerCase();
 
-  // Check the creature's own abilities first (fast path)
-  if (creature.abilities?.some(
-    (a) => a.type === 'static' && a.text.toLowerCase().includes(lowerKw)
-  )) {
-    return true;
-  }
-
-  // Check temporary keywords
-  if (creature.temporaryKeywords?.some(
-    (tk) => tk.keyword.toLowerCase() === lowerKw
-  )) {
-    return true;
-  }
-
-  // Check oracle text directly
-  if ((creature.oracleText || '').toLowerCase().includes(lowerKw)) {
+  // Use the same keyword detection as combat.ts (Bug 10 fix: avoids false positives
+  // from oracle text like "destroy target creature with flying" matching "flying")
+  if (hasKeyword(creature, keyword)) {
     return true;
   }
 

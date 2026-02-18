@@ -5,7 +5,7 @@ import { identifyThreats, hasMustAnswerThreat } from './evaluators/threat-evalua
 import { evaluateBoardPosition } from './evaluators/board-evaluator.ts';
 import { hasWinningCombo, evaluateCombos } from './evaluators/combo-evaluator.ts';
 import { chooseMulliganAction } from './policies/mulligan-policy.ts';
-import { choosePlayAction, shouldHoldMana } from './policies/play-policy.ts';
+import { choosePlayAction, shouldHoldMana, getCyclingCandidates } from './policies/play-policy.ts';
 import { chooseAttackers, chooseBlockers, shouldAttack } from './policies/combat-policy.ts';
 import { chooseStackAction } from './policies/stack-policy.ts';
 
@@ -104,6 +104,16 @@ export function makeDecision(state: GameState, botPlayer: 0 | 1): Decision {
         action: playAction.action,
         reason: playAction.reason,
         confidence: 0.8,
+      };
+    }
+
+    // No spell to cast — check if we can cycle a low-value card
+    const cyclingCandidates = getCyclingCandidates(state, botPlayer);
+    if (cyclingCandidates.length > 0) {
+      return {
+        action: cyclingCandidates[0].action,
+        reason: cyclingCandidates[0].reason,
+        confidence: 0.6,
       };
     }
   }

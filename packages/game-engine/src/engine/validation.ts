@@ -88,6 +88,10 @@ export function validateAction(
       return validateLegendChoice(state, action);
     case 'commander-zone-choice':
       return validateCommanderZoneChoice(state, action);
+    case 'turn-face-up':
+      return validateTurnFaceUp(state, action);
+    case 'cycle':
+      return validateCycle(state, action);
     case 'assign-damage':
       if (!state.pendingDamageAssignment) return 'No pending damage assignment.';
       if (state.pendingDamageAssignment.player !== action.player) return 'Not your damage assignment.';
@@ -162,6 +166,7 @@ export function getLegalActionTypes(state: GameState): GameAction['type'][] {
 
   if (canPlayLand(state, player)) types.push('play-land');
   if (canCastAnySpell(state, player)) types.push('cast-spell');
+  if (canCycleAny(state, player)) types.push('cycle');
   if (canActivateAnyAbility(state, player)) types.push('activate-ability');
   if (canTapAnyForMana(state, player)) types.push('tap-for-mana');
   if (canEquipAny(state, player)) types.push('equip');
@@ -207,11 +212,184 @@ function validatePlayLand(
   return null;
 }
 
+/** Parse flashback cost from oracle text */
+function getFlashbackCost(card: Card): string | null {
+  const match = card.oracleText?.match(/flashback\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+  return match ? match[1] : null;
+}
+
+/** Parse kicker cost from oracle text */
+function getKickerCost(card: Card): string | null {
+  const match = card.oracleText?.match(/kicker\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+  return match ? match[1] : null;
+}
+
 function validateCastSpell(
   state: GameState,
   action: Extract<GameAction, { type: 'cast-spell' }>
 ): string | null {
   const player = state.players[action.player];
+
+  // ─── Flashback: card comes from graveyard ───
+  if (action.castWithFlashback) {
+    const card = player.graveyard.find((c) => c.id === action.cardId);
+    if (!card) return 'Card not in graveyard.';
+    const fbCost = getFlashbackCost(card);
+    if (!fbCost) return 'Card does not have flashback.';
+    // Validate flashback cost instead of normal cost
+    const cost = parseManaCost(fbCost);
+    if (!canPayCost(player.manaPool, cost, player.life)) {
+      const tapResult = autoTapLandsForCost(player, cost);
+      if (!tapResult) return 'Not enough mana to pay flashback cost.';
+    }
+    // Timing: flashback instants at any time, sorceries at sorcery speed
+    if (!isInstant(card) && !hasFlash(card)) {
+      if (state.step !== 'main') return 'Can only flashback sorcery-speed spells during main phase.';
+      if (state.activePlayer !== action.player) return 'Can only flashback sorcery-speed spells on your turn.';
+      if (state.stack.length > 0) return 'Cannot flashback sorcery-speed spells while stack is not empty.';
+    }
+    return validateTargetLegality(state, action.player, action.targets, card);
+  }
+
+  // ─── Adventure: cast adventure half from hand ───
+  if (action.castAsAdventure) {
+    const card = player.hand.find((c) => c.id === action.cardId);
+    if (!card) return 'Card not in hand.';
+    if (!card.adventureCost) return 'Card does not have an adventure.';
+    const cost = parseManaCost(card.adventureCost);
+    if (!canPayCost(player.manaPool, cost, player.life)) {
+      const tapResult = autoTapLandsForCost(player, cost);
+      if (!tapResult) return 'Not enough mana to cast adventure.';
+    }
+    // Adventure timing based on adventure type line
+    const advTypeLine = (card.adventureTypeLine || '').toLowerCase();
+    if (!advTypeLine.includes('instant')) {
+      if (state.step !== 'main') return 'Can only cast sorcery-speed adventures during main phase.';
+      if (state.activePlayer !== action.player) return 'Can only cast sorcery-speed adventures on your turn.';
+      if (state.stack.length > 0) return 'Cannot cast sorcery-speed adventures while stack is not empty.';
+    }
+    return validateTargetLegality(state, action.player, action.targets, card);
+  }
+
+  // ─── MDFC: cast back face (CR 712) ───
+  if (action.castBackFace) {
+    const card = player.hand.find((c) => c.id === action.cardId);
+    if (!card) return 'Card not in hand.';
+    if (card.layout !== 'modal_dfc' || !card.backFace) return 'Card is not a modal DFC.';
+    const bf = card.backFace;
+    // If back face is a land, validate as land play
+    if (bf.typeLine.toLowerCase().includes('land')) {
+      if (state.step !== 'main') return 'Can only play lands during main phase.';
+      if (state.activePlayer !== action.player) return 'Only active player can play lands.';
+      if (state.stack.length > 0) return 'Cannot play lands while stack is not empty.';
+      if (player.landsPlayedThisTurn >= player.maxLandPlays) return 'Already played maximum lands this turn.';
+      return null;
+    }
+    // Back face is a spell — use its mana cost
+    const cost = parseManaCost(bf.manaCost);
+    if (!canPayCost(player.manaPool, cost, player.life)) {
+      const tapResult = autoTapLandsForCost(player, cost);
+      if (!tapResult) return 'Not enough mana to cast back face.';
+    }
+    // Timing based on back face type
+    const bfType = bf.typeLine.toLowerCase();
+    if (!bfType.includes('instant')) {
+      if (state.step !== 'main') return 'Can only cast sorcery-speed back face during main phase.';
+      if (state.activePlayer !== action.player) return 'Can only cast back face on your turn.';
+      if (state.stack.length > 0) return 'Cannot cast sorcery-speed back face while stack is not empty.';
+    }
+    return validateTargetLegality(state, action.player, action.targets, card);
+  }
+
+  // ─── Cast adventure creature from exile (CR 715.4) ───
+  const exileAdventure = player.exile.find(c => c.id === action.cardId && c.onAdventure);
+  if (exileAdventure) {
+    // Cast the creature side from exile
+    if (state.step !== 'main' && !hasFlash(exileAdventure)) {
+      return 'Can only cast creature from exile during main phase.';
+    }
+    if (!hasFlash(exileAdventure)) {
+      if (state.activePlayer !== action.player) return 'Can only cast from exile on your turn.';
+      if (state.stack.length > 0) return 'Cannot cast from exile while stack is not empty.';
+    }
+    const cost = parseManaCost(exileAdventure.manaCost);
+    if (!canPayCost(player.manaPool, cost, player.life)) {
+      const tapResult = autoTapLandsForCost(player, cost);
+      if (!tapResult) return 'Not enough mana to cast creature from exile.';
+    }
+    return validateTargetLegality(state, action.player, action.targets, exileAdventure);
+  }
+
+  // ─── Morph: cast face-down for {3} (CR 702.36) ───
+  if (action.castFaceDown) {
+    const morphCard = player.hand.find((c) => c.id === action.cardId);
+    if (!morphCard) return 'Card not in hand.';
+    if (!morphCard.oracleText?.toLowerCase().includes('morph')) return 'Card does not have morph.';
+    // Morph is sorcery speed
+    if (state.step !== 'main') return 'Can only cast face-down during main phase.';
+    if (state.activePlayer !== action.player) return 'Can only cast face-down on your turn.';
+    if (state.stack.length > 0) return 'Cannot cast face-down while stack is not empty.';
+    // Cost is always {3}
+    const cost = parseManaCost('{3}');
+    if (!canPayCost(player.manaPool, cost, player.life)) {
+      const tapResult = autoTapLandsForCost(player, cost);
+      if (!tapResult) return 'Not enough mana to cast face-down ({3}).';
+    }
+    return null;
+  }
+
+  // ─── Madness: cast from exile for madness cost (CR 702.34) ───
+  if (action.castWithMadness) {
+    const madnessCard = player.exile.find((c) => c.id === action.cardId && (c as any).madnessExile);
+    if (!madnessCard) return 'Card not in exile with madness.';
+    const madnessMatch = madnessCard.oracleText?.match(/madness\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    if (!madnessMatch) return 'Card does not have madness.';
+    const cost = parseManaCost(madnessMatch[1]);
+    if (!canPayCost(player.manaPool, cost, player.life)) {
+      const tapResult = autoTapLandsForCost(player, cost);
+      if (!tapResult) return 'Not enough mana to cast for madness cost.';
+    }
+    // Madness can be cast at instant speed (CR 702.34b)
+    return validateTargetLegality(state, action.player, action.targets, madnessCard);
+  }
+
+  // ─── Evoke: alternative cost (CR 702.73) ───
+  if (action.evokePaid) {
+    const evokeCard = player.hand.find((c) => c.id === action.cardId);
+    if (!evokeCard) return 'Card not in hand.';
+    const evokeMatch = evokeCard.oracleText?.match(/evoke\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    if (!evokeMatch) return 'Card does not have evoke.';
+    const cost = parseManaCost(evokeMatch[1]);
+    if (!canPayCost(player.manaPool, cost, player.life)) {
+      const tapResult = autoTapLandsForCost(player, cost);
+      if (!tapResult) return 'Not enough mana to pay evoke cost.';
+    }
+    // Evoke is sorcery speed (creature)
+    if (state.step !== 'main') return 'Can only evoke during main phase.';
+    if (state.activePlayer !== action.player) return 'Can only evoke on your turn.';
+    if (state.stack.length > 0) return 'Cannot evoke while stack is not empty.';
+    return null;
+  }
+
+  // ─── Dash: alternative cost (CR 702.108) ───
+  if (action.dashPaid) {
+    const dashCard = player.hand.find((c) => c.id === action.cardId);
+    if (!dashCard) return 'Card not in hand.';
+    const dashMatch = dashCard.oracleText?.match(/dash\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    if (!dashMatch) return 'Card does not have dash.';
+    const cost = parseManaCost(dashMatch[1]);
+    if (!canPayCost(player.manaPool, cost, player.life)) {
+      const tapResult = autoTapLandsForCost(player, cost);
+      if (!tapResult) return 'Not enough mana to pay dash cost.';
+    }
+    // Dash is sorcery speed
+    if (state.step !== 'main') return 'Can only dash during main phase.';
+    if (state.activePlayer !== action.player) return 'Can only dash on your turn.';
+    if (state.stack.length > 0) return 'Cannot dash while stack is not empty.';
+    return null;
+  }
+
+  // ─── Normal cast from hand ───
   const card = player.hand.find((c) => c.id === action.cardId);
   if (!card) return 'Card not in hand.';
   if (isLand(card)) return 'Lands are played, not cast.';
@@ -233,15 +411,45 @@ function validateCastSpell(
   const xValue = action.xValue ?? 0;
   let manaCostStr = card.manaCost;
   if (manaCostStr.includes('{X}')) {
-    // Replace {X} with {xValue} generic mana
     manaCostStr = manaCostStr.replace(/\{X\}/g, xValue > 0 ? `{${xValue}}` : '');
   }
 
-  const cost = parseManaCost(manaCostStr);
+  // Kicker: add kicker cost to total if paid (CR 702.32)
+  if (action.kickerPaid) {
+    const kickerCostStr = getKickerCost(card);
+    if (kickerCostStr) {
+      manaCostStr += kickerCostStr;
+    }
+  }
+
+  // Convoke: reduce cost by tapped creatures' colors (CR 702.50)
+  let convokeReduction = 0;
+  if (action.convokeCreatures && action.convokeCreatures.length > 0) {
+    if (!card.oracleText?.toLowerCase().includes('convoke')) {
+      return 'Card does not have convoke.';
+    }
+    convokeReduction = action.convokeCreatures.length;
+  }
+
+  // Delve: reduce generic cost by exiled GY cards (CR 702.65)
+  let delveReduction = 0;
+  if (action.delveCards && action.delveCards.length > 0) {
+    if (!card.oracleText?.toLowerCase().includes('delve')) {
+      return 'Card does not have delve.';
+    }
+    delveReduction = action.delveCards.length;
+  }
+
+  let cost = parseManaCost(manaCostStr);
+
+  // Apply convoke/delve reductions to generic mana
+  if (convokeReduction > 0 || delveReduction > 0) {
+    const totalReduction = convokeReduction + delveReduction;
+    cost = { ...cost, generic: Math.max(0, cost.generic - totalReduction) };
+  }
 
   // Check if we can pay with existing pool OR by auto-tapping lands
   if (!canPayCost(player.manaPool, cost, player.life)) {
-    // Try auto-tapping
     const tapResult = autoTapLandsForCost(player, cost);
     if (!tapResult) {
       return 'Not enough mana to cast this spell.';
@@ -252,19 +460,28 @@ function validateCastSpell(
   const targetError = validateTargetLegality(state, action.player, action.targets, card);
   if (targetError) return targetError;
 
-  // CR 702.21: Ward — targeting a permanent with ward requires paying an additional cost
+  // CR 702.21: Ward — targeting a permanent with ward requires paying an additional cost.
+  // Ward cost is added to the total spell cost. If unpayable, casting is blocked.
+  let totalWardCost = 0;
   for (const target of action.targets) {
     if (target.type !== 'permanent') continue;
     for (let pi = 0; pi < 2; pi++) {
       const targetPerm = state.players[pi as 0 | 1].battlefield.find(p => p.id === target.id);
       if (!targetPerm) continue;
-      if (targetPerm.controller === action.player) continue; // Ward only applies to opponents
+      if (targetPerm.controller === action.player) continue;
       const wardMatch = (targetPerm.oracleText || '').toLowerCase().match(/ward[\s—]+\{(\d+)\}/);
       if (wardMatch) {
-        const wardCost = parseInt(wardMatch[1], 10);
-        // Check if player can pay the additional ward cost
-        // We log it but don't block (would need UI for full implementation)
-        // Add to log for visibility
+        totalWardCost += parseInt(wardMatch[1], 10);
+      }
+    }
+  }
+  if (totalWardCost > 0) {
+    // Re-check affordability with ward added to generic cost
+    const wardAugmented = { ...cost, generic: cost.generic + totalWardCost };
+    if (!canPayCost(player.manaPool, wardAugmented, player.life)) {
+      const tapResult = autoTapLandsForCost(player, wardAugmented);
+      if (!tapResult) {
+        return `Not enough mana to pay ward cost ({${totalWardCost}} additional).`;
       }
     }
   }
@@ -310,9 +527,9 @@ function validateTargetLegality(
         // The UI can use this info to prompt the player.
       }
 
-      // Protection from [color]: can't be targeted by spells of that color
+      // Protection from [color]: can't be targeted by spells/abilities of that color (DEBT: Targeting)
+      const oracleText = (perm.oracleText || '').toLowerCase();
       if (sourceCard && sourceCard.colors.length > 0) {
-        const oracleText = (perm.oracleText || '').toLowerCase();
         const colorMap: Record<string, string> = {
           W: 'white', U: 'blue', B: 'black', R: 'red', G: 'green'
         };
@@ -323,8 +540,31 @@ function validateTargetLegality(
           }
         }
         // Protection from all colors
-        if (oracleText.includes('protection from all colors') && sourceCard.colors.length > 0) {
+        if (oracleText.includes('protection from all colors')) {
           return `${perm.name} has protection from all colors and cannot be targeted.`;
+        }
+        // Protection from multicolored
+        if (oracleText.includes('protection from multicolored') && sourceCard.colors.length > 1) {
+          return `${perm.name} has protection from multicolored and cannot be targeted.`;
+        }
+      }
+      // Protection from everything (blocks ALL targeting regardless of source)
+      if (oracleText.includes('protection from everything')) {
+        return `${perm.name} has protection from everything and cannot be targeted.`;
+      }
+      // Protection from creature types (e.g., "protection from Goblins")
+      if (sourceCard) {
+        const protMatch = oracleText.match(/protection from (\w+)s?\b/gi);
+        if (protMatch) {
+          const sourceType = (sourceCard.typeLine || '').toLowerCase();
+          for (const prot of protMatch) {
+            const protType = prot.replace(/protection from /i, '').replace(/s$/, '').toLowerCase();
+            // Skip color-based protection (already handled above)
+            if (['white','blue','black','red','green','all','multicolored','everything','each'].includes(protType)) continue;
+            if (sourceType.includes(protType)) {
+              return `${perm.name} has ${prot} and cannot be targeted.`;
+            }
+          }
         }
       }
     }
@@ -426,10 +666,24 @@ function validateDeclareBlockers(
   }
 
   // Menace check: if an attacker with menace is blocked, it must be blocked by 2+
+  // Generalized: "can't be blocked except by N or more creatures"
   for (const [attackerId, count] of blockerCountPerAttacker) {
     const attackerPerm = attackingPlayer.battlefield.find((p) => p.id === attackerId);
-    if (attackerPerm && hasKeyword(attackerPerm, 'menace') && count < 2) {
+    if (!attackerPerm) continue;
+
+    // Check menace (requires 2+ blockers)
+    if (hasKeyword(attackerPerm, 'menace') && count < 2) {
       return `${attackerPerm.name} has menace and must be blocked by at least two creatures.`;
+    }
+
+    // Check generalized "can't be blocked except by N or more creatures"
+    const nOrMore = attackerPerm.oracleText?.match(/can't\s+be\s+blocked\s+except\s+by\s+(\w+)\s+or\s+more\s+creatures/i);
+    if (nOrMore) {
+      const numWords: Record<string, number> = { two: 2, three: 3, four: 4, five: 5 };
+      const required = numWords[nOrMore[1].toLowerCase()] || parseInt(nOrMore[1], 10) || 2;
+      if (count < required) {
+        return `${attackerPerm.name} can only be blocked by ${required} or more creatures.`;
+      }
     }
   }
 
@@ -446,6 +700,8 @@ function canPlayLand(state: GameState, player: 0 | 1): boolean {
 
 function canCastAnySpell(state: GameState, player: 0 | 1): boolean {
   const ps = state.players[player];
+
+  // Check hand for castable spells
   for (const card of ps.hand) {
     if (isLand(card)) continue;
     if (state.step !== 'main' && !isInstant(card) && !hasFlash(card)) continue;
@@ -456,6 +712,52 @@ function canCastAnySpell(state: GameState, player: 0 | 1): boolean {
     if (canPayCost(ps.manaPool, cost, ps.life)) return true;
     if (autoTapLandsForCost(ps, cost) !== null) return true;
   }
+
+  // Check hand for MDFC back-face casting (CR 712)
+  for (const card of ps.hand) {
+    if (card.layout !== 'modal_dfc' || !card.backFace) continue;
+    const bf = card.backFace;
+    // Skip if back face is a land (handled by land play)
+    if (bf.typeLine.toLowerCase().includes('land')) {
+      // MDFC land side: can play as land during main phase
+      if (state.step === 'main' && state.activePlayer === player && state.stack.length === 0 &&
+          ps.landsPlayedThisTurn < ps.maxLandPlays) return true;
+      continue;
+    }
+    // Back face is a spell
+    const bfType = bf.typeLine.toLowerCase();
+    if (state.step !== 'main' && !bfType.includes('instant')) continue;
+    if (!bfType.includes('instant') && (state.activePlayer !== player || state.stack.length > 0)) continue;
+    const cost = parseManaCost(bf.manaCost);
+    if (canPayCost(ps.manaPool, cost, ps.life)) return true;
+    if (autoTapLandsForCost(ps, cost) !== null) return true;
+  }
+
+  // Check graveyard for flashback spells (CR 702.34)
+  for (const card of ps.graveyard) {
+    const fbCost = getFlashbackCost(card);
+    if (!fbCost) continue;
+    // Check timing
+    if (!isInstant(card) && !hasFlash(card)) {
+      if (state.step !== 'main' || state.activePlayer !== player || state.stack.length > 0) continue;
+    }
+    const cost = parseManaCost(fbCost);
+    if (canPayCost(ps.manaPool, cost, ps.life)) return true;
+    if (autoTapLandsForCost(ps, cost) !== null) return true;
+  }
+
+  // Check exile for adventure creatures (CR 715.4)
+  for (const card of ps.exile) {
+    if (!card.onAdventure) continue;
+    // Can cast the creature side from exile
+    if (state.step !== 'main' || state.activePlayer !== player || state.stack.length > 0) {
+      if (!hasFlash(card)) continue;
+    }
+    const cost = parseManaCost(card.manaCost);
+    if (canPayCost(ps.manaPool, cost, ps.life)) return true;
+    if (autoTapLandsForCost(ps, cost) !== null) return true;
+  }
+
   return false;
 }
 
@@ -690,4 +992,55 @@ function validateCommanderZoneChoice(
   if (!state.pendingCommanderChoice) return 'No commander zone choice pending.';
   if (state.pendingCommanderChoice.player !== action.player) return 'Not your commander zone choice.';
   return null;
+}
+
+/** Validate turning a face-down creature face-up (morph, CR 702.36) */
+function validateTurnFaceUp(
+  state: GameState,
+  action: Extract<GameAction, { type: 'turn-face-up' }>
+): string | null {
+  const player = state.players[action.player];
+  const perm = player.battlefield.find(p => p.id === action.permanentId);
+  if (!perm) return 'Permanent not on battlefield.';
+  if (!perm.faceDown) return 'Permanent is not face-down.';
+  // Parse morph cost from the card's original oracle text
+  const morphMatch = perm.oracleText?.match(/morph\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+  if (!morphMatch) return 'Permanent does not have a morph cost.';
+  const cost = parseManaCost(morphMatch[1]);
+  if (!canPayCost(player.manaPool, cost, player.life)) {
+    const tapResult = autoTapLandsForCost(player, cost);
+    if (!tapResult) return `Not enough mana to pay morph cost (${morphMatch[1]}).`;
+  }
+  return null;
+}
+
+/** Validate cycling a card from hand (CR 702.28) */
+function validateCycle(
+  state: GameState,
+  action: Extract<GameAction, { type: 'cycle' }>
+): string | null {
+  const player = state.players[action.player];
+  const card = player.hand.find(c => c.id === action.cardId);
+  if (!card) return 'Card not in hand.';
+  const cycleMatch = card.oracleText?.match(/cycling\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+  if (!cycleMatch) return 'Card does not have cycling.';
+  const cost = parseManaCost(cycleMatch[1]);
+  if (!canPayCost(player.manaPool, cost, player.life)) {
+    const tapResult = autoTapLandsForCost(player, cost);
+    if (!tapResult) return `Not enough mana to pay cycling cost (${cycleMatch[1]}).`;
+  }
+  return null;
+}
+
+/** Check if the player can cycle any card in hand */
+function canCycleAny(state: GameState, player: 0 | 1): boolean {
+  const ps = state.players[player];
+  for (const card of ps.hand) {
+    const cycleMatch = card.oracleText?.match(/cycling\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    if (!cycleMatch) continue;
+    const cost = parseManaCost(cycleMatch[1]);
+    if (canPayCost(ps.manaPool, cost, ps.life)) return true;
+    if (autoTapLandsForCost(ps, cost) !== null) return true;
+  }
+  return false;
 }

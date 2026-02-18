@@ -7,7 +7,8 @@ import { validateAction } from './validation.ts';
 import { retainPriorityAfterAction } from '../rules/priority.ts';
 import { addSpellToStack, addAbilityToStack } from '../rules/stack.ts';
 import { payCost, parseManaCost, canPayCost, autoTapLandsForCost, autoPayCost, addMana, emptyPool } from '../rules/mana.ts';
-import { getManaProduction } from '../rules/abilities.ts';
+import { getManaProduction, parseAbilities } from '../rules/abilities.ts';
+import type { Permanent } from '../types/permanent.ts';
 import { drawCards } from './zone-manager.ts';
 import { generateCardId } from './factory.ts';
 import { keepHand, performLondonMulligan, startMulligan } from './factory.ts';
@@ -17,7 +18,7 @@ import { attachEquipment, getEquipCost } from '../rules/equipment.ts';
 import { parseLoyaltyCost } from '../rules/abilities.ts';
 import { checkAttackTriggers, checkCastTriggers, checkETBTriggers } from '../rules/triggers.ts';
 import { handleCommanderDeath, handleCommanderExile } from '../rules/commander.ts';
-import { validateDamageAssignment, applyDamageAssignment } from '../rules/combat.ts';
+import { validateDamageAssignment, applyDamageAssignment, hasKeyword } from '../rules/combat.ts';
 
 /**
  * Execute a game action and return the new state.
@@ -194,6 +195,14 @@ export function executeAction(
       newState = executeAssignDamage(state, action);
       break;
 
+    case 'turn-face-up':
+      newState = executeTurnFaceUp(state, action);
+      break;
+
+    case 'cycle':
+      newState = executeCycle(state, action);
+      break;
+
     default:
       return state;
   }
@@ -255,32 +264,102 @@ function executePlayLand(
   };
 
   // Check for landfall/ETB triggers
-  newState = checkETBTriggers(newState, permanent);
+  newState = checkETBTriggers(newState, permanent, { fromZone: 'hand' });
 
   return newState;
 }
 
-/** Cast a spell: pay mana, put on stack. */
+/** Parse flashback cost from oracle text */
+function getFlashbackCost(card: { oracleText?: string }): string | null {
+  const match = card.oracleText?.match(/flashback\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+  return match ? match[1] : null;
+}
+
+/** Parse kicker cost from oracle text */
+function getKickerCost(card: { oracleText?: string }): string | null {
+  const match = card.oracleText?.match(/kicker\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+  return match ? match[1] : null;
+}
+
+/** Cast a spell: pay mana, put on stack.
+ *  Supports: flashback, kicker, convoke, delve, adventure. */
 function executeCastSpell(
   state: GameState,
   action: Extract<GameAction, { type: 'cast-spell' }>
 ): GameState {
   let player = state.players[action.player];
-  const card = player.hand.find((c) => c.id === action.cardId);
+
+  // ─── Find the card (hand, graveyard for flashback, exile for adventure creature) ───
+  let card: import('../types/card.ts').Card | undefined;
+  let castFromExile = false;
+  if (action.castWithFlashback) {
+    card = player.graveyard.find((c) => c.id === action.cardId);
+  } else {
+    card = player.hand.find((c) => c.id === action.cardId);
+    // Also check exile for adventure creatures
+    if (!card) {
+      card = player.exile.find((c) => c.id === action.cardId && c.onAdventure);
+      if (card) castFromExile = true;
+    }
+  }
   if (!card) return state;
 
-  // Handle X-cost spells: replace {X} with the actual X value in the cost string
+  // ─── Calculate total mana cost ───
   const xValue = action.xValue ?? 0;
-  let manaCostStr = card.manaCost;
+  let manaCostStr: string;
+
+  if (action.castWithFlashback) {
+    // Flashback uses flashback cost instead of normal cost
+    manaCostStr = getFlashbackCost(card) || card.manaCost;
+  } else if (action.castAsAdventure) {
+    // Adventure uses adventure cost
+    manaCostStr = card.adventureCost || card.manaCost;
+  } else if (action.castBackFace && card.backFace) {
+    // MDFC: use back face mana cost (CR 712)
+    manaCostStr = card.backFace.manaCost;
+  } else if (action.castFaceDown) {
+    // Morph: cast face-down for {3} (CR 702.36)
+    manaCostStr = '{3}';
+  } else if (action.castWithMadness) {
+    // Madness: use madness cost (CR 702.34)
+    const madnessMatch = card.oracleText?.match(/madness\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    manaCostStr = madnessMatch ? madnessMatch[1] : card.manaCost;
+  } else if (action.evokePaid) {
+    // Evoke: use evoke cost (CR 702.73)
+    const evokeMatch = card.oracleText?.match(/evoke\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    manaCostStr = evokeMatch ? evokeMatch[1] : card.manaCost;
+  } else if (action.dashPaid) {
+    // Dash: use dash cost (CR 702.108)
+    const dashMatch = card.oracleText?.match(/dash\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    manaCostStr = dashMatch ? dashMatch[1] : card.manaCost;
+  } else {
+    manaCostStr = card.manaCost;
+  }
+
   if (manaCostStr.includes('{X}')) {
-    // Replace {X} with {xValue} generic mana
     manaCostStr = manaCostStr.replace(/\{X\}/g, xValue > 0 ? `{${xValue}}` : '');
   }
 
-  // Pay mana (auto-tap if needed)
-  const cost = parseManaCost(manaCostStr);
-  let payment = action.manaPayment;
+  // Kicker: add kicker cost to total (CR 702.32)
+  if (action.kickerPaid) {
+    const kickerCostStr = getKickerCost(card);
+    if (kickerCostStr) manaCostStr += kickerCostStr;
+  }
 
+  let cost = parseManaCost(manaCostStr);
+
+  // Convoke: reduce cost by tapped creatures (CR 702.50)
+  if (action.convokeCreatures && action.convokeCreatures.length > 0) {
+    cost = { ...cost, generic: Math.max(0, cost.generic - action.convokeCreatures.length) };
+  }
+
+  // Delve: reduce generic cost by exiled GY cards (CR 702.65)
+  if (action.delveCards && action.delveCards.length > 0) {
+    cost = { ...cost, generic: Math.max(0, cost.generic - action.delveCards.length) };
+  }
+
+  // ─── Pay mana ───
+  let payment = action.manaPayment;
   if (!canPayCost(player.manaPool, cost, player.life)) {
     const tapResult = autoTapLandsForCost(player, cost);
     if (tapResult) {
@@ -290,15 +369,46 @@ function executeCastSpell(
   }
 
   const newPool = payCost(player.manaPool, cost, payment);
+  let updatedPlayer = { ...player, manaPool: newPool };
 
-  const updatedPlayer = { ...player, manaPool: newPool };
+  // ─── Convoke: tap the chosen creatures ───
+  if (action.convokeCreatures && action.convokeCreatures.length > 0) {
+    const updatedBf = updatedPlayer.battlefield.map(p =>
+      action.convokeCreatures!.includes(p.id) ? { ...p, tapped: true } : p
+    );
+    updatedPlayer = { ...updatedPlayer, battlefield: updatedBf };
+  }
+
+  // ─── Delve: exile cards from graveyard ───
+  if (action.delveCards && action.delveCards.length > 0) {
+    const delveSet = new Set(action.delveCards);
+    const exiledCards = updatedPlayer.graveyard.filter(c => delveSet.has(c.id));
+    updatedPlayer = {
+      ...updatedPlayer,
+      graveyard: updatedPlayer.graveyard.filter(c => !delveSet.has(c.id)),
+      exile: [...updatedPlayer.exile, ...exiledCards],
+    };
+  }
+
   const players = [...state.players] as [PlayerState, PlayerState];
   players[action.player] = updatedPlayer;
 
   let newState: GameState = { ...state, players };
 
-  // Add to stack (pass xValue to be stored on stack object)
-  newState = addSpellToStack(newState, action.cardId, action.player, action.targets, action.manaPayment, xValue);
+  // ─── Add to stack with alternative cost flags ───
+  newState = addSpellToStack(
+    newState, action.cardId, action.player, action.targets, action.manaPayment, xValue,
+    {
+      isFlashback: action.castWithFlashback,
+      isKicked: action.kickerPaid,
+      isAdventure: action.castAsAdventure,
+      isFaceDown: action.castFaceDown,
+      isEvoked: action.evokePaid,
+      isDashed: action.dashPaid,
+      // MDFC: pass back face oracle text so effects resolve from back face
+      oracleTextOverride: action.castBackFace && card.backFace ? card.backFace.oracleText : undefined,
+    }
+  );
 
   // If cast from command zone, increment commander tax (CR 903.8)
   if (action.castFromCommandZone) {
@@ -393,11 +503,12 @@ function executeDeclareAttackers(
 
   const updatedBattlefield = player.battlefield.map((perm) => {
     if (action.attackers.includes(perm.id)) {
-      // Check for vigilance keyword
-      const hasVigilance = perm.oracleText?.toLowerCase().includes('vigilance') ?? false;
-      return { 
-        ...perm, 
-        attacking: true, 
+      // Check for vigilance keyword (use hasKeyword to avoid false positives
+      // from oracle text like "target creature loses vigilance")
+      const hasVigilance = hasKeyword(perm, 'vigilance');
+      return {
+        ...perm,
+        attacking: true,
         tapped: !hasVigilance  // Don't tap if has vigilance
       };
     }
@@ -771,7 +882,10 @@ function executeManualDamage(
   action: Extract<GameAction, { type: 'manual-damage' }>
 ): GameState {
   if (action.targetType === 'player') {
-    const targetIdx = parseInt(action.targetId) as 0 | 1;
+    // UI sends targetId as "player-0" or "player-1" — extract the numeric index
+    const parsed = parseInt(action.targetId.replace('player-', ''));
+    if (isNaN(parsed) || (parsed !== 0 && parsed !== 1)) return state;
+    const targetIdx = parsed as 0 | 1;
     const player = state.players[targetIdx];
     const updatedPlayer = { ...player, life: player.life - action.amount };
     const players = [...state.players] as [PlayerState, PlayerState];
@@ -1093,4 +1207,128 @@ function executeCommanderZoneChoice(
       }],
     };
   }
+}
+
+/**
+ * Turn a face-down creature face-up (morph, CR 702.36).
+ * This is a special action that doesn't use the stack.
+ */
+function executeTurnFaceUp(
+  state: GameState,
+  action: Extract<GameAction, { type: 'turn-face-up' }>
+): GameState {
+  const player = action.player;
+  const ps = state.players[player];
+  const idx = ps.battlefield.findIndex(p => p.id === action.permanentId);
+  if (idx === -1) return state;
+
+  const perm = ps.battlefield[idx];
+  if (!perm.faceDown) return state;
+
+  // Parse morph cost and pay it
+  const morphMatch = perm.oracleText?.match(/morph\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+  if (!morphMatch) return state;
+
+  const cost = parseManaCost(morphMatch[1]);
+  let updatedPlayer = ps;
+  if (!canPayCost(updatedPlayer.manaPool, cost, updatedPlayer.life)) {
+    const tapResult = autoTapLandsForCost(updatedPlayer, cost);
+    if (!tapResult) return state;
+    updatedPlayer = tapResult.updatedPlayer;
+  }
+  const payment = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+  const newPool = payCost(updatedPlayer.manaPool, cost, payment);
+  updatedPlayer = { ...updatedPlayer, manaPool: newPool };
+
+  // Flip face-up: restore original stats, re-parse abilities
+  const basePower = perm.power ? parseInt(perm.power, 10) || 0 : undefined;
+  const baseToughness = perm.toughness ? parseInt(perm.toughness, 10) || 0 : undefined;
+  const flippedPerm: Permanent = {
+    ...perm,
+    faceDown: false,
+    basePower,
+    baseToughness,
+    currentPower: basePower,
+    currentToughness: baseToughness,
+    abilities: parseAbilities(perm as unknown as import('../types/card.ts').Card),
+  };
+
+  const newBf = [...updatedPlayer.battlefield];
+  newBf[idx] = flippedPerm;
+  updatedPlayer = { ...updatedPlayer, battlefield: newBf };
+
+  const players = [...state.players] as [PlayerState, PlayerState];
+  players[player] = updatedPlayer;
+
+  return {
+    ...state,
+    players,
+    log: [...state.log, {
+      timestamp: Date.now(),
+      turn: state.turn,
+      phase: state.phase,
+      step: state.step,
+      player,
+      message: `${perm.name} is turned face-up (morph cost: ${morphMatch[1]}).`,
+      cardName: perm.name,
+    }],
+  };
+}
+
+/** Execute cycling a card from hand (CR 702.28) */
+function executeCycle(
+  state: GameState,
+  action: Extract<GameAction, { type: 'cycle' }>
+): GameState {
+  let player = state.players[action.player];
+  const cardIndex = player.hand.findIndex(c => c.id === action.cardId);
+  if (cardIndex === -1) return state;
+  const card = player.hand[cardIndex];
+
+  // Parse cycling cost
+  const cycleMatch = card.oracleText?.match(/cycling\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+  if (!cycleMatch) return state;
+  const cost = parseManaCost(cycleMatch[1]);
+
+  // Pay cost
+  let payment = {} as ManaPayment;
+  if (!canPayCost(player.manaPool, cost, player.life)) {
+    const tapResult = autoTapLandsForCost(player, cost);
+    if (tapResult) {
+      player = tapResult.updatedPlayer;
+      payment = tapResult.payment;
+    }
+  }
+  const newPool = payCost(player.manaPool, cost, payment);
+
+  // Move card from hand to graveyard
+  const updatedHand = [...player.hand.slice(0, cardIndex), ...player.hand.slice(cardIndex + 1)];
+
+  // Draw a card
+  const drawnCard = player.library[0];
+  const updatedLibrary = player.library.slice(1);
+  const finalHand = drawnCard ? [...updatedHand, drawnCard] : updatedHand;
+
+  const updatedPlayer: PlayerState = {
+    ...player,
+    hand: finalHand,
+    library: updatedLibrary,
+    graveyard: [...player.graveyard, card],
+    manaPool: newPool,
+  };
+
+  const players = [...state.players] as [PlayerState, PlayerState];
+  players[action.player] = updatedPlayer;
+
+  return {
+    ...state,
+    players,
+    log: [...state.log, {
+      timestamp: Date.now(), turn: state.turn, phase: state.phase, step: state.step,
+      player: action.player,
+      message: `${card.name} cycled for ${cycleMatch[1]}.${drawnCard ? ` Drew a card.` : ''}`,
+      cardName: card.name,
+      actionType: 'cycle',
+    }],
+  };
 }

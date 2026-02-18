@@ -1,8 +1,10 @@
 import type { GameState, Phase, Step } from '../types/game-state.ts';
 import type { PlayerState } from '../types/player.ts';
+import type { Permanent } from '../types/permanent.ts';
 import { PHASES, PHASE_STEPS } from '../types/game-state.ts';
 import { emptyManaPool } from '../types/player.ts';
-import { checkUpkeepTriggers, checkEndStepTriggers } from '../rules/triggers.ts';
+import { checkUpkeepTriggers, checkEndStepTriggers, checkBeginCombatTriggers } from '../rules/triggers.ts';
+import { addSpellToStack } from '../rules/stack.ts';
 
 
 /**
@@ -245,6 +247,42 @@ export function applyStepEffects(state: GameState): GameState {
   // Upkeep: check for "at the beginning of your upkeep" triggers
   if (state.step === 'upkeep' && !state.mulliganPhase) {
     state = checkUpkeepTriggers(state);
+
+    // ─── Rebound (CR 702.87): Cast exiled rebound spells at upkeep for free ───
+    const ap = state.activePlayer;
+    const reboundCards = state.players[ap].exile.filter(c => (c as any).reboundExile);
+    if (reboundCards.length > 0) {
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const remainingExile = players[ap].exile.filter(c => !(c as any).reboundExile);
+      players[ap] = { ...players[ap], exile: remainingExile };
+      state = { ...state, players };
+
+      for (const card of reboundCards) {
+        // Remove the reboundExile marker
+        const cleanCard = { ...card };
+        delete (cleanCard as any).reboundExile;
+
+        // Put on stack without paying cost (free rebound cast)
+        state = addSpellToStack(state, cleanCard, ap, {});
+        state = {
+          ...state,
+          log: [...state.log, {
+            timestamp: Date.now(),
+            turn: state.turn,
+            phase: state.phase,
+            step: state.step,
+            player: ap,
+            message: `${card.name} cast from exile (rebound).`,
+            cardName: card.name,
+          }],
+        };
+      }
+    }
+  }
+
+  // Begin combat (CR 507.1): fire "at the beginning of combat" triggers
+  if (state.step === 'begin-combat' && !state.mulliganPhase) {
+    state = checkBeginCombatTriggers(state);
   }
 
   if (state.step === 'draw') {
@@ -306,9 +344,125 @@ export function applyStepEffects(state: GameState): GameState {
     return state;
   }
 
+  // Saga lore counters: add a lore counter to all sagas the active player controls
+  // after the draw step (CR 714.3b: put a lore counter on this Saga as your precombat
+  // main phase begins). We trigger on draw step exit → main phase entry.
+  if (state.step === 'main' && state.phase === 'precombat-main' && !state.mulliganPhase) {
+    const ap = state.activePlayer;
+    const playerState = state.players[ap];
+    const sagaBf = playerState.battlefield;
+    let sagaChanged = false;
+    const sagaTriggers: Array<{ saga: Permanent; chapter: number }> = [];
+    const updatedBf = sagaBf.map(perm => {
+      if (perm.typeLine.toLowerCase().includes('saga')) {
+        sagaChanged = true;
+        const lore = (perm.counters['lore'] || 0) + 1;
+        sagaTriggers.push({ saga: perm, chapter: lore });
+        return {
+          ...perm,
+          counters: { ...perm.counters, lore },
+        };
+      }
+      return perm;
+    });
+    if (sagaChanged) {
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[ap] = { ...players[ap], battlefield: updatedBf };
+      state = { ...state, players };
+
+      // Queue chapter triggers on the stack
+      for (const { saga, chapter } of sagaTriggers) {
+        const chapterText = parseSagaChapter(saga.oracleText || '', chapter);
+        if (chapterText) {
+          const stackObj: import('../types/action.ts').StackObject = {
+            id: `saga_${saga.id}_ch${chapter}_${Date.now().toString(36)}`,
+            type: 'ability',
+            source: saga as import('../types/permanent.ts').Permanent,
+            controller: ap,
+            targets: [],
+            text: `${saga.name} — Chapter ${chapter}`,
+            oracleText: chapterText,
+          };
+          state = {
+            ...state,
+            stack: [...state.stack, stackObj],
+            log: [...state.log, {
+              timestamp: Date.now(), turn: state.turn, phase: state.phase, step: state.step,
+              player: ap,
+              message: `${saga.name} — Chapter ${toRoman(chapter)} triggers.`,
+              cardName: saga.name,
+            }],
+          };
+        }
+      }
+    }
+  }
+
   // End step: check "at the beginning of your end step" triggers
   if (state.step === 'end' && !state.mulliganPhase) {
     state = checkEndStepTriggers(state);
+
+    const ap = state.activePlayer;
+    const players = [...state.players] as [PlayerState, PlayerState];
+    const endLogs: string[] = [];
+
+    // ─── Monarch (CR 721): Monarch draws an extra card at end step ───
+    if (state.monarch === ap) {
+      const lib = players[ap].library;
+      if (lib.length > 0) {
+        const drawnCard = lib[0];
+        players[ap] = {
+          ...players[ap],
+          library: lib.slice(1),
+          hand: [...players[ap].hand, drawnCard],
+        };
+        endLogs.push(`${players[ap].name} draws a card (monarch).`);
+      }
+    }
+
+    // ─── Dash (CR 702.108): Return dashed creatures to hand at end step ───
+    const dashedPerms = players[ap].battlefield.filter(p => p.dashedThisTurn);
+    if (dashedPerms.length > 0) {
+      const remainingBf = players[ap].battlefield.filter(p => !p.dashedThisTurn);
+      const returnedCards = dashedPerms.map(p => ({
+        id: p.id,
+        oracleId: p.oracleId,
+        name: p.name,
+        manaCost: p.manaCost,
+        cmc: p.cmc,
+        typeLine: p.typeLine,
+        oracleText: p.oracleText,
+        power: p.power,
+        toughness: p.toughness,
+        loyalty: p.loyalty,
+        colors: p.colors,
+        colorIdentity: p.colorIdentity,
+        rarity: p.rarity,
+        tags: p.tags,
+        imageUrl: p.imageUrl,
+        owner: p.owner,
+      }));
+      players[ap] = {
+        ...players[ap],
+        battlefield: remainingBf,
+        hand: [...players[ap].hand, ...returnedCards],
+      };
+      for (const p of dashedPerms) {
+        endLogs.push(`${p.name} returns to hand (dash).`);
+      }
+    }
+
+    if (endLogs.length > 0) {
+      const logEntries = endLogs.map(message => ({
+        timestamp: Date.now(),
+        turn: state.turn,
+        phase: state.phase,
+        step: state.step,
+        player: ap as 0 | 1 | null,
+        message,
+      }));
+      state = { ...state, players, log: [...state.log, ...logEntries] };
+    }
   }
 
   // Combat Damage Steps: Damage is resolved by Game.resolveCombat() called by UI/bot
@@ -404,6 +558,17 @@ export function applyStepEffects(state: GameState): GameState {
             updated.temporaryKeywords = [];
           }
 
+          // ─── Goad (CR 701.38): Clear goaded status at end of turn ───
+          if (updated.goaded) {
+            logs.push(`${p.name} is no longer goaded.`);
+            updated = { ...updated, goaded: false };
+          }
+
+          // ─── Dash: Clear dashed flag (already returned to hand in end step) ───
+          if (updated.dashedThisTurn) {
+            updated = { ...updated, dashedThisTurn: false };
+          }
+
           return updated;
         }),
       };
@@ -451,15 +616,17 @@ export function applyStepEffects(state: GameState): GameState {
  * This is a high-level list; actual legality depends on game state.
  */
 export function getCurrentStepActions(state: GameState): string[] {
+  // CR 502.1: No player gets priority during the untap step (unless in mulligan phase)
+  if (state.step === 'untap') {
+    if (state.mulliganPhase) {
+      return ['pass', 'mulligan'];
+    }
+    return [];
+  }
+
   const actions: string[] = ['pass'];
 
   switch (state.step) {
-    case 'untap':
-      // Allow mulligan during mulligan phase
-      if (state.mulliganPhase) {
-        actions.push('mulligan');
-      }
-      return actions;
 
     case 'upkeep':
       if (state.mulliganPhase) actions.push('mulligan');
@@ -551,4 +718,34 @@ export function createInitialGameState(
     mulliganPhase: true,
     mulliganCount: [0, 0],
   };
+}
+
+// ─── Saga Helpers ───
+
+/** Convert integer to roman numeral (1-6) */
+function toRoman(n: number): string {
+  const map: Record<number, string> = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V', 6: 'VI' };
+  return map[n] || String(n);
+}
+
+/**
+ * Parse a specific chapter's effect text from a Saga's oracle text.
+ * e.g., for chapter 2, finds "II — Draw a card." and returns "Draw a card."
+ */
+function parseSagaChapter(oracleText: string, chapter: number): string | null {
+  const roman = toRoman(chapter);
+  // Match "I —" or "I, II —" (shared chapters) or just "II —"
+  // We need to find lines where this chapter's roman numeral appears before the dash
+  const lines = oracleText.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Match chapter marker: roman numerals before em-dash
+    const chapterMatch = trimmed.match(/^((?:I{1,3}|IV|V|VI{0,3})(?:\s*,\s*(?:I{1,3}|IV|V|VI{0,3}))*)\s*[—–\-]\s*(.+)/);
+    if (!chapterMatch) continue;
+    const chapterNums = chapterMatch[1].split(',').map(s => s.trim());
+    if (chapterNums.includes(roman)) {
+      return chapterMatch[2].trim();
+    }
+  }
+  return null;
 }

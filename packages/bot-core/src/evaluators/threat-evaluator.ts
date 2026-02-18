@@ -156,6 +156,18 @@ export function identifyThreats(state: GameState, botPlayer: 0 | 1): Threat[] {
     if (threat) threats.push(threat);
   }
 
+  // Monarch awareness: if opponent is monarch, consider it a medium threat
+  // (they draw an extra card each end step)
+  if ((state as any).monarch === opponent) {
+    threats.push({
+      type: 'permanent' as const,
+      sourceId: 'monarch',
+      name: 'Opponent is Monarch',
+      level: 'medium' as ThreatLevel,
+      score: 5,
+    });
+  }
+
   // Sort by score descending
   threats.sort((a, b) => b.score - a.score);
 

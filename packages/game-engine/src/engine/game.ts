@@ -91,6 +91,10 @@ export class Game {
     this.undoManager.saveSnapshot(this.state, action);
 
     if (action.type === 'pass') {
+      // Guard: do NOT pass priority during mulligan phase —
+      // this would incorrectly advance game steps (CR 103.4)
+      if (this.state.mulliganPhase) return false;
+
       // Pass goes through priority system
       const beforeStack = this.state.stack.length;
       this.state = passPriority(this.state);

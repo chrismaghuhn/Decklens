@@ -209,6 +209,7 @@ export function drawCard(state: GameState, player: 0 | 1): GameState {
     ...playerState,
     library: playerState.library.slice(1),
     hand: [...playerState.hand, drawnCard],
+    hasDrawnThisGame: true, // CR 704.5b: track draw attempts for empty-library SBA
   };
 
   const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];

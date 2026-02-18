@@ -32,7 +32,7 @@ let selectedDeckP2: DeckbuilderDeck | null = null;
 // ==================== Sample Deck Card Names ====================
 
 const SAMPLE_RED_DECK: { name: string; count: number }[] = [
-  { name: 'Mountain', count: 23 },
+  { name: 'Mountain', count: 24 },
   { name: 'Lightning Bolt', count: 4 },
   { name: 'Goblin Guide', count: 4 },
   { name: 'Monastery Swiftspear', count: 4 },
@@ -54,7 +54,7 @@ const SAMPLE_GREEN_DECK: { name: string; count: number }[] = [
   { name: 'Aspect of Hydra', count: 4 },
   { name: 'Strangleroot Geist', count: 4 },
   { name: "Garruk's Companion", count: 4 },
-  { name: 'Experiment One', count: 3 },
+  { name: 'Experiment One', count: 4 },
 ];
 
 const SAMPLE_COMMANDERS: Record<string, string> = {

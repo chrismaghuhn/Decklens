@@ -19,6 +19,10 @@ export interface PlayerState {
   life: number;
   manaPool: ManaPool;
   poisonCounters: number;
+  /** Energy counters (Kaladesh+, CR 122.1e) */
+  energyCounters: number;
+  /** Experience counters (Commander 2015+, CR 122.1d) */
+  experienceCounters: number;
   /** Commander damage received, keyed by commander instance ID */
   commanderDamage: Record<string, number>;
 
@@ -65,6 +69,8 @@ export function createPlayerState(
     life: STARTING_LIFE,
     manaPool: emptyManaPool(),
     poisonCounters: 0,
+    energyCounters: 0,
+    experienceCounters: 0,
     commanderDamage: {},
     commanderTax: 0,
     landPlayedThisTurn: false,

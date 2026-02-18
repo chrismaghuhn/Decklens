@@ -29,7 +29,7 @@ import {
   hasKeyword,
   hasProtectionFrom,
 } from '@mtg/game-engine';
-import { renderBoard, clearDomCache } from './simulator-board.ts';
+import { renderBoard, clearDomCache, addHoverPreview } from './simulator-board.ts';
 import type { SimBoardCallbacks } from './simulator-board.ts';
 
 // ─── Types ───
@@ -99,6 +99,9 @@ export class SimulatorLoop {
 
   // X-cost pending value (stored while targeting)
   private pendingXValue: number | undefined;
+
+  // Mana payment pending (stored while in targeting mode so targeted spells record correct payment)
+  private pendingManaPayment: Record<string, number> | undefined;
 
   // Auto-pass (F2 toggle)
   private autoPassEnabled = false;
@@ -241,8 +244,35 @@ export class SimulatorLoop {
         this.showManualResolutionPanel(state);
       }
 
+      // Check pending damage assignment
+      if (state.pendingDamageAssignment && state.pendingDamageAssignment.player === state.priorityPlayer && this.humanPlayers.includes(state.priorityPlayer)) {
+        await this.showDamageAssignmentDialog(state);
+        continue;
+      }
+
+      // Check pending legend choice
+      if (state.pendingLegendChoice && state.pendingLegendChoice.player === state.priorityPlayer && this.humanPlayers.includes(state.priorityPlayer)) {
+        await this.showLegendChoiceDialog(state);
+        continue;
+      }
+
+      // Check pending commander choice
+      if (state.pendingCommanderChoice && state.pendingCommanderChoice.player === state.priorityPlayer && this.humanPlayers.includes(state.priorityPlayer)) {
+        await this.showCommanderChoiceDialog(state);
+        continue;
+      }
+
       // Auto-pass check (F2)
       if (this.autoPassEnabled && this.shouldAutoPass(state)) {
+        this.game.submitAction({ type: 'pass', player: state.priorityPlayer });
+        this.hidePriorityPrompt();
+        continue;
+      }
+
+      // Smart auto-skip: always on — skip phases with no legal actions
+      // Never skip main phases (player may want to play lands/cast spells even if not yet tapped)
+      // Never skip during respond mode (opponent might be responding)
+      if (this.hasOnlyPassActions(state) && !this.respondMode && state.step !== 'main') {
         this.game.submitAction({ type: 'pass', player: state.priorityPlayer });
         this.hidePriorityPrompt();
         continue;
@@ -306,6 +336,15 @@ export class SimulatorLoop {
     if (hasInstantActions) return false;
 
     return true;
+  }
+
+  /**
+   * Check if the only legal actions are pass/concede (nothing meaningful to do).
+   * Used for smart auto-skip: always on, skips phases where player has no choices.
+   */
+  private hasOnlyPassActions(state: GameState): boolean {
+    const legalTypes = getLegalActionTypes(state);
+    return legalTypes.every(t => t === 'pass' || t === 'concede');
   }
 
   // ==================== Actions ====================
@@ -384,6 +423,40 @@ export class SimulatorLoop {
   private async botTurn(): Promise<void> {
     await sleep(150 + Math.random() * 200);
     const state = this.game.getState();
+
+    // Handle pending states for bot automatically
+    if (state.pendingDamageAssignment && state.pendingDamageAssignment.player === state.priorityPlayer) {
+      // Bot auto-assigns damage equally among blockers
+      const pending = state.pendingDamageAssignment;
+      const assignments: Record<string, number> = {};
+      const perBlocker = Math.floor(pending.totalDamage / pending.blockerIds.length);
+      let remaining = pending.totalDamage;
+      for (const id of pending.blockerIds) {
+        const assign = id === pending.blockerIds[pending.blockerIds.length - 1] ? remaining : perBlocker;
+        assignments[id] = assign;
+        remaining -= assign;
+      }
+      this.game.submitAction({ type: 'assign-damage', player: pending.player, assignments, trampleDamage: 0 });
+      this.addLog('Bot assigned combat damage.', 'combat');
+      return;
+    }
+
+    if (state.pendingLegendChoice && state.pendingLegendChoice.player === state.priorityPlayer) {
+      // Bot keeps the first (newest) legendary permanent
+      const pending = state.pendingLegendChoice;
+      this.game.submitAction({ type: 'legend-choice', player: pending.player, keepPermanentId: pending.permanentIds[0] });
+      this.addLog('Bot resolved legend rule.', 'info');
+      return;
+    }
+
+    if (state.pendingCommanderChoice && state.pendingCommanderChoice.player === state.priorityPlayer) {
+      // Bot always moves commander to command zone
+      const pending = state.pendingCommanderChoice;
+      this.game.submitAction({ type: 'commander-zone-choice', player: pending.player, moveToCommandZone: true });
+      this.addLog('Bot moved commander to command zone.', 'info');
+      return;
+    }
+
     const legalTypes = getLegalActionTypes(state);
 
     if (legalTypes.length === 0) {
@@ -413,6 +486,15 @@ export class SimulatorLoop {
   private _manaAbilityCache = new Map<string, string | null>();
 
   private autoTapAllLands(state: GameState, player: 0 | 1): GameState {
+    // Prune stale cache entries periodically (IDs of permanents no longer on any battlefield)
+    if (this._manaAbilityCache.size > 200) {
+      const activeIds = new Set<string>();
+      for (const p of state.players) for (const perm of p.battlefield) activeIds.add(perm.id);
+      for (const id of this._manaAbilityCache.keys()) {
+        if (!activeIds.has(id)) this._manaAbilityCache.delete(id);
+      }
+    }
+
     const ps = state.players[player];
     const pool = { ...ps.manaPool };
     const newBattlefield = ps.battlefield.map(perm => {
@@ -485,6 +567,12 @@ export class SimulatorLoop {
       return;
     }
 
+    // Respond mode: filter to instants/flash only
+    if (this.respondMode && !isInstant(card) && !(card.oracleText ?? '').toLowerCase().includes('flash')) {
+      this.addLog(`Can only cast instants or flash spells in response.`, 'warning');
+      return;
+    }
+
     // Spell
     const me = state.players[player];
     const isInstantSpeed = isInstant(card) || (card.oracleText ?? '').toLowerCase().includes('flash');
@@ -531,12 +619,17 @@ export class SimulatorLoop {
     };
     this.game.setState(updatedState);
 
+    // Aura/Equipment spells auto-enter targeting mode via spellNeedsTarget()
+    // since they contain "target" in their oracle text (e.g. "Enchant creature")
+    // This ensures the player chooses a legal target before the aura enters the battlefield
+
     // Check if spell needs targeting
     if (this.spellNeedsTarget(card)) {
       this.targetingMode = true;
       this.targetingCard = card;
       this.selectedHandCard = { card, index: _index };
       this.pendingXValue = xValue;
+      this.pendingManaPayment = tapResult.payment;
       this.render();
       this.addLog(`Select a target for ${card.name}.`, 'info');
       return;
@@ -571,16 +664,17 @@ export class SimulatorLoop {
         const target: Target = { type: 'permanent', id: perm.id };
 
         if (this.targetingCard) {
-          // Cast spell with target
+          // Cast spell with target — use stored mana payment from auto-tap
           this.submitAction({
             type: 'cast-spell',
             player,
             cardId: this.targetingCard.id,
             targets: [target],
-            manaPayment: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0, generic: 0 },
+            manaPayment: this.pendingManaPayment || { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0, generic: 0 },
             xValue: this.pendingXValue,
           });
           this.pendingXValue = undefined;
+          this.pendingManaPayment = undefined;
         } else if (this.targetingAbility) {
           // Activate ability with target
           this.submitAction({
@@ -639,10 +733,21 @@ export class SimulatorLoop {
           return true;
         });
 
-      if (activatableAbilities.length > 0 && !hasManaAbility(perm.abilities) || (activatableAbilities.length > 0 && perm.tapped)) {
+      if (activatableAbilities.length > 0 && (!hasManaAbility(perm.abilities) || perm.tapped)) {
         // Show ability picker if there are activatable abilities (and no mana ability, or permanent is tapped so mana ability is unavailable)
         this.showAbilityPicker(perm, activatableAbilities, player);
         return;
+      }
+
+      // Planeswalker loyalty abilities
+      const isPlaneswalker = perm.typeLine.toLowerCase().includes('planeswalker');
+      if (isPlaneswalker && controller === player && !perm.tapped) {
+        // Parse loyalty abilities from oracle text
+        const loyaltyAbilities = this.parsePlaneswalkerAbilities(perm);
+        if (loyaltyAbilities.length > 0) {
+          this.showPlaneswalkerAbilityPicker(perm, loyaltyAbilities, player);
+          return;
+        }
       }
     }
 
@@ -713,10 +818,11 @@ export class SimulatorLoop {
           player: state.priorityPlayer,
           cardId: this.targetingCard.id,
           targets: [target],
-          manaPayment: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0, generic: 0 },
+          manaPayment: this.pendingManaPayment || { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0, generic: 0 },
           xValue: this.pendingXValue,
         });
         this.pendingXValue = undefined;
+        this.pendingManaPayment = undefined;
       } else if (this.targetingAbility) {
         this.submitAction({
           type: 'activate-ability',
@@ -734,6 +840,11 @@ export class SimulatorLoop {
 
   private spellNeedsTarget(card: Card): boolean {
     const text = (card.oracleText ?? '').toLowerCase();
+    const typeLine = (card.typeLine ?? '').toLowerCase();
+    // Auras always need a target even though they say "Enchant X" not "target X"
+    if (typeLine.includes('aura') || text.includes('enchant creature') || text.includes('enchant permanent') || text.includes('enchant land') || text.includes('enchant artifact') || text.includes('enchant player')) {
+      return true;
+    }
     return text.includes('target');
   }
 
@@ -742,6 +853,7 @@ export class SimulatorLoop {
     this.targetingCard = null;
     this.targetingAbility = null;
     this.pendingXValue = undefined;
+    this.pendingManaPayment = undefined;
   }
 
   private getLegalTargetIds(): string[] {
@@ -770,15 +882,17 @@ export class SimulatorLoop {
     const targets: string[] = [];
 
     // Determine what kind of targets the spell can hit
-    const canTargetCreatures = oracleText.includes('target creature') || oracleText.includes('any target') || oracleText.includes('target permanent');
-    const canTargetPlayers = oracleText.includes('target player') || oracleText.includes('any target') || oracleText.includes('target opponent');
-    const canTargetPermanents = oracleText.includes('target permanent') || oracleText.includes('any target');
-    const canTargetArtifacts = oracleText.includes('target artifact');
-    const canTargetEnchantments = oracleText.includes('target enchantment');
+    // Also handle Aura "Enchant X" keywords which implicitly target
+    const canTargetCreatures = oracleText.includes('target creature') || oracleText.includes('any target') || oracleText.includes('target permanent') || oracleText.includes('enchant creature');
+    const canTargetPlayers = oracleText.includes('target player') || oracleText.includes('any target') || oracleText.includes('target opponent') || oracleText.includes('enchant player');
+    const canTargetPermanents = oracleText.includes('target permanent') || oracleText.includes('any target') || oracleText.includes('enchant permanent');
+    const canTargetArtifacts = oracleText.includes('target artifact') || oracleText.includes('enchant artifact');
+    const canTargetEnchantments = oracleText.includes('target enchantment') || oracleText.includes('enchant enchantment');
     const canTargetPlaneswalkers = oracleText.includes('target planeswalker') || oracleText.includes('any target');
+    const canTargetLands = oracleText.includes('target land') || oracleText.includes('enchant land');
 
     // If the spell says "target" but we can't determine specifics, allow all
-    const isGenericTarget = !canTargetCreatures && !canTargetPlayers && !canTargetPermanents && !canTargetArtifacts && !canTargetEnchantments && !canTargetPlaneswalkers;
+    const isGenericTarget = !canTargetCreatures && !canTargetPlayers && !canTargetPermanents && !canTargetArtifacts && !canTargetEnchantments && !canTargetPlaneswalkers && !canTargetLands;
 
     for (let pi = 0; pi < 2; pi++) {
       const p = state.players[pi];
@@ -790,6 +904,7 @@ export class SimulatorLoop {
           const isArtifactPerm = typeLower.includes('artifact');
           const isEnchantmentPerm = typeLower.includes('enchantment');
           const isPlaneswalkerPerm = typeLower.includes('planeswalker');
+          const isLandPerm = typeLower.includes('land');
 
           let typeMatch = false;
           if (canTargetPermanents) typeMatch = true;
@@ -797,6 +912,7 @@ export class SimulatorLoop {
           if (canTargetArtifacts && isArtifactPerm) typeMatch = true;
           if (canTargetEnchantments && isEnchantmentPerm) typeMatch = true;
           if (canTargetPlaneswalkers && isPlaneswalkerPerm) typeMatch = true;
+          if (canTargetLands && isLandPerm) typeMatch = true;
 
           if (!typeMatch) continue;
         }
@@ -942,6 +1058,31 @@ export class SimulatorLoop {
     const ability = perm.abilities[abilityIndex];
     if (!ability) return;
 
+    // Parse mana cost from ability cost string
+    const costStr = ability.cost || '';
+    const state = this.game.getState();
+    const me = state.players[player];
+
+    // Check for mana in cost (e.g. "{2}{B}", "{1}", etc.)
+    const manaMatch = costStr.match(/\{[WUBRGC0-9X]+\}/g);
+    if (manaMatch && manaMatch.length > 0) {
+      const manaCostStr = manaMatch.join('');
+      const cost = parseManaCost(manaCostStr);
+      const tapResult = autoTapLandsForCost(me, cost);
+      if (!tapResult) {
+        this.addLog(`Not enough mana to activate ${perm.name}'s ability (${costStr}).`, 'warning');
+        return;
+      }
+      // Update state with tapped lands
+      const updatedState = {
+        ...state,
+        players: state.players.map((p, i) =>
+          i === player ? tapResult.updatedPlayer : p,
+        ) as [typeof state.players[0], typeof state.players[1]],
+      };
+      this.game.setState(updatedState);
+    }
+
     // Extract effect text to check if targeting is needed
     let effectText = ability.text;
     const colonIdx = effectText.indexOf(':');
@@ -950,14 +1091,12 @@ export class SimulatorLoop {
     const needsTarget = effectText.toLowerCase().includes('target');
 
     if (needsTarget) {
-      // Enter targeting mode for ability
       this.targetingMode = true;
       this.targetingAbility = { source: perm, abilityIndex };
       this.targetingCard = null;
       this.render();
       this.addLog(`Select a target for ${perm.name}'s ability.`, 'info');
     } else {
-      // Activate without targets
       this.submitAction({
         type: 'activate-ability',
         player,
@@ -1096,10 +1235,17 @@ export class SimulatorLoop {
     if (!container) return;
 
     const currentIdx = ALL_STEPS.indexOf(state.step);
+    const legalTypes = getLegalActionTypes(state);
+    const hasActions = legalTypes.some(t => t !== 'pass' && t !== 'concede');
+
     container.querySelectorAll('.re-phase-pip').forEach((pip, i) => {
-      pip.classList.remove('active', 'passed');
-      if (i === currentIdx) pip.classList.add('active');
-      else if (i < currentIdx) pip.classList.add('passed');
+      pip.classList.remove('active', 'passed', 'no-actions');
+      if (i === currentIdx) {
+        pip.classList.add('active');
+        if (!hasActions) pip.classList.add('no-actions');
+      } else if (i < currentIdx) {
+        pip.classList.add('passed');
+      }
     });
   }
 
@@ -1242,8 +1388,6 @@ export class SimulatorLoop {
 
     return new Promise<void>((resolve) => {
       // Override hand card click to toggle selection for discard
-      const originalOnHandCardClick = this.onHandCardClick.bind(this);
-
       const discardClickHandler = (card: Card, _index: number) => {
         if (selectedCards.has(card.id)) {
           selectedCards.delete(card.id);
@@ -1906,7 +2050,8 @@ export class SimulatorLoop {
     const prompt = document.getElementById('priority-prompt');
     if (prompt) prompt.classList.add('hidden');
     this.priorityPromptVisible = false;
-    this.respondMode = false;
+    // NOTE: Do NOT reset respondMode here — the respond button sets it true
+    // then hides the prompt. Resetting here would negate the flag immediately.
   }
 
   private wirePriorityPrompt(): void {
@@ -1914,8 +2059,8 @@ export class SimulatorLoop {
     const passBtn = document.getElementById('btn-prompt-pass');
 
     respondBtn?.addEventListener('click', () => {
-      this.respondMode = true;
       this.hidePriorityPrompt();
+      this.respondMode = true; // Set AFTER hiding prompt so it isn't cleared
       this.addLog('Responding — select an instant or ability.', 'info');
       this.render();
       // The loop will fall through to normal waitForPlayerAction since respondMode = true
@@ -1929,6 +2074,7 @@ export class SimulatorLoop {
 
     passBtn?.addEventListener('click', () => {
       this.hidePriorityPrompt();
+      this.respondMode = false; // Explicitly clear respond mode on pass
       const state = this.game.getState();
       if (this.promptResolver) {
         const resolver = this.promptResolver;
@@ -2023,26 +2169,8 @@ export class SimulatorLoop {
           div.appendChild(cost);
         }
 
-        // Hover preview
-        div.addEventListener('mouseenter', () => {
-          const preview = document.getElementById('card-preview');
-          const prevImg = document.getElementById('card-preview-img') as HTMLImageElement;
-          if (!preview || !prevImg) return;
-          prevImg.src = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.name)}&format=image&version=normal`;
-          preview.style.display = 'block';
-          const rect = div.getBoundingClientRect();
-          let left = rect.right + 12;
-          let top = rect.top;
-          if (left + 260 > window.innerWidth) left = rect.left - 262;
-          if (top + 370 > window.innerHeight) top = window.innerHeight - 370;
-          if (top < 0) top = 0;
-          preview.style.left = `${left}px`;
-          preview.style.top = `${top}px`;
-        });
-        div.addEventListener('mouseleave', () => {
-          const preview = document.getElementById('card-preview');
-          if (preview) preview.style.display = 'none';
-        });
+        // Hover preview — reuse shared implementation from simulator-board
+        addHoverPreview(div, card.name);
 
         cardsEl.appendChild(div);
       }
@@ -2104,6 +2232,7 @@ export class SimulatorLoop {
             const resolver = this.promptResolver;
             this.promptResolver = null;
             this.hidePriorityPrompt();
+            this.respondMode = false; // Clear respond mode when passing via keyboard
             resolver({ type: 'pass', player: state.priorityPlayer });
           } else {
             this.pass();
@@ -2137,8 +2266,8 @@ export class SimulatorLoop {
           // Respond to priority prompt
           if (this.priorityPromptVisible && this.promptResolver) {
             e.preventDefault();
-            this.respondMode = true;
             this.hidePriorityPrompt();
+            this.respondMode = true; // Set AFTER hiding prompt (consistent with button handler)
             this.addLog('Responding — select an instant or ability.', 'info');
             this.render();
             const resolver = this.promptResolver;
@@ -2240,7 +2369,7 @@ export class SimulatorLoop {
 
     const entry = document.createElement('div');
     entry.className = `re-log-entry ${type}`;
-    entry.innerHTML = message;
+    entry.textContent = message; // Use textContent to prevent XSS from card names
     logEl.appendChild(entry);
     logEl.scrollTop = logEl.scrollHeight;
   }
@@ -2275,6 +2404,437 @@ export class SimulatorLoop {
         // Quiet
         break;
     }
+  }
+
+  // ==================== Combat Damage Assignment ====================
+
+  private showDamageAssignmentDialog(state: GameState): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const pending = state.pendingDamageAssignment!;
+      const attacker = state.players[pending.player].battlefield.find(p => p.id === pending.attackerId);
+      const attackerName = attacker?.name || 'Attacker';
+      const assignments: Record<string, number> = {};
+      pending.blockerIds.forEach((id: string) => assignments[id] = 0);
+
+      let overlay = document.getElementById('damage-assign-overlay');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'damage-assign-overlay';
+        overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:200; display:flex; align-items:center; justify-content:center;';
+        document.body.appendChild(overlay);
+      }
+
+      const renderDialog = () => {
+        const totalAssigned = Object.values(assignments).reduce((s, v) => s + v, 0);
+        const remaining = pending.totalDamage - totalAssigned;
+
+        let blockersHtml = '';
+        for (const blockerId of pending.blockerIds) {
+          const allPerms = [...state.players[0].battlefield, ...state.players[1].battlefield];
+          const blocker = allPerms.find(p => p.id === blockerId);
+          const blockerName = blocker?.name || 'Blocker';
+          const toughness = blocker?.currentToughness ?? parseInt(blocker?.toughness || '1');
+          const lethal = pending.hasDeathtouch ? 1 : Math.max(1, toughness - (blocker?.damage || 0));
+          const assigned = assignments[blockerId];
+
+          blockersHtml += `
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border:1px solid var(--border,#333); border-radius:10px; margin-bottom:6px; background:var(--bg-2,#141924);">
+              <div>
+                <div style="font-weight:600; color:var(--text,#e4e4e4);">${blockerName}</div>
+                <div style="font-size:0.7rem; color:var(--text-dim,#888);">Lethal: ${lethal} dmg | Toughness: ${toughness}</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <button class="dmg-minus" data-id="${blockerId}" style="width:28px; height:28px; border-radius:50%; border:1px solid var(--border,#333); background:var(--bg-2,#141924); color:var(--text,#e4e4e4); cursor:pointer; font-size:1rem;">−</button>
+                <span style="font-size:1.2rem; font-weight:700; color:var(--gold,#c9a84c); min-width:24px; text-align:center;">${assigned}</span>
+                <button class="dmg-plus" data-id="${blockerId}" style="width:28px; height:28px; border-radius:50%; border:1px solid var(--border,#333); background:var(--bg-2,#141924); color:var(--text,#e4e4e4); cursor:pointer; font-size:1rem;">+</button>
+              </div>
+            </div>
+          `;
+        }
+
+        overlay!.innerHTML = `
+          <div style="background:var(--obsidian,#1a1f2e); border:2px solid var(--gold,#c9a84c); border-radius:16px; padding:24px 28px; min-width:340px; max-width:480px; font-family:Outfit,sans-serif; color:var(--text,#e4e4e4);">
+            <div style="font-family:Cinzel,serif; font-size:1.1rem; color:var(--gold,#c9a84c); margin-bottom:2px;">Assign Combat Damage</div>
+            <div style="font-size:0.8rem; color:var(--text-dim,#888); margin-bottom:14px;">${attackerName} (${pending.totalDamage} damage to distribute) — Remaining: <span style="color:${remaining > 0 ? 'var(--gold)' : '#34d399'};">${remaining}</span></div>
+            ${blockersHtml}
+            <div style="display:flex; gap:8px; margin-top:12px; justify-content:flex-end;">
+              <button id="dmg-assign-confirm" class="re-action-btn primary" style="padding:8px 20px;" ${remaining !== 0 ? 'disabled' : ''}>Confirm</button>
+            </div>
+          </div>
+        `;
+        overlay!.style.display = 'flex';
+
+        // Wire buttons
+        overlay!.querySelectorAll('.dmg-minus').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = (btn as HTMLElement).dataset.id!;
+            if (assignments[id] > 0) { assignments[id]--; renderDialog(); }
+          });
+        });
+        overlay!.querySelectorAll('.dmg-plus').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = (btn as HTMLElement).dataset.id!;
+            const totalAssigned = Object.values(assignments).reduce((s, v) => s + v, 0);
+            if (totalAssigned < pending.totalDamage) { assignments[id]++; renderDialog(); }
+          });
+        });
+        document.getElementById('dmg-assign-confirm')?.addEventListener('click', () => {
+          const totalAssigned = Object.values(assignments).reduce((s, v) => s + v, 0);
+          if (totalAssigned !== pending.totalDamage) return;
+          overlay!.style.display = 'none';
+          this.game.submitAction({
+            type: 'assign-damage',
+            player: pending.player,
+            assignments,
+            trampleDamage: 0,
+          });
+          this.addLog(`Assigned ${pending.totalDamage} combat damage among blockers.`, 'combat');
+          resolve();
+        });
+      };
+      renderDialog();
+    });
+  }
+
+  // ==================== Legend Rule Choice ====================
+
+  private showLegendChoiceDialog(state: GameState): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const pending = state.pendingLegendChoice!;
+      const permanents = state.players[pending.player].battlefield.filter(p => pending.permanentIds.includes(p.id));
+
+      let overlay = document.getElementById('legend-choice-overlay');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'legend-choice-overlay';
+        overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:200; display:flex; align-items:center; justify-content:center;';
+        document.body.appendChild(overlay);
+      }
+
+      let cardsHtml = '';
+      for (const perm of permanents) {
+        const imgUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(perm.name)}&format=image&version=normal`;
+        cardsHtml += `
+          <div class="legend-pick" data-id="${perm.id}" style="cursor:pointer; text-align:center; transition:transform 0.15s, box-shadow 0.15s;">
+            <img src="${imgUrl}" alt="${perm.name}" style="width:140px; border-radius:10px; border:2px solid var(--border,#333);" />
+            <div style="font-size:0.75rem; color:var(--text,#e4e4e4); margin-top:4px;">${perm.name}</div>
+          </div>
+        `;
+      }
+
+      overlay.innerHTML = `
+        <div style="background:var(--obsidian,#1a1f2e); border:2px solid var(--gold,#c9a84c); border-radius:16px; padding:24px 28px; min-width:340px; font-family:Outfit,sans-serif; color:var(--text,#e4e4e4); text-align:center;">
+          <div style="font-family:Cinzel,serif; font-size:1.1rem; color:var(--gold,#c9a84c); margin-bottom:4px;">Legend Rule</div>
+          <div style="font-size:0.8rem; color:var(--text-dim,#888); margin-bottom:16px;">Multiple "${pending.legendName}" — choose one to keep</div>
+          <div style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap;">
+            ${cardsHtml}
+          </div>
+        </div>
+      `;
+      overlay.style.display = 'flex';
+
+      overlay.querySelectorAll('.legend-pick').forEach(el => {
+        (el as HTMLElement).addEventListener('mouseenter', () => {
+          (el as HTMLElement).style.transform = 'scale(1.05)';
+          (el as HTMLElement).querySelector('img')!.style.borderColor = 'var(--gold,#c9a84c)';
+        });
+        (el as HTMLElement).addEventListener('mouseleave', () => {
+          (el as HTMLElement).style.transform = '';
+          (el as HTMLElement).querySelector('img')!.style.borderColor = 'var(--border,#333)';
+        });
+        el.addEventListener('click', () => {
+          const keepId = (el as HTMLElement).dataset.id!;
+          overlay!.style.display = 'none';
+          this.game.submitAction({ type: 'legend-choice', player: pending.player, keepPermanentId: keepId });
+          this.addLog(`Kept one "${pending.legendName}" (Legend Rule).`);
+          resolve();
+        });
+      });
+    });
+  }
+
+  // ==================== Commander Zone Choice ====================
+
+  private showCommanderChoiceDialog(state: GameState): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const pending = state.pendingCommanderChoice!;
+      const imgUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(pending.commanderName)}&format=image&version=normal`;
+
+      let overlay = document.getElementById('commander-choice-overlay');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'commander-choice-overlay';
+        overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:200; display:flex; align-items:center; justify-content:center;';
+        document.body.appendChild(overlay);
+      }
+
+      overlay.innerHTML = `
+        <div style="background:var(--obsidian,#1a1f2e); border:2px solid var(--gold,#c9a84c); border-radius:16px; padding:24px 28px; min-width:340px; font-family:Outfit,sans-serif; color:var(--text,#e4e4e4); text-align:center;">
+          <div style="font-family:Cinzel,serif; font-size:1.1rem; color:var(--gold,#c9a84c); margin-bottom:4px;">Commander Zone Replacement</div>
+          <div style="font-size:0.8rem; color:var(--text-dim,#888); margin-bottom:16px;">${pending.commanderName} went to ${pending.currentZone}</div>
+          <img src="${imgUrl}" alt="${pending.commanderName}" style="width:180px; border-radius:10px; border:2px solid var(--gold,#c9a84c); margin-bottom:16px;" />
+          <div style="display:flex; gap:10px; justify-content:center;">
+            <button id="cmdr-to-zone" class="re-action-btn primary" style="padding:10px 20px;">Return to Command Zone</button>
+            <button id="cmdr-stay" class="re-action-btn" style="padding:10px 20px;">Leave in ${pending.currentZone}</button>
+          </div>
+        </div>
+      `;
+      overlay.style.display = 'flex';
+
+      document.getElementById('cmdr-to-zone')!.addEventListener('click', () => {
+        overlay!.style.display = 'none';
+        this.game.submitAction({ type: 'commander-zone-choice', player: pending.player, moveToCommandZone: true });
+        this.addLog(`${pending.commanderName} returned to command zone.`);
+        resolve();
+      });
+      document.getElementById('cmdr-stay')!.addEventListener('click', () => {
+        overlay!.style.display = 'none';
+        this.game.submitAction({ type: 'commander-zone-choice', player: pending.player, moveToCommandZone: false });
+        this.addLog(`${pending.commanderName} stays in ${pending.currentZone}.`);
+        resolve();
+      });
+    });
+  }
+
+  // ==================== Triggered Ability Ordering ====================
+  // NOTE: Full trigger ordering requires engine support for pendingTriggerOrder.
+  // Currently, triggers are auto-ordered. When multiple triggers fire simultaneously
+  // for the same player, the engine places them on the stack automatically.
+  // A future enhancement would let the player choose the order (APNAP rule).
+
+  // ==================== Replacement Effect Choice ====================
+  // NOTE: When multiple replacement effects apply to the same event,
+  // the affected player chooses which one to apply first (CR 614.5).
+  // Currently, replacement effects are auto-applied by priority order.
+  // A future enhancement would show a choice dialog.
+
+  // ==================== Sacrifice Choice ====================
+
+  showSacrificeChoiceDialog(player: 0 | 1, count: number, filter?: (perm: Permanent) => boolean): Promise<string[]> {
+    return new Promise<string[]>((resolve) => {
+      const state = this.game.getState();
+      const candidates = state.players[player].battlefield.filter(p => !filter || filter(p));
+      const selected = new Set<string>();
+
+      let overlay = document.getElementById('sacrifice-overlay');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'sacrifice-overlay';
+        overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:200; display:flex; align-items:center; justify-content:center;';
+        document.body.appendChild(overlay);
+      }
+
+      const renderSacDialog = () => {
+        let cardsHtml = '';
+        for (const perm of candidates) {
+          const isSelected = selected.has(perm.id);
+          const imgUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(perm.name)}&format=image&version=normal`;
+          cardsHtml += `
+            <div class="sac-pick" data-id="${perm.id}" style="cursor:pointer; text-align:center; opacity:${isSelected ? '1' : '0.7'};">
+              <img src="${imgUrl}" alt="${perm.name}" style="width:100px; border-radius:8px; border:2px solid ${isSelected ? 'var(--banned,#e53e3e)' : 'var(--border,#333)'};" />
+              <div style="font-size:0.65rem; color:var(--text,#e4e4e4); margin-top:2px;">${perm.name}</div>
+            </div>
+          `;
+        }
+
+        overlay!.innerHTML = `
+          <div style="background:var(--obsidian,#1a1f2e); border:2px solid var(--banned,#e53e3e); border-radius:16px; padding:24px 28px; min-width:340px; max-width:600px; font-family:Outfit,sans-serif; color:var(--text,#e4e4e4); text-align:center;">
+            <div style="font-family:Cinzel,serif; font-size:1.1rem; color:var(--banned,#e53e3e); margin-bottom:4px;">Sacrifice</div>
+            <div style="font-size:0.8rem; color:var(--text-dim,#888); margin-bottom:14px;">Choose ${count} permanent(s) to sacrifice (${selected.size}/${count})</div>
+            <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; max-height:300px; overflow-y:auto;">
+              ${cardsHtml}
+            </div>
+            <div style="display:flex; gap:8px; margin-top:14px; justify-content:center;">
+              <button id="sac-confirm" class="re-action-btn primary" style="padding:8px 20px;" ${selected.size !== count ? 'disabled' : ''}>Confirm Sacrifice</button>
+            </div>
+          </div>
+        `;
+        overlay!.style.display = 'flex';
+
+        overlay!.querySelectorAll('.sac-pick').forEach(el => {
+          el.addEventListener('click', () => {
+            const id = (el as HTMLElement).dataset.id!;
+            if (selected.has(id)) selected.delete(id);
+            else if (selected.size < count) selected.add(id);
+            renderSacDialog();
+          });
+        });
+
+        document.getElementById('sac-confirm')?.addEventListener('click', () => {
+          if (selected.size !== count) return;
+          overlay!.style.display = 'none';
+          resolve(Array.from(selected));
+        });
+      };
+      renderSacDialog();
+    });
+  }
+
+  // ==================== Search Library ====================
+
+  showSearchLibraryDialog(player: 0 | 1, filter?: (card: Card) => boolean, count: number = 1): Promise<string[]> {
+    return new Promise<string[]>((resolve) => {
+      const state = this.game.getState();
+      const library = state.players[player].library;
+      const candidates = filter ? library.filter(filter) : library;
+      const selected = new Set<string>();
+
+      let overlay = document.getElementById('search-library-overlay');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'search-library-overlay';
+        overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:200; display:flex; align-items:center; justify-content:center;';
+        document.body.appendChild(overlay);
+      }
+
+      // Sort candidates alphabetically
+      const sorted = [...candidates].sort((a, b) => a.name.localeCompare(b.name));
+
+      const renderSearchDialog = () => {
+        let cardsHtml = '';
+        for (const card of sorted) {
+          const isSelected = selected.has(card.id);
+          const imgUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.name)}&format=image&version=normal`;
+          cardsHtml += `
+            <div class="search-pick" data-id="${card.id}" style="cursor:pointer; text-align:center; opacity:${isSelected ? '1' : '0.7'};">
+              <img src="${imgUrl}" alt="${card.name}" style="width:90px; border-radius:8px; border:2px solid ${isSelected ? 'var(--gold,#c9a84c)' : 'var(--border,#333)'};" loading="lazy" />
+              <div style="font-size:0.6rem; color:var(--text,#e4e4e4); margin-top:2px; max-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${card.name}</div>
+            </div>
+          `;
+        }
+
+        overlay!.innerHTML = `
+          <div style="background:var(--obsidian,#1a1f2e); border:2px solid var(--gold,#c9a84c); border-radius:16px; padding:24px 28px; min-width:400px; max-width:700px; max-height:80vh; font-family:Outfit,sans-serif; color:var(--text,#e4e4e4); text-align:center; display:flex; flex-direction:column;">
+            <div style="font-family:Cinzel,serif; font-size:1.1rem; color:var(--gold,#c9a84c); margin-bottom:4px;">Search Library</div>
+            <div style="font-size:0.8rem; color:var(--text-dim,#888); margin-bottom:14px;">Choose ${count} card(s) (${selected.size}/${count}) — ${sorted.length} cards available</div>
+            <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; overflow-y:auto; flex:1; max-height:50vh; padding:4px;">
+              ${cardsHtml}
+            </div>
+            <div style="display:flex; gap:8px; margin-top:14px; justify-content:center;">
+              <button id="search-confirm" class="re-action-btn primary" style="padding:8px 20px;" ${selected.size !== count ? 'disabled' : ''}>Select</button>
+              <button id="search-cancel" class="re-action-btn" style="padding:8px 16px;">Cancel</button>
+            </div>
+          </div>
+        `;
+        overlay!.style.display = 'flex';
+
+        overlay!.querySelectorAll('.search-pick').forEach(el => {
+          el.addEventListener('click', () => {
+            const id = (el as HTMLElement).dataset.id!;
+            if (selected.has(id)) selected.delete(id);
+            else if (selected.size < count) selected.add(id);
+            renderSearchDialog();
+          });
+        });
+
+        document.getElementById('search-confirm')?.addEventListener('click', () => {
+          if (selected.size < 1) return;
+          overlay!.style.display = 'none';
+          resolve(Array.from(selected));
+        });
+        document.getElementById('search-cancel')?.addEventListener('click', () => {
+          overlay!.style.display = 'none';
+          resolve([]);
+        });
+      };
+      renderSearchDialog();
+    });
+  }
+
+  // ==================== Planeswalker Loyalty Abilities ====================
+
+  private parsePlaneswalkerAbilities(perm: Permanent): { cost: number; text: string }[] {
+    const oracle = perm.oracleText || '';
+    const abilities: { cost: number; text: string }[] = [];
+
+    // Match patterns like "+1: ..." or "−2: ..." or "0: ..."
+    const regex = /([+\u2212\-]?\d+):\s*([^\n]+)/g;
+    let match;
+    while ((match = regex.exec(oracle)) !== null) {
+      const costStr = match[1].replace('\u2212', '-');
+      const cost = parseInt(costStr);
+      abilities.push({ cost, text: match[2].trim() });
+    }
+    return abilities;
+  }
+
+  private showPlaneswalkerAbilityPicker(
+    perm: Permanent,
+    abilities: { cost: number; text: string }[],
+    player: 0 | 1,
+  ): void {
+    document.getElementById('pw-picker')?.remove();
+
+    const picker = document.createElement('div');
+    picker.id = 'pw-picker';
+    picker.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; display:flex; align-items:center; justify-content:center;';
+
+    const loyalty = perm.currentLoyalty ?? 0;
+    let abilitiesHtml = '';
+    for (let i = 0; i < abilities.length; i++) {
+      const { cost, text } = abilities[i];
+      const canActivate = loyalty + cost >= 0; // Can't go below 0 loyalty
+      const costLabel = cost >= 0 ? `+${cost}` : String(cost);
+      const costColor = cost >= 0 ? '#34d399' : '#e53e3e';
+      abilitiesHtml += `
+        <button class="pw-ability-btn" data-idx="${i}" ${!canActivate ? 'disabled' : ''} style="display:block; width:100%; text-align:left; padding:10px 14px; border:1px solid var(--border,#333); border-radius:10px; background:var(--bg-2,#141924); color:${canActivate ? 'var(--text,#e4e4e4)' : '#555'}; cursor:${canActivate ? 'pointer' : 'not-allowed'}; font-size:0.8rem; font-family:Outfit,sans-serif; margin-bottom:6px; transition:border-color 0.15s;">
+          <span style="color:${costColor}; font-weight:700; margin-right:6px;">[${costLabel}]</span>${text}
+        </button>
+      `;
+    }
+
+    picker.innerHTML = `
+      <div style="background:var(--obsidian,#1a1f2e); border:2px solid var(--gold,#c9a84c); border-radius:16px; padding:20px 24px; min-width:320px; max-width:480px; font-family:Outfit,sans-serif; color:var(--text,#e4e4e4);">
+        <div style="font-family:Cinzel,serif; font-size:1rem; color:var(--gold,#c9a84c); margin-bottom:2px;">${perm.name}</div>
+        <div style="font-size:0.75rem; color:var(--text-dim,#888); margin-bottom:12px;">Loyalty: ${loyalty} — Choose an ability</div>
+        ${abilitiesHtml}
+        <button id="pw-pick-cancel" class="re-action-btn" style="width:100%; margin-top:4px; padding:8px;">Cancel</button>
+      </div>
+    `;
+
+    document.body.appendChild(picker);
+
+    picker.querySelectorAll('.pw-ability-btn').forEach(btn => {
+      if ((btn as HTMLButtonElement).disabled) return;
+      btn.addEventListener('click', () => {
+        const idx = parseInt((btn as HTMLElement).dataset.idx || '0');
+        const ability = abilities[idx];
+        picker.remove();
+
+        // Adjust loyalty via manual counter
+        this.game.submitAction({
+          type: 'manual-counter',
+          player,
+          permanentId: perm.id,
+          counterType: 'loyalty',
+          delta: ability.cost,
+        });
+        this.addLog(`${perm.name}: [${ability.cost >= 0 ? '+' : ''}${ability.cost}] ${ability.text}`, 'info');
+
+        // Trigger manual resolution for the planeswalker ability effect
+        if (ability.text.toLowerCase().includes('target')) {
+          this.addLog('Select a target for this ability.', 'info');
+        }
+        const state = this.game.getState();
+        this.game.setState({
+          ...state,
+          needsManualResolution: true,
+          manualResolutionCard: { name: perm.name, oracleText: ability.text } as any,
+          manualResolutionController: player,
+        });
+        this.showManualResolutionPanel(this.game.getState());
+      });
+
+      (btn as HTMLElement).addEventListener('mouseenter', () => {
+        if (!(btn as HTMLButtonElement).disabled) (btn as HTMLElement).style.borderColor = 'var(--gold,#c9a84c)';
+      });
+      (btn as HTMLElement).addEventListener('mouseleave', () => {
+        (btn as HTMLElement).style.borderColor = 'var(--border,#333)';
+      });
+    });
+
+    document.getElementById('pw-pick-cancel')!.addEventListener('click', () => picker.remove());
+    picker.addEventListener('click', (e) => { if (e.target === picker) picker.remove(); });
   }
 }
 

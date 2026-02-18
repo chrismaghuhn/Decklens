@@ -60,7 +60,7 @@ function getCardImageUrl(cardName: string, version: 'normal' | 'small' = 'normal
 // ─── Card Preview ───
 
 let previewTimeout: ReturnType<typeof setTimeout> | null = null;
-function addHoverPreview(element: HTMLElement, cardName: string): void {
+export function addHoverPreview(element: HTMLElement, cardName: string): void {
   element.addEventListener('mouseenter', (e) => {
     previewTimeout = setTimeout(() => { // 200ms delay per Phase 4.5
       const preview = el('card-preview');
@@ -229,6 +229,25 @@ function renderBattlefieldZone(
     if (callbacks.pendingBlockerId === perm.id) cardEl.classList.add('selected');
 
     container.appendChild(cardEl);
+
+    // Blocker assignment label
+    if (blockerMap.has(perm.id)) {
+      const blkLabel = document.createElement('div');
+      blkLabel.className = 'blocker-label';
+      blkLabel.style.cssText = 'position:absolute; top:-10px; left:50%; transform:translateX(-50%); background:var(--banned,#e53e3e); color:#fff; font-size:0.55rem; padding:1px 6px; border-radius:4px; white-space:nowrap; z-index:2; pointer-events:none;';
+      blkLabel.textContent = 'Blocking';
+      cardEl.style.position = 'relative';
+      cardEl.appendChild(blkLabel);
+    }
+
+    // Pending blocker highlight
+    if (callbacks.pendingBlockerId === perm.id) {
+      const pendLabel = document.createElement('div');
+      pendLabel.style.cssText = 'position:absolute; bottom:-10px; left:50%; transform:translateX(-50%); background:var(--gold,#c9a84c); color:#000; font-size:0.55rem; padding:1px 6px; border-radius:4px; white-space:nowrap; z-index:2; pointer-events:none;';
+      pendLabel.textContent = 'Select attacker';
+      cardEl.style.position = 'relative';
+      cardEl.appendChild(pendLabel);
+    }
   }
 }
 
@@ -456,8 +475,11 @@ function renderLogFromState(state: GameState): void {
       div.classList.add('combat');
     }
 
-    const turnTag = `<span class="log-turn">T${entry.turn}</span> `;
-    div.innerHTML = turnTag + entry.message;
+    const turnSpan = document.createElement('span');
+    turnSpan.className = 'log-turn';
+    turnSpan.textContent = `T${entry.turn}`;
+    div.appendChild(turnSpan);
+    div.appendChild(document.createTextNode(' ' + entry.message));
     logEl.appendChild(div);
   }
 

@@ -31,13 +31,53 @@ export function addSpellToStack(
   player: 0 | 1,
   targets: Target[],
   _manaPayment: ManaPayment,
-  xValue?: number
+  xValue?: number,
+  opts?: { isFlashback?: boolean; isKicked?: boolean; isAdventure?: boolean; isFaceDown?: boolean; isEvoked?: boolean; isDashed?: boolean; oracleTextOverride?: string }
 ): GameState {
   const playerState = state.players[player];
-  const cardIndex = playerState.hand.findIndex((c) => c.id === cardId);
-  if (cardIndex === -1) return state;
 
-  const card = playerState.hand[cardIndex];
+  // Flashback: card comes from graveyard instead of hand
+  let card: Card | undefined;
+  let updatedPlayer: PlayerState;
+
+  if (opts?.isFlashback) {
+    // Flashback: card from graveyard
+    const gyIndex = playerState.graveyard.findIndex((c) => c.id === cardId);
+    if (gyIndex === -1) return state;
+    card = playerState.graveyard[gyIndex];
+    updatedPlayer = {
+      ...playerState,
+      graveyard: [
+        ...playerState.graveyard.slice(0, gyIndex),
+        ...playerState.graveyard.slice(gyIndex + 1),
+      ],
+    };
+  } else {
+    // Try hand first
+    const cardIndex = playerState.hand.findIndex((c) => c.id === cardId);
+    if (cardIndex !== -1) {
+      card = playerState.hand[cardIndex];
+      updatedPlayer = {
+        ...playerState,
+        hand: [
+          ...playerState.hand.slice(0, cardIndex),
+          ...playerState.hand.slice(cardIndex + 1),
+        ],
+      };
+    } else {
+      // Try exile (adventure creatures returning from exile, CR 715.4)
+      const exileIndex = playerState.exile.findIndex((c) => c.id === cardId);
+      if (exileIndex === -1) return state;
+      card = { ...playerState.exile[exileIndex], onAdventure: undefined };
+      updatedPlayer = {
+        ...playerState,
+        exile: [
+          ...playerState.exile.slice(0, exileIndex),
+          ...playerState.exile.slice(exileIndex + 1),
+        ],
+      };
+    }
+  }
 
   const stackObject: StackObject = {
     id: generateStackId(),
@@ -47,23 +87,26 @@ export function addSpellToStack(
     targets,
     text: card.name,
     xValue,
-  };
-
-  // Remove card from hand
-  const updatedPlayer = {
-    ...playerState,
-    hand: [
-      ...playerState.hand.slice(0, cardIndex),
-      ...playerState.hand.slice(cardIndex + 1),
-    ],
+    oracleText: opts?.oracleTextOverride,
+    isFlashback: opts?.isFlashback,
+    isKicked: opts?.isKicked,
+    isAdventure: opts?.isAdventure,
+    isFaceDown: opts?.isFaceDown,
+    isEvoked: opts?.isEvoked,
+    isDashed: opts?.isDashed,
   };
 
   const players = [...state.players] as [PlayerState, PlayerState];
   players[player] = updatedPlayer;
 
-  const castMessage = xValue !== undefined && xValue > 0
-    ? `${playerState.name} casts ${card.name} (X=${xValue}).`
-    : `${playerState.name} casts ${card.name}.`;
+  let castMessage = `${playerState.name} casts ${card.name}`;
+  if (opts?.isFlashback) castMessage += ' (flashback)';
+  if (opts?.isKicked) castMessage += ' (kicked)';
+  if (opts?.isAdventure) castMessage += ` (adventure: ${card.adventureName || card.name})`;
+  if (opts?.isEvoked) castMessage += ' (evoked)';
+  if (opts?.isDashed) castMessage += ' (dashed)';
+  if (xValue !== undefined && xValue > 0) castMessage += ` (X=${xValue})`;
+  castMessage += '.';
 
   return {
     ...state,
@@ -202,7 +245,31 @@ export function resolveTopOfStack(state: GameState): GameState {
 
     if (isPermanentType(card)) {
       // Permanent spell → battlefield
-      const permanent = createPermanentFromCard(card, controller, newState.turn);
+      let permanent = createPermanentFromCard(card, controller, newState.turn);
+      // Morph: if cast face-down, enter as 2/2 colorless creature (CR 702.36)
+      if (resolving.isFaceDown) {
+        permanent = {
+          ...permanent,
+          faceDown: true,
+          basePower: 2,
+          baseToughness: 2,
+          currentPower: 2,
+          currentToughness: 2,
+          abilities: [],
+        };
+      }
+      // Evoke: mark for immediate sacrifice after ETB (CR 702.73)
+      if (resolving.isEvoked) {
+        permanent = { ...permanent, sacrificeOnETB: true };
+      }
+      // Dash: gains haste, returns to hand at end step (CR 702.108)
+      if (resolving.isDashed) {
+        permanent = {
+          ...permanent,
+          dashedThisTurn: true,
+          temporaryKeywords: [...(permanent.temporaryKeywords || []), { keyword: 'haste', until: 'end-of-turn' }],
+        };
+      }
       const players = [...newState.players] as [PlayerState, PlayerState];
       players[controller] = {
         ...players[controller],
@@ -210,8 +277,10 @@ export function resolveTopOfStack(state: GameState): GameState {
       };
       newState = { ...newState, players };
 
+      // Determine the zone the spell was cast from for conditional ETB triggers
+      const fromZone = resolving.isFlashback ? 'graveyard' : resolving.isAdventure ? 'exile' : 'hand';
       // Check for ETB triggered abilities and queue them on the stack
-      newState = checkETBTriggers(newState, permanent);
+      newState = checkETBTriggers(newState, permanent, { fromZone });
 
       // Try to resolve ETB effects from oracle text (e.g., "When ~ enters the battlefield, draw a card")
       // Direct effect resolution for simple patterns
@@ -239,16 +308,39 @@ export function resolveTopOfStack(state: GameState): GameState {
         };
       }
     } else {
-      // Instant/Sorcery → try to auto-resolve effects BEFORE moving to graveyard
+      // Instant/Sorcery → try to auto-resolve effects BEFORE moving to destination zone
       const effectResult = resolveEffect(newState, resolving);
       newState = effectResult.state;
 
-      // Move instant/sorcery to graveyard after effect resolves
+      // Determine destination zone after resolution:
+      // - Flashback: exile instead of graveyard (CR 702.34a)
+      // - Adventure: exile with onAdventure flag (CR 715.4)
+      // - Normal: graveyard
       const players = [...newState.players] as [PlayerState, PlayerState];
-      players[controller] = {
-        ...players[controller],
-        graveyard: [...players[controller].graveyard, card],
-      };
+      if (resolving.isFlashback) {
+        players[controller] = {
+          ...players[controller],
+          exile: [...players[controller].exile, card],
+        };
+      } else if (resolving.isAdventure) {
+        const adventureCard = { ...card, onAdventure: true };
+        players[controller] = {
+          ...players[controller],
+          exile: [...players[controller].exile, adventureCard],
+        };
+      } else if (!resolving.isFlashback && card.oracleText?.toLowerCase().includes('rebound')) {
+        // Rebound (CR 702.87): exile instead of graveyard, cast again next upkeep
+        const reboundCard = { ...card, reboundExile: true };
+        players[controller] = {
+          ...players[controller],
+          exile: [...players[controller].exile, reboundCard],
+        };
+      } else {
+        players[controller] = {
+          ...players[controller],
+          graveyard: [...players[controller].graveyard, card],
+        };
+      }
       newState = { ...newState, players };
 
       if (effectResult.resolved && effectResult.description) {
@@ -457,4 +549,22 @@ export function isStackEmpty(state: GameState): boolean {
 export function peekStack(state: GameState): StackObject | null {
   if (state.stack.length === 0) return null;
   return state.stack[state.stack.length - 1];
+}
+
+/**
+ * Copy a stack object (for Fork, Twincast, etc.).
+ * Creates a new StackObject with the same properties but a new ID and controller.
+ */
+export function copyStackObject(
+  original: StackObject,
+  newController: 0 | 1,
+  newTargets?: Target[]
+): StackObject {
+  return {
+    ...original,
+    id: `copy_${original.id}_${Date.now().toString(36)}`,
+    controller: newController,
+    targets: newTargets || [...original.targets],
+    text: `Copy of ${original.text}`,
+  };
 }

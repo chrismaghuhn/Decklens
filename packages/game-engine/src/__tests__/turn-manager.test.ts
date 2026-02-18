@@ -172,7 +172,7 @@ describe('startNewTurn', () => {
 
 describe('getCurrentStepActions', () => {
   it('should return no actions during untap', () => {
-    const state = createTestState();
+    const state = { ...createTestState(), mulliganPhase: false };
     const actions = getCurrentStepActions(state);
     expect(actions).toEqual([]);
   });

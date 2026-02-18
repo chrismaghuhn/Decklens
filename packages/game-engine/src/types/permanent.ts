@@ -97,6 +97,59 @@ export interface Permanent extends Card {
    *  Phased-out permanents are treated as though they don't exist.
    *  They phase back in during their controller's untap step. */
   phasedOut?: boolean;
+
+  // ─── Alternative Cast Flags ───
+
+  /** Whether this creature was dashed (return to hand at end step, CR 702.108) */
+  dashedThisTurn?: boolean;
+  /** Whether this creature should be sacrificed (evoke ETB, CR 702.73) */
+  sacrificeOnETB?: boolean;
+  /** Whether this creature is goaded (must attack, CR 701.38) */
+  goaded?: boolean;
+}
+
+/**
+ * Transform a permanent to its back face (CR 701.28).
+ * Swaps name, type line, oracle text, P/T, loyalty, image, and abilities
+ * with the back face data. Stores the current front face in backFace for re-transform.
+ * Returns null if the permanent has no back face.
+ */
+export function transformPermanent(perm: Permanent): Permanent | null {
+  if (!perm.backFace) return null;
+  const bf = perm.backFace;
+  const bp = bf.power ? parseInt(bf.power, 10) || 0 : undefined;
+  const bt = bf.toughness ? parseInt(bf.toughness, 10) || 0 : undefined;
+  return {
+    ...perm,
+    name: bf.name,
+    typeLine: bf.typeLine,
+    oracleText: bf.oracleText,
+    power: bf.power,
+    toughness: bf.toughness,
+    loyalty: bf.loyalty,
+    imageUrl: bf.imageUrl || perm.imageUrl,
+    basePower: bp,
+    baseToughness: bt,
+    currentPower: bp,
+    currentToughness: bt,
+    currentLoyalty: bf.loyalty ? parseInt(bf.loyalty, 10) || 0 : perm.currentLoyalty,
+    // Store current front face in backFace for re-transform
+    backFace: {
+      name: perm.name,
+      manaCost: perm.manaCost,
+      typeLine: perm.typeLine,
+      oracleText: perm.oracleText || '',
+      power: perm.power,
+      toughness: perm.toughness,
+      loyalty: perm.loyalty,
+      imageUrl: perm.imageUrl,
+    },
+    flipped: !perm.flipped,
+    abilities: parseAbilities({ ...perm, oracleText: bf.oracleText } as Card),
+    // Reset damage when transforming (new creature characteristics)
+    damage: 0,
+    temporaryPtMods: [],
+  };
 }
 
 /** Create a Permanent from a Card when it enters the battlefield */

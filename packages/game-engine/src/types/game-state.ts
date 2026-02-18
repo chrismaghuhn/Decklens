@@ -112,6 +112,9 @@ export interface GameState {
   /** How many cards the pending discard player must discard */
   pendingDiscardCount?: number;
 
+  /** Which player is the monarch, or null if no one (CR 721) */
+  monarch?: 0 | 1 | null;
+
   /** Queue of extra turns to be taken (CR 500.7). Shift from front when starting a new turn. */
   extraTurns?: { player: 0 | 1 }[];
   /** Number of extra combat phases remaining this turn (CR 506.1). Decremented after each extra combat. */

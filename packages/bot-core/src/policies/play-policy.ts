@@ -1,6 +1,6 @@
 import type { GameState, GameAction, Card, ManaPayment } from '@mtg/game-engine';
 import {
-  parseManaCost, canPayCost, autoPayCost,
+  parseManaCost, canPayCost, autoPayCost, totalMana,
   isLand, isCreature, isInstant, hasFlash,
 } from '@mtg/game-engine';
 import { scoreCardInHand, getLandsInHand, getSpellsInHand } from '../evaluators/hand-evaluator.ts';
@@ -111,9 +111,29 @@ export function getCastCandidates(state: GameState, player: 0 | 1): PlayCandidat
       if (state.activePlayer !== player || state.stack.length > 0) continue;
     }
 
-    // Check mana
+    // Check mana (with X-spell support)
     const cost = parseManaCost(card.manaCost);
-    const payment = autoPayCost(ps.manaPool, cost, ps.life);
+    let payment = autoPayCost(ps.manaPool, cost, ps.life);
+    let xValue = 0;
+
+    // X-spell detection: if manaCost contains {X}, try to pay with X≥1
+    if (!payment && card.manaCost?.includes('{X}')) {
+      // Try with X=0 first (just the base cost)
+      const baseCost = parseManaCost(card.manaCost.replace(/\{X\}/g, ''));
+      payment = autoPayCost(ps.manaPool, baseCost, ps.life);
+      if (payment) {
+        // Calculate max X from remaining mana
+        const totalPool = Object.values(ps.manaPool).reduce((s, v) => s + v, 0);
+        const baseCostTotal = Object.values(baseCost).reduce((s, v) => s + v, 0);
+        xValue = Math.max(0, totalPool - baseCostTotal);
+      }
+    } else if (payment && card.manaCost?.includes('{X}')) {
+      // Payment succeeded with X=0, calculate max X
+      const totalPool = Object.values(ps.manaPool).reduce((s, v) => s + v, 0);
+      const costTotal = Object.values(cost).reduce((s, v) => s + v, 0);
+      xValue = Math.max(0, totalPool - costTotal);
+    }
+
     if (!payment) continue;
 
     // Score the card
@@ -127,6 +147,9 @@ export function getCastCandidates(state: GameState, player: 0 | 1): PlayCandidat
     // CMC efficiency (prefer cheaper spells when equal priority)
     priority += (10 - card.cmc) * 0.1;
 
+    // X-spell bonus: higher X = more valuable
+    if (xValue > 0) priority += xValue * 1.5;
+
     // Creature bonus (develops board)
     if (isCreature(card)) priority += 1;
 
@@ -138,15 +161,138 @@ export function getCastCandidates(state: GameState, player: 0 | 1): PlayCandidat
         cardId: card.id,
         targets: [], // Simplified — no targeting AI yet
         manaPayment: payment,
-      },
+        ...(xValue > 0 ? { xValue } : {}),
+      } as any,
       priority,
-      reason: `Cast ${card.name} (tags: ${card.tags.join(', ')})`,
+      reason: `Cast ${card.name}${xValue > 0 ? ` (X=${xValue})` : ''} (tags: ${card.tags.join(', ')})`,
+    });
+  }
+
+  // ── Alternative Cost Candidates ──
+
+  // Evoke: cast creature for evoke cost (ETB then sacrifice)
+  for (const card of ps.hand) {
+    if (isLand(card)) continue;
+    const oracle = card.oracleText?.toLowerCase() || '';
+    const evokeMatch = oracle.match(/evoke\s+(\{[^}]+\})/i);
+    if (!evokeMatch) continue;
+    // Don't duplicate if already castable normally
+    if (candidates.some(c => c.card.id === card.id)) continue;
+    const evokeCost = parseManaCost(evokeMatch[1]);
+    const evokePayment = autoPayCost(ps.manaPool, evokeCost, ps.life);
+    if (!evokePayment) continue;
+    let priority = 0;
+    for (const tag of card.tags) priority += weights[tag] ?? 1;
+    priority += 3; // Bonus for cheap ETB effect
+    candidates.push({
+      card,
+      action: { type: 'cast-spell', player, cardId: card.id, targets: [], manaPayment: evokePayment, evokePaid: true } as any,
+      priority,
+      reason: `Evoke ${card.name}`,
+    });
+  }
+
+  // Dash: cast creature for dash cost (haste, return at end step)
+  for (const card of ps.hand) {
+    if (isLand(card)) continue;
+    const oracle = card.oracleText?.toLowerCase() || '';
+    const dashMatch = oracle.match(/dash\s+(\{[^}]+\})/i);
+    if (!dashMatch) continue;
+    if (candidates.some(c => c.card.id === card.id && (c.action as any).dashPaid)) continue;
+    const dashCost = parseManaCost(dashMatch[1]);
+    const dashPayment = autoPayCost(ps.manaPool, dashCost, ps.life);
+    if (!dashPayment) continue;
+    let priority = 0;
+    for (const tag of card.tags) priority += weights[tag] ?? 1;
+    priority += 2; // Surprise attack bonus
+    if (isCreature(card)) priority += 1;
+    candidates.push({
+      card,
+      action: { type: 'cast-spell', player, cardId: card.id, targets: [], manaPayment: dashPayment, dashPaid: true } as any,
+      priority,
+      reason: `Dash ${card.name}`,
+    });
+  }
+
+  // Flashback: cast from graveyard
+  for (const card of ps.graveyard) {
+    const oracle = card.oracleText?.toLowerCase() || '';
+    const fbMatch = oracle.match(/flashback\s+(\{[^}]+\})/i);
+    if (!fbMatch) continue;
+    if (state.step !== 'main' && !isInstant(card) && !hasFlash(card)) continue;
+    if (!isInstant(card) && !hasFlash(card)) {
+      if (state.activePlayer !== player || state.stack.length > 0) continue;
+    }
+    const fbCost = parseManaCost(fbMatch[1]);
+    const fbPayment = autoPayCost(ps.manaPool, fbCost, ps.life);
+    if (!fbPayment) continue;
+    let priority = 0;
+    for (const tag of card.tags) priority += weights[tag] ?? 1;
+    priority += 2; // Bonus for "free" card from graveyard
+    candidates.push({
+      card,
+      action: { type: 'cast-spell', player, cardId: card.id, targets: [], manaPayment: fbPayment, isFlashback: true } as any,
+      priority,
+      reason: `Flashback ${card.name}`,
     });
   }
 
   // Sort by priority descending
   candidates.sort((a, b) => b.priority - a.priority);
 
+  return candidates;
+}
+
+/**
+ * Get cycling candidates from hand.
+ * Cards with cycling can be discarded for their cycling cost to draw a card.
+ */
+export function getCyclingCandidates(state: GameState, player: 0 | 1): PlayCandidate[] {
+  const ps = state.players[player];
+  const candidates: PlayCandidate[] = [];
+  const currentMana = totalMana(ps.manaPool);
+
+  for (const card of ps.hand) {
+    const oracle = card.oracleText?.toLowerCase() || '';
+    const cycleMatch = oracle.match(/cycling\s+(\{[^}]+\})/i);
+    if (!cycleMatch) continue;
+
+    // Check if we can pay the cycling cost
+    const cycleCostStr = cycleMatch[1];
+    const cycleCost = parseManaCost(cycleCostStr);
+    const payment = autoPayCost(ps.manaPool, cycleCost, ps.life);
+    if (!payment) continue;
+
+    // Score cycling decision
+    let priority = 3; // Base cycling score
+    const cardValue = scoreCardInHand(card, ps.hand.filter(c => isLand(c)).length, state.turn);
+
+    // Low-value cards are better to cycle
+    if (cardValue <= 3) priority += 3;
+    else if (cardValue <= 5) priority += 1;
+    else priority -= 5; // Don't cycle high-value cards
+
+    // Cycle more aggressively with large hands
+    if (ps.hand.length > 5) priority += 2;
+
+    // Cycle when mana-stuck (no lands and expensive hand)
+    const landCount = ps.hand.filter(c => isLand(c)).length;
+    if (landCount === 0 && state.turn <= 3) priority += 2;
+
+    // Don't cycle if hand is small
+    if (ps.hand.length <= 3) priority -= 3;
+
+    if (priority > 0) {
+      candidates.push({
+        card,
+        action: { type: 'cycle', player, cardId: card.id } as any,
+        priority,
+        reason: `Cycle ${card.name} (value: ${cardValue.toFixed(1)})`,
+      });
+    }
+  }
+
+  candidates.sort((a, b) => b.priority - a.priority);
   return candidates;
 }
 

@@ -60,6 +60,17 @@ export function scoreCardInHand(
   // Win conditions are less urgent in opening hand
   if (card.tags.includes('win-condition') || card.tags.includes('finisher')) score -= 1;
 
+  // ── Mechanic Flexibility Bonuses (Phase 4) ──
+  // Cards with alternative uses/modes are more valuable in hand
+  const oracle = card.oracleText?.toLowerCase() || '';
+  if (/cycling/i.test(oracle)) score += 1.5;    // Can cycle away if not needed
+  if (/flashback/i.test(oracle)) score += 1;     // Double use from graveyard
+  if (/evoke/i.test(oracle)) score += 1;         // Cheap ETB option
+  if (/dash/i.test(oracle)) score += 0.5;        // Surprise attack option
+  if (/kicker/i.test(oracle)) score += 0.5;      // Scales with mana
+  if (/rebound/i.test(oracle)) score += 1;       // Free second cast
+  if (/adventure/i.test(oracle)) score += 1.5;   // Two cards in one
+
   return score;
 }
 

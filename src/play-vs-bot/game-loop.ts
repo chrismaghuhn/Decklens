@@ -302,6 +302,140 @@ export class GameLoop {
     return targets;
   }
 
+  /** Get alternative casting options for a card */
+  private getAlternativeCastOptions(card: Card, playerState: any, state: GameState): { label: string; action: () => void }[] {
+    const options: { label: string; action: () => void }[] = [];
+    const oracle = (card.oracleText ?? '').toLowerCase();
+    const cost = parseManaCost(card.manaCost);
+    const tapResult = autoTapLandsForCost(playerState, cost);
+
+    // Normal cast
+    if (tapResult) {
+      options.push({
+        label: `Cast (${card.manaCost})`,
+        action: () => {
+          const updatedState = {
+            ...state,
+            players: state.players.map((p, i) =>
+              i === this.humanPlayer ? tapResult.updatedPlayer : p,
+            ) as [typeof state.players[0], typeof state.players[1]],
+          };
+          this.game.setState(updatedState);
+          if (this.spellNeedsTarget(card)) { this.enterTargetingMode(card); return; }
+          this.submitAction({ type: 'cast-spell', player: this.humanPlayer, cardId: card.id, targets: [], manaPayment: tapResult.payment });
+        },
+      });
+    }
+
+    // Evoke
+    const evokeMatch = oracle.match(/evoke\s+(\{[^}]+\})/i);
+    if (evokeMatch) {
+      const evokeCost = parseManaCost(evokeMatch[1]);
+      const evokeTap = autoTapLandsForCost(playerState, evokeCost);
+      if (evokeTap) {
+        options.push({
+          label: `Evoke (${evokeMatch[1]})`,
+          action: () => {
+            const updatedState = {
+              ...state,
+              players: state.players.map((p, i) =>
+                i === this.humanPlayer ? evokeTap.updatedPlayer : p,
+              ) as [typeof state.players[0], typeof state.players[1]],
+            };
+            this.game.setState(updatedState);
+            this.submitAction({ type: 'cast-spell', player: this.humanPlayer, cardId: card.id, targets: [], manaPayment: evokeTap.payment, evokePaid: true } as any);
+          },
+        });
+      }
+    }
+
+    // Dash
+    const dashMatch = oracle.match(/dash\s+(\{[^}]+\})/i);
+    if (dashMatch) {
+      const dashCost = parseManaCost(dashMatch[1]);
+      const dashTap = autoTapLandsForCost(playerState, dashCost);
+      if (dashTap) {
+        options.push({
+          label: `Dash (${dashMatch[1]})`,
+          action: () => {
+            const updatedState = {
+              ...state,
+              players: state.players.map((p, i) =>
+                i === this.humanPlayer ? dashTap.updatedPlayer : p,
+              ) as [typeof state.players[0], typeof state.players[1]],
+            };
+            this.game.setState(updatedState);
+            this.submitAction({ type: 'cast-spell', player: this.humanPlayer, cardId: card.id, targets: [], manaPayment: dashTap.payment, dashPaid: true } as any);
+          },
+        });
+      }
+    }
+
+    // Cycling (always available, not a cast)
+    const cycleMatch = oracle.match(/cycling\s+(\{[^}]+\})/i);
+    if (cycleMatch) {
+      const cycleCost = parseManaCost(cycleMatch[1]);
+      const cycleTap = autoTapLandsForCost(playerState, cycleCost);
+      if (cycleTap) {
+        options.push({
+          label: `Cycle (${cycleMatch[1]})`,
+          action: () => {
+            const updatedState = {
+              ...state,
+              players: state.players.map((p, i) =>
+                i === this.humanPlayer ? cycleTap.updatedPlayer : p,
+              ) as [typeof state.players[0], typeof state.players[1]],
+            };
+            this.game.setState(updatedState);
+            this.submitAction({ type: 'cycle', player: this.humanPlayer, cardId: card.id } as any);
+          },
+        });
+      }
+    }
+
+    return options;
+  }
+
+  /** Show a modal for choosing between cast options */
+  private showCostModal(card: Card, options: { label: string; action: () => void }[], _state: GameState): void {
+    // Remove existing modal
+    const existing = document.getElementById('cost-modal');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'cost-modal';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:1000;display:flex;align-items:center;justify-content:center;';
+
+    const modal = document.createElement('div');
+    modal.style.cssText = 'background:var(--obsidian,#1a1f2e);border:1px solid var(--gold,#c9a84c);border-radius:12px;padding:20px;min-width:280px;text-align:center;';
+
+    const title = document.createElement('h3');
+    title.textContent = `Cast ${card.name}`;
+    title.style.cssText = 'color:var(--gold,#c9a84c);margin:0 0 16px 0;font-family:Cinzel,serif;';
+    modal.appendChild(title);
+
+    for (const opt of options) {
+      const btn = document.createElement('button');
+      btn.textContent = opt.label;
+      btn.style.cssText = 'display:block;width:100%;padding:10px 16px;margin:8px 0;background:var(--abyss,#0f1623);color:var(--text,#e2e8f0);border:1px solid var(--border,#2d3748);border-radius:8px;cursor:pointer;font-size:14px;font-family:Outfit,sans-serif;';
+      btn.addEventListener('mouseenter', () => { btn.style.borderColor = 'var(--gold,#c9a84c)'; });
+      btn.addEventListener('mouseleave', () => { btn.style.borderColor = 'var(--border,#2d3748)'; });
+      btn.addEventListener('click', () => { overlay.remove(); opt.action(); });
+      modal.appendChild(btn);
+    }
+
+    // Cancel button
+    const cancel = document.createElement('button');
+    cancel.textContent = 'Cancel';
+    cancel.style.cssText = 'display:block;width:100%;padding:8px;margin-top:12px;background:transparent;color:#888;border:none;cursor:pointer;font-size:13px;';
+    cancel.addEventListener('click', () => overlay.remove());
+    modal.appendChild(cancel);
+
+    overlay.appendChild(modal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+  }
+
   /** Check if a spell needs targeting (heuristic based on oracle text) */
   private spellNeedsTarget(card: Card): boolean {
     const text = (card.oracleText ?? '').toLowerCase();
@@ -342,7 +476,35 @@ export class GameLoop {
     if (!isLandCard) {
       const me = state.players[this.humanPlayer];
       const typeLower = card.typeLine.toLowerCase();
-      const isInstantOrFlash = typeLower.includes('instant') || (card.oracleText ?? '').toLowerCase().includes('flash');
+      const oracleLower = (card.oracleText ?? '').toLowerCase();
+      const isInstantOrFlash = typeLower.includes('instant') || oracleLower.includes('flash');
+
+      // Check for alternative casting options
+      const altOptions = this.getAlternativeCastOptions(card, me, state);
+
+      // If there are alternative options, show a modal to choose
+      if (altOptions.length > 1) {
+        this.showCostModal(card, altOptions, state);
+        return;
+      }
+
+      // Check for cycling (can be done anytime, doesn't need main phase)
+      const cycleMatch = oracleLower.match(/cycling\s+(\{[^}]+\})/i);
+      if (cycleMatch && legalTypes.includes('cycle' as any)) {
+        const cycleCost = parseManaCost(cycleMatch[1]);
+        const cycleTap = autoTapLandsForCost(me, cycleCost);
+        if (cycleTap) {
+          const updatedState = {
+            ...state,
+            players: state.players.map((p, i) =>
+              i === this.humanPlayer ? cycleTap.updatedPlayer : p,
+            ) as [typeof state.players[0], typeof state.players[1]],
+          };
+          this.game.setState(updatedState);
+          this.submitAction({ type: 'cycle', player: this.humanPlayer, cardId: card.id } as any);
+          return;
+        }
+      }
 
       // Timing check: sorcery-speed only during main phase with empty stack on your turn
       if (!isInstantOrFlash && (!isMainPhase || state.stack.length > 0)) {

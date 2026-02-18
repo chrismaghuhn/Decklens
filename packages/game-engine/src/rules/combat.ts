@@ -72,8 +72,17 @@ export function resolveCombatDamage(
 
     if (blockers.length === 0) {
       // Unblocked — damage goes to defending player
-      defenderLife -= power;
-      logs.push(`${attackerPerm.name} deals ${power} damage to ${players[defendingPlayer].name}.`);
+      // Infect (CR 702.89): damage to players is dealt as poison counters instead of life loss
+      if (hasKeyword(attackerPerm, 'infect')) {
+        players[defendingPlayer] = {
+          ...players[defendingPlayer],
+          poisonCounters: players[defendingPlayer].poisonCounters + power,
+        };
+        logs.push(`${attackerPerm.name} deals ${power} poison to ${players[defendingPlayer].name}.`);
+      } else {
+        defenderLife -= power;
+        logs.push(`${attackerPerm.name} deals ${power} damage to ${players[defendingPlayer].name}.`);
+      }
 
       // Track commander damage
       if (isCommanderPermanent(attackerPerm, players[activePlayer])) {
@@ -84,7 +93,7 @@ export function resolveCombatDamage(
         });
       }
 
-      // Lifelink
+      // Lifelink (works with infect too — CR 702.89c)
       if (hasKeyword(attackerPerm, 'lifelink')) {
         players[activePlayer] = {
           ...players[activePlayer],
@@ -125,13 +134,24 @@ export function resolveCombatDamage(
             } else {
               const idx = attackerBattlefield.findIndex((p) => p.id === attackerPerm.id);
               if (idx !== -1) {
-                attackerBattlefield[idx] = {
-                  ...attackerBattlefield[idx],
-                  damage: attackerBattlefield[idx].damage + blockerPower,
-                  // Deathtouch: any damage from a deathtouch source marks creature
-                  ...(hasKeyword(blockerPerm, 'deathtouch') ? { deathtouched: true } : {}),
-                } as any;
-                logs.push(`${blockerPerm.name} deals ${blockerPower} damage to ${attackerPerm.name}.`);
+                // Infect/Wither (CR 702.89/702.79): damage to creatures as -1/-1 counters
+                if (hasKeyword(blockerPerm, 'infect') || hasKeyword(blockerPerm, 'wither')) {
+                  const prevCounters = attackerBattlefield[idx].counters || {};
+                  attackerBattlefield[idx] = {
+                    ...attackerBattlefield[idx],
+                    counters: { ...prevCounters, '-1/-1': (prevCounters['-1/-1'] || 0) + blockerPower },
+                    ...(hasKeyword(blockerPerm, 'deathtouch') ? { deathtouched: true } : {}),
+                  } as any;
+                  logs.push(`${blockerPerm.name} puts ${blockerPower} -1/-1 counters on ${attackerPerm.name}.`);
+                } else {
+                  attackerBattlefield[idx] = {
+                    ...attackerBattlefield[idx],
+                    damage: attackerBattlefield[idx].damage + blockerPower,
+                    // Deathtouch: any damage from a deathtouch source marks creature
+                    ...(hasKeyword(blockerPerm, 'deathtouch') ? { deathtouched: true } : {}),
+                  } as any;
+                  logs.push(`${blockerPerm.name} deals ${blockerPower} damage to ${attackerPerm.name}.`);
+                }
               }
 
               // Lifelink on blocker
@@ -167,13 +187,24 @@ export function resolveCombatDamage(
 
             const bIdx = defenderBattlefield.findIndex((p) => p.id === blockerPerm.id);
             if (bIdx !== -1) {
-              defenderBattlefield[bIdx] = {
-                ...defenderBattlefield[bIdx],
-                damage: defenderBattlefield[bIdx].damage + actualDamage,
-                // Deathtouch: any damage from a deathtouch source marks creature
-                ...(hasKeyword(attackerPerm, 'deathtouch') ? { deathtouched: true } : {}),
-              } as any;
-              logs.push(`${attackerPerm.name} deals ${actualDamage} damage to ${blockerPerm.name}.`);
+              // Infect/Wither (CR 702.89/702.79): damage to creatures as -1/-1 counters
+              if (hasKeyword(attackerPerm, 'infect') || hasKeyword(attackerPerm, 'wither')) {
+                const prevCounters = defenderBattlefield[bIdx].counters || {};
+                defenderBattlefield[bIdx] = {
+                  ...defenderBattlefield[bIdx],
+                  counters: { ...prevCounters, '-1/-1': (prevCounters['-1/-1'] || 0) + actualDamage },
+                  ...(hasKeyword(attackerPerm, 'deathtouch') ? { deathtouched: true } : {}),
+                } as any;
+                logs.push(`${attackerPerm.name} puts ${actualDamage} -1/-1 counters on ${blockerPerm.name}.`);
+              } else {
+                defenderBattlefield[bIdx] = {
+                  ...defenderBattlefield[bIdx],
+                  damage: defenderBattlefield[bIdx].damage + actualDamage,
+                  // Deathtouch: any damage from a deathtouch source marks creature
+                  ...(hasKeyword(attackerPerm, 'deathtouch') ? { deathtouched: true } : {}),
+                } as any;
+                logs.push(`${attackerPerm.name} deals ${actualDamage} damage to ${blockerPerm.name}.`);
+              }
             }
 
             remainingPower -= actualDamage;
@@ -191,8 +222,17 @@ export function resolveCombatDamage(
 
       // Trample: remaining damage goes to defending player
       if (remainingPower > 0 && hasKeyword(attackerPerm, 'trample')) {
-        defenderLife -= remainingPower;
-        logs.push(`${attackerPerm.name} tramples ${remainingPower} damage to ${players[defendingPlayer].name}.`);
+        // Infect + Trample: excess damage as poison counters (CR 702.89)
+        if (hasKeyword(attackerPerm, 'infect')) {
+          players[defendingPlayer] = {
+            ...players[defendingPlayer],
+            poisonCounters: players[defendingPlayer].poisonCounters + remainingPower,
+          };
+          logs.push(`${attackerPerm.name} tramples ${remainingPower} poison to ${players[defendingPlayer].name}.`);
+        } else {
+          defenderLife -= remainingPower;
+          logs.push(`${attackerPerm.name} tramples ${remainingPower} damage to ${players[defendingPlayer].name}.`);
+        }
 
         if (isCommanderPermanent(attackerPerm, players[activePlayer])) {
           commanderDamageDealt.push({
@@ -213,6 +253,15 @@ export function resolveCombatDamage(
   }
 
   // Apply updated battlefields and life
+  // CRITICAL: Merge defenderLife (combat damage) with any lifelink gains
+  // that were already applied to players[defendingPlayer].life during blocker damage.
+  // defenderLife started at the original life total, so the delta from combat damage is:
+  //   defenderLife - originalDefenderLife
+  // We apply that delta on top of whatever life the defending player has now
+  // (which may have been increased by blocker lifelink).
+  const originalDefenderLife = state.players[defendingPlayer].life;
+  const combatDamageDelta = defenderLife - originalDefenderLife;
+
   players[activePlayer] = {
     ...players[activePlayer],
     battlefield: attackerBattlefield,
@@ -220,10 +269,21 @@ export function resolveCombatDamage(
   players[defendingPlayer] = {
     ...players[defendingPlayer],
     battlefield: defenderBattlefield,
-    life: defenderLife,
+    life: players[defendingPlayer].life + combatDamageDelta,
   };
 
-  const logEntries = logs.map((message) => ({
+  // Monarch: combat damage to the monarch steals the crown (CR 721.3)
+  let monarchStolen = false;
+  if (state.monarch === defendingPlayer) {
+    // Check if any attacker dealt combat damage to the defending player
+    const anyDamageToDefender = combatDamageDelta < 0;
+    if (anyDamageToDefender) {
+      monarchStolen = true;
+      logs.push(`${players[activePlayer].name} deals combat damage to the monarch and becomes the new monarch!`);
+    }
+  }
+
+  const finalLogEntries = logs.map((message) => ({
     timestamp: Date.now(),
     turn: state.turn,
     phase: state.phase as GameState['phase'],
@@ -236,7 +296,8 @@ export function resolveCombatDamage(
     state: {
       ...state,
       players,
-      log: [...state.log, ...logEntries],
+      log: [...state.log, ...finalLogEntries],
+      ...(monarchStolen ? { monarch: activePlayer } : {}),
     },
     commanderDamageDealt,
   };
@@ -304,27 +365,28 @@ function isCommanderPermanent(perm: Permanent, player: PlayerState): boolean {
     );
   }
   
-  // Command zone is empty - commander was cast
-  // Check if this is the cast commander (legendary, owned by player, 
-  // and matches an ID in the commanderDamage map)
+  // Command zone is empty - commander was cast and is on the battlefield
+  // In EDH, if the command zone is empty, the legendary creature owned by the player IS the commander
   const isLegendary = perm.typeLine.toLowerCase().includes('legendary');
+  const isCreature = perm.typeLine.toLowerCase().includes('creature');
   const isOwner = perm.owner === player.id;
-  
-  // Check if this permanent's ID is tracked in commander damage
-  // (indicates it dealt damage as a commander)
-  const hasDealtCommanderDamage = Object.keys(player.commanderDamage || {}).includes(perm.id);
-  
-  // Also check if the commander was cast (track by name in cast history)
-  // This is a heuristic for the case where commander just entered battlefield
-  return isLegendary && isOwner && (hasDealtCommanderDamage || player.commanderTax > 0);
+
+  return isLegendary && isCreature && isOwner;
 }
 
 /**
  * Check if a permanent has a keyword ability.
- * Checks both parsed abilities[] array AND oracle text for keywords.
+ * Checks parsed abilities[] array, temporary keywords, and the keywords line
+ * of oracle text (first line only, to avoid false positives from ability text
+ * like "destroy target creature with flying").
  */
 export function hasKeyword(perm: Permanent, keyword: string): boolean {
   const lowerKw = keyword.toLowerCase();
+  // Check keyword counters (Ikoria+, CR 122.1b)
+  // e.g., flying counter, deathtouch counter, first strike counter
+  if (perm.counters && perm.counters[lowerKw] && perm.counters[lowerKw] > 0) {
+    return true;
+  }
   // Check parsed static abilities first (fast path)
   if (perm.abilities?.some(a => a.type === 'static' && a.text.toLowerCase().includes(lowerKw))) {
     return true;
@@ -333,8 +395,40 @@ export function hasKeyword(perm: Permanent, keyword: string): boolean {
   if (perm.temporaryKeywords?.some(tk => tk.keyword.toLowerCase() === lowerKw)) {
     return true;
   }
-  // Fallback: check oracle text directly (catches keywords not in first line)
-  return (perm.oracleText || '').toLowerCase().includes(lowerKw);
+  // Fallback: check the FIRST LINE of oracle text only.
+  // MTG keywords appear on the first line (or as standalone lines).
+  // Checking the full oracle text causes false positives where keywords
+  // appear in ability descriptions (e.g., "target creature gains flying").
+  const oracle = (perm.oracleText || '').toLowerCase();
+  if (!oracle) return false;
+  const lines = oracle.split('\n');
+  // Check each line: a keyword line is typically a comma-separated list
+  // of keywords (e.g., "flying, first strike, trample") or a single keyword.
+  // We match keywords that appear as standalone words at the start of a line
+  // or in a comma-separated keyword list, NOT within longer sentences.
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    // If line is a keyword list (no colon for activated abilities, no period for rules text)
+    // Keyword lines: "Flying", "Flying, trample", "First strike", "Deathtouch, lifelink"
+    // Non-keyword lines contain colons, periods, or start with conditional words
+    const isKeywordLine = !trimmed.includes(':') && !trimmed.includes('.') &&
+      !trimmed.startsWith('when') && !trimmed.startsWith('if') &&
+      !trimmed.startsWith('at ') && !trimmed.startsWith('as ') &&
+      !trimmed.startsWith('target') && !trimmed.startsWith('each') &&
+      !trimmed.startsWith('whenever') && !trimmed.startsWith('destroy') &&
+      !trimmed.startsWith('exile') && !trimmed.startsWith('return') &&
+      !trimmed.startsWith('put') && !trimmed.startsWith('create') &&
+      !trimmed.startsWith('search') && !trimmed.startsWith('sacrifice') &&
+      !trimmed.startsWith('draw') && !trimmed.startsWith('discard') &&
+      !trimmed.startsWith('counter') && !trimmed.startsWith('choose');
+    if (isKeywordLine) {
+      // Split by comma and check each keyword
+      const keywords = trimmed.split(',').map(k => k.trim());
+      if (keywords.some(k => k === lowerKw)) return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -495,6 +589,17 @@ export function canBlock(blocker: Permanent, attacker: Permanent, defenderBattle
     }
   }
 
+  // Power-based blocking restriction: "can't be blocked by creatures with power N or less"
+  const powerRestrict = attacker.oracleText?.match(/can't\s+be\s+blocked\s+by\s+creatures\s+with\s+power\s+(\d+)\s+or\s+less/i);
+  if (powerRestrict) {
+    const threshold = parseInt(powerRestrict[1], 10);
+    if ((blocker.currentPower ?? 0) <= threshold) return false;
+  }
+
+  // Generalized N-or-more blockers: "can't be blocked except by N or more creatures"
+  // This is checked at the validation level (like menace), not here per-blocker
+  // But we note it for reference: handled in validateDeclareBlockers()
+
   return true;
 }
 
@@ -628,4 +733,22 @@ export function applyDamageAssignment(
     },
     pendingDamageAssignment: null,
   };
+}
+
+/**
+ * Get IDs of creatures that MUST attack this combat (goaded creatures, CR 701.38).
+ * In 1v1, goaded creatures must attack the other player if able.
+ */
+export function getMustAttackCreatures(state: GameState): string[] {
+  const player = state.players[state.activePlayer];
+  return player.battlefield
+    .filter(p =>
+      p.goaded &&
+      p.currentPower !== undefined &&
+      !p.tapped &&
+      !p.phasedOut &&
+      (!p.summoningSick || hasKeyword(p, 'haste')) &&
+      !hasKeyword(p, 'defender')
+    )
+    .map(p => p.id);
 }

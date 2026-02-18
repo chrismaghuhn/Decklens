@@ -15,9 +15,10 @@ import type { PlayerState } from '../types/player.ts';
 import type { Permanent } from '../types/permanent.ts';
 import type { Card } from '../types/card.ts';
 import { drawCards, shuffleLibrary, millCards } from '../engine/zone-manager.ts';
-import { cardToPermanent } from '../types/permanent.ts';
+import { cardToPermanent, transformPermanent } from '../types/permanent.ts';
 import { generateCardId } from '../engine/factory.ts';
 import { hasProtectionFrom } from './combat.ts';
+import { copyStackObject } from './stack.ts';
 import { checkLeavesBattlefieldTriggers, checkSacrificeTriggers, checkLifegainTriggers } from './triggers.ts';
 
 // ─── Types ───
@@ -60,14 +61,17 @@ function removePermanentFromBattlefield(state: GameState, permanentId: string, t
   const found = findPermanentById(state, permanentId);
   if (!found) return state;
 
-  const { playerIdx, permIdx, perm } = found;
+  const { playerIdx, perm } = found;
 
   // Check for leaves-battlefield triggers before removal
   state = checkLeavesBattlefieldTriggers(state, perm);
 
+  // Re-find the permanent after triggers may have modified the battlefield
   const player = state.players[playerIdx];
+  const currentIdx = player.battlefield.findIndex(p => p.id === permanentId);
+  if (currentIdx === -1) return state; // Already removed by a trigger
   const updatedBf = [...player.battlefield];
-  updatedBf.splice(permIdx, 1);
+  updatedBf.splice(currentIdx, 1);
 
   // Move the card object to the destination zone
   const cardObj: Card = {
@@ -160,7 +164,9 @@ function getTargetPermanent(state: GameState, targets: Target[]): { perm: Perman
 function getTargetPlayer(targets: Target[]): (0 | 1) | null {
   const playerTarget = targets.find(t => t.type === 'player');
   if (!playerTarget) return null;
-  return parseInt(playerTarget.id) as 0 | 1;
+  const parsed = parseInt(playerTarget.id);
+  if (isNaN(parsed) || (parsed !== 0 && parsed !== 1)) return null;
+  return parsed as 0 | 1;
 }
 
 function addLog(state: GameState, player: 0 | 1, message: string): GameState {
@@ -1374,6 +1380,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
           source: 'gain-control-eot',
           turn: state.turn,
         },
+        // Grant haste so the stolen creature can attack immediately (Threaten effect)
+        temporaryKeywords: [...(perm.temporaryKeywords || []), { keyword: 'haste', source: 'gain-control-eot', turn: state.turn }],
       };
       const ctrlPlayer = state.players[controller];
       const updatedCtrlBf = [...ctrlPlayer.battlefield, stolenPerm];
@@ -5691,26 +5699,143 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
   // ── K. Miscellaneous ──
   // ══════════════════════════════════════════════════════════════
 
-  // 90. copy-spell — copy target spell (log only, manual)
+  // 90. copy-spell — copy target spell on the stack (auto-resolve, Fork/Twincast)
   {
     name: 'copy-spell',
     match: /copy target.*spell/i,
     requiresTarget: true,
-    apply: (state, controller) => {
-      state = addLog(state, controller, 'Copies target spell — needs manual resolution.');
-      return { state: { ...state, needsManualResolution: true, manualResolutionController: controller }, resolved: false, description: 'copy spell' };
+    apply: (state, controller, targets) => {
+      // Find target spell on the stack
+      const targetId = targets?.[0]?.id;
+      const targetSpell = targetId ? state.stack.find(s => s.id === targetId) : state.stack.find(s => s.type === 'spell' && s.controller !== controller);
+      if (!targetSpell) {
+        // No spell on stack to copy — fallback to manual
+        if (state.stack.length > 0) {
+          // Auto-copy the top spell
+          const topSpell = [...state.stack].reverse().find(s => s.type === 'spell');
+          if (topSpell) {
+            const copy = copyStackObject(topSpell, controller);
+            state = { ...state, stack: [...state.stack, copy] };
+            state = addLog(state, controller, `Copied ${topSpell.text} (same targets).`);
+            return { state, resolved: true, description: `copy ${topSpell.text}` };
+          }
+        }
+        state = addLog(state, controller, 'No spell on stack to copy.');
+        return { state, resolved: true, description: 'copy spell (no target)' };
+      }
+      const copy = copyStackObject(targetSpell, controller);
+      state = { ...state, stack: [...state.stack, copy] };
+      state = addLog(state, controller, `Copied ${targetSpell.text} (same targets).`);
+      return { state, resolved: true, description: `copy ${targetSpell.text}` };
     },
   },
 
-  // 91. transform — transform this permanent (log only)
+  // 91. transform — transform this permanent (auto-resolve, CR 701.28)
   {
     name: 'transform',
-    match: /\btransform\b/i,
+    match: /\btransform(?:s)?\s+~\b|\btransform\b/i,
     requiresTarget: false,
     apply: (state, controller, _targets, _m, source) => {
       const cardName = source?.name || 'permanent';
-      state = addLog(state, controller, `${cardName} transforms — needs manual resolution.`);
-      return { state: { ...state, needsManualResolution: true, manualResolutionController: controller }, resolved: false, description: `transform ${cardName}` };
+      // Find the source permanent on the battlefield
+      if (!source) {
+        state = addLog(state, controller, `${cardName} transforms — no source found.`);
+        return { state, resolved: true, description: `transform ${cardName} (no source)` };
+      }
+      for (let pi = 0; pi < 2; pi++) {
+        const bf = state.players[pi as 0 | 1].battlefield;
+        const idx = bf.findIndex(p => p.id === source.id);
+        if (idx !== -1) {
+          const transformed = transformPermanent(bf[idx]);
+          if (!transformed) {
+            state = addLog(state, controller, `${cardName} has no back face — cannot transform.`);
+            return { state, resolved: true, description: `${cardName} has no back face` };
+          }
+          const newBf = [...bf];
+          newBf[idx] = transformed;
+          const players = [...state.players] as [PlayerState, PlayerState];
+          players[pi as 0 | 1] = { ...players[pi as 0 | 1], battlefield: newBf };
+          state = { ...state, players };
+          state = addLog(state, controller, `${cardName} transforms into ${transformed.name}.`);
+          return { state, resolved: true, description: `${cardName} → ${transformed.name}` };
+        }
+      }
+      state = addLog(state, controller, `${cardName} not found on battlefield — cannot transform.`);
+      return { state, resolved: true, description: `transform ${cardName} (not found)` };
+    },
+  },
+
+  // 91b. transform-target — transform target creature/permanent
+  {
+    name: 'transform-target',
+    match: /transform\s+target\s+(?:creature|permanent)/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, _m) => {
+      if (!targets.length || targets[0].type !== 'permanent') {
+        return { state, resolved: true, description: 'transform target (no target)' };
+      }
+      const targetId = targets[0].id;
+      for (let pi = 0; pi < 2; pi++) {
+        const bf = state.players[pi as 0 | 1].battlefield;
+        const idx = bf.findIndex(p => p.id === targetId);
+        if (idx !== -1) {
+          const transformed = transformPermanent(bf[idx]);
+          if (!transformed) {
+            state = addLog(state, controller, `${bf[idx].name} has no back face — cannot transform.`);
+            return { state, resolved: true, description: `${bf[idx].name} has no back face` };
+          }
+          const newBf = [...bf];
+          newBf[idx] = transformed;
+          const players = [...state.players] as [PlayerState, PlayerState];
+          players[pi as 0 | 1] = { ...players[pi as 0 | 1], battlefield: newBf };
+          state = { ...state, players };
+          state = addLog(state, controller, `${bf[idx].name} transforms into ${transformed.name}.`);
+          return { state, resolved: true, description: `${bf[idx].name} → ${transformed.name}` };
+        }
+      }
+      return { state, resolved: true, description: 'transform target (not found)' };
+    },
+  },
+
+  // 91c. prowess-pump — prowess trigger gives source +1/+1 until end of turn (CR 702.107)
+  {
+    name: 'prowess-pump',
+    match: /^\s*prowess\s*$/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) return { state, resolved: true, description: 'prowess (no source)' };
+      for (let pi = 0; pi < 2; pi++) {
+        const bf = state.players[pi as 0 | 1].battlefield;
+        const idx = bf.findIndex(p => p.id === source.id);
+        if (idx !== -1) {
+          const perm = bf[idx];
+          const newMods = [...(perm.temporaryPtMods || []), { power: 1, toughness: 1, source: 'prowess', turn: state.turn }];
+          const newBf = [...bf];
+          newBf[idx] = { ...perm, temporaryPtMods: newMods };
+          const players = [...state.players] as [PlayerState, PlayerState];
+          players[pi as 0 | 1] = { ...players[pi as 0 | 1], battlefield: newBf };
+          state = { ...state, players };
+          state = addLog(state, controller, `${perm.name} gets +1/+1 until end of turn (prowess).`);
+          return { state, resolved: true, description: `${perm.name} +1/+1 (prowess)` };
+        }
+      }
+      return { state, resolved: true, description: 'prowess (source not found)' };
+    },
+  },
+
+  // 91d. extort-drain — extort trigger drains 1 life from each opponent (CR 702.100)
+  {
+    name: 'extort-drain',
+    match: /^\s*extort\s*$/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const opponent: 0 | 1 = controller === 0 ? 1 : 0;
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[opponent] = { ...players[opponent], life: players[opponent].life - 1 };
+      players[controller] = { ...players[controller], life: players[controller].life + 1 };
+      state = { ...state, players };
+      state = addLog(state, controller, `Extort: ${players[opponent].name} loses 1 life, ${players[controller].name} gains 1 life.`);
+      return { state, resolved: true, description: 'extort: drain 1' };
     },
   },
 
@@ -6472,6 +6597,1231 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       return { state, resolved: true, description: 'condition met: no creatures' };
     },
   },
+
+  // ─── Phase 2: Extended Effect Patterns ───
+
+  // P2-1. destroy-target-land
+  {
+    name: 'destroy-target-land',
+    match: /destroy\s+target\s+land/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      if (!targets.length || targets[0].type !== 'permanent') {
+        return { state, resolved: true, description: 'destroy land (no target)' };
+      }
+      for (let pi = 0; pi < 2; pi++) {
+        const bf = state.players[pi as 0 | 1].battlefield;
+        const idx = bf.findIndex(p => p.id === targets[0].id);
+        if (idx !== -1 && bf[idx].typeLine.toLowerCase().includes('land')) {
+          const name = bf[idx].name;
+          const newBf = [...bf.slice(0, idx), ...bf.slice(idx + 1)];
+          const players = [...state.players] as [PlayerState, PlayerState];
+          players[pi as 0 | 1] = { ...players[pi as 0 | 1], battlefield: newBf, graveyard: [...players[pi as 0 | 1].graveyard, bf[idx] as any] };
+          state = { ...state, players };
+          state = addLog(state, controller, `Destroyed ${name}.`);
+          return { state, resolved: true, description: `destroyed ${name}` };
+        }
+      }
+      return { state, resolved: true, description: 'destroy land (not found)' };
+    },
+  },
+
+  // P2-2. destroy-target-planeswalker
+  {
+    name: 'destroy-target-planeswalker',
+    match: /destroy\s+target\s+planeswalker/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      if (!targets.length || targets[0].type !== 'permanent') {
+        return { state, resolved: true, description: 'destroy planeswalker (no target)' };
+      }
+      for (let pi = 0; pi < 2; pi++) {
+        const bf = state.players[pi as 0 | 1].battlefield;
+        const idx = bf.findIndex(p => p.id === targets[0].id);
+        if (idx !== -1 && bf[idx].typeLine.toLowerCase().includes('planeswalker')) {
+          const name = bf[idx].name;
+          const newBf = [...bf.slice(0, idx), ...bf.slice(idx + 1)];
+          const players = [...state.players] as [PlayerState, PlayerState];
+          players[pi as 0 | 1] = { ...players[pi as 0 | 1], battlefield: newBf, graveyard: [...players[pi as 0 | 1].graveyard, bf[idx] as any] };
+          state = { ...state, players };
+          state = addLog(state, controller, `Destroyed ${name}.`);
+          return { state, resolved: true, description: `destroyed ${name}` };
+        }
+      }
+      return { state, resolved: true, description: 'destroy planeswalker (not found)' };
+    },
+  },
+
+  // P2-3. gain-control-permanent — permanent control change (not EOT)
+  {
+    name: 'gain-control-permanent',
+    match: /gain\s+control\s+of\s+target\s+(?:creature|permanent|artifact|enchantment)/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      if (!targets.length || targets[0].type !== 'permanent') {
+        return { state, resolved: true, description: 'gain control (no target)' };
+      }
+      for (let pi = 0; pi < 2; pi++) {
+        const bf = state.players[pi as 0 | 1].battlefield;
+        const idx = bf.findIndex(p => p.id === targets[0].id);
+        if (idx !== -1 && (pi as 0 | 1) !== controller) {
+          const perm = { ...bf[idx], controller };
+          const newBf = [...bf.slice(0, idx), ...bf.slice(idx + 1)];
+          const players = [...state.players] as [PlayerState, PlayerState];
+          players[pi as 0 | 1] = { ...players[pi as 0 | 1], battlefield: newBf };
+          players[controller] = { ...players[controller], battlefield: [...players[controller].battlefield, perm] };
+          state = { ...state, players };
+          state = addLog(state, controller, `Gained control of ${perm.name}.`);
+          return { state, resolved: true, description: `gained control of ${perm.name}` };
+        }
+      }
+      return { state, resolved: true, description: 'gain control (already controlled or not found)' };
+    },
+  },
+
+  // P2-4. reanimate-creature — return target creature from graveyard to battlefield
+  {
+    name: 'reanimate-creature',
+    match: /(?:return|put)\s+target\s+creature\s+card\s+from\s+(?:a|your)?\s*graveyard\s+(?:to|onto)\s+the\s+battlefield/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      if (!targets.length) return { state, resolved: true, description: 'reanimate (no target)' };
+      const targetId = targets[0].id;
+      for (let pi = 0; pi < 2; pi++) {
+        const gy = state.players[pi as 0 | 1].graveyard;
+        const idx = gy.findIndex(c => c.id === targetId);
+        if (idx !== -1 && gy[idx].typeLine.toLowerCase().includes('creature')) {
+          const card = gy[idx];
+          const perm = cardToPermanent(card, controller, state.turn);
+          const players = [...state.players] as [PlayerState, PlayerState];
+          players[pi as 0 | 1] = { ...players[pi as 0 | 1], graveyard: [...gy.slice(0, idx), ...gy.slice(idx + 1)] };
+          players[controller] = { ...players[controller], battlefield: [...players[controller].battlefield, perm] };
+          state = { ...state, players };
+          state = addLog(state, controller, `Returned ${card.name} from graveyard to battlefield.`);
+          state = checkETBTriggers(state, perm, { fromZone: 'graveyard' });
+          return { state, resolved: true, description: `reanimated ${card.name}` };
+        }
+      }
+      return { state, resolved: true, description: 'reanimate (not found)' };
+    },
+  },
+
+  // P2-5. double-strike-grant — target creature gains double strike until EOT
+  {
+    name: 'double-strike-grant',
+    match: /target\s+creature\s+gains?\s+double\s+strike\s+until\s+end\s+of\s+turn/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      if (!targets.length || targets[0].type !== 'permanent') {
+        return { state, resolved: true, description: 'double strike grant (no target)' };
+      }
+      for (let pi = 0; pi < 2; pi++) {
+        const bf = state.players[pi as 0 | 1].battlefield;
+        const idx = bf.findIndex(p => p.id === targets[0].id);
+        if (idx !== -1) {
+          const perm = bf[idx];
+          const kw = [...(perm.temporaryKeywords || []), { keyword: 'double strike', source: 'spell', turn: state.turn }];
+          const newBf = [...bf];
+          newBf[idx] = { ...perm, temporaryKeywords: kw };
+          const players = [...state.players] as [PlayerState, PlayerState];
+          players[pi as 0 | 1] = { ...players[pi as 0 | 1], battlefield: newBf };
+          state = { ...state, players };
+          state = addLog(state, controller, `${perm.name} gains double strike until end of turn.`);
+          return { state, resolved: true, description: `${perm.name} gains double strike` };
+        }
+      }
+      return { state, resolved: true, description: 'double strike (not found)' };
+    },
+  },
+
+  // P2-6. prevent-next-damage — prevent the next N damage
+  {
+    name: 'prevent-next-damage',
+    match: /prevent\s+the\s+next\s+(\d+)\s+damage/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const amount = parseInt(m[1]) || 1;
+      state = addLog(state, controller, `Prevent the next ${amount} damage.`);
+      return { state, resolved: true, description: `prevent next ${amount} damage` };
+    },
+  },
+
+  // P2-7. each-player-draws-discards — each player draws N then discards N
+  {
+    name: 'each-player-draws-discards',
+    match: /each\s+player\s+draws?\s+(\d+)\s+cards?\s+(?:,?\s*then\s+)?discards?\s+(\d+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const drawCount = parseInt(m[1]) || 1;
+      const discardCount = parseInt(m[2]) || 1;
+      for (let pi = 0; pi < 2; pi++) {
+        state = drawCards(state, pi as 0 | 1, drawCount);
+        // Discard: remove last N drawn cards (heuristic: highest CMC)
+        const hand = [...state.players[pi as 0 | 1].hand];
+        const sorted = [...hand].sort((a, b) => (b.cmc ?? 0) - (a.cmc ?? 0));
+        const toDiscard = sorted.slice(0, Math.min(discardCount, hand.length));
+        const discardIds = new Set(toDiscard.map(c => c.id));
+        const players = [...state.players] as [PlayerState, PlayerState];
+        players[pi as 0 | 1] = {
+          ...players[pi as 0 | 1],
+          hand: players[pi as 0 | 1].hand.filter(c => !discardIds.has(c.id)),
+          graveyard: [...players[pi as 0 | 1].graveyard, ...toDiscard],
+        };
+        state = { ...state, players };
+      }
+      state = addLog(state, controller, `Each player draws ${drawCount} and discards ${discardCount}.`);
+      return { state, resolved: true, description: `wheel: draw ${drawCount} discard ${discardCount}` };
+    },
+  },
+
+  // P2-8. tutor-basic-land-bf — search for a basic land, put onto battlefield tapped
+  {
+    name: 'tutor-basic-land-bf',
+    match: /search\s+your\s+library\s+for\s+a\s+basic\s+land\s+card[^.]*?(?:put|place)\s+(?:it\s+)?(?:onto|on)\s+the\s+battlefield\s+tapped/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const lib = state.players[controller].library;
+      const basicIdx = lib.findIndex(c => c.typeLine.toLowerCase().includes('basic') && c.typeLine.toLowerCase().includes('land'));
+      if (basicIdx === -1) {
+        state = addLog(state, controller, 'Searched library — no basic land found.');
+        return { state, resolved: true, description: 'tutor basic land (none found)' };
+      }
+      const basicLand = lib[basicIdx];
+      const perm = cardToPermanent(basicLand, controller, state.turn);
+      perm.tapped = true;
+      const newLib = [...lib.slice(0, basicIdx), ...lib.slice(basicIdx + 1)];
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = {
+        ...players[controller],
+        library: newLib,
+        battlefield: [...players[controller].battlefield, perm],
+      };
+      state = { ...state, players };
+      state = shuffleLibrary(state, controller);
+      state = addLog(state, controller, `Searched library for ${basicLand.name}, put onto battlefield tapped.`);
+      state = checkETBTriggers(state, perm, { fromZone: 'library' });
+      return { state, resolved: true, description: `tutored ${basicLand.name} to battlefield tapped` };
+    },
+  },
+
+  // P2-9. tutor-to-hand — search library for a card, put into hand
+  {
+    name: 'tutor-to-hand',
+    match: /search\s+your\s+library\s+for\s+a\s+card[^.]*?(?:put|reveal)\s+(?:it\s+)?(?:into|in)\s+your\s+hand/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const lib = state.players[controller].library;
+      if (lib.length === 0) {
+        state = addLog(state, controller, 'Searched library — empty.');
+        return { state, resolved: true, description: 'tutor (empty library)' };
+      }
+      // Heuristic: pick highest CMC non-land card, or any card
+      const nonLands = lib.filter(c => !c.typeLine.toLowerCase().includes('land'));
+      const best = nonLands.length > 0
+        ? nonLands.reduce((a, b) => ((a.cmc ?? 0) >= (b.cmc ?? 0) ? a : b))
+        : lib[0];
+      const idx = lib.findIndex(c => c.id === best.id);
+      const newLib = [...lib.slice(0, idx), ...lib.slice(idx + 1)];
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = {
+        ...players[controller],
+        library: newLib,
+        hand: [...players[controller].hand, best],
+      };
+      state = { ...state, players };
+      state = shuffleLibrary(state, controller);
+      state = addLog(state, controller, `Searched library, put ${best.name} into hand.`);
+      return { state, resolved: true, description: `tutored ${best.name} to hand` };
+    },
+  },
+
+  // P2-10. exile-target-return-eot — exile target creature, return at end step
+  {
+    name: 'exile-target-return-eot',
+    match: /exile\s+target\s+(?:creature|permanent)[^.]*?(?:return|returns?)\s+(?:it|that\s+card)\s+(?:to\s+the\s+battlefield\s+)?(?:at\s+the\s+beginning\s+of\s+the\s+next\s+end\s+step|under\s+its\s+owner'?s?\s+control)/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      if (!targets.length || targets[0].type !== 'permanent') {
+        return { state, resolved: true, description: 'flicker (no target)' };
+      }
+      for (let pi = 0; pi < 2; pi++) {
+        const bf = state.players[pi as 0 | 1].battlefield;
+        const idx = bf.findIndex(p => p.id === targets[0].id);
+        if (idx !== -1) {
+          const perm = bf[idx];
+          const newBf = [...bf.slice(0, idx), ...bf.slice(idx + 1)];
+          const players = [...state.players] as [PlayerState, PlayerState];
+          players[pi as 0 | 1] = {
+            ...players[pi as 0 | 1],
+            battlefield: newBf,
+            exile: [...players[pi as 0 | 1].exile, perm as any],
+          };
+          state = { ...state, players };
+          state = addLog(state, controller, `${perm.name} exiled — returns at end of turn.`);
+          return { state, resolved: true, description: `exiled ${perm.name} (returns EOT)` };
+        }
+      }
+      return { state, resolved: true, description: 'flicker (not found)' };
+    },
+  },
+
+  // P2-11. scry-auto — auto-resolve scry 1-3 (heuristic: bottom if CMC > 4)
+  {
+    name: 'scry-auto',
+    match: /scry\s+(\d+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const count = parseInt(m[1]) || 1;
+      const lib = state.players[controller].library;
+      if (lib.length === 0) {
+        state = addLog(state, controller, `Scry ${count} — library empty.`);
+        return { state, resolved: true, description: `scry ${count} (empty)` };
+      }
+      const topCards = lib.slice(0, Math.min(count, lib.length));
+      // Heuristic: keep low CMC on top, put high CMC on bottom
+      const keep = topCards.filter(c => (c.cmc ?? 0) <= 4);
+      const bottom = topCards.filter(c => (c.cmc ?? 0) > 4);
+      const newLib = [...keep, ...lib.slice(topCards.length), ...bottom];
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...players[controller], library: newLib };
+      state = { ...state, players };
+      const keptNames = keep.map(c => c.name).join(', ') || 'none';
+      state = addLog(state, controller, `Scry ${count}: kept ${keep.length} on top, ${bottom.length} on bottom.`);
+      return { state, resolved: true, description: `scry ${count}: kept ${keptNames}` };
+    },
+  },
+
+  // P2-12. return-all-creatures-from-gy — return all creature cards from your graveyard to hand
+  {
+    name: 'return-all-creatures-from-gy',
+    match: /return\s+all\s+creature\s+cards\s+from\s+your\s+graveyard\s+to\s+your\s+hand/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const gy = state.players[controller].graveyard;
+      const creatures = gy.filter(c => c.typeLine.toLowerCase().includes('creature'));
+      if (creatures.length === 0) {
+        return { state, resolved: true, description: 'return creatures (none in GY)' };
+      }
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = {
+        ...players[controller],
+        graveyard: gy.filter(c => !c.typeLine.toLowerCase().includes('creature')),
+        hand: [...players[controller].hand, ...creatures],
+      };
+      state = { ...state, players };
+      state = addLog(state, controller, `Returned ${creatures.length} creature card(s) from graveyard to hand.`);
+      return { state, resolved: true, description: `returned ${creatures.length} creatures from GY` };
+    },
+  },
+
+  // P2-13. destroy-all-tapped — destroy all tapped creatures
+  {
+    name: 'destroy-all-tapped',
+    match: /destroy\s+all\s+tapped\s+creatures/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      let count = 0;
+      for (let pi = 0; pi < 2; pi++) {
+        const bf = state.players[pi as 0 | 1].battlefield;
+        const tapped = bf.filter(p => p.tapped && p.currentPower !== undefined);
+        const remaining = bf.filter(p => !p.tapped || p.currentPower === undefined);
+        if (tapped.length > 0) {
+          count += tapped.length;
+          const players = [...state.players] as [PlayerState, PlayerState];
+          players[pi as 0 | 1] = {
+            ...players[pi as 0 | 1],
+            battlefield: remaining,
+            graveyard: [...players[pi as 0 | 1].graveyard, ...tapped as any[]],
+          };
+          state = { ...state, players };
+        }
+      }
+      state = addLog(state, controller, `Destroyed ${count} tapped creature(s).`);
+      return { state, resolved: true, description: `destroyed ${count} tapped creatures` };
+    },
+  },
+
+  // P2-14. each-opponent-loses-life-equal-creatures — each opponent loses life equal to creatures you control
+  {
+    name: 'opponent-loses-life-equal-creatures',
+    match: /each\s+opponent\s+loses?\s+(?:\d+\s+)?life\s+(?:equal\s+to|for\s+each)\s+(?:the\s+number\s+of\s+)?creatures?\s+you\s+control/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const creatureCount = state.players[controller].battlefield.filter(p => p.currentPower !== undefined).length;
+      const opponent: 0 | 1 = controller === 0 ? 1 : 0;
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[opponent] = { ...players[opponent], life: players[opponent].life - creatureCount };
+      state = { ...state, players };
+      state = addLog(state, controller, `Each opponent loses ${creatureCount} life (creature count).`);
+      return { state, resolved: true, description: `opponent loses ${creatureCount} life` };
+    },
+  },
+
+  // P2-15. surveil — like scry but cards go to graveyard instead of bottom
+  {
+    name: 'surveil',
+    match: /surveil\s+(\d+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const count = parseInt(m[1]) || 1;
+      const lib = state.players[controller].library;
+      if (lib.length === 0) {
+        return { state, resolved: true, description: `surveil ${count} (empty)` };
+      }
+      const topCards = lib.slice(0, Math.min(count, lib.length));
+      // Heuristic: keep low CMC on top, mill high CMC to graveyard
+      const keep = topCards.filter(c => (c.cmc ?? 0) <= 3);
+      const toGY = topCards.filter(c => (c.cmc ?? 0) > 3);
+      const newLib = [...keep, ...lib.slice(topCards.length)];
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = {
+        ...players[controller],
+        library: newLib,
+        graveyard: [...players[controller].graveyard, ...toGY],
+      };
+      state = { ...state, players };
+      state = addLog(state, controller, `Surveil ${count}: kept ${keep.length}, milled ${toGY.length}.`);
+      return { state, resolved: true, description: `surveil ${count}` };
+    },
+  },
+
+  // ─── Phase 3 Effect Patterns ───
+
+  // P3-1. Become the monarch (CR 721)
+  {
+    name: 'become-monarch',
+    match: /you become the monarch/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      state = { ...state, monarch: controller };
+      state = addLog(state, controller, `Player ${controller} becomes the monarch.`);
+      return { state, resolved: true, description: 'become the monarch' };
+    },
+  },
+
+  // P3-2. Exalted pump: +1/+1 to lone attacker until end of turn
+  {
+    name: 'exalted-pump',
+    match: /^\s*exalted\s*$/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const combat = state.combat;
+      if (!combat || combat.attackers.length !== 1) return { state, resolved: true, description: 'exalted (no lone attacker)' };
+      const attackerId = combat.attackers[0].permanentId;
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      const bf = [...players[controller].battlefield];
+      const idx = bf.findIndex(p => p.id === attackerId);
+      if (idx !== -1) {
+        bf[idx] = {
+          ...bf[idx],
+          temporaryPtMods: [...(bf[idx].temporaryPtMods || []), { power: 1, toughness: 1, until: 'end-of-turn' }],
+        };
+        players[controller] = { ...players[controller], battlefield: bf };
+        state = { ...state, players };
+        state = addLog(state, controller, `Exalted: ${bf[idx].name} gets +1/+1 until end of turn.`);
+      }
+      return { state, resolved: true, description: 'exalted +1/+1' };
+    },
+  },
+
+  // P3-3. Gain energy counters
+  {
+    name: 'gain-energy',
+    match: /you get (?:(\d+)\s+)?\{E\}|gain (\d+) energy/i,
+    requiresTarget: false,
+    apply: (state, controller, _t, m) => {
+      const amount = parseInt(m[1] || m[2] || '1', 10) || 1;
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      players[controller] = { ...players[controller], energyCounters: players[controller].energyCounters + amount };
+      state = { ...state, players };
+      state = addLog(state, controller, `Gained ${amount} energy (total: ${players[controller].energyCounters}).`);
+      return { state, resolved: true, description: `gain ${amount} energy` };
+    },
+  },
+
+  // P3-4. Pay energy counters
+  {
+    name: 'pay-energy',
+    match: /pay (?:(\d+)\s+)?\{E\}|pay (\d+) energy/i,
+    requiresTarget: false,
+    apply: (state, controller, _t, m) => {
+      const amount = parseInt(m[1] || m[2] || '1', 10) || 1;
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      if (players[controller].energyCounters < amount) {
+        return { state, resolved: true, description: 'not enough energy' };
+      }
+      players[controller] = { ...players[controller], energyCounters: players[controller].energyCounters - amount };
+      state = { ...state, players };
+      state = addLog(state, controller, `Paid ${amount} energy (remaining: ${players[controller].energyCounters}).`);
+      return { state, resolved: true, description: `pay ${amount} energy` };
+    },
+  },
+
+  // P3-5. Gain experience counter
+  {
+    name: 'gain-experience',
+    match: /you get an? experience counter/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      players[controller] = { ...players[controller], experienceCounters: players[controller].experienceCounters + 1 };
+      state = { ...state, players };
+      state = addLog(state, controller, `Gained an experience counter (total: ${players[controller].experienceCounters}).`);
+      return { state, resolved: true, description: 'gain experience counter' };
+    },
+  },
+
+  // P3-6. Goad target creature
+  {
+    name: 'goad-target',
+    match: /goad target creature/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      if (!targets.length) return { state, resolved: true, description: 'goad (no target)' };
+      const targetId = targets[0].id;
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      for (let pi = 0; pi < 2; pi++) {
+        const idx = players[pi as 0|1].battlefield.findIndex(p => p.id === targetId);
+        if (idx !== -1) {
+          const bf = [...players[pi as 0|1].battlefield];
+          bf[idx] = { ...bf[idx], goaded: true };
+          players[pi as 0|1] = { ...players[pi as 0|1], battlefield: bf };
+          state = { ...state, players };
+          state = addLog(state, controller, `${bf[idx].name} is goaded.`);
+          break;
+        }
+      }
+      return { state, resolved: true, description: 'goad target creature' };
+    },
+  },
+
+  // P3-7. Goad all opponent creatures
+  {
+    name: 'goad-all-opponents',
+    match: /goad (?:all|each)\s+creature[s]?\s+(?:your\s+opponents?\s+control|an?\s+opponent\s+controls?)/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const opp: 0 | 1 = controller === 0 ? 1 : 0;
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      const bf = players[opp].battlefield.map(p =>
+        p.currentPower !== undefined ? { ...p, goaded: true } : p
+      );
+      players[opp] = { ...players[opp], battlefield: bf };
+      state = { ...state, players };
+      state = addLog(state, controller, `All opponent's creatures are goaded.`);
+      return { state, resolved: true, description: 'goad all opponents creatures' };
+    },
+  },
+
+  // P3-8. Flicker self (exile ~ then return to battlefield)
+  {
+    name: 'flicker-self',
+    match: /exile ~[.,]\s*(?:then\s+)?return (?:it|~) to the battlefield/i,
+    requiresTarget: false,
+    apply: (state, controller, _t, _m, source) => {
+      if (!source) return { state, resolved: true, description: 'flicker (no source)' };
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      const bf = players[controller].battlefield;
+      const idx = bf.findIndex(p => p.id === source.id);
+      if (idx === -1) return { state, resolved: true, description: 'flicker (source gone)' };
+      const perm = bf[idx];
+      // Remove and re-add (new ETB)
+      const newBf = [...bf.slice(0, idx), ...bf.slice(idx + 1)];
+      const freshPerm = { ...perm, damage: 0, tapped: false, summoningSick: true, temporaryPtMods: [], temporaryKeywords: [] };
+      newBf.push(freshPerm);
+      players[controller] = { ...players[controller], battlefield: newBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `${perm.name} flickered (exiled and returned).`);
+      return { state, resolved: true, description: `flicker ${perm.name}` };
+    },
+  },
+
+  // P3-9. Bounce all nonland permanents (Cyclonic Rift)
+  {
+    name: 'bounce-all-nonland',
+    match: /return all nonland permanents\s+(?:you don't control\s+)?to\s+(?:their\s+)?(?:owners?'?\s+)?hands?/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      const opp: 0 | 1 = controller === 0 ? 1 : 0;
+      const oppBf = players[opp].battlefield;
+      const nonlands = oppBf.filter(p => !p.typeLine.toLowerCase().includes('land'));
+      const lands = oppBf.filter(p => p.typeLine.toLowerCase().includes('land'));
+      const bouncedCards = nonlands.map(p => ({
+        id: p.id, oracleId: p.oracleId, name: p.name, manaCost: p.manaCost, cmc: p.cmc,
+        typeLine: p.typeLine, oracleText: p.oracleText || '', power: p.power, toughness: p.toughness,
+        colors: p.colors, colorIdentity: p.colorIdentity, rarity: p.rarity, tags: p.tags,
+        imageUrl: p.imageUrl, owner: p.owner,
+      })) as any[];
+      players[opp] = { ...players[opp], battlefield: lands, hand: [...players[opp].hand, ...bouncedCards] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Bounced ${nonlands.length} nonland permanents to opponent's hand.`);
+      return { state, resolved: true, description: `bounce ${nonlands.length} nonland permanents` };
+    },
+  },
+
+  // P3-10. Protection grant: "target creature gains protection from [color] until end of turn"
+  {
+    name: 'protection-grant',
+    match: /target creature gains protection from (\w+) until end of turn/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m) => {
+      if (!targets.length) return { state, resolved: true, description: 'protection grant (no target)' };
+      const color = m[1]?.toLowerCase() || 'chosen color';
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      for (let pi = 0; pi < 2; pi++) {
+        const idx = players[pi as 0|1].battlefield.findIndex(p => p.id === targets[0].id);
+        if (idx !== -1) {
+          const bf = [...players[pi as 0|1].battlefield];
+          bf[idx] = { ...bf[idx], temporaryKeywords: [...(bf[idx].temporaryKeywords || []), { keyword: `protection from ${color}`, until: 'end-of-turn' }] };
+          players[pi as 0|1] = { ...players[pi as 0|1], battlefield: bf };
+          state = { ...state, players };
+          state = addLog(state, controller, `${bf[idx].name} gains protection from ${color} until end of turn.`);
+          break;
+        }
+      }
+      return { state, resolved: true, description: `grant protection from ${color}` };
+    },
+  },
+
+  // P3-11. Indestructible grant: "target creature gains indestructible until end of turn"
+  {
+    name: 'indestructible-grant',
+    match: /target creature gains indestructible until end of turn/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      if (!targets.length) return { state, resolved: true, description: 'indestructible grant (no target)' };
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      for (let pi = 0; pi < 2; pi++) {
+        const idx = players[pi as 0|1].battlefield.findIndex(p => p.id === targets[0].id);
+        if (idx !== -1) {
+          const bf = [...players[pi as 0|1].battlefield];
+          bf[idx] = { ...bf[idx], temporaryKeywords: [...(bf[idx].temporaryKeywords || []), { keyword: 'indestructible', until: 'end-of-turn' }] };
+          players[pi as 0|1] = { ...players[pi as 0|1], battlefield: bf };
+          state = { ...state, players };
+          state = addLog(state, controller, `${bf[idx].name} gains indestructible until end of turn.`);
+          break;
+        }
+      }
+      return { state, resolved: true, description: 'grant indestructible' };
+    },
+  },
+
+  // P3-12. Hexproof grant: "target creature gains hexproof until end of turn"
+  {
+    name: 'hexproof-grant',
+    match: /target creature (?:you control )?gains hexproof until end of turn/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      if (!targets.length) return { state, resolved: true, description: 'hexproof grant (no target)' };
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      for (let pi = 0; pi < 2; pi++) {
+        const idx = players[pi as 0|1].battlefield.findIndex(p => p.id === targets[0].id);
+        if (idx !== -1) {
+          const bf = [...players[pi as 0|1].battlefield];
+          bf[idx] = { ...bf[idx], temporaryKeywords: [...(bf[idx].temporaryKeywords || []), { keyword: 'hexproof', until: 'end-of-turn' }] };
+          players[pi as 0|1] = { ...players[pi as 0|1], battlefield: bf };
+          state = { ...state, players };
+          state = addLog(state, controller, `${bf[idx].name} gains hexproof until end of turn.`);
+          break;
+        }
+      }
+      return { state, resolved: true, description: 'grant hexproof' };
+    },
+  },
+
+  // P3-13. Pump all creatures you control: "creatures you control get +N/+N until end of turn"
+  {
+    name: 'pump-all-creatures',
+    match: /creatures you control get ([+-]\d+)\/([+-]\d+) until end of turn/i,
+    requiresTarget: false,
+    apply: (state, controller, _t, m) => {
+      const pw = parseInt(m[1], 10) || 0;
+      const tw = parseInt(m[2], 10) || 0;
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      let count = 0;
+      const bf = players[controller].battlefield.map(p => {
+        if (p.currentPower !== undefined) {
+          count++;
+          return { ...p, temporaryPtMods: [...(p.temporaryPtMods || []), { power: pw, toughness: tw, until: 'end-of-turn' as const }] };
+        }
+        return p;
+      });
+      players[controller] = { ...players[controller], battlefield: bf };
+      state = { ...state, players };
+      state = addLog(state, controller, `${count} creatures get ${m[1]}/${m[2]} until end of turn.`);
+      return { state, resolved: true, description: `pump all creatures ${m[1]}/${m[2]}` };
+    },
+  },
+
+  // P3-14. Drain each opponent: "each opponent loses N life, you gain that much life"
+  {
+    name: 'drain-each-opponent',
+    match: /each opponent loses (\d+) life[.,]?\s*(?:and\s+)?you gain (?:that much|(\d+)) life/i,
+    requiresTarget: false,
+    apply: (state, controller, _t, m) => {
+      const amount = parseInt(m[1], 10) || 1;
+      const opp: 0 | 1 = controller === 0 ? 1 : 0;
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      players[opp] = { ...players[opp], life: players[opp].life - amount };
+      players[controller] = { ...players[controller], life: players[controller].life + amount };
+      state = { ...state, players };
+      state = addLog(state, controller, `Drained: opponent loses ${amount} life, you gain ${amount} life.`);
+      return { state, resolved: true, description: `drain ${amount}` };
+    },
+  },
+
+  // P3-15. Proliferate: choose any number of permanents/players with counters, give each another counter
+  {
+    name: 'proliferate',
+    match: /\bproliferate\b/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      let count = 0;
+      // Auto-resolve: add one of each counter type to all permanents/players with counters
+      for (let pi = 0; pi < 2; pi++) {
+        const bf = players[pi as 0|1].battlefield.map(p => {
+          const counterTypes = Object.keys(p.counters || {}).filter(k => (p.counters?.[k] || 0) > 0);
+          if (counterTypes.length === 0) return p;
+          count++;
+          const newCounters = { ...p.counters };
+          for (const ct of counterTypes) {
+            newCounters[ct] = (newCounters[ct] || 0) + 1;
+          }
+          return { ...p, counters: newCounters };
+        });
+        players[pi as 0|1] = { ...players[pi as 0|1], battlefield: bf };
+        // Player counters (poison, energy, experience)
+        if (players[pi as 0|1].poisonCounters > 0 && pi !== controller) {
+          players[pi as 0|1] = { ...players[pi as 0|1], poisonCounters: players[pi as 0|1].poisonCounters + 1 };
+          count++;
+        }
+        if (players[pi as 0|1].energyCounters > 0 && pi === controller) {
+          players[pi as 0|1] = { ...players[pi as 0|1], energyCounters: players[pi as 0|1].energyCounters + 1 };
+          count++;
+        }
+        if (players[pi as 0|1].experienceCounters > 0 && pi === controller) {
+          players[pi as 0|1] = { ...players[pi as 0|1], experienceCounters: players[pi as 0|1].experienceCounters + 1 };
+          count++;
+        }
+      }
+      state = { ...state, players };
+      state = addLog(state, controller, `Proliferate: added counters to ${count} permanents/players.`);
+      return { state, resolved: true, description: `proliferate ${count} targets` };
+    },
+  },
+
+  // P3-16. Amass N: create Army token or put +1/+1 counters on existing Army
+  {
+    name: 'amass',
+    match: /amass (\d+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _t, m) => {
+      const n = parseInt(m[1], 10) || 1;
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      // Check for existing Army token
+      const armyIdx = players[controller].battlefield.findIndex(p => p.typeLine.toLowerCase().includes('army'));
+      if (armyIdx !== -1) {
+        const bf = [...players[controller].battlefield];
+        const army = bf[armyIdx];
+        bf[armyIdx] = { ...army, counters: { ...army.counters, '+1/+1': (army.counters['+1/+1'] || 0) + n } };
+        players[controller] = { ...players[controller], battlefield: bf };
+        state = { ...state, players };
+        state = addLog(state, controller, `Amass ${n}: put ${n} +1/+1 counter(s) on ${army.name}.`);
+      } else {
+        // Create 0/0 Army token with N +1/+1 counters
+        const token = {
+          id: `army_${Date.now().toString(36)}`, oracleId: 'army-token', name: 'Zombie Army',
+          manaCost: '', cmc: 0, typeLine: 'Token Creature — Zombie Army',
+          oracleText: '', colors: ['B' as const], colorIdentity: ['B' as const],
+          rarity: 'common' as const, tags: [] as any[], imageUrl: '', owner: controller,
+          controller, damage: 0, tapped: false, summoningSick: true, flipped: false, faceDown: false,
+          counters: { '+1/+1': n }, basePower: 0, baseToughness: 0, currentPower: n, currentToughness: n,
+          power: '0', toughness: '0', attacking: false, blocking: null, abilities: [],
+          x: 0, y: 0, enteredBattlefieldTurn: state.turn, attachments: [], isToken: true,
+        } as any;
+        players[controller] = { ...players[controller], battlefield: [...players[controller].battlefield, token] };
+        state = { ...state, players };
+        state = addLog(state, controller, `Amass ${n}: created a ${n}/${n} Zombie Army token.`);
+      }
+      return { state, resolved: true, description: `amass ${n}` };
+    },
+  },
+
+  // ══════════════════════════════════════════════════════════════
+  // ── P4: Conditional Search / Tutor (Phase 4, Step 4) ──
+  // ══════════════════════════════════════════════════════════════
+
+  // P4-1. search-creature-to-hand — search library for a creature, put into hand
+  {
+    name: 'search-creature-to-hand',
+    match: /search\s+your\s+library\s+for\s+a\s+creature\s+card.*?(?:reveal\s+(?:it|that\s+card).*?)?put\s+(?:it|that\s+card)\s+into\s+your\s+hand/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const player = state.players[controller];
+      const creatures = player.library.filter(c => c.typeLine?.toLowerCase().includes('creature'));
+      if (creatures.length === 0) {
+        state = shuffleLibrary(state, controller);
+        state = addLog(state, controller, 'Searched library — no creature found.');
+        return { state, resolved: true, description: 'search (no creature)' };
+      }
+      // Pick highest CMC creature
+      const sorted = [...creatures].sort((a, b) => (b.cmc ?? 0) - (a.cmc ?? 0));
+      const chosen = sorted[0];
+      const idx = player.library.indexOf(chosen);
+      const newLib = [...player.library];
+      newLib.splice(idx, 1);
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, library: newLib, hand: [...player.hand, chosen] };
+      state = { ...state, players };
+      state = shuffleLibrary(state, controller);
+      state = addLog(state, controller, `Searches library, puts ${chosen.name} into hand.`);
+      return { state, resolved: true, description: `tutor ${chosen.name} to hand` };
+    },
+  },
+
+  // P4-2. search-creature-bf — search for creature, put onto battlefield
+  {
+    name: 'search-creature-bf',
+    match: /search\s+your\s+library\s+for\s+a\s+creature\s+card.*?put\s+(?:it|that\s+card)\s+onto\s+the\s+battlefield/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const player = state.players[controller];
+      const creatures = player.library.filter(c => c.typeLine?.toLowerCase().includes('creature'));
+      if (creatures.length === 0) {
+        state = shuffleLibrary(state, controller);
+        state = addLog(state, controller, 'Searched library — no creature found.');
+        return { state, resolved: true, description: 'search (no creature)' };
+      }
+      const sorted = [...creatures].sort((a, b) => (b.cmc ?? 0) - (a.cmc ?? 0));
+      const chosen = sorted[0];
+      const idx = player.library.indexOf(chosen);
+      const newLib = [...player.library];
+      newLib.splice(idx, 1);
+      const perm = cardToPermanent(chosen, controller, state.turn);
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, library: newLib, battlefield: [...player.battlefield, perm] };
+      state = { ...state, players };
+      state = shuffleLibrary(state, controller);
+      state = addLog(state, controller, `Searches library, puts ${chosen.name} onto the battlefield.`);
+      return { state, resolved: true, description: `tutor ${chosen.name} to battlefield` };
+    },
+  },
+
+  // P4-3. search-cmc-leq — search for card with CMC ≤ N
+  {
+    name: 'search-cmc-leq',
+    match: /search\s+your\s+library\s+for\s+a\s+(?:creature\s+)?card\s+with\s+(?:mana\s+value|converted\s+mana\s+cost|cmc)\s+(\d+)\s+or\s+less/i,
+    requiresTarget: false,
+    apply: (state, controller, _t, m) => {
+      const maxCmc = parseInt(m[1], 10);
+      const player = state.players[controller];
+      const eligible = player.library.filter(c => (c.cmc ?? 0) <= maxCmc && !c.typeLine?.toLowerCase().includes('land'));
+      if (eligible.length === 0) {
+        state = shuffleLibrary(state, controller);
+        state = addLog(state, controller, `Searched library — no card with CMC ≤ ${maxCmc} found.`);
+        return { state, resolved: true, description: `search (no CMC ≤ ${maxCmc})` };
+      }
+      const sorted = [...eligible].sort((a, b) => (b.cmc ?? 0) - (a.cmc ?? 0));
+      const chosen = sorted[0];
+      const idx = player.library.indexOf(chosen);
+      const newLib = [...player.library];
+      newLib.splice(idx, 1);
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, library: newLib, hand: [...player.hand, chosen] };
+      state = { ...state, players };
+      state = shuffleLibrary(state, controller);
+      state = addLog(state, controller, `Searches library, puts ${chosen.name} (CMC ${chosen.cmc}) into hand.`);
+      return { state, resolved: true, description: `tutor ${chosen.name} (CMC ≤ ${maxCmc})` };
+    },
+  },
+
+  // P4-4. search-instant-sorcery — search for instant or sorcery
+  {
+    name: 'search-instant-sorcery',
+    match: /search\s+your\s+library\s+for\s+an?\s+instant\s+(?:or\s+sorcery\s+)?card.*?(?:put\s+(?:it|that\s+card)\s+into\s+your\s+hand|reveal)/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const player = state.players[controller];
+      const spells = player.library.filter(c => {
+        const t = c.typeLine?.toLowerCase() || '';
+        return t.includes('instant') || t.includes('sorcery');
+      });
+      if (spells.length === 0) {
+        state = shuffleLibrary(state, controller);
+        state = addLog(state, controller, 'Searched library — no instant/sorcery found.');
+        return { state, resolved: true, description: 'search (no instant/sorcery)' };
+      }
+      const sorted = [...spells].sort((a, b) => (b.cmc ?? 0) - (a.cmc ?? 0));
+      const chosen = sorted[0];
+      const idx = player.library.indexOf(chosen);
+      const newLib = [...player.library];
+      newLib.splice(idx, 1);
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, library: newLib, hand: [...player.hand, chosen] };
+      state = { ...state, players };
+      state = shuffleLibrary(state, controller);
+      state = addLog(state, controller, `Searches library, puts ${chosen.name} into hand.`);
+      return { state, resolved: true, description: `tutor ${chosen.name}` };
+    },
+  },
+
+  // P4-5. search-artifact-to-hand — search for artifact
+  {
+    name: 'search-artifact-to-hand',
+    match: /search\s+your\s+library\s+for\s+an?\s+artifact\s+card.*?(?:put\s+(?:it|that\s+card)\s+into\s+your\s+hand|reveal)/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const player = state.players[controller];
+      const arts = player.library.filter(c => c.typeLine?.toLowerCase().includes('artifact'));
+      if (arts.length === 0) {
+        state = shuffleLibrary(state, controller);
+        state = addLog(state, controller, 'Searched library — no artifact found.');
+        return { state, resolved: true, description: 'search (no artifact)' };
+      }
+      const sorted = [...arts].sort((a, b) => (b.cmc ?? 0) - (a.cmc ?? 0));
+      const chosen = sorted[0];
+      const idx = player.library.indexOf(chosen);
+      const newLib = [...player.library];
+      newLib.splice(idx, 1);
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, library: newLib, hand: [...player.hand, chosen] };
+      state = { ...state, players };
+      state = shuffleLibrary(state, controller);
+      state = addLog(state, controller, `Searches library, puts ${chosen.name} into hand.`);
+      return { state, resolved: true, description: `tutor ${chosen.name}` };
+    },
+  },
+
+  // P4-6. search-enchantment-to-hand — search for enchantment
+  {
+    name: 'search-enchantment-to-hand',
+    match: /search\s+your\s+library\s+for\s+an?\s+enchantment\s+card.*?(?:put\s+(?:it|that\s+card)\s+into\s+your\s+hand|reveal)/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const player = state.players[controller];
+      const enchants = player.library.filter(c => c.typeLine?.toLowerCase().includes('enchantment'));
+      if (enchants.length === 0) {
+        state = shuffleLibrary(state, controller);
+        state = addLog(state, controller, 'Searched library — no enchantment found.');
+        return { state, resolved: true, description: 'search (no enchantment)' };
+      }
+      const sorted = [...enchants].sort((a, b) => (b.cmc ?? 0) - (a.cmc ?? 0));
+      const chosen = sorted[0];
+      const idx = player.library.indexOf(chosen);
+      const newLib = [...player.library];
+      newLib.splice(idx, 1);
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, library: newLib, hand: [...player.hand, chosen] };
+      state = { ...state, players };
+      state = shuffleLibrary(state, controller);
+      state = addLog(state, controller, `Searches library, puts ${chosen.name} into hand.`);
+      return { state, resolved: true, description: `tutor ${chosen.name}` };
+    },
+  },
+
+  // ══════════════════════════════════════════════════════════════
+  // ── P4: Sacrifice with Conditional Benefit (Phase 4, Step 5) ──
+  // ══════════════════════════════════════════════════════════════
+
+  // P4-7. sacrifice-creature-draw — sacrifice a creature, draw a card
+  {
+    name: 'sacrifice-creature-draw',
+    match: /sacrifice\s+a\s+creature[,:]?\s*draw\s+a\s+card/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const player = state.players[controller];
+      const creatures = player.battlefield.filter(p => p.typeLine?.toLowerCase().includes('creature'));
+      if (creatures.length === 0) {
+        state = addLog(state, controller, 'No creatures to sacrifice.');
+        return { state, resolved: true, description: 'no creatures to sacrifice' };
+      }
+      // Sacrifice weakest creature (lowest power + toughness)
+      const sorted = [...creatures].sort((a, b) => {
+        const aVal = (a.currentPower ?? 0) + (a.currentToughness ?? 0);
+        const bVal = (b.currentPower ?? 0) + (b.currentToughness ?? 0);
+        return aVal - bVal;
+      });
+      const victim = sorted[0];
+      state = sacrificePermanent(state, victim.id);
+      state = drawCards(state, controller, 1);
+      state = addLog(state, controller, `Sacrifices ${victim.name}, draws a card.`);
+      return { state, resolved: true, description: `sacrifice ${victim.name}, draw 1` };
+    },
+  },
+
+  // P4-8. sacrifice-creature-gain-life — sacrifice a creature, gain life equal to toughness
+  {
+    name: 'sacrifice-creature-gain-life',
+    match: /sacrifice\s+a\s+creature[,:]?\s*(?:you\s+)?gain\s+life\s+equal\s+to\s+(?:its?|that\s+creature'?s?)\s+toughness/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const player = state.players[controller];
+      const creatures = player.battlefield.filter(p => p.typeLine?.toLowerCase().includes('creature'));
+      if (creatures.length === 0) {
+        state = addLog(state, controller, 'No creatures to sacrifice.');
+        return { state, resolved: true, description: 'no creatures to sacrifice' };
+      }
+      const sorted = [...creatures].sort((a, b) => {
+        const aVal = (a.currentPower ?? 0) + (a.currentToughness ?? 0);
+        const bVal = (b.currentPower ?? 0) + (b.currentToughness ?? 0);
+        return aVal - bVal;
+      });
+      const victim = sorted[0];
+      const lifeGain = victim.currentToughness ?? 0;
+      state = sacrificePermanent(state, victim.id);
+      state = gainLife(state, controller, lifeGain);
+      state = addLog(state, controller, `Sacrifices ${victim.name}, gains ${lifeGain} life.`);
+      return { state, resolved: true, description: `sacrifice ${victim.name}, gain ${lifeGain} life` };
+    },
+  },
+
+  // P4-9. sacrifice-creature-damage — sacrifice a creature, deal damage equal to power
+  {
+    name: 'sacrifice-creature-damage',
+    match: /sacrifice\s+a\s+creature[,:]?\s*(?:~\s+)?deals?\s+damage\s+equal\s+to\s+(?:its?|that\s+creature'?s?)\s+power/i,
+    requiresTarget: false,
+    apply: (state, controller, targets) => {
+      const player = state.players[controller];
+      const creatures = player.battlefield.filter(p => p.typeLine?.toLowerCase().includes('creature'));
+      if (creatures.length === 0) {
+        state = addLog(state, controller, 'No creatures to sacrifice.');
+        return { state, resolved: true, description: 'no creatures to sacrifice' };
+      }
+      // Sacrifice weakest
+      const sorted = [...creatures].sort((a, b) => {
+        const aVal = (a.currentPower ?? 0) + (a.currentToughness ?? 0);
+        const bVal = (b.currentPower ?? 0) + (b.currentToughness ?? 0);
+        return aVal - bVal;
+      });
+      const victim = sorted[0];
+      const dmg = victim.currentPower ?? 0;
+      state = sacrificePermanent(state, victim.id);
+      // Deal damage to opponent
+      const opp: 0 | 1 = controller === 0 ? 1 : 0;
+      state = damagePlayer(state, opp, dmg);
+      state = addLog(state, controller, `Sacrifices ${victim.name}, deals ${dmg} damage.`);
+      return { state, resolved: true, description: `sacrifice ${victim.name}, ${dmg} damage` };
+    },
+  },
+
+  // P4-11. each-opponent-sacrifices-permanent — each opponent sacrifices a permanent
+  {
+    name: 'each-opponent-sacrifices-permanent',
+    match: /each\s+opponent\s+sacrifices?\s+a\s+(?:nonland\s+)?permanent/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const opp: 0 | 1 = controller === 0 ? 1 : 0;
+      const oppPlayer = state.players[opp];
+      const perms = oppPlayer.battlefield.filter(p => !p.typeLine?.toLowerCase().includes('land'));
+      if (perms.length === 0) {
+        state = addLog(state, controller, `Opponent has no nonland permanents to sacrifice.`);
+        return { state, resolved: true, description: 'opponent has no permanents' };
+      }
+      // Sacrifice least valuable (lowest CMC nonland)
+      const sorted = [...perms].sort((a, b) => (a.cmc ?? 0) - (b.cmc ?? 0));
+      const victim = sorted[0];
+      state = sacrificePermanent(state, victim.id);
+      state = addLog(state, controller, `${oppPlayer.name} sacrifices ${victim.name}.`);
+      return { state, resolved: true, description: `opponent sacrifices ${victim.name}` };
+    },
+  },
+
+  // ══════════════════════════════════════════════════════════════
+  // ── P4: Additional Mechanics (Phase 4, Step 10) ──
+  // ══════════════════════════════════════════════════════════════
+
+  // P4-12. explore — top card: land→hand, nonland→+1/+1 counter (simplified)
+  {
+    name: 'explore',
+    match: /\bexplores?\b/i,
+    requiresTarget: false,
+    apply: (state, controller, _t, _m, source) => {
+      const player = state.players[controller];
+      if (player.library.length === 0) {
+        state = addLog(state, controller, 'Explores but library is empty.');
+        return { state, resolved: true, description: 'explore (empty library)' };
+      }
+      const topCard = player.library[0];
+      const isLandCard = topCard.typeLine?.toLowerCase().includes('land');
+      const players = [...state.players] as [PlayerState, PlayerState];
+      if (isLandCard) {
+        // Land → put into hand
+        players[controller] = { ...player, library: player.library.slice(1), hand: [...player.hand, topCard] };
+        state = { ...state, players };
+        state = addLog(state, controller, `Explores: reveals ${topCard.name} (land), puts it into hand.`);
+      } else {
+        // Nonland → +1/+1 counter on exploring creature, may put card in graveyard
+        players[controller] = { ...player, library: player.library.slice(1), graveyard: [...player.graveyard, topCard] };
+        // Find source permanent and add counter
+        if (source) {
+          const bf = [...players[controller].battlefield];
+          const srcIdx = bf.findIndex(p => p.id === source.id);
+          if (srcIdx !== -1) {
+            bf[srcIdx] = { ...bf[srcIdx], counters: { ...bf[srcIdx].counters, '+1/+1': (bf[srcIdx].counters['+1/+1'] || 0) + 1 }, currentPower: (bf[srcIdx].currentPower ?? 0) + 1, currentToughness: (bf[srcIdx].currentToughness ?? 0) + 1 };
+            players[controller] = { ...players[controller], battlefield: bf };
+          }
+        }
+        state = { ...state, players };
+        state = addLog(state, controller, `Explores: reveals ${topCard.name} (nonland), gets +1/+1 counter, card to graveyard.`);
+      }
+      return { state, resolved: true, description: `explore (${isLandCard ? 'land to hand' : '+1/+1 counter'})` };
+    },
+  },
+
+  // P4-13. investigate — create Clue artifact token
+  {
+    name: 'investigate',
+    match: /\binvestigate\b/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const clueCard: Card = {
+        id: generateCardId(), oracleId: 'token_clue', name: 'Clue',
+        manaCost: '', cmc: 0, typeLine: 'Token Artifact — Clue',
+        oracleText: '{2}, Sacrifice this artifact: Draw a card.', power: undefined, toughness: undefined,
+        colors: [], colorIdentity: [], rarity: 'common' as const, tags: [], imageUrl: '', owner: controller,
+      };
+      const perm = cardToPermanent(clueCard, controller, state.turn);
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...players[controller], battlefield: [...players[controller].battlefield, perm] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Investigates: creates a Clue token.`);
+      return { state, resolved: true, description: 'investigate (Clue token)' };
+    },
+  },
+
+  // P4-14. populate — copy strongest creature token you control
+  {
+    name: 'populate',
+    match: /\bpopulate\b/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const player = state.players[controller];
+      const tokens = player.battlefield.filter(p => (p as any).isToken && p.currentPower !== undefined);
+      if (tokens.length === 0) {
+        state = addLog(state, controller, 'Populate: no creature tokens to copy.');
+        return { state, resolved: true, description: 'populate (no tokens)' };
+      }
+      // Pick strongest token
+      const sorted = [...tokens].sort((a, b) => ((b.currentPower ?? 0) + (b.currentToughness ?? 0)) - ((a.currentPower ?? 0) + (a.currentToughness ?? 0)));
+      const best = sorted[0];
+      const copy: any = {
+        ...best, id: generateCardId(), damage: 0, tapped: false, summoningSick: true,
+        attacking: false, blocking: null, counters: {}, temporaryPtMods: [],
+        enteredBattlefieldTurn: state.turn, isToken: true,
+        currentPower: best.basePower, currentToughness: best.baseToughness,
+      };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, battlefield: [...player.battlefield, copy] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Populate: copies ${best.name} token.`);
+      return { state, resolved: true, description: `populate (copy ${best.name})` };
+    },
+  },
+
+  // P4-15. bite — creature deals damage equal to its power to target creature
+  {
+    name: 'bite',
+    match: /(?:~|target creature you control)\s+deals?\s+damage\s+equal\s+to\s+its\s+power\s+to\s+target/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, _m, source) => {
+      const target = targets.find(t => t.type === 'permanent');
+      if (!target) return { state, resolved: false };
+      const found = findPermanentById(state, target.id);
+      if (!found) return { state, resolved: false };
+      // Source power
+      let power = 0;
+      if (source) {
+        const srcPerm = findPermanentById(state, source.id);
+        power = srcPerm?.perm.currentPower ?? 0;
+      }
+      if (power <= 0) {
+        state = addLog(state, controller, 'No damage dealt (power 0).');
+        return { state, resolved: true, description: 'bite (0 damage)' };
+      }
+      state = damagePermanent(state, found.perm.id, power, source?.colors || []);
+      state = addLog(state, controller, `Deals ${power} damage to ${found.perm.name}.`);
+      return { state, resolved: true, description: `bite: ${power} to ${found.perm.name}` };
+    },
+  },
+
+  // P4-16. manifest — top card of library as 2/2 face-down creature
+  {
+    name: 'manifest',
+    match: /\bmanifest\b/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const player = state.players[controller];
+      if (player.library.length === 0) {
+        state = addLog(state, controller, 'Manifest: library is empty.');
+        return { state, resolved: true, description: 'manifest (empty library)' };
+      }
+      const topCard = player.library[0];
+      const manifestPerm: any = {
+        ...cardToPermanent({ ...topCard, name: 'Manifest', typeLine: 'Creature', oracleText: '', power: '2', toughness: '2' }, controller, state.turn),
+        faceDown: true, basePower: 2, baseToughness: 2, currentPower: 2, currentToughness: 2,
+      };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, library: player.library.slice(1), battlefield: [...player.battlefield, manifestPerm] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Manifests the top card of library as a 2/2 face-down creature.`);
+      return { state, resolved: true, description: 'manifest (2/2 face-down)' };
+    },
+  },
+
+  // P4-17. crew-vehicle — tap creatures with total power ≥ N to crew
+  {
+    name: 'crew-vehicle',
+    match: /crew\s+(\d+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _t, m, source) => {
+      const crewN = parseInt(m[1], 10);
+      if (!source) return { state, resolved: false, description: 'no source for crew' };
+      const srcPerm = findPermanentById(state, source.id);
+      if (!srcPerm) return { state, resolved: false };
+      const player = state.players[controller];
+      // Find untapped creatures to tap for crew
+      const creatures = player.battlefield.filter(p => p.currentPower !== undefined && !p.tapped && p.id !== source.id);
+      let totalPower = 0;
+      const toCrew: string[] = [];
+      for (const c of creatures.sort((a, b) => (a.currentPower ?? 0) - (b.currentPower ?? 0))) {
+        if (totalPower >= crewN) break;
+        toCrew.push(c.id);
+        totalPower += c.currentPower ?? 0;
+      }
+      if (totalPower < crewN) {
+        state = addLog(state, controller, `Not enough power to crew (need ${crewN}, have ${totalPower}).`);
+        return { state, resolved: true, description: 'crew failed (not enough power)' };
+      }
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = {
+        ...player,
+        battlefield: player.battlefield.map(p => {
+          if (toCrew.includes(p.id)) return { ...p, tapped: true };
+          if (p.id === source.id) return { ...p, currentPower: srcPerm.perm.basePower ?? 0, currentToughness: srcPerm.perm.baseToughness ?? 0 };
+          return p;
+        }),
+      };
+      state = { ...state, players };
+      state = addLog(state, controller, `Crews ${srcPerm.perm.name} (tapped ${toCrew.length} creatures).`);
+      return { state, resolved: true, description: `crew ${srcPerm.perm.name}` };
+    },
+  },
+
+  // P4-18. modal-choice-general — "Choose one" with generic fallback
+  // NOTE: This is the LAST modal pattern — it only fires when no specific modal pattern matches.
+  // The resolver checks matchedPatternNames and skips this if any 'choose-one-*' already resolved.
+  {
+    name: 'modal-choice-general',
+    match: /choose\s+(?:one|two|three)\b/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      // Generic modal: mark as manual resolution since we can't predict the modes
+      state = addLog(state, controller, 'Modal spell — choose mode(s).');
+      return { state: { ...state, needsManualResolution: true, manualResolutionController: controller }, resolved: false, description: 'choose mode(s)' };
+    },
+  },
 ];
 
 // ─── Main Resolver ───
@@ -6518,6 +7868,12 @@ export function resolveEffect(
 
   // First, try to match the FULL oracle text against patterns (some patterns span sentences)
   for (const pattern of EFFECT_PATTERNS) {
+    // Skip generic modal fallback if a specific modal pattern already resolved
+    if (pattern.name === 'modal-choice-general' &&
+        [...matchedPatternNames].some(n => n.startsWith('choose-one-') || n.startsWith('choose-two-'))) {
+      continue;
+    }
+
     const m = oracleText.match(pattern.match);
     if (!m) continue;
     if (pattern.requiresTarget && stackObject.targets.length === 0) continue;
@@ -6548,6 +7904,11 @@ export function resolveEffect(
       for (const pattern of EFFECT_PATTERNS) {
         // Skip patterns already matched on full text
         if (matchedPatternNames.has(pattern.name)) continue;
+        // Skip generic modal fallback if a specific modal pattern already resolved
+        if (pattern.name === 'modal-choice-general' &&
+            [...matchedPatternNames].some(n => n.startsWith('choose-one-') || n.startsWith('choose-two-'))) {
+          continue;
+        }
 
         const m = sentence.match(pattern.match);
         if (!m) continue;
