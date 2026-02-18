@@ -86,7 +86,7 @@ export function handleCommanderDeath(
       ...player.graveyard.slice(graveyardIdx + 1),
     ],
     commandZone: [...player.commandZone, commander],
-    commanderTax: player.commanderTax + 1,
+    commanderTax: player.commanderTax,
   };
 
   return {
@@ -100,7 +100,7 @@ export function handleCommanderDeath(
         phase: state.phase,
         step: state.step,
         player: owner,
-        message: `${commander.name} returns to the command zone. Commander tax is now ${(player.commanderTax + 1) * 2}.`,
+        message: `${commander.name} returns to the command zone. Commander tax is ${player.commanderTax * 2}.`,
         cardName: commander.name,
       },
     ],
@@ -133,7 +133,7 @@ export function handleCommanderExile(
       ...player.exile.slice(exileIdx + 1),
     ],
     commandZone: [...player.commandZone, commander],
-    commanderTax: player.commanderTax + 1,
+    commanderTax: player.commanderTax,
   };
 
   return {
@@ -147,7 +147,7 @@ export function handleCommanderExile(
         phase: state.phase,
         step: state.step,
         player: owner,
-        message: `${commander.name} returns to the command zone from exile. Commander tax is now ${(player.commanderTax + 1) * 2}.`,
+        message: `${commander.name} returns to the command zone from exile. Commander tax is ${player.commanderTax * 2}.`,
         cardName: commander.name,
       },
     ],
@@ -219,27 +219,64 @@ export function cardFitsColorIdentity(
 }
 
 /**
- * After state-based actions have moved permanents to graveyard,
- * check if any of them are commanders and handle the zone replacement.
+ * After state-based actions have moved permanents to graveyard or exile,
+ * check if any of them are commanders and prompt the owner to choose
+ * whether to move them to the command zone (2020 rule change).
+ *
+ * Sets pendingCommanderChoice instead of auto-moving.
  */
 export function processCommanderZoneReplacements(state: GameState): GameState {
+  // If there's already a pending choice, don't check again
+  if (state.pendingCommanderChoice) return state;
+
   let current = state;
 
   for (let i = 0; i < 2; i++) {
     const player = current.players[i as 0 | 1];
 
-    // Check if the player's commander is in graveyard
+    // Check graveyard for commander
     for (const card of player.graveyard) {
       if (isLikelyCommander(card, player)) {
-        current = handleCommanderDeath(current, card.name, i as 0 | 1);
+        return {
+          ...current,
+          pendingCommanderChoice: {
+            player: i as 0 | 1,
+            commanderName: card.name,
+            currentZone: 'graveyard',
+          },
+          log: [...current.log, {
+            timestamp: Date.now(),
+            turn: current.turn,
+            phase: current.phase,
+            step: current.step,
+            player: i as 0 | 1,
+            message: `${card.name} went to graveyard. Move to command zone?`,
+            cardName: card.name,
+          }],
+        };
       }
     }
 
-    // Check exile too
-    const updatedPlayer = current.players[i as 0 | 1];
-    for (const card of updatedPlayer.exile) {
-      if (isLikelyCommander(card, updatedPlayer)) {
-        current = handleCommanderExile(current, card.name, i as 0 | 1);
+    // Check exile for commander
+    for (const card of player.exile) {
+      if (isLikelyCommander(card, player)) {
+        return {
+          ...current,
+          pendingCommanderChoice: {
+            player: i as 0 | 1,
+            commanderName: card.name,
+            currentZone: 'exile',
+          },
+          log: [...current.log, {
+            timestamp: Date.now(),
+            turn: current.turn,
+            phase: current.phase,
+            step: current.step,
+            player: i as 0 | 1,
+            message: `${card.name} was exiled. Move to command zone?`,
+            cardName: card.name,
+          }],
+        };
       }
     }
   }
@@ -249,8 +286,14 @@ export function processCommanderZoneReplacements(state: GameState): GameState {
 
 /**
  * Heuristic to determine if a card is a player's commander.
- * Checks if the card matches any card that was in the command zone by name.
+ * Uses the tracked commanderNames first (set at game creation), then
+ * falls back to checking if the card matches any card in the command zone by name.
  */
 function isLikelyCommander(card: Card, player: PlayerState): boolean {
+  // Check tracked commander names first
+  if (player.commanderNames && player.commanderNames.length > 0) {
+    return player.commanderNames.includes(card.name);
+  }
+  // Fallback: check if the card matches any card that was in the command zone by name
   return player.commandZone.some((c) => c.name === card.name);
 }

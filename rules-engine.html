@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DeckLens — MTG Rules Engine Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── CSS Variables (Arcane Forge) ─── */
+    :root {
+      --void: #0a0e17;
+      --abyss: #0f1623;
+      --obsidian: #1a1f2e;
+      --bg-0: #0a0e17;
+      --bg-1: #0f1623;
+      --bg-2: #1a1f2e;
+      --bg-3: #252b3d;
+      --border: #2a3040;
+      --border-bright: #3a4560;
+      --text: #e2e8f0;
+      --text-dim: #94a3b8;
+      --text-bright: #f1f5f9;
+      --gold: #c9a84c;
+      --gold-dim: #a08530;
+      --emerald: #34d399;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --info: #60a5fa;
+      --success: #22c55e;
+      --mana-w: #f9faf4;
+      --mana-u: #0e68ab;
+      --mana-b: #150b00;
+      --mana-r: #d3202a;
+      --mana-g: #00733e;
+      --mana-c: #ccc2c0;
+      --card-w: 80px;
+      --card-h: 112px;
+      --card-hand-w: 100px;
+      --card-hand-h: 140px;
+      --side-w: 300px;
+      --topbar-h: 56px;
+      --hand-h: 160px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--void);
+      color: var(--text);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* ─── Setup Overlay ─── */
+    .re-overlay {
+      position: fixed; inset: 0;
+      background: rgba(10, 14, 23, 0.95);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+    }
+    .re-overlay.hidden { display: none; }
+
+    .re-setup-modal {
+      background: var(--bg-2);
+      border: 1px solid var(--border-bright);
+      border-radius: 16px;
+      padding: 32px;
+      max-width: 640px; width: 90%;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+    .re-setup-modal h2 {
+      font-family: 'Cinzel', serif;
+      color: var(--gold);
+      font-size: 1.5rem;
+      margin-bottom: 16px;
+    }
+    .re-setup-modal h3 {
+      color: var(--text-bright);
+      font-size: 0.95rem;
+      margin: 16px 0 8px;
+    }
+
+    .re-mode-btns {
+      display: flex; gap: 12px; margin-bottom: 20px;
+    }
+    .re-mode-btn {
+      flex: 1;
+      padding: 14px 12px;
+      border-radius: 12px;
+      border: 2px solid var(--border);
+      background: var(--bg-1);
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+    .re-mode-btn:hover { border-color: var(--gold-dim); }
+    .re-mode-btn.active { border-color: var(--gold); background: rgba(201, 168, 76, 0.1); color: var(--gold); }
+    .re-mode-btn small { display: block; color: var(--text-dim); font-size: 0.75rem; margin-top: 4px; }
+
+    .re-deck-section { margin: 16px 0; }
+    .re-deck-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+      max-height: 200px;
+      overflow-y: auto;
+      padding: 4px;
+    }
+    .re-deck-option {
+      padding: 10px 14px;
+      background: var(--bg-1);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.85rem;
+    }
+    .re-deck-option:hover { border-color: var(--gold-dim); }
+    .re-deck-option.selected { border-color: var(--gold); background: rgba(201, 168, 76, 0.1); }
+    .re-deck-option .deck-name { color: var(--text-bright); font-weight: 500; }
+    .re-deck-option .deck-count { color: var(--text-dim); font-size: 0.75rem; }
+
+    .re-textarea {
+      width: 100%;
+      min-height: 120px;
+      background: var(--bg-1);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      padding: 12px;
+      resize: vertical;
+    }
+    .re-textarea::placeholder { color: var(--text-dim); }
+
+    .re-start-btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: 50px;
+      border: none;
+      background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+      color: var(--void);
+      font-family: 'Cinzel', serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 20px;
+      transition: all 0.3s;
+    }
+    .re-start-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(201, 168, 76, 0.3); }
+    .re-start-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* ─── Game Over Overlay ─── */
+    .re-gameover {
+      position: fixed; inset: 0;
+      background: rgba(10, 14, 23, 0.9);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 900;
+    }
+    .re-gameover.hidden { display: none; }
+    .re-gameover-inner {
+      text-align: center;
+      background: var(--bg-2);
+      border: 1px solid var(--gold);
+      border-radius: 16px;
+      padding: 40px;
+    }
+    .re-gameover h2 { font-family: 'Cinzel', serif; color: var(--gold); font-size: 2rem; margin-bottom: 8px; }
+    .re-gameover p { color: var(--text-dim); margin-bottom: 20px; }
+    .re-gameover button {
+      padding: 12px 32px; border-radius: 50px; border: 1px solid var(--gold);
+      background: transparent; color: var(--gold); font-family: 'Outfit', sans-serif;
+      font-size: 0.95rem; cursor: pointer;
+    }
+    .re-gameover button:hover { background: rgba(201, 168, 76, 0.1); }
+
+    /* ─── Mulligan Overlay ─── */
+    .re-mulligan {
+      position: fixed; inset: 0;
+      background: rgba(10, 14, 23, 0.9);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 800; gap: 16px;
+    }
+    .re-mulligan.hidden { display: none; }
+    .re-mulligan h3 { font-family: 'Cinzel', serif; color: var(--gold); font-size: 1.3rem; }
+    .re-mulligan-hand { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+    .re-mulligan-hand img { width: 120px; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: 0.2s; }
+    .re-mulligan-hand img:hover { border-color: var(--gold); }
+    .re-mulligan-hand img.mulligan-selected { border-color: var(--danger); opacity: 0.5; }
+    .re-mulligan-btns { display: flex; gap: 12px; }
+    .re-mulligan-btns button {
+      padding: 10px 24px; border-radius: 50px; border: 1px solid var(--border-bright);
+      background: var(--bg-2); color: var(--text); font-family: 'Outfit', sans-serif;
+      cursor: pointer; font-size: 0.9rem;
+    }
+    .re-mulligan-btns button:hover { border-color: var(--gold); color: var(--gold); }
+
+    /* ─── Hotseat Pass Screen ─── */
+    .re-hotseat-pass {
+      position: fixed; inset: 0;
+      background: var(--void);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 850; gap: 16px;
+    }
+    .re-hotseat-pass.hidden { display: none; }
+    .re-hotseat-pass h2 { font-family: 'Cinzel', serif; color: var(--gold); font-size: 1.8rem; }
+    .re-hotseat-pass p { color: var(--text-dim); }
+    .re-hotseat-pass button {
+      padding: 14px 40px; border-radius: 50px; border: 1px solid var(--gold);
+      background: transparent; color: var(--gold); font-size: 1.1rem; cursor: pointer;
+    }
+
+    /* ─── Game Board Grid ─── */
+    #game-container {
+      display: none;
+      height: 100vh; width: 100vw;
+      grid-template-rows: var(--topbar-h) 1fr var(--hand-h);
+      grid-template-columns: 1fr var(--side-w);
+    }
+    #game-container.active { display: grid; }
+
+    /* ─── Top Bar ─── */
+    .re-topbar {
+      grid-column: 1 / -1;
+      display: flex; align-items: center;
+      gap: 16px; padding: 0 20px;
+      background: var(--bg-1);
+      border-bottom: 1px solid var(--border);
+    }
+    .re-turn { font-family: 'Cinzel', serif; color: var(--gold); font-size: 1rem; font-weight: 700; }
+    .re-phase-timeline {
+      display: flex; gap: 4px; align-items: center;
+    }
+    .re-phase-pip {
+      padding: 4px 10px; border-radius: 20px;
+      font-size: 0.7rem; font-weight: 500;
+      background: var(--bg-3); color: var(--text-dim);
+      cursor: default;
+      white-space: nowrap;
+    }
+    .re-phase-pip.active { background: var(--gold); color: var(--void); font-weight: 700; }
+    .re-phase-pip.passed { background: var(--bg-2); color: var(--text-dim); opacity: 0.5; }
+
+    .re-life-box {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 14px; border-radius: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem; font-weight: 500;
+    }
+    .re-life-you { background: rgba(34, 197, 94, 0.15); border: 1px solid var(--success); color: var(--success); }
+    .re-life-opp { background: rgba(239, 68, 68, 0.15); border: 1px solid var(--danger); color: var(--danger); }
+    .re-life-label { font-size: 0.7rem; text-transform: uppercase; }
+
+    .re-mana-pool {
+      display: flex; gap: 4px; align-items: center; margin-left: auto;
+    }
+    .re-mana-pip {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem; font-weight: 700;
+      border: 2px solid transparent;
+      cursor: default;
+    }
+    .re-mana-pip.has-mana { border-color: currentColor; }
+    .re-mana-pip[data-color="W"] { background: rgba(249, 250, 244, 0.15); color: var(--mana-w); }
+    .re-mana-pip[data-color="U"] { background: rgba(14, 104, 171, 0.2); color: var(--mana-u); }
+    .re-mana-pip[data-color="B"] { background: rgba(60, 40, 20, 0.3); color: #a88; }
+    .re-mana-pip[data-color="R"] { background: rgba(211, 32, 42, 0.15); color: var(--mana-r); }
+    .re-mana-pip[data-color="G"] { background: rgba(0, 115, 62, 0.2); color: var(--mana-g); }
+    .re-mana-pip[data-color="C"] { background: rgba(204, 194, 192, 0.15); color: var(--mana-c); }
+
+    .re-priority {
+      padding: 4px 14px; border-radius: 20px;
+      font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .re-priority.yours { background: rgba(34, 197, 94, 0.15); color: var(--success); border: 1px solid var(--success); }
+    .re-priority.theirs { background: rgba(239, 68, 68, 0.1); color: var(--text-dim); border: 1px solid var(--border); }
+
+    /* ─── Main Area ─── */
+    .re-main {
+      display: grid;
+      grid-template-rows: 1fr 1fr;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    .re-battlefield {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      align-content: flex-start;
+      padding: 12px 16px;
+      overflow-y: auto;
+      position: relative;
+    }
+    .re-bf-opp {
+      background: rgba(239, 68, 68, 0.03);
+      border-bottom: 1px solid var(--border);
+    }
+    .re-bf-you {
+      background: rgba(34, 197, 94, 0.03);
+    }
+    .re-bf-label {
+      position: absolute; top: 6px; left: 12px;
+      font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px;
+      color: var(--text-dim); opacity: 0.5;
+    }
+
+    /* ─── Cards ─── */
+    .re-card {
+      width: var(--card-w); height: var(--card-h);
+      border-radius: 6px; overflow: hidden;
+      border: 2px solid var(--border);
+      cursor: pointer; transition: all 0.15s;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .re-card:hover { border-color: var(--gold); transform: translateY(-3px); z-index: 10; }
+    .re-card.tapped { transform: rotate(90deg); margin: 16px 8px; }
+    .re-card.tapped:hover { transform: rotate(90deg) translateY(-3px); }
+    .re-card.attacking { border-color: var(--danger); box-shadow: 0 0 12px rgba(239, 68, 68, 0.4); }
+    .re-card.blocking { border-color: var(--info); box-shadow: 0 0 12px rgba(96, 165, 250, 0.4); }
+    .re-card.legal-target { border-color: var(--warning); box-shadow: 0 0 10px rgba(245, 158, 11, 0.4); animation: pulse-target 1s infinite; cursor: pointer; }
+    .re-card.illegal-target { opacity: 0.4; filter: grayscale(0.4); cursor: not-allowed; }
+    .re-card.selected { border-color: var(--gold); box-shadow: 0 0 12px rgba(201, 168, 76, 0.5); }
+    .re-card.summoning-sick { opacity: 0.7; }
+    .re-card img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+
+    @keyframes pulse-target { 0%, 100% { box-shadow: 0 0 10px rgba(245, 158, 11, 0.4); } 50% { box-shadow: 0 0 18px rgba(245, 158, 11, 0.7); } }
+
+    .re-card .pt-badge {
+      position: absolute; bottom: 2px; right: 2px;
+      background: rgba(0, 0, 0, 0.85); color: #fff;
+      padding: 1px 5px; border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; font-weight: 700;
+    }
+    .re-card .counter-badge {
+      position: absolute; top: 2px; right: 2px;
+      background: var(--gold); color: var(--void);
+      padding: 1px 5px; border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; font-weight: 700;
+    }
+    .re-card .damage-badge {
+      position: absolute; top: 2px; left: 2px;
+      background: var(--danger); color: #fff;
+      padding: 1px 5px; border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; font-weight: 700;
+    }
+    .re-card-name-fallback {
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--bg-3);
+      color: var(--text-dim);
+      font-size: 0.6rem;
+      text-align: center;
+      padding: 4px;
+    }
+
+    /* ─── Side Panel ─── */
+    .re-side {
+      display: flex; flex-direction: column;
+      background: var(--bg-1);
+      border-left: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .re-side-section {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .re-side-section h4 {
+      font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px;
+      color: var(--text-dim); margin-bottom: 6px;
+    }
+
+    /* Stack */
+    .re-stack { max-height: 200px; overflow-y: auto; }
+    .re-stack-item {
+      padding: 6px 10px;
+      background: var(--bg-3);
+      border-radius: 8px;
+      margin-bottom: 4px;
+      font-size: 0.78rem;
+      border-left: 3px solid var(--gold);
+      cursor: default;
+    }
+    .re-stack-item .stack-controller { color: var(--text-dim); font-size: 0.65rem; }
+    .re-stack-item.resolving {
+      animation: stack-resolve 0.6s ease-out;
+      border-left-color: var(--emerald);
+      background: rgba(52, 211, 153, 0.15);
+    }
+    @keyframes stack-resolve {
+      0% { transform: scale(1); opacity: 1; }
+      40% { transform: scale(1.05); opacity: 1; background: rgba(52, 211, 153, 0.3); }
+      100% { transform: scale(0.95); opacity: 0; }
+    }
+    .re-stack-item.entering {
+      animation: stack-enter 0.3s ease-out;
+    }
+    @keyframes stack-enter {
+      0% { transform: translateX(30px); opacity: 0; }
+      100% { transform: translateX(0); opacity: 1; }
+    }
+    .re-stack-empty { color: var(--text-dim); font-size: 0.75rem; font-style: italic; }
+
+    /* Triggered ability on stack */
+    .re-stack-item.triggered {
+      border-left-color: #f59e0b;
+      background: rgba(245, 158, 11, 0.1);
+    }
+    .re-stack-item.activated {
+      border-left-color: #a78bfa;
+      background: rgba(167, 139, 250, 0.1);
+    }
+    .stack-type-badge {
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Zone Counts */
+    .re-zones {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 4px;
+    }
+    .re-zone-row {
+      display: flex; align-items: center; gap: 6px;
+      padding: 3px 8px; border-radius: 6px;
+      font-size: 0.75rem; color: var(--text-dim);
+      cursor: pointer;
+    }
+    .re-zone-row:hover { background: var(--bg-3); color: var(--text); }
+    .re-zone-count {
+      font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--text);
+    }
+
+    /* Action Buttons */
+    .re-action-btns {
+      padding: 10px 14px;
+      display: flex; flex-wrap: wrap; gap: 6px;
+    }
+    .re-action-btn {
+      padding: 6px 14px; border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--bg-2); color: var(--text);
+      font-family: 'Outfit', sans-serif; font-size: 0.78rem;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .re-action-btn:hover { border-color: var(--gold); color: var(--gold); }
+    .re-action-btn.primary { border-color: var(--success); color: var(--success); }
+    .re-action-btn.danger { border-color: var(--danger); color: var(--danger); }
+
+    /* Game Log */
+    .re-log {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 14px;
+      font-size: 0.72rem;
+      line-height: 1.6;
+      color: var(--text-dim);
+    }
+    .re-log-entry { padding: 2px 0; }
+    .re-log-entry.phase-change { color: var(--gold); font-weight: 600; }
+    .re-log-entry.effect { color: var(--emerald); }
+    .re-log-entry.combat { color: var(--danger); }
+    .re-log-entry .log-turn { color: var(--text-dim); font-size: 0.6rem; opacity: 0.5; }
+
+    /* ─── Hand Zone ─── */
+    .re-hand-zone {
+      grid-column: 1 / -1;
+      display: flex; align-items: center;
+      gap: 8px; padding: 8px 16px;
+      background: var(--bg-1);
+      border-top: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .re-hand-zone .re-card {
+      width: var(--card-hand-w);
+      height: var(--card-hand-h);
+    }
+    .re-hand-label {
+      writing-mode: vertical-lr;
+      font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px;
+      color: var(--text-dim); opacity: 0.6;
+      flex-shrink: 0;
+    }
+    .re-commander-zone {
+      flex-shrink: 0;
+      margin-left: auto;
+    }
+    .re-commander-zone .re-card {
+      width: 70px; height: 98px;
+      border-color: var(--gold);
+    }
+
+    /* ─── Card Preview ─── */
+    #card-preview {
+      position: fixed; z-index: 999;
+      pointer-events: none; display: none;
+    }
+    #card-preview img {
+      width: 250px; border-radius: 12px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.7);
+    }
+
+    /* ─── Manual Resolution Panel ─── */
+    .re-manual-panel {
+      position: fixed;
+      bottom: var(--hand-h);
+      left: 50%; transform: translateX(-50%);
+      background: var(--bg-2);
+      border: 1px solid var(--gold);
+      border-radius: 12px;
+      padding: 16px 24px;
+      z-index: 100;
+      max-width: 500px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+    }
+    .re-manual-panel.hidden { display: none; }
+    .re-manual-panel h4 { color: var(--gold); font-family: 'Cinzel', serif; font-size: 0.95rem; margin-bottom: 8px; }
+    .re-manual-panel .oracle-text {
+      font-size: 0.8rem; color: var(--text); line-height: 1.5;
+      background: var(--bg-1); padding: 10px; border-radius: 8px;
+      margin-bottom: 12px; max-height: 100px; overflow-y: auto;
+    }
+    .re-manual-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    /* ─── Manual Resolution Sub-Dialogs ─── */
+    .re-manual-dialog {
+      position: fixed;
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
+      background: var(--bg-2);
+      border: 1px solid var(--gold-dim);
+      border-radius: 14px;
+      padding: 20px 28px;
+      z-index: 250;
+      min-width: 320px;
+      max-width: 480px;
+      box-shadow: 0 12px 50px rgba(0,0,0,0.7);
+    }
+    .re-manual-dialog.hidden { display: none; }
+    .re-manual-dialog h4 {
+      color: var(--gold); font-family: 'Cinzel', serif;
+      font-size: 0.9rem; margin-bottom: 14px;
+    }
+    .re-manual-dialog label {
+      display: block; font-size: 0.78rem; color: var(--text-dim);
+      margin: 8px 0 4px;
+    }
+    .re-manual-dialog input, .re-manual-dialog select {
+      width: 100%; padding: 8px 10px;
+      background: var(--bg-1); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text);
+      font-family: 'Outfit', sans-serif; font-size: 0.85rem;
+    }
+    .re-manual-dialog input:focus, .re-manual-dialog select:focus {
+      outline: none; border-color: var(--gold-dim);
+    }
+    .re-manual-dialog .dialog-row {
+      display: flex; gap: 10px; align-items: end;
+    }
+    .re-manual-dialog .dialog-row > div { flex: 1; }
+    .re-manual-dialog .dialog-actions {
+      display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end;
+    }
+    .re-manual-dialog .counter-presets {
+      display: flex; gap: 6px; margin: 8px 0; flex-wrap: wrap;
+    }
+    .re-manual-dialog .counter-preset {
+      padding: 5px 10px; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--bg-1);
+      color: var(--text); font-size: 0.75rem; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .re-manual-dialog .counter-preset:hover,
+    .re-manual-dialog .counter-preset.active {
+      border-color: var(--gold); color: var(--gold);
+    }
+    .re-manual-dialog .zone-picker-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 8px 0;
+    }
+    .re-manual-dialog .zone-pick-btn {
+      padding: 10px 8px; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--bg-1);
+      color: var(--text); font-size: 0.8rem; cursor: pointer;
+      text-align: center; transition: all 0.15s;
+    }
+    .re-manual-dialog .zone-pick-btn:hover {
+      border-color: var(--emerald); color: var(--emerald);
+    }
+    .re-manual-dialog .zone-pick-btn.selected {
+      border-color: var(--gold); color: var(--gold); background: rgba(201,168,76,0.1);
+    }
+    .re-dialog-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 240;
+    }
+    .re-dialog-backdrop.hidden { display: none; }
+
+    /* ─── Priority Prompt (EDOPro-style) ─── */
+    .re-priority-prompt {
+      position: fixed;
+      top: calc(var(--topbar-h) + 12px);
+      left: 50%; transform: translateX(-50%);
+      background: var(--bg-2);
+      border: 2px solid var(--gold);
+      border-radius: 14px;
+      padding: 14px 24px;
+      z-index: 200;
+      display: flex; align-items: center; gap: 16px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,168,76,0.2);
+      animation: prompt-slide-in 0.25s ease-out;
+      max-width: 600px;
+    }
+    .re-priority-prompt.hidden { display: none; }
+    @keyframes prompt-slide-in {
+      from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+      to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+    .re-prompt-icon {
+      width: 48px; height: 48px; flex-shrink: 0;
+      border-radius: 8px; overflow: hidden;
+      border: 1px solid var(--border-bright);
+    }
+    .re-prompt-icon img { width: 100%; height: 100%; object-fit: cover; }
+    .re-prompt-text {
+      flex: 1; min-width: 0;
+    }
+    .re-prompt-title {
+      font-size: 0.85rem; font-weight: 600; color: var(--gold);
+      margin-bottom: 2px;
+    }
+    .re-prompt-desc {
+      font-size: 0.75rem; color: var(--text-dim);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .re-prompt-btns {
+      display: flex; gap: 8px; flex-shrink: 0;
+    }
+    .re-prompt-btn {
+      padding: 8px 18px; border-radius: 20px;
+      font-family: 'Outfit', sans-serif; font-size: 0.8rem; font-weight: 600;
+      cursor: pointer; transition: all 0.15s;
+      border: 1px solid var(--border);
+      background: var(--bg-1); color: var(--text);
+    }
+    .re-prompt-btn:hover { border-color: var(--gold); color: var(--gold); }
+    .re-prompt-btn.respond {
+      border-color: var(--success); color: var(--success);
+      background: rgba(34,197,94,0.08);
+    }
+    .re-prompt-btn.respond:hover { background: rgba(34,197,94,0.18); }
+    .re-prompt-btn kbd {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.65rem;
+      background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 3px;
+      margin-left: 6px; color: var(--text-dim);
+    }
+
+    /* ─── Auto-Pass Indicator ─── */
+    .re-autopass-badge {
+      padding: 4px 12px; border-radius: 20px;
+      font-size: 0.7rem; font-weight: 600;
+      background: rgba(245,158,11,0.12); border: 1px solid var(--warning);
+      color: var(--warning); cursor: pointer;
+      transition: all 0.15s; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .re-autopass-badge:hover { background: rgba(245,158,11,0.25); }
+    .re-autopass-badge.active {
+      background: rgba(34,197,94,0.12); border-color: var(--success); color: var(--success);
+    }
+
+    /* ─── Zone Browser Modal ─── */
+    .re-zone-modal {
+      position: fixed; inset: 0;
+      background: rgba(10,14,23,0.92);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 600;
+    }
+    .re-zone-modal.hidden { display: none; }
+    .re-zone-modal-inner {
+      background: var(--bg-2);
+      border: 1px solid var(--border-bright);
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 800px; width: 90%;
+      max-height: 80vh;
+      display: flex; flex-direction: column;
+    }
+    .re-zone-modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .re-zone-modal-header h3 {
+      font-family: 'Cinzel', serif; color: var(--gold); font-size: 1.2rem;
+    }
+    .re-zone-close {
+      width: 32px; height: 32px; border-radius: 50%;
+      border: 1px solid var(--border); background: var(--bg-1);
+      color: var(--text-dim); font-size: 1.2rem;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    .re-zone-close:hover { border-color: var(--danger); color: var(--danger); }
+    .re-zone-cards {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      overflow-y: auto; flex: 1;
+      justify-content: center;
+      padding: 8px 0;
+    }
+    .re-zone-cards .re-card {
+      width: 120px; height: 168px;
+    }
+    .re-zone-cards .re-card img { border-radius: 6px; }
+    .re-zone-empty {
+      color: var(--text-dim); font-style: italic; text-align: center;
+      padding: 40px;
+    }
+
+    /* ─── Keyboard Hints Bar ─── */
+    .re-shortcut-bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      display: flex; align-items: center; justify-content: center; gap: 16px;
+      padding: 4px 16px;
+      background: var(--bg-1); border-top: 1px solid var(--border);
+      font-size: 0.65rem; color: var(--text-dim);
+      z-index: 50;
+    }
+    .re-shortcut-bar kbd {
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--bg-3); padding: 1px 6px; border-radius: 3px;
+      border: 1px solid var(--border); font-size: 0.6rem;
+      color: var(--text);
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 900px) {
+      :root { --side-w: 220px; --card-w: 60px; --card-h: 84px; --card-hand-w: 80px; --card-hand-h: 112px; }
+    }
+    @media (max-width: 650px) {
+      :root { --side-w: 0px; }
+      .re-side { display: none; }
+      #game-container { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <!-- ─── Setup Overlay ─── -->
+  <div id="setup-overlay" class="re-overlay">
+    <div class="re-setup-modal">
+      <h2>MTG Rules Engine</h2>
+      <p style="color: var(--text-dim); margin-bottom: 16px; font-size: 0.85rem;">
+        Play a real Magic: The Gathering game with full rules enforcement — stack, priority, mana payment, and spell resolution.
+      </p>
+
+      <!-- Mode Selection -->
+      <div class="re-mode-btns">
+        <button class="re-mode-btn active" data-mode="vs-bot">
+          vs Bot
+          <small>Play against the AI</small>
+        </button>
+        <button class="re-mode-btn" data-mode="hotseat">
+          Hotseat
+          <small>2 players, 1 screen</small>
+        </button>
+      </div>
+
+      <!-- Player 1 Deck -->
+      <div class="re-deck-section">
+        <h3>Player 1 Deck</h3>
+        <div id="deck-grid-p1" class="re-deck-grid"></div>
+        <details style="margin-top: 8px;">
+          <summary style="color: var(--text-dim); font-size: 0.8rem; cursor: pointer;">Paste a deck list instead</summary>
+          <textarea id="deck-text-p1" class="re-textarea" placeholder="Paste deck list (Arena/MTGO format)&#10;1 Lightning Bolt&#10;4 Island&#10;..."></textarea>
+        </details>
+      </div>
+
+      <!-- Player 2 Deck (Hotseat only) -->
+      <div id="p2-deck-section" class="re-deck-section" style="display: none;">
+        <h3>Player 2 Deck</h3>
+        <div id="deck-grid-p2" class="re-deck-grid"></div>
+        <details style="margin-top: 8px;">
+          <summary style="color: var(--text-dim); font-size: 0.8rem; cursor: pointer;">Paste a deck list instead</summary>
+          <textarea id="deck-text-p2" class="re-textarea" placeholder="Paste deck list (Arena/MTGO format)"></textarea>
+        </details>
+      </div>
+
+      <!-- Player Names (Hotseat) -->
+      <div id="names-section" style="display: none; margin: 16px 0;">
+        <div style="display: flex; gap: 12px;">
+          <div style="flex: 1;">
+            <label style="font-size: 0.75rem; color: var(--text-dim);">Player 1 Name</label>
+            <input id="p1-name" type="text" value="Player 1" style="width: 100%; padding: 8px 12px; background: var(--bg-1); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'Outfit', sans-serif;" />
+          </div>
+          <div style="flex: 1;">
+            <label style="font-size: 0.75rem; color: var(--text-dim);">Player 2 Name</label>
+            <input id="p2-name" type="text" value="Player 2" style="width: 100%; padding: 8px 12px; background: var(--bg-1); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'Outfit', sans-serif;" />
+          </div>
+        </div>
+      </div>
+
+      <button id="btn-start" class="re-start-btn">Start Game</button>
+    </div>
+  </div>
+
+  <!-- ─── Mulligan Overlay ─── -->
+  <div id="mulligan-overlay" class="re-mulligan hidden">
+    <h3 id="mulligan-title">Your Opening Hand</h3>
+    <div id="mulligan-hand" class="re-mulligan-hand"></div>
+    <p id="mulligan-info" style="color: var(--text-dim); font-size: 0.8rem;"></p>
+    <div class="re-mulligan-btns">
+      <button id="btn-keep">Keep</button>
+      <button id="btn-mulligan">Mulligan</button>
+    </div>
+  </div>
+
+  <!-- ─── Hotseat Pass Screen ─── -->
+  <div id="hotseat-pass" class="re-hotseat-pass hidden">
+    <h2 id="hotseat-pass-title">Pass to Player 2</h2>
+    <p>The other player should look away while you hand over the screen.</p>
+    <button id="btn-hotseat-ready">I'm Ready</button>
+  </div>
+
+  <!-- ─── Game Over Overlay ─── -->
+  <div id="gameover-overlay" class="re-gameover hidden">
+    <div class="re-gameover-inner">
+      <h2 id="gameover-title">Game Over</h2>
+      <p id="gameover-msg"></p>
+      <button id="btn-new-game">New Game</button>
+    </div>
+  </div>
+
+  <!-- ─── Game Board ─── -->
+  <div id="game-container">
+    <!-- Top Bar -->
+    <div class="re-topbar">
+      <span id="turn-display" class="re-turn">Turn 1</span>
+      <div id="phase-timeline" class="re-phase-timeline"></div>
+      <div id="life-you" class="re-life-box re-life-you">
+        <span class="re-life-label">You</span>
+        <span id="life-you-val">40</span>
+      </div>
+      <div id="life-opp" class="re-life-box re-life-opp">
+        <span class="re-life-label">Opp</span>
+        <span id="life-opp-val">40</span>
+      </div>
+      <div id="mana-pool" class="re-mana-pool">
+        <div class="re-mana-pip" data-color="W">0</div>
+        <div class="re-mana-pip" data-color="U">0</div>
+        <div class="re-mana-pip" data-color="B">0</div>
+        <div class="re-mana-pip" data-color="R">0</div>
+        <div class="re-mana-pip" data-color="G">0</div>
+        <div class="re-mana-pip" data-color="C">0</div>
+      </div>
+      <span id="priority-display" class="re-priority yours">Your Priority</span>
+      <span id="autopass-badge" class="re-autopass-badge" title="Toggle Auto-Pass (F2)">F2 Auto</span>
+    </div>
+
+    <!-- Main Play Area -->
+    <div class="re-main">
+      <div id="bf-opp" class="re-battlefield re-bf-opp">
+        <span class="re-bf-label">Opponent's Battlefield</span>
+      </div>
+      <div id="bf-you" class="re-battlefield re-bf-you">
+        <span class="re-bf-label">Your Battlefield</span>
+      </div>
+    </div>
+
+    <!-- Side Panel -->
+    <div class="re-side">
+      <!-- Stack -->
+      <div class="re-side-section re-stack">
+        <h4>Stack</h4>
+        <div id="stack-display"><span class="re-stack-empty">Empty</span></div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div id="action-buttons" class="re-action-btns">
+        <button class="re-action-btn primary" id="btn-pass">Pass Priority</button>
+        <button class="re-action-btn" id="btn-undo">Undo</button>
+        <button class="re-action-btn danger" id="btn-concede">Concede</button>
+      </div>
+
+      <!-- Zone Counts -->
+      <div class="re-side-section">
+        <h4>Zones</h4>
+        <div class="re-zones">
+          <div class="re-zone-row" id="zone-your-lib"><span>📚 Library</span> <span id="your-library-count" class="re-zone-count">0</span></div>
+          <div class="re-zone-row" id="zone-opp-lib"><span>📚 Opp Lib</span> <span id="opp-library-count" class="re-zone-count">0</span></div>
+          <div class="re-zone-row" id="zone-your-gy"><span>💀 Graveyard</span> <span id="your-gy-count" class="re-zone-count">0</span></div>
+          <div class="re-zone-row" id="zone-opp-gy"><span>💀 Opp GY</span> <span id="opp-gy-count" class="re-zone-count">0</span></div>
+          <div class="re-zone-row" id="zone-your-exile"><span>🌀 Exile</span> <span id="your-exile-count" class="re-zone-count">0</span></div>
+          <div class="re-zone-row" id="zone-opp-exile"><span>🌀 Opp Exile</span> <span id="opp-exile-count" class="re-zone-count">0</span></div>
+        </div>
+      </div>
+
+      <!-- Game Log -->
+      <div class="re-side-section" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+        <h4>Game Log</h4>
+        <div id="game-log" class="re-log"></div>
+      </div>
+    </div>
+
+    <!-- Hand Zone -->
+    <div class="re-hand-zone">
+      <span class="re-hand-label">Hand</span>
+      <div id="player-hand" style="display: contents;"></div>
+      <div id="commander-zone" class="re-commander-zone"></div>
+    </div>
+  </div>
+
+  <!-- ─── Priority Prompt (EDOPro-style) ─── -->
+  <div id="priority-prompt" class="re-priority-prompt hidden">
+    <div class="re-prompt-icon">
+      <img id="prompt-card-img" src="" alt="" />
+    </div>
+    <div class="re-prompt-text">
+      <div id="prompt-title" class="re-prompt-title">Respond?</div>
+      <div id="prompt-desc" class="re-prompt-desc">Opponent cast Lightning Bolt</div>
+    </div>
+    <div class="re-prompt-btns">
+      <button id="btn-prompt-respond" class="re-prompt-btn respond">Respond<kbd>R</kbd></button>
+      <button id="btn-prompt-pass" class="re-prompt-btn">Pass<kbd>Space</kbd></button>
+    </div>
+  </div>
+
+  <!-- ─── Zone Browser Modal ─── -->
+  <div id="zone-browser" class="re-zone-modal hidden">
+    <div class="re-zone-modal-inner">
+      <div class="re-zone-modal-header">
+        <h3 id="zone-browser-title">Graveyard</h3>
+        <button id="zone-browser-close" class="re-zone-close">&times;</button>
+      </div>
+      <div id="zone-browser-cards" class="re-zone-cards"></div>
+    </div>
+  </div>
+
+  <!-- ─── Manual Resolution Panel ─── -->
+  <div id="manual-panel" class="re-manual-panel hidden">
+    <h4 id="manual-card-name">Manual Resolution</h4>
+    <div id="manual-oracle" class="oracle-text"></div>
+    <div id="manual-btns" class="re-manual-btns"></div>
+  </div>
+
+  <!-- ─── Manual Dialog Backdrop ─── -->
+  <div id="manual-dialog-backdrop" class="re-dialog-backdrop hidden"></div>
+
+  <!-- ─── Counter Dialog ─── -->
+  <div id="counter-dialog" class="re-manual-dialog hidden">
+    <h4>Add / Remove Counters</h4>
+    <p style="font-size:0.75rem; color:var(--text-dim); margin-bottom:10px;">Click a permanent on the battlefield, then choose counter type and amount.</p>
+    <label>Counter Type</label>
+    <div class="counter-presets">
+      <button class="counter-preset active" data-type="+1/+1">+1/+1</button>
+      <button class="counter-preset" data-type="-1/-1">-1/-1</button>
+      <button class="counter-preset" data-type="loyalty">Loyalty</button>
+      <button class="counter-preset" data-type="charge">Charge</button>
+      <button class="counter-preset" data-type="custom">Custom</button>
+    </div>
+    <input id="counter-custom-type" type="text" placeholder="Custom counter name..." style="display:none;" />
+    <div class="dialog-row">
+      <div>
+        <label>Amount (+/-)</label>
+        <input id="counter-amount" type="number" value="1" min="-99" max="99" />
+      </div>
+      <div>
+        <label>Target Permanent</label>
+        <input id="counter-target" type="text" placeholder="Click a permanent..." readonly />
+      </div>
+    </div>
+    <input id="counter-target-id" type="hidden" />
+    <input id="counter-target-owner" type="hidden" />
+    <div class="dialog-actions">
+      <button id="counter-cancel" class="re-action-btn">Cancel</button>
+      <button id="counter-apply" class="re-action-btn primary">Apply</button>
+    </div>
+  </div>
+
+  <!-- ─── Token Dialog ─── -->
+  <div id="token-dialog" class="re-manual-dialog hidden">
+    <h4>Create Token</h4>
+    <div class="dialog-row">
+      <div>
+        <label>Token Name</label>
+        <input id="token-name" type="text" placeholder="e.g. Soldier" value="Token" />
+      </div>
+      <div>
+        <label>Quantity</label>
+        <input id="token-qty" type="number" value="1" min="1" max="20" />
+      </div>
+    </div>
+    <div class="dialog-row">
+      <div>
+        <label>Power</label>
+        <input id="token-power" type="number" value="1" min="0" max="99" />
+      </div>
+      <div>
+        <label>Toughness</label>
+        <input id="token-toughness" type="number" value="1" min="0" max="99" />
+      </div>
+    </div>
+    <label>Type Line</label>
+    <input id="token-type" type="text" placeholder="e.g. Token Creature — Soldier" value="Token Creature" />
+    <div class="dialog-actions">
+      <button id="token-cancel" class="re-action-btn">Cancel</button>
+      <button id="token-create" class="re-action-btn primary">Create</button>
+    </div>
+  </div>
+
+  <!-- ─── Move Card Dialog ─── -->
+  <div id="move-dialog" class="re-manual-dialog hidden">
+    <h4>Move Card Between Zones</h4>
+    <p style="font-size:0.75rem; color:var(--text-dim); margin-bottom:10px;">Select source zone, pick a card, then choose destination.</p>
+    <label>Source Zone</label>
+    <div class="zone-picker-grid" id="move-source-grid">
+      <button class="zone-pick-btn" data-zone="graveyard">Graveyard</button>
+      <button class="zone-pick-btn" data-zone="exile">Exile</button>
+      <button class="zone-pick-btn" data-zone="hand">Hand</button>
+      <button class="zone-pick-btn" data-zone="library">Library (Top)</button>
+      <button class="zone-pick-btn" data-zone="battlefield">Battlefield</button>
+      <button class="zone-pick-btn" data-zone="commandZone">Command Zone</button>
+    </div>
+    <div id="move-card-pick" style="max-height:140px; overflow-y:auto; margin:8px 0; display:none;">
+      <!-- Cards from selected zone will be listed here -->
+    </div>
+    <label>Destination Zone</label>
+    <div class="zone-picker-grid" id="move-dest-grid">
+      <button class="zone-pick-btn" data-zone="battlefield">Battlefield</button>
+      <button class="zone-pick-btn" data-zone="hand">Hand</button>
+      <button class="zone-pick-btn" data-zone="graveyard">Graveyard</button>
+      <button class="zone-pick-btn" data-zone="exile">Exile</button>
+      <button class="zone-pick-btn" data-zone="library">Library (Top)</button>
+      <button class="zone-pick-btn" data-zone="commandZone">Command Zone</button>
+    </div>
+    <div class="dialog-actions">
+      <button id="move-cancel" class="re-action-btn">Cancel</button>
+      <button id="move-apply" class="re-action-btn primary">Move</button>
+    </div>
+  </div>
+
+  <!-- ─── P/T Modifier Dialog ─── -->
+  <div id="pt-dialog" class="re-manual-dialog hidden">
+    <h4>Modify Power / Toughness</h4>
+    <p style="font-size:0.75rem; color:var(--text-dim); margin-bottom:10px;">Click a creature on the battlefield, then set the P/T change.</p>
+    <div class="dialog-row">
+      <div>
+        <label>Power Change (+/-)</label>
+        <input id="pt-power" type="number" value="0" />
+      </div>
+      <div>
+        <label>Toughness Change (+/-)</label>
+        <input id="pt-toughness" type="number" value="0" />
+      </div>
+    </div>
+    <div class="dialog-row">
+      <div>
+        <label>Target Creature</label>
+        <input id="pt-target" type="text" placeholder="Click a creature..." readonly />
+      </div>
+    </div>
+    <input id="pt-target-id" type="hidden" />
+    <input id="pt-target-owner" type="hidden" />
+    <div class="dialog-actions">
+      <button id="pt-cancel" class="re-action-btn">Cancel</button>
+      <button id="pt-apply" class="re-action-btn primary">Apply</button>
+    </div>
+  </div>
+
+  <!-- ─── Card Preview ─── -->
+  <div id="card-preview">
+    <img id="card-preview-img" src="" alt="Card Preview" />
+  </div>
+
+  <!-- ─── Keyboard Shortcut Hints ─── -->
+  <div id="shortcut-bar" class="re-shortcut-bar" style="display: none;">
+    <span><kbd>Space</kbd> Pass</span>
+    <span><kbd>F2</kbd> Auto-Pass</span>
+    <span><kbd>Esc</kbd> Cancel</span>
+    <span><kbd>Ctrl+Z</kbd> Undo</span>
+    <span><kbd>G</kbd> Graveyard</span>
+    <span><kbd>E</kbd> Exile</span>
+  </div>
+
+  <script type="module" src="/src/rules-engine/main.ts"></script>
+</body>
+</html>

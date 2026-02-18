@@ -7,6 +7,7 @@ import { resolveTopOfStack, isStackEmpty } from '../rules/stack.ts';
 import { resolveCombatDamage, hasFirstStrikeCombatants, endCombat } from '../rules/combat.ts';
 import { checkStateBasedActions, checkCommanderDamageLoss } from '../rules/state-based.ts';
 import { trackCommanderDamage, processCommanderZoneReplacements } from '../rules/commander.ts';
+import { applyContinuousEffects } from '../rules/continuous.ts';
 import { UndoManager } from './undo-manager.ts';
 
 /**
@@ -49,10 +50,11 @@ export class Game {
     if (this.state.mulliganPhase) return false;
     
     // In untap and cleanup, no player actions are possible - auto pass
-    if (this.state.step === 'untap' || this.state.step === 'cleanup') {
+    // Exception: don't auto-pass cleanup if a player needs to discard
+    if (this.state.step === 'untap' || (this.state.step === 'cleanup' && this.state.pendingDiscard == null)) {
       // Keep passing until we leave this step
       let safety = 0;
-      while ((this.state.step === 'untap' || this.state.step === 'cleanup') && safety < 10) {
+      while ((this.state.step === 'untap' || (this.state.step === 'cleanup' && this.state.pendingDiscard == null)) && safety < 10) {
         this.submitAction({ type: 'pass', player: this.state.priorityPlayer });
         safety++;
       }
@@ -227,20 +229,61 @@ export class Game {
 
   // --- Private helpers ---
 
-  /** Run state-based actions and commander zone replacements */
+  /**
+   * Run state-based actions with proper SBA→Trigger cascade (CR 117.5).
+   *
+   * Per the Comprehensive Rules, whenever a player would receive priority:
+   * 1. Check SBAs — execute all simultaneously
+   * 2. Check for triggered abilities from SBA results — put on stack
+   * 3. If any SBAs were performed OR any triggers were added, repeat from 1
+   * 4. Only grant priority once the state is stable (no new SBAs, no new triggers)
+   *
+   * Death triggers are already fired inside checkStateBasedActions() via
+   * checkCreatureDeath() → checkDeathTriggers(). The cascade loop here ensures
+   * that triggers created by SBAs (e.g., a creature dying from 0 toughness after
+   * a lord leaves) are properly re-checked.
+   */
   private runStateBasedActions(): void {
     if (this.state.gameOver) return;
 
-    this.state = checkStateBasedActions(this.state);
-    if (this.state.gameOver) return;
+    let safety = 0;
+    const MAX_CASCADE = 50; // Prevent infinite loops from buggy state
 
-    // Commander zone replacements (commander → graveyard goes to command zone)
-    this.state = processCommanderZoneReplacements(this.state);
+    while (safety < MAX_CASCADE) {
+      safety++;
+      const stackBefore = this.state.stack.length;
+      const stateBefore = this.state;
 
-    // Commander damage loss check
-    const cmdResult = checkCommanderDamageLoss(this.state);
-    if (cmdResult.changed) {
-      this.state = cmdResult.state;
+      // Step 1: Check and apply all SBAs (loops internally until no more SBAs)
+      this.state = checkStateBasedActions(this.state);
+      if (this.state.gameOver) return;
+
+      // Recalculate continuous effects after SBAs may have changed the board
+      this.state = applyContinuousEffects(this.state);
+      if (this.state.gameOver) return;
+
+      // Commander zone replacements (commander → graveyard goes to command zone)
+      this.state = processCommanderZoneReplacements(this.state);
+
+      // Commander damage loss check
+      const cmdResult = checkCommanderDamageLoss(this.state);
+      if (cmdResult.changed) {
+        this.state = cmdResult.state;
+        if (this.state.gameOver) return;
+      }
+
+      // Step 2: Check if SBAs caused new triggers to be added to the stack
+      // (Death triggers are already added inside checkCreatureDeath → checkDeathTriggers)
+      const stackAfter = this.state.stack.length;
+      const sbasChangedState = this.state !== stateBefore;
+      const newTriggersAdded = stackAfter > stackBefore;
+
+      // Step 3: If no SBAs changed state AND no new triggers were added, we're stable
+      if (!sbasChangedState && !newTriggersAdded) break;
+
+      // Otherwise, loop again — new triggers may have caused state changes
+      // that require another round of SBAs (e.g., a death trigger creates a token
+      // that triggers another SBA)
     }
   }
 

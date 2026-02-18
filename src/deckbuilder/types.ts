@@ -10,6 +10,8 @@ export interface DeckbuilderCardEntry {
   tags: string[];
   /** ID of the custom category this card is assigned to (for pile view grouping) */
   customCategoryId?: string;
+  /** Timestamp when card was added (for "recently added" highlight) */
+  addedAt?: number;
 }
 
 export interface CustomCategory {

@@ -67,6 +67,8 @@ export {
   advanceStep,
   advancePhase,
   startNewTurn,
+  grantExtraTurn,
+  grantExtraCombat,
   getCurrentStepActions,
   createInitialGameState,
 } from './engine/turn-manager.ts';
@@ -113,6 +115,7 @@ export {
   addSpellToStack,
   addAbilityToStack,
   resolveTopOfStack,
+  checkSpellFizzle,
   getStackSize,
   isStackEmpty,
   peekStack,
@@ -137,6 +140,13 @@ export {
   hasFirstStrikeCombatants,
   getEligibleAttackers,
   getEligibleBlockers,
+  hasKeyword,
+  canBlock,
+  getProtectionColors,
+  hasProtectionFrom,
+  checkMultiBlockerAssignment,
+  validateDamageAssignment,
+  applyDamageAssignment,
 } from './rules/combat.ts';
 
 // === State-Based Actions ===
@@ -158,6 +168,82 @@ export {
   cardFitsColorIdentity,
   processCommanderZoneReplacements,
 } from './rules/commander.ts';
+
+// === Ability Parser ===
+export {
+  parseAbilities,
+  getManaProduction,
+  hasManaAbility,
+  resetAbilityIdCounter,
+  parseLoyaltyCost,
+} from './rules/abilities.ts';
+
+// === Effect Resolver ===
+export {
+  resolveEffect,
+  canAutoResolve,
+  EFFECT_PATTERNS,
+} from './rules/effects.ts';
+export type { EffectResult } from './rules/effects.ts';
+
+// === Triggered Abilities ===
+export {
+  checkTriggers,
+  checkETBTriggers,
+  checkDeathTriggers,
+  checkUpkeepTriggers,
+  checkCastTriggers,
+  checkAttackTriggers,
+  checkLeavesBattlefieldTriggers,
+  checkDamageTriggers,
+  checkDrawTriggers,
+  checkEndStepTriggers,
+  checkLifegainTriggers,
+  checkSacrificeTriggers,
+  resetTriggerIdCounter,
+} from './rules/triggers.ts';
+export type { TriggerEvent } from './rules/triggers.ts';
+
+// === Equipment & Auras ===
+export {
+  isEquipment,
+  isAura,
+  getEquipCost,
+  getEquipmentBonuses,
+  getEquipmentKeywords,
+  getAuraBonuses,
+  getAuraKeywords,
+  attachEquipment,
+  handleAttachmentCleanup,
+  recalculateCreatureStats,
+} from './rules/equipment.ts';
+
+// === Continuous Effects (Lords, Anthems, Static Abilities) ===
+export {
+  applyContinuousEffects,
+  getStaticBonuses,
+  getGrantedKeywords,
+  hasKeywordWithContinuous,
+  matchesTypeFilter,
+} from './rules/continuous.ts';
+export type { StaticBonus } from './rules/continuous.ts';
+
+// === Replacement Effects (CR 614) ===
+export {
+  checkReplacementEffects,
+  applyDeathReplacement,
+  applyDrawReplacement,
+  applyDamageReplacement,
+  applyLifeGainReplacement,
+  applyGraveyardReplacement,
+  REPLACEMENT_EFFECTS,
+} from './rules/replacement-effects.ts';
+export type {
+  ReplacementEventType,
+  ReplacementEvent,
+  ReplacementResult,
+  ReplacementEffectDef,
+} from './rules/replacement-effects.ts';
 
 // === Game ===
 export { Game } from './engine/game.ts';

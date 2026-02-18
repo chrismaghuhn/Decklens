@@ -138,7 +138,11 @@ export function saveDecks(decks: DeckbuilderDeck[]): boolean {
   const normalized = decks
     .map((deck) => normalizeDeck(deck))
     .filter((deck): deck is DeckbuilderDeck => Boolean(deck));
-  return storageSet(STORAGE_KEYS.DECKBUILDER_DECKS, normalized);
+  const success = storageSet(STORAGE_KEYS.DECKBUILDER_DECKS, normalized);
+  if (!success) {
+    throw new Error('Failed to save decks - localStorage quota may be exceeded');
+  }
+  return true;
 }
 
 export function getDeckById(deckId: string): DeckbuilderDeck | null {

@@ -125,10 +125,11 @@ describe('handleCommanderDeath', () => {
     expect(result.players[0].graveyard.length).toBe(0);
     expect(result.players[0].commandZone.length).toBe(1);
     expect(result.players[0].commandZone[0].name).toBe('Cmdr A');
-    expect(result.players[0].commanderTax).toBe(1);
+    // CR 903.8: Commander tax only increments on CAST, not on death/zone replacement
+    expect(result.players[0].commanderTax).toBe(0);
   });
 
-  it('should increment commander tax', () => {
+  it('should NOT increment commander tax on death (tax increments on cast)', () => {
     const state = createTestState();
     const cmdr = createSimpleCard('Cmdr A', 'Legendary Creature', '{2}{G}', 0);
 
@@ -146,7 +147,8 @@ describe('handleCommanderDeath', () => {
     };
 
     const result = handleCommanderDeath(stateWithTax, 'Cmdr A', 0);
-    expect(result.players[0].commanderTax).toBe(3);
+    // Tax should remain unchanged — only increments when cast from command zone
+    expect(result.players[0].commanderTax).toBe(2);
   });
 
   it('should not do anything if commander not in graveyard', () => {
@@ -176,7 +178,8 @@ describe('handleCommanderExile', () => {
     const result = handleCommanderExile(stateWithExiled, 'Cmdr A', 0);
     expect(result.players[0].exile.length).toBe(0);
     expect(result.players[0].commandZone.length).toBe(1);
-    expect(result.players[0].commanderTax).toBe(1);
+    // CR 903.8: Commander tax only increments on CAST, not on exile/zone replacement
+    expect(result.players[0].commanderTax).toBe(0);
   });
 });
 
@@ -292,9 +295,12 @@ describe('processCommanderZoneReplacements', () => {
     };
 
     const result = processCommanderZoneReplacements(stateWithDeadCmdr);
-    // The commander in graveyard should be moved back
-    expect(result.players[0].graveyard.length).toBe(0);
-    // Should have 2 in command zone (original + returned)
-    expect(result.players[0].commandZone.length).toBe(2);
+    // Commander zone replacement is now optional — sets pendingCommanderChoice
+    expect(result.pendingCommanderChoice).toBeTruthy();
+    expect(result.pendingCommanderChoice!.player).toBe(0);
+    expect(result.pendingCommanderChoice!.commanderName).toBe(cmdr.name);
+    expect(result.pendingCommanderChoice!.currentZone).toBe('graveyard');
+    // Commander stays in graveyard until player chooses
+    expect(result.players[0].graveyard.length).toBe(1);
   });
 });

@@ -26,7 +26,7 @@ export type { Zone } from './zones.ts';
 export { ALL_ZONES, PUBLIC_ZONES, HIDDEN_ZONES } from './zones.ts';
 
 // Permanent types
-export type { Ability, Permanent } from './permanent.ts';
+export type { Ability, Permanent, TemporaryPtMod, TemporaryControlChange, TemporaryKeyword } from './permanent.ts';
 export { cardToPermanent } from './permanent.ts';
 
 // Player types

@@ -11,6 +11,8 @@ interface Env {
 // Rewrite rules: [pattern, target HTML file]
 // Order matters – more specific patterns first
 const REWRITES: [RegExp, string][] = [
+  [/^\/simulator\/?$/, '/rules-engine.html'],
+  [/^\/simulator\/.+/, '/rules-engine.html'],
   [/^\/play\/?$/, '/play-vs-bot.html'],
   [/^\/play\/.+/, '/play-vs-bot.html'],
   [/^\/train-bot\/?$/, '/train-bot.html'],

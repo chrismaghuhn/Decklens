@@ -33,6 +33,9 @@ export interface PlayerState {
   // --- Game state ---
   /** Whether this player has had their first draw (skipped on turn 1 for starting player) */
   hasDrawnThisGame: boolean;
+
+  /** Names of this player's commander(s) for commander zone replacement detection */
+  commanderNames?: string[];
 }
 
 /** Starting life total for Commander */
@@ -68,5 +71,6 @@ export function createPlayerState(
     landsPlayedThisTurn: 0,
     maxLandPlays: 1,
     hasDrawnThisGame: false,
+    commanderNames: [commander.name],
   };
 }

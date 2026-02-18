@@ -33,3 +33,7 @@
 
 /train-bot /train-bot.html 200
 /train-bot/ /train-bot.html 200
+
+/simulator /rules-engine.html 200
+/simulator/ /rules-engine.html 200
+/simulator/* /rules-engine.html 200

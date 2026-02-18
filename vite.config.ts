@@ -38,9 +38,13 @@ function decklensSpaRewrites(): Plugin {
           req.url = '/public-dashboard.html';
         } else if (path === '/deckhub' || path.startsWith('/deckhub/')) {
           req.url = '/deckhub.html' + (url.includes('?') ? '?' + url.split('?')[1] : '');
-        } else if (path === '/play' || path === '/play/' || path.startsWith('/play/')) {
-          req.url = '/play-vs-bot.html';
+        } else if (path === '/simulator' || path === '/simulator/' || path.startsWith('/simulator/')) {
+          req.url = '/rules-engine.html';
         }
+        // /play route disabled - WIP
+        // else if (path === '/play' || path === '/play/' || path.startsWith('/play/')) {
+        //   req.url = '/play-vs-bot.html';
+        // }
 
         next();
       });
@@ -78,8 +82,9 @@ export default defineConfig(({ mode }) => {
           communityDashboard: resolve(__dirname, 'community-dashboard.html'),
           publicDashboard: resolve(__dirname, 'public-dashboard.html'),
           deckhub: resolve(__dirname, 'deckhub.html'),
-          playVsBot: resolve(__dirname, 'play-vs-bot.html'),
-          trainBot: resolve(__dirname, 'train-bot.html'),
+          rulesEngine: resolve(__dirname, 'rules-engine.html'),
+          // playVsBot: resolve(__dirname, 'play-vs-bot.html'), // WIP - not ready
+          // trainBot: resolve(__dirname, 'train-bot.html'), // WIP - not ready
         },
       },
       // SECURITY: Disable sourcemaps in production

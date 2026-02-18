@@ -72,6 +72,141 @@ const GRID_COLUMNS = 12;
 const ROW_HEIGHT = 56;
 
 // ═══════════════════════════════════════════════════════════════════
+// Layout Presets
+// ═══════════════════════════════════════════════════════════════════
+
+interface LayoutPreset {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  widgets: WidgetPlacement[];
+}
+
+const LAYOUT_PRESETS: LayoutPreset[] = [
+  {
+    id: 'compact',
+    name: 'Compact',
+    description: 'Deck + Search + Essential Analytics',
+    icon: '📦',
+    widgets: [
+      { widgetId: 'cards', col: 0, row: 0, colSpan: 7, rowSpan: 12, visible: true, collapsed: false },
+      { widgetId: 'search', col: 7, row: 0, colSpan: 5, rowSpan: 6, visible: true, collapsed: false },
+      { widgetId: 'mana-curve', col: 7, row: 6, colSpan: 3, rowSpan: 3, visible: true, collapsed: false },
+      { widgetId: 'power-bracket', col: 10, row: 6, colSpan: 2, rowSpan: 3, visible: true, collapsed: false },
+      { widgetId: 'health-score', col: 7, row: 9, colSpan: 2, rowSpan: 3, visible: true, collapsed: false },
+      { widgetId: 'price-summary', col: 9, row: 9, colSpan: 3, rowSpan: 3, visible: true, collapsed: false },
+    ]
+  },
+
+  {
+    id: 'analytics',
+    name: 'Analytics Focus',
+    description: 'Full analytics dashboard with charts',
+    icon: '📊',
+    widgets: [
+      { widgetId: 'cards', col: 0, row: 0, colSpan: 5, rowSpan: 10, visible: true, collapsed: false },
+      { widgetId: 'search', col: 0, row: 10, colSpan: 5, rowSpan: 6, visible: true, collapsed: false },
+      { widgetId: 'mana-curve', col: 5, row: 0, colSpan: 4, rowSpan: 4, visible: true, collapsed: false },
+      { widgetId: 'color-pie', col: 9, row: 0, colSpan: 3, rowSpan: 4, visible: true, collapsed: false },
+      { widgetId: 'type-dist', col: 5, row: 4, colSpan: 3, rowSpan: 3, visible: true, collapsed: false },
+      { widgetId: 'power-bracket', col: 8, row: 4, colSpan: 2, rowSpan: 3, visible: true, collapsed: false },
+      { widgetId: 'health-score', col: 10, row: 4, colSpan: 2, rowSpan: 3, visible: true, collapsed: false },
+      { widgetId: 'combos', col: 5, row: 7, colSpan: 4, rowSpan: 4, visible: true, collapsed: false },
+      { widgetId: 'synergy-map', col: 9, row: 7, colSpan: 3, rowSpan: 4, visible: true, collapsed: false },
+      { widgetId: 'price-summary', col: 5, row: 11, colSpan: 3, rowSpan: 2, visible: true, collapsed: false },
+      { widgetId: 'deck-tips', col: 8, row: 11, colSpan: 4, rowSpan: 2, visible: true, collapsed: false },
+    ]
+  },
+
+  {
+    id: 'goldfish',
+    name: 'Goldfish Testing',
+    description: 'Deck + Playtest Coach + Draw Probability',
+    icon: '🎮',
+    widgets: [
+      { widgetId: 'cards', col: 0, row: 0, colSpan: 8, rowSpan: 10, visible: true, collapsed: false },
+      { widgetId: 'coach', col: 8, row: 0, colSpan: 4, rowSpan: 6, visible: true, collapsed: false },
+      { widgetId: 'draw-probability', col: 8, row: 6, colSpan: 4, rowSpan: 4, visible: true, collapsed: false },
+      { widgetId: 'search', col: 0, row: 10, colSpan: 6, rowSpan: 5, visible: true, collapsed: false },
+      { widgetId: 'mana-curve', col: 6, row: 10, colSpan: 3, rowSpan: 3, visible: true, collapsed: false },
+      { widgetId: 'power-bracket', col: 9, row: 10, colSpan: 3, rowSpan: 3, visible: true, collapsed: false },
+    ]
+  },
+
+  {
+    id: 'minimal',
+    name: 'Minimal',
+    description: 'Just Deck + Search. Maximum focus.',
+    icon: '✨',
+    widgets: [
+      { widgetId: 'cards', col: 0, row: 0, colSpan: 8, rowSpan: 14, visible: true, collapsed: false },
+      { widgetId: 'search', col: 8, row: 0, colSpan: 4, rowSpan: 14, visible: true, collapsed: false },
+    ]
+  },
+
+  {
+    id: 'full',
+    name: 'Full Dashboard',
+    description: 'Everything visible. Power user mode.',
+    icon: '🚀',
+    widgets: [
+      { widgetId: 'cards', col: 0, row: 0, colSpan: 4, rowSpan: 16, visible: true, collapsed: false },
+      { widgetId: 'search', col: 4, row: 0, colSpan: 3, rowSpan: 8, visible: true, collapsed: false },
+      { widgetId: 'mana-curve', col: 7, row: 0, colSpan: 3, rowSpan: 3, visible: true, collapsed: false },
+      { widgetId: 'color-pie', col: 10, row: 0, colSpan: 2, rowSpan: 3, visible: true, collapsed: false },
+      { widgetId: 'type-dist', col: 7, row: 3, colSpan: 2, rowSpan: 3, visible: true, collapsed: false },
+      { widgetId: 'power-bracket', col: 9, row: 3, colSpan: 2, rowSpan: 2, visible: true, collapsed: false },
+      { widgetId: 'health-score', col: 11, row: 3, colSpan: 1, rowSpan: 2, visible: true, collapsed: false },
+      { widgetId: 'price-summary', col: 9, row: 5, colSpan: 3, rowSpan: 2, visible: true, collapsed: false },
+      { widgetId: 'combos', col: 7, row: 7, colSpan: 3, rowSpan: 3, visible: true, collapsed: false },
+      { widgetId: 'synergy-map', col: 10, row: 7, colSpan: 2, rowSpan: 3, visible: true, collapsed: false },
+      { widgetId: 'budget', col: 4, row: 8, colSpan: 3, rowSpan: 4, visible: true, collapsed: false },
+      { widgetId: 'deck-tips', col: 7, row: 10, colSpan: 5, rowSpan: 3, visible: true, collapsed: false },
+    ]
+  },
+];
+
+export function applyPreset(presetId: string): void {
+  const preset = LAYOUT_PRESETS.find(p => p.id === presetId);
+  if (!preset || !layoutConfig) return;
+
+  // Update layout config with preset
+  layoutConfig.widgets = preset.widgets;
+  saveLayout();
+
+  // Clear existing widgets
+  gridContainer?.querySelectorAll('.layout-widget').forEach(w => w.remove());
+  widgetWrappers.clear();
+
+  // Re-mount all widgets with new positions
+  for (const placement of preset.widgets) {
+    if (!placement.visible) continue;
+
+    const entry = WIDGET_REGISTRY.find(e => e.id === placement.widgetId);
+    if (!entry) continue;
+
+    const body = extractWidgetContent(entry);
+    if (!body) continue;
+
+    const wrapper = createWidgetWrapper(entry, placement);
+    const resizeHandle = wrapper.querySelector('.layout-resize-handle');
+    if (resizeHandle) {
+      wrapper.insertBefore(body, resizeHandle);
+    } else {
+      wrapper.appendChild(body);
+    }
+
+    applyGridPosition(wrapper, placement);
+    setupWidgetInteractions(wrapper, entry.id);
+    gridContainer?.appendChild(wrapper);
+    widgetWrappers.set(entry.id, wrapper);
+  }
+}
+
+export { LAYOUT_PRESETS };
+
+// ═══════════════════════════════════════════════════════════════════
 // Widget Registry
 // ═══════════════════════════════════════════════════════════════════
 
@@ -83,6 +218,8 @@ const WIDGET_REGISTRY: WidgetRegistryEntry[] = [
     extractSelectors: ['.sidebar-search', '#searchFilters', '#activeFilterPills', '#searchResults'] },
 
   // Analytics
+  { id: 'commander-stats', label: 'Commander Stats', icon: '👑', minColSpan: 3, minRowSpan: 3, defaultVisible: true,
+    extractSelectors: ['#commanderStatsWidget'] },
   { id: 'mana-curve', label: 'Mana Curve', icon: '📊', minColSpan: 3, minRowSpan: 2, defaultVisible: true,
     extractSelectors: ['#manaCurveChart', '#manaCurveAvg'] },
   { id: 'color-pie', label: 'Color Distribution', icon: '🎨', minColSpan: 2, minRowSpan: 2, defaultVisible: true,
@@ -949,6 +1086,9 @@ export function exitCustomizeMode(): void {
   if (layoutBtn) layoutBtn.classList.remove('layout-toggle-active');
 
   saveLayout();
+
+  // Refresh all widgets after customize to ensure latest data
+  setTimeout(() => refreshAllWidgets(), 100);
 }
 
 function updateToolbarPills(): void {
@@ -1096,9 +1236,9 @@ function createToolbar(): HTMLElement {
   const presetDefault = h('button', {
     className: 'btn layout-toolbar-btn layout-preset-btn',
     type: 'button',
-    title: 'Default 2-column layout',
-    onClick: () => applyPreset('default'),
-  }, '📐 Default');
+    title: 'Minimal: Just Deck + Search',
+    onClick: () => applyPreset('minimal'),
+  }, '✨ Minimal');
 
   const presetAnalytics = h('button', {
     className: 'btn layout-toolbar-btn layout-preset-btn',
@@ -1110,9 +1250,9 @@ function createToolbar(): HTMLElement {
   const presetCompact = h('button', {
     className: 'btn layout-toolbar-btn layout-preset-btn',
     type: 'button',
-    title: 'Compact: dense grid with smaller widgets',
+    title: 'Compact: Deck + Search + Essential Analytics',
     onClick: () => applyPreset('compact'),
-  }, '🔲 Compact');
+  }, '📦 Compact');
 
   const toolbar = h('div', { className: 'layout-toolbar' },
     h('span', { className: 'layout-toolbar-label' }, '⚙ Customize Layout'),
@@ -1364,39 +1504,6 @@ function createCompactPreset(): WidgetPlacement[] {
   ];
 }
 
-function applyPreset(preset: 'default' | 'analytics' | 'compact'): void {
-  if (!layoutConfig) return;
-
-  let widgets: WidgetPlacement[];
-  switch (preset) {
-    case 'analytics':
-      widgets = createAnalyticsPreset();
-      break;
-    case 'compact':
-      widgets = createCompactPreset();
-      break;
-    default:
-      widgets = createDefaultLayout().widgets;
-      break;
-  }
-
-  layoutConfig.widgets = widgets;
-  saveLayout();
-
-  // Reapply all positions with animation
-  for (const placement of layoutConfig.widgets) {
-    const wrapper = widgetWrappers.get(placement.widgetId);
-    if (wrapper) {
-      applyGridPosition(wrapper, placement);
-      wrapper.classList.toggle('lw-collapsed', placement.collapsed);
-      wrapper.classList.add('lw-entering');
-      setTimeout(() => wrapper.classList.remove('lw-entering'), 300);
-    }
-  }
-
-  updateToolbarPills();
-}
-
 /**
  * Destroy the panel layout system and clean up.
  */
@@ -1421,4 +1528,285 @@ export function destroyPanelLayout(): void {
  */
 export function isPanelLayoutActive(): boolean {
   return isActive;
+}
+
+/**
+ * Refresh all widget contents - extract data from DOM and update widgets.
+ * Called when switching to grid mode or after customize changes.
+ */
+export function refreshAllWidgets(): void {
+  if (!isActive || !layoutConfig) return;
+
+  for (const entry of WIDGET_REGISTRY) {
+    const placement = getPlacement(entry.id);
+    if (!placement || !placement.visible) continue;
+
+    const wrapper = widgetWrappers.get(entry.id);
+    if (!wrapper) continue;
+
+    // Extract fresh content from original DOM
+    const freshContent = extractWidgetContent(entry);
+    if (!freshContent) continue;
+
+    // Replace old body content with fresh content
+    const oldBody = wrapper.querySelector('.layout-widget-body');
+    if (oldBody) {
+      // Clear old content
+      oldBody.innerHTML = '';
+      // Move fresh content into widget body
+      while (freshContent.firstChild) {
+        oldBody.appendChild(freshContent.firstChild);
+      }
+    }
+  }
+}
+
+/**
+ * Auto-scale cards to fit all cards in widget without scrolling.
+ * Dynamically adjusts card size based on available space.
+ * Works in both grid image view and category view.
+ */
+// Cache last card count to prevent flickering on every render
+let lastCardCount = 0;
+let lastOptimalWidth = 110; // Default card width
+
+export function autoFitCardsWidget(): void {
+  if (!isActive || !layoutConfig) return;
+
+  const cardsPlacement = layoutConfig.widgets.find(w => w.widgetId === 'cards');
+  if (!cardsPlacement || !cardsPlacement.visible) return;
+
+  const wrapper = widgetWrappers.get('cards');
+  if (!wrapper) return;
+
+  const widgetBody = wrapper.querySelector('.layout-widget-body') as HTMLElement;
+  if (!widgetBody) return;
+
+  // CRITICAL: Cards content is in #boardRows, NOT in widget body (cards widget is special)
+  const boardRows = document.getElementById('boardRows');
+  if (!boardRows) return;
+
+  // Detect view mode by checking which container exists in #boardRows
+  const singleGrid = boardRows.querySelector('.card-grid-img') as HTMLElement;
+  const categoryGrids = boardRows.querySelectorAll('.cat-grid') as NodeListOf<HTMLElement>;
+  const pileView = boardRows.querySelector('.pile-view') as HTMLElement;
+
+  // Get available space
+  const availableHeight = widgetBody.clientHeight - 40; // minus padding
+  const availableWidth = widgetBody.clientWidth - 40;
+
+  const aspectRatio = 1.4; // MTG card aspect ratio (height/width)
+  const gap = 6;
+  const baseCardWidth = 110; // Default card width
+  const minCardWidth = 60; // Minimum readable size
+  const maxCardWidth = 180; // Maximum card size
+
+  // Handle Grid Image View (.card-grid-img)
+  if (singleGrid) {
+    const totalCards = singleGrid.querySelectorAll('.gcard').length;
+    if (totalCards === 0) return;
+
+    // CRITICAL: Only recalculate if card count changed (prevent flickering)
+    if (totalCards === lastCardCount && lastOptimalWidth > 0) {
+      // Just reapply cached width without recalculation
+      singleGrid.style.setProperty('--card-width', `${lastOptimalWidth}px`);
+      singleGrid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${lastOptimalWidth}px, 1fr))`;
+      return;
+    }
+
+    let optimalCardWidth = baseCardWidth;
+
+    for (let cardWidth = maxCardWidth; cardWidth >= minCardWidth; cardWidth -= 5) {
+      const cardsPerRow = Math.floor((availableWidth + gap) / (cardWidth + gap));
+      if (cardsPerRow === 0) continue;
+
+      const totalRows = Math.ceil(totalCards / cardsPerRow);
+      const cardHeight = cardWidth * aspectRatio;
+      const totalHeight = (totalRows * (cardHeight + gap)) - gap;
+
+      if (totalHeight <= availableHeight) {
+        optimalCardWidth = cardWidth;
+        break;
+      }
+    }
+
+    // Cache for next render
+    lastCardCount = totalCards;
+    lastOptimalWidth = optimalCardWidth;
+
+    singleGrid.style.setProperty('--card-width', `${optimalCardWidth}px`);
+    singleGrid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${optimalCardWidth}px, 1fr))`;
+
+    console.log(`[Auto-Fit] Grid Image View scaled to ${optimalCardWidth}px (${totalCards} cards, ${availableHeight}px available)`);
+    return;
+  }
+
+  // Handle Category View (.cat-grid)
+  if (categoryGrids.length > 0) {
+    const cardGrids = Array.from(categoryGrids);
+    let totalCards = 0;
+    categoryGrids.forEach(grid => {
+      totalCards += grid.querySelectorAll('.gcard').length;
+    });
+
+    if (totalCards === 0) return;
+
+    // CRITICAL: Only recalculate if card count changed (prevent flickering)
+    if (totalCards === lastCardCount && lastOptimalWidth > 0) {
+      cardGrids.forEach(grid => {
+        grid.style.setProperty('--card-width', `${lastOptimalWidth}px`);
+        grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${lastOptimalWidth}px, 1fr))`;
+      });
+      return;
+    }
+
+    let optimalCardWidth = baseCardWidth;
+
+    for (let cardWidth = maxCardWidth; cardWidth >= minCardWidth; cardWidth -= 5) {
+      const cardsPerRow = Math.floor((availableWidth + gap) / (cardWidth + gap));
+      if (cardsPerRow === 0) continue;
+
+      const totalRows = Math.ceil(totalCards / cardsPerRow);
+      const cardHeight = cardWidth * aspectRatio;
+      const categoryHeaderHeight = categoryGrids.length * 40;
+      const totalHeight = (totalRows * (cardHeight + gap)) - gap + categoryHeaderHeight;
+
+      if (totalHeight <= availableHeight) {
+        optimalCardWidth = cardWidth;
+        break;
+      }
+    }
+
+    // Cache for next render
+    lastCardCount = totalCards;
+    lastOptimalWidth = optimalCardWidth;
+
+    cardGrids.forEach(grid => {
+      grid.style.setProperty('--card-width', `${optimalCardWidth}px`);
+      grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${optimalCardWidth}px, 1fr))`;
+    });
+
+    console.log(`[Auto-Fit] Category View scaled to ${optimalCardWidth}px (${totalCards} cards in ${cardGrids.length} categories, ${availableHeight}px available)`);
+    return;
+  }
+
+  // Handle Pile View (.pile-view with .pile-card)
+  if (pileView) {
+    const pileCards = pileView.querySelectorAll('.pile-card') as NodeListOf<HTMLElement>;
+    if (pileCards.length === 0) return;
+
+    const pileColumns = pileView.querySelectorAll('.pile-column') as NodeListOf<HTMLElement>;
+    const numColumns = pileColumns.length;
+
+    if (numColumns === 0) return;
+
+    const totalCards = pileCards.length;
+
+    // CRITICAL: Only recalculate if card count changed (prevent flickering)
+    if (totalCards === lastCardCount && lastOptimalWidth > 0) {
+      const roundedWidth = Math.round(lastOptimalWidth / 10) * 10;
+      const PILE_OVERLAP_MAP_CACHED: Record<number, string> = {
+        60: '-50%', 70: '-48%', 80: '-45%', 90: '-42%', 100: '-40%',
+        110: '-38%', 120: '-35%', 130: '-32%', 140: '-30%', 150: '-28%',
+        160: '-25%', 170: '-22%', 180: '-20%',
+      };
+      const overlap = PILE_OVERLAP_MAP_CACHED[roundedWidth] || '-38%';
+
+      pileCards.forEach((card) => {
+        card.style.width = `${lastOptimalWidth}px`;
+        const pileStack = card.closest('.pile-stack');
+        if (pileStack) {
+          const cardsInStack = pileStack.querySelectorAll('.pile-card');
+          const indexInStack = Array.from(cardsInStack).indexOf(card);
+          card.style.marginTop = indexInStack > 0 ? overlap : '';
+        }
+      });
+      return;
+    }
+
+    // In pile view, cards are stacked with overlap
+    // We need to scale cards AND adjust overlap to fit height
+    let optimalCardWidth = baseCardWidth;
+
+    // Pile overlap percentages (negative margin-top as % of card width)
+    // REDUCED overlap so more of each card is visible
+    const PILE_OVERLAP_MAP: Record<number, string> = {
+      60: '-50%',    // Show ~50% of each card
+      70: '-48%',
+      80: '-45%',
+      90: '-42%',
+      100: '-40%',
+      110: '-38%',   // Default - show ~62% of each card
+      120: '-35%',
+      130: '-32%',
+      140: '-30%',
+      150: '-28%',
+      160: '-25%',
+      170: '-22%',
+      180: '-20%',   // Large - show ~80% of each card
+    };
+
+    for (let cardWidth = maxCardWidth; cardWidth >= minCardWidth; cardWidth -= 10) {
+      const cardHeight = cardWidth * aspectRatio;
+
+      // Calculate column width with gap
+      const columnWidth = Math.floor((availableWidth + gap) / numColumns) - gap;
+
+      // Check if card fits column width
+      if (cardWidth > columnWidth) continue;
+
+      // Find tallest pile to calculate total height
+      let maxPileHeight = 0;
+      pileColumns.forEach(column => {
+        const cardsInPile = column.querySelectorAll('.pile-card').length;
+        if (cardsInPile === 0) return;
+
+        // First card full height, rest overlap
+        const overlap = parseFloat(PILE_OVERLAP_MAP[cardWidth] || '-110%') / 100;
+        const pileHeight = cardHeight + (cardsInPile - 1) * cardHeight * (1 + overlap);
+        maxPileHeight = Math.max(maxPileHeight, pileHeight);
+      });
+
+      // Account for pile headers (40px each)
+      const headerHeight = numColumns > 0 ? 50 : 0; // Approximate header height
+      const totalHeight = maxPileHeight + headerHeight;
+
+      if (totalHeight <= availableHeight) {
+        optimalCardWidth = cardWidth;
+        break;
+      }
+    }
+
+    // Round to nearest 10 for overlap map
+    const roundedWidth = Math.round(optimalCardWidth / 10) * 10;
+    const overlap = PILE_OVERLAP_MAP[roundedWidth] || '-38%';
+
+    // Cache for next render
+    lastCardCount = totalCards;
+    lastOptimalWidth = optimalCardWidth;
+
+    // CRITICAL FIX: Set width on .pile-card container, not img (CSS has img { width: 100% })
+    pileCards.forEach((card) => {
+      // Set container width (img will fill 100% of this)
+      card.style.width = `${optimalCardWidth}px`;
+
+      // Apply overlap (skip first card in each pile)
+      const pileStack = card.closest('.pile-stack');
+      if (pileStack) {
+        const cardsInStack = pileStack.querySelectorAll('.pile-card');
+        const indexInStack = Array.from(cardsInStack).indexOf(card);
+        if (indexInStack > 0) {
+          card.style.marginTop = overlap;
+        } else {
+          card.style.marginTop = '';
+        }
+      }
+    });
+
+    console.log(`[Auto-Fit] Pile View scaled to ${roundedWidth}px with ${overlap} overlap (${pileCards.length} cards in ${numColumns} piles, ${availableHeight}px available)`);
+    return;
+  }
+
+  // No recognized view mode found
+  console.log('[Auto-Fit] No supported view mode detected');
 }

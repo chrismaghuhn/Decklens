@@ -83,6 +83,15 @@ type OutboundMessage =
   | { type: 'goldfish-comment'; text: string; turn: number }
   | { type: 'sideboard-plan-notify'; action: 'created' | 'updated' | 'deleted'; matchup: string }
   | { type: 'test-session-notify'; action: 'logged'; sessionId: string }
+  // ── Multiplayer Goldfish (Phase 6) ──
+  | { type: 'mp-goldfish-create'; playerCount: number; deckName: string }
+  | { type: 'mp-goldfish-join'; deckName: string }
+  | { type: 'mp-goldfish-action'; action: string; playerId: string; details: string; turn: number }
+  | { type: 'mp-goldfish-turn-change'; currentPlayerIndex: number; turn: number; activePlayerId: string }
+  | { type: 'mp-goldfish-combat'; attackerPlayerId: string; attackers: Array<{ permanentId: string; targetPlayerId: string }> }
+  | { type: 'mp-goldfish-blockers'; defenderPlayerId: string; blockers: Array<{ permanentId: string; blockingPermanentId: string }> }
+  | { type: 'mp-goldfish-state-sync'; stateJson: string }
+  | { type: 'mp-goldfish-leave' }
   // ── Ownership Transfer (G3) ──
   | { type: 'transfer-ownership'; participantId: string };
 
@@ -255,6 +264,15 @@ type InboundMessage =
   | { type: 'goldfish-comment-broadcast'; by: string; text: string; turn: number }
   | { type: 'sideboard-plan-event'; action: string; matchup: string; by: string }
   | { type: 'test-session-event'; action: string; sessionId: string; by: string }
+  // ── Multiplayer Goldfish (Phase 6) ──
+  | { type: 'mp-goldfish-created'; gameId: string; hostPlayerId: string; by: string }
+  | { type: 'mp-goldfish-player-joined'; playerId: string; playerName: string; playerColor: string; by: string }
+  | { type: 'mp-goldfish-player-left'; playerId: string; by: string }
+  | { type: 'mp-goldfish-action-broadcast'; by: string; playerId: string; action: string; details: string; turn: number }
+  | { type: 'mp-goldfish-turn-change-broadcast'; currentPlayerIndex: number; turn: number; activePlayerId: string; by: string }
+  | { type: 'mp-goldfish-combat-broadcast'; attackerPlayerId: string; attackers: Array<{ permanentId: string; targetPlayerId: string }>; by: string }
+  | { type: 'mp-goldfish-blockers-broadcast'; defenderPlayerId: string; blockers: Array<{ permanentId: string; blockingPermanentId: string }>; by: string }
+  | { type: 'mp-goldfish-state-sync-broadcast'; stateJson: string; by: string }
   // ── Ownership Transfer (G3) ──
   | { type: 'ownership-transferred'; ownerToken: string; previousOwner: string; newOwner: string };
 
@@ -310,6 +328,15 @@ export type CollabEventType =
   | 'goldfish-comment-broadcast'
   | 'sideboard-plan-event'
   | 'test-session-event'
+  // ── Multiplayer Goldfish (Phase 6) ──
+  | 'mp-goldfish-created'
+  | 'mp-goldfish-player-joined'
+  | 'mp-goldfish-player-left'
+  | 'mp-goldfish-action-broadcast'
+  | 'mp-goldfish-turn-change-broadcast'
+  | 'mp-goldfish-combat-broadcast'
+  | 'mp-goldfish-blockers-broadcast'
+  | 'mp-goldfish-state-sync-broadcast'
   // ── Ownership Transfer (G3) ──
   | 'ownership-transferred';
 
@@ -545,6 +572,48 @@ export class CollabManager {
   /** Send a spectator comment during goldfish */
   sendGoldfishComment(text: string, turn: number): void {
     this.send({ type: 'goldfish-comment', text, turn });
+  }
+
+  // ── Multiplayer Goldfish (Phase 6) ──
+
+  /** Create a multiplayer goldfish game */
+  sendMPGoldfishCreate(playerCount: number, deckName: string): void {
+    this.send({ type: 'mp-goldfish-create', playerCount, deckName });
+  }
+
+  /** Join a multiplayer goldfish game */
+  sendMPGoldfishJoin(deckName: string): void {
+    this.send({ type: 'mp-goldfish-join', deckName });
+  }
+
+  /** Broadcast a multiplayer goldfish action */
+  sendMPGoldfishAction(action: string, playerId: string, details: string, turn: number): void {
+    this.send({ type: 'mp-goldfish-action', action, playerId, details, turn });
+  }
+
+  /** Broadcast a turn change */
+  sendMPGoldfishTurnChange(currentPlayerIndex: number, turn: number, activePlayerId: string): void {
+    this.send({ type: 'mp-goldfish-turn-change', currentPlayerIndex, turn, activePlayerId });
+  }
+
+  /** Broadcast combat state */
+  sendMPGoldfishCombat(attackerPlayerId: string, attackers: Array<{ permanentId: string; targetPlayerId: string }>): void {
+    this.send({ type: 'mp-goldfish-combat', attackerPlayerId, attackers });
+  }
+
+  /** Broadcast blocker declarations */
+  sendMPGoldfishBlockers(defenderPlayerId: string, blockers: Array<{ permanentId: string; blockingPermanentId: string }>): void {
+    this.send({ type: 'mp-goldfish-blockers', defenderPlayerId, blockers });
+  }
+
+  /** Sync full multiplayer state */
+  sendMPGoldfishStateSync(stateJson: string): void {
+    this.send({ type: 'mp-goldfish-state-sync', stateJson });
+  }
+
+  /** Leave a multiplayer goldfish game */
+  sendMPGoldfishLeave(): void {
+    this.send({ type: 'mp-goldfish-leave' });
   }
 
   /** Notify about a sideboard plan change */
@@ -845,6 +914,31 @@ export class CollabManager {
         break;
       case 'test-session-event':
         this.emit({ type: 'test-session-event', data: msg });
+        break;
+      // ── Multiplayer Goldfish (Phase 6) ──
+      case 'mp-goldfish-created':
+        this.emit({ type: 'mp-goldfish-created', data: msg });
+        break;
+      case 'mp-goldfish-player-joined':
+        this.emit({ type: 'mp-goldfish-player-joined', data: msg });
+        break;
+      case 'mp-goldfish-player-left':
+        this.emit({ type: 'mp-goldfish-player-left', data: msg });
+        break;
+      case 'mp-goldfish-action-broadcast':
+        this.emit({ type: 'mp-goldfish-action-broadcast', data: msg });
+        break;
+      case 'mp-goldfish-turn-change-broadcast':
+        this.emit({ type: 'mp-goldfish-turn-change-broadcast', data: msg });
+        break;
+      case 'mp-goldfish-combat-broadcast':
+        this.emit({ type: 'mp-goldfish-combat-broadcast', data: msg });
+        break;
+      case 'mp-goldfish-blockers-broadcast':
+        this.emit({ type: 'mp-goldfish-blockers-broadcast', data: msg });
+        break;
+      case 'mp-goldfish-state-sync-broadcast':
+        this.emit({ type: 'mp-goldfish-state-sync-broadcast', data: msg });
         break;
       // ── Ownership Transfer (G3) ──
       case 'ownership-transferred':

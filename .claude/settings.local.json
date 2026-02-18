@@ -84,7 +84,14 @@
       "Bash(npm test:*)",
       "Bash(pnpm -r build:*)",
       "Bash(Select-String -Pattern \"\\(error|warning|built successfully\\)\" -Context 0,2)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(for:*)",
+      "Bash(do echo \"Batch $i...\")",
+      "Bash(done)",
+      "Bash(pnpm -r run test:*)",
+      "Bash(git stash:*)"
     ]
   }
 }

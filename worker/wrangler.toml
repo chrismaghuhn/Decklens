@@ -37,6 +37,10 @@ bindings = [
 tag = "v1"
 new_sqlite_classes = ["CollabSession"]
 
+# Scheduled Cron Triggers
+[triggers]
+crons = ["0 2 * * SUN"]  # Every Sunday at 2:00 AM UTC - Refresh commander stats
+
 # Auth: OAuth secrets (set via `npx wrangler secret put <NAME>`)
 # GITHUB_CLIENT_ID = set via wrangler secret
 # GITHUB_CLIENT_SECRET = set via wrangler secret

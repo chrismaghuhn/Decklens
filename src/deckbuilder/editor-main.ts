@@ -39,6 +39,7 @@ import { normalizeNameKey } from '../shared/utils.js';
 import { createDeck, createEmptyDeck, getDeckById, listDecks, setLastOpenedDeckId, upsertDeck } from './storage.js';
 import { compareDecksDiff, renderDeckComparison, type DeckZones } from '../shared/features/deck-comparison.js';
 import { STORAGE_KEYS, storageGet, storageSet } from '../shared/storage.js';
+import { renderCommanderStatsWidget } from './commander-stats-widget.js';
 import type { DeckBoard, DeckFormat, DeckbuilderCardEntry, DeckbuilderDeck, DeckbuilderImportUnresolved, EdhRuleIssue } from './types.js';
 import {
   getViewMode,
@@ -84,6 +85,7 @@ import { renderVersionPanel } from './version-panel.js';
 import { hasSyntaxPrefixes, parseSearchSyntax } from './search-syntax.js';
 import { attachCardAutocomplete, type CardAutocompleteController } from './card-autocomplete.js';
 import { openGoldfishPlaytest } from './goldfish.js';
+import { showMultiplayerLaunchModal } from './goldfish-mp-launch.js';
 import { initToastContainer, showToast, showBatchableToast } from './toast.js';
 import { showPromptModal, showConfirmModal } from './confirm-modal.js';
 import { shouldShowOnboarding, startOnboarding } from './onboarding.js';
@@ -119,7 +121,7 @@ import { recordRecommendationApplyHistory } from '../mtg/recommendation-history.
 import { categoryToLogicTags } from './smart-recs.js';
 import { renderRecHistoryPanel } from './rec-history-panel.js';
 import type { RecommendationV1Item } from '../mtg/engine/recommendation-v1.js';
-import { initPanelLayout } from './panel-layout.js';
+import { initPanelLayout, refreshAllWidgets, autoFitCardsWidget } from './panel-layout.js';
 import { initRepoPanel, onRepoTabActive } from './repo-panel.js';
 import { initCommandPalette } from './cmd-palette.js';
 import { renderMatchupStrategyWidget } from './matchup-strategy-widget.js';
@@ -160,6 +162,8 @@ let selectedSearchIndex = -1;
 /** Flag to prevent echo loops: when true, mutations came from a remote collaborator and should NOT be re-broadcast. */
 let isRemoteUpdate = false;
 let searchResults: DeckbuilderSearchCard[] = [];
+let allSearchResults: DeckbuilderSearchCard[] = []; // Full results from API
+let displayedSearchCount = 25; // How many to show initially
 let unresolvedImportRows: DeckbuilderImportUnresolved[] = [];
 let resolvedCardByName: Record<string, DeckbuilderSearchCard | undefined> = {};
 let resolveInFlight = false;
@@ -171,12 +175,191 @@ let sidebarOpen = false;
 let activeChartFilter: ChartFilter = null;
 let lastSnapshotCardCount = 0;
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+let autoFitDebounce: ReturnType<typeof setTimeout> | null = null;
 let saveIndicatorEl: HTMLElement | null = null;
 let searchAbortController: AbortController | null = null;
 let searchAutocomplete: CardAutocompleteController | null = null;
 let deferredRenderTimer: ReturnType<typeof setTimeout> | null = null;
 let deckFilterText = '';
 let cloudSyncTimer: ReturnType<typeof setTimeout> | null = null;
+
+// ==================== Layout Mode ====================
+type LayoutMode = 'classic' | 'grid';
+let currentLayoutMode: LayoutMode = 'classic';
+
+function getLayoutMode(): LayoutMode {
+  return storageGet<LayoutMode>(STORAGE_KEYS.DECKBUILDER_LAYOUT_MODE, 'classic');
+}
+
+function setLayoutMode(mode: LayoutMode): void {
+  currentLayoutMode = mode;
+  storageSet(STORAGE_KEYS.DECKBUILDER_LAYOUT_MODE, mode);
+  applyLayoutMode(mode, true); // true = animate transition
+  renderLayoutToggle();
+}
+
+function applyLayoutMode(mode: LayoutMode, animate = false): void {
+  const editorMain = document.querySelector<HTMLElement>('.editor-main');
+  const editorLeft = document.querySelector<HTMLElement>('.editor-left');
+  const editorRight = document.querySelector<HTMLElement>('.editor-right');
+
+  if (!editorMain) return;
+
+  if (animate) {
+    editorMain.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+    if (editorRight) editorRight.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+  }
+
+  if (mode === 'grid') {
+    // Show grid, hide classic sidebar
+    editorMain.classList.add('layout-active');
+    if (editorLeft) editorLeft.style.display = 'none';
+    if (editorRight) editorRight.style.display = 'none';
+
+    // Init grid system if not already initialized
+    if (typeof initPanelLayout === 'function') {
+      initPanelLayout();
+    }
+
+    // Show grid widgets
+    const widgets = document.querySelectorAll('.layout-widget');
+    widgets.forEach(w => (w as HTMLElement).style.display = '');
+
+    // Refresh all widget contents with latest data
+    setTimeout(() => {
+      if (typeof refreshAllWidgets === 'function') {
+        refreshAllWidgets();
+      }
+      // Auto-fit is now safe - flickering fixed via differential rendering
+      if (typeof autoFitCardsWidget === 'function') {
+        autoFitCardsWidget();
+      }
+    }, 100);
+  } else {
+    // Show classic, hide grid
+    editorMain.classList.remove('layout-active');
+    if (editorLeft) editorLeft.style.display = '';
+    if (editorRight) editorRight.style.display = '';
+
+    // Hide grid widgets
+    const widgets = document.querySelectorAll('.layout-widget');
+    widgets.forEach(w => (w as HTMLElement).style.display = 'none');
+  }
+
+  // Clear transitions after animation completes
+  setTimeout(() => {
+    editorMain.style.transition = '';
+    if (editorRight) editorRight.style.transition = '';
+  }, 400);
+}
+
+function renderLayoutToggle(): void {
+  const classicBtn = document.querySelector('[data-mode="classic"]');
+  const gridBtn = document.querySelector('[data-mode="grid"]');
+
+  if (classicBtn && gridBtn) {
+    classicBtn.classList.toggle('active', currentLayoutMode === 'classic');
+    gridBtn.classList.toggle('active', currentLayoutMode === 'grid');
+  }
+}
+
+function initLayoutMode(): void {
+  // Load saved preference
+  currentLayoutMode = getLayoutMode();
+
+  // Apply layout mode (without animation on initial load)
+  applyLayoutMode(currentLayoutMode, false);
+
+  // Render toggle buttons
+  renderLayoutToggle();
+
+  // Show onboarding if first time
+  showLayoutModeOnboarding();
+}
+
+function showLayoutModeOnboarding(): void {
+  // Always treat as object, never boolean
+  const stored = storageGet(STORAGE_KEYS.DECKBUILDER_ONBOARDING, {});
+  const hasSeenOnboarding = typeof stored === 'object' && stored !== null ? stored : {};
+
+  if (!hasSeenOnboarding.layoutMode) {
+    showToast({
+      message: '💡 New: Switch between Classic and Grid layouts using the toggle in the header!',
+      type: 'info',
+      duration: 8000,
+    });
+
+    // Safely update onboarding state
+    const current = typeof stored === 'object' && stored !== null ? {...stored} : {};
+    current.layoutMode = true;
+    storageSet(STORAGE_KEYS.DECKBUILDER_ONBOARDING, current);
+  }
+
+  // Show preset picker on first grid mode activation
+  if (currentLayoutMode === 'grid' && !hasSeenOnboarding.gridPreset) {
+    setTimeout(() => showPresetPicker(), 500);
+  }
+}
+
+function showPresetPicker(): void {
+  const modal = document.getElementById('presetPickerModal');
+  if (!modal) return;
+
+  // Import presets dynamically
+  import('./panel-layout.js').then(({ LAYOUT_PRESETS, applyPreset }) => {
+    const grid = document.getElementById('presetGrid');
+    if (!grid) return;
+
+    // Clear existing content
+    grid.innerHTML = '';
+
+    // Render preset cards
+    for (const preset of LAYOUT_PRESETS) {
+      const card = document.createElement('button');
+      card.className = 'preset-card';
+      card.innerHTML = `
+        <div class="preset-icon">${preset.icon}</div>
+        <div class="preset-name">${preset.name}</div>
+        <div class="preset-desc">${preset.description}</div>
+      `;
+      card.onclick = () => {
+        applyPreset(preset.id);
+        closePresetPicker();
+        showToast({
+          message: `✨ Applied "${preset.name}" layout`,
+          type: 'success',
+          duration: 3000,
+        });
+      };
+      grid.appendChild(card);
+    }
+
+    // Show modal
+    modal.style.display = 'flex';
+
+    // Setup close handlers
+    const closeBtn = document.getElementById('btnClosePresetPicker');
+    const cancelBtn = document.getElementById('btnCancelPreset');
+    const overlay = modal.querySelector('.preset-modal-overlay');
+
+    const closeHandler = () => closePresetPicker();
+    closeBtn?.addEventListener('click', closeHandler);
+    cancelBtn?.addEventListener('click', closeHandler);
+    overlay?.addEventListener('click', closeHandler);
+
+    // Mark as seen
+    const current = storageGet<Record<string, boolean>>(STORAGE_KEYS.DECKBUILDER_ONBOARDING, {});
+    current.gridPreset = true;
+    storageSet(STORAGE_KEYS.DECKBUILDER_ONBOARDING, current);
+  }).catch(err => {
+    console.error('[Deckbuilder] Failed to load presets:', err);
+  });
+}
+
+function closePresetPicker(): void {
+  const modal = document.getElementById('presetPickerModal');
+  if (modal) modal.style.display = 'none';
+}
 
 // ==================== Cloud Sync ====================
 
@@ -281,12 +464,23 @@ function showStatus(message: string, mode: 'muted' | 'danger' = 'muted'): void {
 function saveCurrentDeck(): void {
   if (!currentDeck) return;
   currentDeck.updatedAt = new Date().toISOString();
-  upsertDeck(currentDeck);
-  updateSaveIndicator('saved');
-  scheduleDebouncedCloudSync();
+
+  try {
+    upsertDeck(currentDeck);
+    updateSaveIndicator('saved');
+    lastSaveError = null;
+    scheduleDebouncedCloudSync();
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[Deckbuilder] Failed to save deck:', err);
+    lastSaveError = errorMsg;
+    updateSaveIndicator('error');
+    showToast('Failed to save deck: ' + errorMsg, 'error', 5000);
+  }
 }
 
-type SaveState = 'saved' | 'saving' | 'unsaved';
+type SaveState = 'saved' | 'saving' | 'unsaved' | 'error';
+let lastSaveError: string | null = null;
 
 function initSaveIndicator(): void {
   const dot = document.createElement('span');
@@ -308,8 +502,20 @@ function updateSaveIndicator(state: SaveState): void {
   saveIndicatorEl.className = `save-indicator save-indicator--${state}`;
   const textEl = saveIndicatorEl.querySelector('.save-indicator__text');
   if (textEl) {
-    const labels: Record<SaveState, string> = { saved: 'Saved', saving: 'Saving...', unsaved: 'Unsaved changes' };
+    const labels: Record<SaveState, string> = {
+      saved: 'Saved',
+      saving: 'Saving...',
+      unsaved: 'Unsaved changes',
+      error: 'Save failed'
+    };
     textEl.textContent = labels[state];
+  }
+
+  // Set tooltip for error state
+  if (state === 'error' && lastSaveError) {
+    saveIndicatorEl.title = lastSaveError;
+  } else {
+    saveIndicatorEl.title = '';
   }
 }
 
@@ -350,7 +556,12 @@ function setActiveBoard(board: DeckBoard): void {
   }
   // F2: Persist preferred board per deck
   if (currentDeck) {
-    try { localStorage.setItem(`dl_board_${currentDeck.id}`, board); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(`dl_board_${currentDeck.id}`, board);
+    } catch (err) {
+      console.error('[Deckbuilder] Failed to persist board preference:', err);
+      showToast('Warning: Board preference not saved', 'warning', 3000);
+    }
   }
   // Send presence update when switching boards (Phase 3)
   if (isCollabActive()) {
@@ -406,6 +617,7 @@ function upsertEntry(board: DeckBoard, cardName: string, qtyDelta: number, cardM
       set: cardMeta?.set || null,
       collectorNumber: cardMeta?.collector_number || null,
       tags: [],
+      addedAt: Date.now(), // Timestamp for "recently added" highlight
     };
     list.push(newEntry);
     list.sort((a, b) => a.name.localeCompare(b.name));
@@ -719,6 +931,9 @@ function renderBoardRows(): void {
     const count = currentDeck.boards[activeBoard].length;
     liveRegion.textContent = `${BOARD_LABEL[activeBoard]}: ${count} unique cards`;
   }
+
+  // NOTE: Auto-fit is now only called on actual deck mutations (add/remove/load), not on every render
+  // This prevents flickering when clicking on cards or switching views
 }
 
 function updateBoardBadges(): void {
@@ -2138,6 +2353,25 @@ function renderCombos(deck: DeckbuilderDeck): void {
   }
 }
 
+/**
+ * Render Commander Stats Widget (async)
+ */
+function renderCommanderStatsWidgetAsync(deck: DeckbuilderDeck): void {
+  const container = byId<HTMLDivElement>('commanderStatsWidget');
+  if (!container) return;
+
+  // Render asynchronously (don't block analytics rendering)
+  renderCommanderStatsWidget(container, deck).catch(err => {
+    console.error('[Commander Stats] Render error:', err);
+    container.innerHTML = `
+      <div class="commander-stats-error">
+        <div class="error-icon">⚠️</div>
+        <p class="error-text">Failed to load stats</p>
+      </div>
+    `;
+  });
+}
+
 /** B1: Always-visible analytics summary bar */
 function renderAnalyticsSummaryBar(
   deck: DeckbuilderDeck,
@@ -2198,6 +2432,9 @@ function renderAnalytics(): void {
 
   // B1: Render always-visible summary bar
   renderAnalyticsSummaryBar(currentDeck, data);
+
+  // Commander Stats Widget
+  renderCommanderStatsWidgetAsync(currentDeck);
 
   renderManaCurveChart(data.curve);
   renderColorDonut(data.colors);
@@ -2612,16 +2849,13 @@ function applySelectedUnresolvedRows(): void {
 }
 
 async function refreshMissingCardData(forceReload = false): Promise<void> {
-  console.log('[DEBUG] refreshMissingCardData called, forceReload:', forceReload);
   if (!currentDeck) {
-    console.log('[DEBUG] No currentDeck, returning');
     return;
   }
   if (resolveInFlight) {
-    console.log('[DEBUG] resolveInFlight is true, returning');
     return;
   }
-  
+
   let names: string[];
   if (forceReload) {
     // Force reload all cards
@@ -2630,30 +2864,23 @@ async function refreshMissingCardData(forceReload = false): Promise<void> {
     // Only load missing cards
     names = allDeckNames(currentDeck).filter((name) => !resolvedCardByName[normalizeNameKey(name)]);
   }
-  
-  console.log('[DEBUG] Names to resolve:', names.length, names.slice(0, 5));
-  
+
   if (names.length === 0) {
-    console.log('[DEBUG] No names to resolve, returning');
     return;
   }
-  
+
   resolveInFlight = true;
   try {
-    console.log('[DEBUG] Calling resolveDeckbuilderCards...');
     const { resolved, missing } = await resolveDeckbuilderCards(names);
-    console.log('[DEBUG] Resolved cards:', Object.keys(resolved).length);
-    console.log('[DEBUG] Missing cards:', missing.length);
-    
+
     for (const [apiKey, value] of Object.entries(resolved)) {
       // Store under both the API returned key and our normalized key
       const normKey = normalizeNameKey(apiKey);
       resolvedCardByName[normKey] = value;
       resolvedCardByName[apiKey] = value;
     }
-    console.log('[DEBUG] Total resolvedCardByName entries:', Object.keys(resolvedCardByName).length);
   } catch (error) {
-    console.error('[DEBUG] Failed to load card data:', error);
+    console.error('[Deckbuilder] Failed to load card data:', error);
     throw error;
   } finally {
     resolveInFlight = false;
@@ -2892,7 +3119,9 @@ function checkLocalStorageQuota(): void {
       quotaBannerShown = false;
       removeStorageWarningBanner();
     }
-  } catch { /* ignore */ }
+  } catch (err) {
+    console.error('[Deckbuilder] Failed to check storage quota:', err);
+  }
 }
 
 function showStorageWarningBanner(usagePercent: number): void {
@@ -3013,7 +3242,15 @@ function renderSearchResults(): void {
   // Reset header title if it was changed by suggestions
   const headerH3 = document.querySelector('.search-sidebar-header h3');
   if (headerH3 && headerH3.textContent !== 'Search Results') headerH3.textContent = 'Search Results';
-  countEl.textContent = `${searchResults.length} result${searchResults.length !== 1 ? 's' : ''}`;
+
+  // Show "showing X of Y results"
+  const totalResults = allSearchResults.length;
+  const showingCount = searchResults.length;
+  if (showingCount < totalResults) {
+    countEl.textContent = `Showing ${showingCount} of ${totalResults} results`;
+  } else {
+    countEl.textContent = `${totalResults} result${totalResults !== 1 ? 's' : ''}`;
+  }
 
   searchResults.forEach((card, index) => {
     const imgSrc = card.image_uris?.small || card.image_uris?.normal || '';
@@ -3066,6 +3303,20 @@ function renderSearchResults(): void {
 
     grid.appendChild(cardEl);
   });
+
+  // Add "Load More" button if there are more results
+  if (searchResults.length < allSearchResults.length) {
+    const remaining = allSearchResults.length - searchResults.length;
+    const loadMoreBtn = document.createElement('button');
+    loadMoreBtn.className = 'search-load-more-btn';
+    loadMoreBtn.textContent = `Load More (${remaining} remaining)`;
+    loadMoreBtn.addEventListener('click', () => {
+      displayedSearchCount += 25;
+      searchResults = allSearchResults.slice(0, displayedSearchCount);
+      renderSearchResults();
+    });
+    grid.appendChild(loadMoreBtn);
+  }
 
   scrollActiveSearchCardIntoView();
 }
@@ -3198,10 +3449,12 @@ async function runSearch(term: string): Promise<void> {
     );
     // Ignore result if this search was aborted while awaiting
     if (signal.aborted) return;
-    searchResults = response.items.slice(0, 25);
+    allSearchResults = response.items; // Store ALL results
+    displayedSearchCount = 25; // Reset to initial page
+    searchResults = allSearchResults.slice(0, displayedSearchCount);
     selectedSearchIndex = searchResults.length > 0 ? 0 : -1;
     renderSearchResults();
-    updateSearchResultsBadge(searchResults.length);
+    updateSearchResultsBadge(allSearchResults.length); // Show total count
     if (q) addToSearchHistory(q);
   } catch (error) {
     // Silently ignore aborted searches (user typed again)
@@ -3421,6 +3674,38 @@ function bindSearchEvents(): void {
       event.preventDefault();
       if (searchResults.length === 0) return;
       selectedSearchIndex = (selectedSearchIndex - 1 + searchResults.length) % searchResults.length;
+      renderSearchResults();
+      return;
+    }
+
+    if (event.key === 'Home') {
+      event.preventDefault();
+      if (searchResults.length === 0) return;
+      selectedSearchIndex = 0;
+      renderSearchResults();
+      return;
+    }
+
+    if (event.key === 'End') {
+      event.preventDefault();
+      if (searchResults.length === 0) return;
+      selectedSearchIndex = searchResults.length - 1;
+      renderSearchResults();
+      return;
+    }
+
+    if (event.key === 'PageDown') {
+      event.preventDefault();
+      if (searchResults.length === 0) return;
+      selectedSearchIndex = Math.min(searchResults.length - 1, selectedSearchIndex + 10);
+      renderSearchResults();
+      return;
+    }
+
+    if (event.key === 'PageUp') {
+      event.preventDefault();
+      if (searchResults.length === 0) return;
+      selectedSearchIndex = Math.max(0, selectedSearchIndex - 10);
       renderSearchResults();
       return;
     }
@@ -4081,6 +4366,12 @@ function bindExportEvents(): void {
     openGoldfishPlaytest(currentDeck, resolvedCardByName);
   });
 
+  byId<HTMLButtonElement>('btnMultiplayerGoldfish').addEventListener('click', () => {
+    if (!currentDeck) return;
+    trackPremiumFeatureUse('multiplayer_goldfish');
+    showMultiplayerLaunchModal(currentDeck, resolvedCardByName);
+  });
+
   byId<HTMLButtonElement>('btnCreateShareSnapshot').addEventListener('click', async () => {
     if (!currentDeck) return;
     if (currentDeck.visibility === 'private') {
@@ -4446,7 +4737,9 @@ function initDeck(): boolean {
     if (savedBoard && BOARD_ORDER.includes(savedBoard)) {
       activeBoard = savedBoard;
     }
-  } catch { /* ignore */ }
+  } catch (err) {
+    console.error('[Deckbuilder] Failed to restore board preference:', err);
+  }
 
   return true;
 }
@@ -4612,6 +4905,16 @@ function bindBulkActions(): void {
 
   byId<HTMLButtonElement>('bulkRemove').addEventListener('click', () => {
     if (!currentDeck) return;
+
+    const count = selectedCards.size;
+    if (count === 0) return;
+
+    const confirmMsg = count === 1
+      ? 'Remove this card from deck?'
+      : `Remove ${count} cards from deck?`;
+
+    if (!confirm(confirmMsg)) return;
+
     for (const key of selectedCards) {
       const entry = currentDeck.boards[activeBoard].find(
         (item) => normalizeNameKey(item.name) === key
@@ -4620,6 +4923,7 @@ function bindBulkActions(): void {
     }
     clearSelection();
     saveAndRender();
+    showToast(`Removed ${count} card${count > 1 ? 's' : ''}`, 'success', 2000);
   });
 
   byId<HTMLInputElement>('bulkTags').addEventListener('change', (e) => {
@@ -5584,18 +5888,14 @@ function init(): void {
       const placeholder = createEmptyDeck('Loading...');
       currentDeck = placeholder;
     }
-    
+
     // Load card data FIRST, then set board and render
-    console.log('[DEBUG] Starting card data load (collab)...');
     void (async () => {
       try {
-        console.log('[DEBUG] Calling refreshMissingCardData...');
         await refreshMissingCardData(true);
-        console.log('[DEBUG] refreshMissingCardData completed');
       } catch (e) {
-        console.error('[DEBUG] Failed to load card data:', e);
+        console.error('[Deckbuilder] Failed to load card data:', e);
       } finally {
-        console.log('[DEBUG] Rendering deck...');
         // Always set board and render after attempting to load data
         activeBoard = 'mainboard';
         // Update board button states
@@ -5608,30 +5908,22 @@ function init(): void {
         analyticsCache = null;
         powerLevelCache = null;
         saveAndRender();
-        console.log('[DEBUG] Render complete');
       }
     })();
     joinCollabSession(collabSessionId);
   } else {
     // Normal flow: load deck from localStorage
-    console.log('[DEBUG] Normal init flow');
     if (!initDeck()) {
-      console.log('[DEBUG] initDeck returned false');
       return;
     }
-    console.log('[DEBUG] Deck loaded:', currentDeck?.name, 'Cards:', currentDeck?.boards.mainboard.length);
-    
+
     // Load card data FIRST, then set board and render
-    console.log('[DEBUG] Starting card data load...');
     void (async () => {
       try {
-        console.log('[DEBUG] Calling refreshMissingCardData...');
         await refreshMissingCardData(true);
-        console.log('[DEBUG] refreshMissingCardData completed');
       } catch (e) {
-        console.error('[DEBUG] Failed to load card data:', e);
+        console.error('[Deckbuilder] Failed to load card data:', e);
       } finally {
-        console.log('[DEBUG] Rendering deck...');
         // Always set board and render after attempting to load data
         activeBoard = 'mainboard';
         // Update board button states
@@ -5644,7 +5936,6 @@ function init(): void {
         analyticsCache = null;
         powerLevelCache = null;
         saveAndRender();
-        console.log('[DEBUG] Render complete');
       }
     })();
   }
@@ -5652,9 +5943,8 @@ function init(): void {
   // Load meta badges asynchronously (non-blocking)
   void loadMetaData().then(() => scheduleRenderBoardRows());
 
-  // Initialize customizable panel layout (after first render so widgets are populated)
-  // Deferred slightly to allow DOM to settle after initial render
-  setTimeout(() => initPanelLayout(), 100);
+  // Initialize layout mode (classic vs grid) - deferred to allow DOM to settle
+  setTimeout(() => initLayoutMode(), 100);
 
   // Initialize Git repo panel + command palette
   initRepoPanel(() => currentDeck);
@@ -5669,6 +5959,65 @@ function init(): void {
   if (shouldShowOnboarding()) {
     setTimeout(() => startOnboarding(), 800);
   }
+
+  // Expose functions globally for UI interactions
+  (window as any).deckEditor = {
+    setLayoutMode,
+    showPresetPicker,
+  };
+
+  // Setup Tools Dropdown
+  setupToolsDropdown();
+
+  // Setup Layout Mode Toggle
+  setupLayoutModeToggle();
+}
+
+// ==================== Tools Dropdown ====================
+
+function setupToolsDropdown(): void {
+  const dropdownBtn = document.getElementById('btnToolsDropdown');
+  const dropdownMenu = document.getElementById('toolsDropdownMenu');
+
+  if (!dropdownBtn || !dropdownMenu) return;
+
+  // Toggle dropdown
+  dropdownBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dropdownMenu.classList.toggle('show');
+  });
+
+  // Close on click outside
+  document.addEventListener('click', () => {
+    dropdownMenu.classList.remove('show');
+  });
+
+  // Prevent dropdown from closing when clicking inside
+  dropdownMenu.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+
+  // Close dropdown after clicking an item
+  dropdownMenu.querySelectorAll('.dropdown-item').forEach(item => {
+    item.addEventListener('click', () => {
+      dropdownMenu.classList.remove('show');
+    });
+  });
+}
+
+// ==================== Layout Mode Toggle ====================
+
+function setupLayoutModeToggle(): void {
+  const toggleButtons = document.querySelectorAll('.layout-mode-toggle .mode-btn');
+
+  toggleButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const mode = button.getAttribute('data-mode') as LayoutMode;
+      if (mode && (mode === 'classic' || mode === 'grid')) {
+        setLayoutMode(mode);
+      }
+    });
+  });
 }
 
 // E4: Offline-Ready — force save on tab close / background to prevent data loss

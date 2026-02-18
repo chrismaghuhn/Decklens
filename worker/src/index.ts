@@ -48,6 +48,22 @@ import {
 import { handleDeckGitRoute } from './deck-git/router.js';
 import { CommitService, BranchService, HealthService, WebhookService } from './deck-git/index.js';
 import { generateId } from './deck-git/types.js';
+import {
+  refreshCommanderStats,
+  getCommanderStats,
+  getTopCommanders,
+} from './commander-stats.js';
+import {
+  scrapeTopCommanders,
+  seedCommanderStatsFromEDHREC,
+} from './edhrec-scraper.js';
+import {
+  seedCommanderStatsFromScryfall,
+} from './scryfall-commanders.js';
+import {
+  fetchTopCommandersFromEDHREC,
+  seedCommanderStatsFromEDHRECJSON,
+} from './edhrec-json-api.js';
 
 export { CollabSession };
 
@@ -6765,6 +6781,192 @@ export default {
       return handleComboSuggestionReview(request, env, comboSuggestionReviewMatch[1]);
     }
 
+    // Commander Stats API
+    if (path === '/api/commander-stats/seed-edhrec-json') {
+      if (request.method !== 'POST') {
+        return new Response('Method not allowed', { status: 405, headers: CORS_HEADERS });
+      }
+      // Admin only - seed from EDHREC JSON API
+      const adminSecret = request.headers.get('X-Admin-Secret');
+      if (!env.ADMIN_SECRET || adminSecret !== env.ADMIN_SECRET) {
+        return jsonResponse({ ok: false, error: 'Unauthorized.' }, 403, 'no-store');
+      }
+      const db = env.COMMUNITY_DB as unknown as D1Database;
+      if (!db) {
+        return jsonResponse({ ok: false, error: 'Database not configured' }, 500);
+      }
+
+      // Parse request body for limit
+      let limit = 100;
+      try {
+        const body = await request.json() as any;
+        if (body.limit && typeof body.limit === 'number') {
+          limit = Math.min(Math.max(1, body.limit), 200);
+        }
+      } catch {
+        // Use default
+      }
+
+      // Fetch top commanders from EDHREC
+      console.log(`[Commander Stats] Fetching top ${limit} commanders from EDHREC JSON API...`);
+      const topCommanders = await fetchTopCommandersFromEDHREC(limit);
+
+      if (topCommanders.length === 0) {
+        return jsonResponse({ ok: false, error: 'Failed to fetch commanders from EDHREC' }, 500);
+      }
+
+      // Seed database with real EDHREC data
+      const seededCount = await seedCommanderStatsFromEDHRECJSON(
+        db,
+        topCommanders,
+        (current, total, commander) => {
+          console.log(`[Commander Stats] Seeding ${current}/${total}: ${commander}`);
+        }
+      );
+
+      return jsonResponse({
+        ok: true,
+        seededCount,
+        totalFetched: topCommanders.length,
+        message: `Seeded ${seededCount} commanders from EDHREC JSON API with real deck counts`
+      });
+    }
+
+    if (path === '/api/commander-stats/seed-scryfall') {
+      if (request.method !== 'POST') {
+        return new Response('Method not allowed', { status: 405, headers: CORS_HEADERS });
+      }
+      // Admin only - seed from Scryfall
+      const adminSecret = request.headers.get('X-Admin-Secret');
+      if (!env.ADMIN_SECRET || adminSecret !== env.ADMIN_SECRET) {
+        return jsonResponse({ ok: false, error: 'Unauthorized.' }, 403, 'no-store');
+      }
+      const db = env.COMMUNITY_DB as unknown as D1Database;
+      if (!db) {
+        return jsonResponse({ ok: false, error: 'Database not configured' }, 500);
+      }
+
+      // Parse request body for limit
+      let limit = 500;
+      try {
+        const body = await request.json() as any;
+        if (body.limit && typeof body.limit === 'number') {
+          limit = Math.min(Math.max(1, body.limit), 1000);
+        }
+      } catch {
+        // Use default
+      }
+
+      // Seed from Scryfall
+      console.log(`[Commander Stats] Seeding ${limit} commanders from Scryfall...`);
+      const seededCount = await seedCommanderStatsFromScryfall(db, limit);
+
+      return jsonResponse({
+        ok: true,
+        seededCount,
+        message: `Seeded ${seededCount} commanders from Scryfall`
+      });
+    }
+
+    if (path === '/api/commander-stats/seed-edhrec') {
+      if (request.method !== 'POST') {
+        return new Response('Method not allowed', { status: 405, headers: CORS_HEADERS });
+      }
+      // Admin only - seed from EDHREC
+      const adminSecret = request.headers.get('X-Admin-Secret');
+      if (!env.ADMIN_SECRET || adminSecret !== env.ADMIN_SECRET) {
+        return jsonResponse({ ok: false, error: 'Unauthorized.' }, 403, 'no-store');
+      }
+      const db = env.COMMUNITY_DB as unknown as D1Database;
+      if (!db) {
+        return jsonResponse({ ok: false, error: 'Database not configured' }, 500);
+      }
+
+      // Parse request body for limit
+      let limit = 100;
+      try {
+        const body = await request.json() as any;
+        if (body.limit && typeof body.limit === 'number') {
+          limit = Math.min(Math.max(1, body.limit), 500);
+        }
+      } catch {
+        // Use default
+      }
+
+      // Scrape top commanders from EDHREC
+      console.log(`[Commander Stats] Scraping top ${limit} commanders from EDHREC...`);
+      const topCommanders = await scrapeTopCommanders(limit);
+
+      if (topCommanders.length === 0) {
+        return jsonResponse({ ok: false, error: 'Failed to scrape EDHREC' }, 500);
+      }
+
+      // Seed database
+      const seededCount = await seedCommanderStatsFromEDHREC(
+        db,
+        topCommanders,
+        (current, total, commander) => {
+          console.log(`[Commander Stats] Seeding ${current}/${total}: ${commander}`);
+        }
+      );
+
+      return jsonResponse({
+        ok: true,
+        seededCount,
+        totalScraped: topCommanders.length,
+        message: `Seeded ${seededCount} commanders from EDHREC`
+      });
+    }
+
+    if (path === '/api/commander-stats/refresh') {
+      if (request.method !== 'POST') {
+        return new Response('Method not allowed', { status: 405, headers: CORS_HEADERS });
+      }
+      // Admin only - manual refresh trigger
+      const adminSecret = request.headers.get('X-Admin-Secret');
+      if (!env.ADMIN_SECRET || adminSecret !== env.ADMIN_SECRET) {
+        return jsonResponse({ ok: false, error: 'Unauthorized.' }, 403, 'no-store');
+      }
+      const db = env.COMMUNITY_DB as unknown as D1Database;
+      if (!db) {
+        return jsonResponse({ ok: false, error: 'Database not configured' }, 500);
+      }
+      const updatedCount = await refreshCommanderStats(db);
+      return jsonResponse({ ok: true, updatedCount });
+    }
+
+    if (path === '/api/commander-stats/top') {
+      if (request.method !== 'GET') {
+        return new Response('Method not allowed', { status: 405, headers: CORS_HEADERS });
+      }
+      const db = env.COMMUNITY_DB as unknown as D1Database;
+      if (!db) {
+        return jsonResponse({ ok: false, error: 'Database not configured' }, 500);
+      }
+      const url = new URL(request.url);
+      const limitParam = url.searchParams.get('limit');
+      const limit = limitParam ? Math.min(Math.max(1, parseInt(limitParam, 10)), 500) : 100;
+      const commanders = await getTopCommanders(db, limit);
+      return jsonResponse({ ok: true, commanders }, 200, 'public, max-age=3600');
+    }
+
+    const commanderStatsMatch = path.match(/^\/api\/commander-stats\/(.+)$/);
+    if (commanderStatsMatch && !commanderStatsMatch[1].includes('/')) {
+      if (request.method !== 'GET') {
+        return new Response('Method not allowed', { status: 405, headers: CORS_HEADERS });
+      }
+      const db = env.COMMUNITY_DB as unknown as D1Database;
+      if (!db) {
+        return jsonResponse({ ok: false, error: 'Database not configured' }, 500);
+      }
+      const commanderName = decodeURIComponent(commanderStatsMatch[1]);
+      const stats = await getCommanderStats(db, commanderName);
+      if (!stats) {
+        return jsonResponse({ ok: false, error: 'Commander not found' }, 404);
+      }
+      return jsonResponse({ ok: true, stats }, 200, 'public, max-age=3600');
+    }
+
     if (path === '/api/deckbuilder/share') {
       if (request.method !== 'POST') {
         return new Response('Method not allowed', { status: 405, headers: CORS_HEADERS });
@@ -7308,6 +7510,16 @@ export default {
     const branchSvc = new BranchService(db);
     const healthSvc = new HealthService(db);
     const webhookSvc = new WebhookService(db);
+
+    // Run weekly commander stats refresh (Sunday 2AM UTC)
+    // In production, check event.cron === "0 2 * * 0"
+    try {
+      console.log('[Scheduled] Refreshing commander stats...');
+      const updatedCount = await refreshCommanderStats(db);
+      console.log(`[Scheduled] Commander stats updated: ${updatedCount} commanders`);
+    } catch (err) {
+      console.error('[Scheduled] Failed to refresh commander stats:', err);
+    }
 
     // Run weekly health reports
     // In a real environment, you'd check event.cron === "0 8 * * 1"

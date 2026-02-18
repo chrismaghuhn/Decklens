@@ -27,7 +27,7 @@
 
   --hub-text: #c8cad3;
   --hub-text-dim: #6b7084;
-  --hub-text-muted: #4a4f63;
+  --hub-text-muted: #7d8394; /* Improved contrast: 4.5:1 on dark bg */
   --hub-text-bright: #eaecf2;
   --hub-text-white: #f8f9fc;
 
@@ -74,6 +74,30 @@
   --hub-gutter: 24px;
 
   color-scheme: dark;
+}
+
+/* ═══════════════════════════════════════════════════
+   Skip Links (Accessibility)
+   ═══════════════════════════════════════════════════ */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--hub-gold);
+  color: var(--hub-void);
+  padding: 8px 16px;
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  border-radius: 0 0 4px 0;
+  z-index: 10000;
+  transition: top 0.2s ease;
+}
+
+.skip-link:focus {
+  top: 0;
+  outline: 2px solid var(--hub-gold);
+  outline-offset: 2px;
 }
 
 [data-theme="light"] {
@@ -163,11 +187,18 @@ a:hover { text-decoration: underline; }
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--hub-text-white);
-  font-weight: 700;
-  font-size: 15px;
-  letter-spacing: -0.02em;
   flex-shrink: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.topbar__logo a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--hub-text-white);
   text-decoration: none;
 }
 
@@ -353,7 +384,9 @@ a:hover { text-decoration: underline; }
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 14px;
+  padding: 10px 18px;
+  min-height: 44px; /* Touch-friendly minimum */
+  min-width: 44px;
   font-size: 12px;
   font-weight: 500;
   font-family: var(--hub-font);
@@ -366,13 +399,36 @@ a:hover { text-decoration: underline; }
   white-space: nowrap;
   line-height: 1.6;
 }
+
+/* Mobile: Even larger touch targets */
+@media (max-width: 767px) {
+  .hub-btn {
+    min-height: 48px;
+    padding: 12px 16px;
+  }
+}
 .hub-btn:hover {
   background: var(--hub-hover);
   border-color: var(--hub-border-focus);
 }
 .hub-btn:focus-visible {
-  outline: 2px solid var(--hub-blue);
-  outline-offset: 1px;
+  outline: 2px solid var(--hub-gold);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(201,168,76,0.2);
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--hub-gold);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(201,168,76,0.2);
 }
 .hub-btn--primary {
   background: var(--hub-green);
@@ -612,6 +668,67 @@ a:hover { text-decoration: underline; }
   display: grid;
   grid-template-columns: 1fr 296px;
   gap: 24px;
+}
+
+/* ═══════════════════════════════════════════════════
+   Responsive Breakpoints (Mobile-First)
+   ═══════════════════════════════════════════════════ */
+
+/* Base styles are mobile-first (320px+) */
+
+/* Small phones (375px+) */
+@media (min-width: 375px) {
+  :root {
+    --hub-gutter: 16px;
+  }
+}
+
+/* Tablets (768px+) */
+@media (min-width: 768px) {
+  .code-layout {
+    grid-template-columns: 1fr 300px;
+  }
+}
+
+/* Desktop (1024px+) */
+@media (min-width: 1024px) {
+  .code-layout {
+    grid-template-columns: 1fr 320px;
+  }
+  .insights-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Mobile overrides (max-width) */
+@media (max-width: 767px) {
+  .topbar__inner {
+    flex-wrap: wrap;
+  }
+
+  .topbar__breadcrumb {
+    order: 3;
+    width: 100%;
+    padding-top: 8px;
+  }
+
+  .code-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .code-sidebar {
+    order: -1;
+  }
+
+  .pr-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .repo-header__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 860px) {
@@ -1079,8 +1196,25 @@ a:hover { text-decoration: underline; }
   border-radius: var(--hub-radius-lg);
   width: 100%;
   max-width: 720px;
+  max-height: 90vh;
+  overflow-y: auto;
   box-shadow: 0 16px 48px rgba(0,0,0,0.5);
   animation: hubSlideIn 0.25s ease;
+}
+
+/* Mobile: Full-screen modals */
+@media (max-width: 767px) {
+  .pr-modal-overlay {
+    padding: 0;
+  }
+
+  .pr-modal {
+    max-width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
 }
 
 @keyframes hubSlideIn {
@@ -1753,7 +1887,9 @@ a:hover { text-decoration: underline; }
   justify-content: flex-end;
 }
 .hub-btn--xs {
-  padding: 2px 8px;
+  padding: 8px 12px;
+  min-height: 44px;
+  min-width: 44px;
   font-size: 10px;
   border-radius: 4px;
   background: var(--hub-elevated);
@@ -1764,6 +1900,15 @@ a:hover { text-decoration: underline; }
 }
 .hub-btn--xs:hover:not(:disabled) { background: var(--hub-hover); border-color: var(--hub-border-focus); }
 .hub-btn--xs:disabled { opacity: 0.4; cursor: default; }
+
+/* Icon buttons (theme toggle, more actions, etc.) */
+.hub-btn-icon,
+.tag-edit-btn,
+.topbar__theme-toggle {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 10px;
+}
 .hub-chip--sm { padding: 1px 6px !important; font-size: 10px !important; }
 
 /* ── Scope Labels (Auto-Labeling) ── */
@@ -2322,6 +2467,28 @@ a:hover { text-decoration: underline; }
   to { transform: rotate(360deg); }
 }
 
+/* ── aria-busy Loading Spinner ── */
+[aria-busy="true"] {
+  opacity: 0.6;
+  pointer-events: none;
+  position: relative;
+}
+
+[aria-busy="true"]::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 32px;
+  height: 32px;
+  margin: -16px 0 0 -16px;
+  border: 3px solid var(--hub-border);
+  border-top-color: var(--hub-gold);
+  border-radius: 50%;
+  animation: hubSpin 0.8s linear infinite;
+  z-index: 10;
+}
+
 /* ── Phase 6: Release Channels ── */
 .hub-release-channel {
   display: inline-flex;
@@ -2434,15 +2601,21 @@ a:hover { text-decoration: underline; }
 </head>
 <body>
 
+<!-- Skip Links for Accessibility -->
+<a href="#main-content" class="skip-link">Skip to main content</a>
+<a href="#code-tab" class="skip-link">Skip to code view</a>
+
 <!-- ════════════════════════════════════════════════════
      A) TOP BAR
      ════════════════════════════════════════════════════ -->
 <header class="topbar" role="banner">
   <div class="topbar__inner">
-    <a href="#" class="topbar__logo" aria-label="DeckHub Home">
-      <span class="topbar__logo-icon" aria-hidden="true">D</span>
-      DeckHub
-    </a>
+    <h1 class="topbar__logo">
+      <a href="#" aria-label="DeckHub Home">
+        <span class="topbar__logo-icon" aria-hidden="true">D</span>
+        DeckHub
+      </a>
+    </h1>
 
     <nav class="topbar__breadcrumb" aria-label="Repository breadcrumb">
       <a href="#" id="breadcrumbOwner">deck-repo</a>
@@ -2483,6 +2656,8 @@ a:hover { text-decoration: underline; }
       </div>
     </div>
     <div class="repo-header__actions">
+      <button class="hub-btn" id="btnUndo" title="Undo (Cmd+Z)" disabled>&#x21B6; Undo</button>
+      <button class="hub-btn" id="btnRedo" title="Redo (Cmd+Shift+Z)" disabled>&#x21B7; Redo</button>
       <button class="hub-btn" id="btnExportDeck" title="Export deck to clipboard">&#x1F4E5; Export</button>
       <button class="hub-btn hub-btn--primary" id="btnAddCardHeader" onclick="document.getElementById('btnAddCard').click()">&#x2795; Add Card</button>
       <div class="hub-dropdown" style="position:relative;display:inline-block">
@@ -2582,7 +2757,9 @@ a:hover { text-decoration: underline; }
      ════════════════════════════════════════════════════ -->
 
 <!-- ─── CODE TAB ─── -->
+<main id="main-content">
 <div class="tab-panel" id="panel-code" role="tabpanel" aria-labelledby="tab-code" aria-hidden="false">
+  <h2 class="hub-sr-only">Code View</h2>
   <div class="code-layout">
     <div class="code-main">
       <!-- File tree (Hidden by default) -->
@@ -2756,6 +2933,18 @@ a:hover { text-decoration: underline; }
     <div class="insight-card">
       <div class="insight-card__header">&#x2B50; Golden Deck State</div>
       <div class="insight-card__body" id="insightGoldenBody"><!-- JS fills --></div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-card__header">&#x2B50; Bracket Analysis</div>
+      <div class="insight-card__body" id="insightPowerBody"><!-- JS fills --></div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-card__header">&#x1F9C2; Salt Score</div>
+      <div class="insight-card__body" id="insightSaltBody"><!-- JS fills --></div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-card__header">&#x1F4B0; Budget Analysis</div>
+      <div class="insight-card__body" id="insightBudgetBody"><!-- JS fills --></div>
     </div>
   </div>
 </div>
@@ -3106,6 +3295,20 @@ Bad against: ..." style="flex:1;width:100%;resize:none;font-family:var(--hub-mon
 <div id="cardHoverTooltip" class="card-hover-tooltip">
   <img id="cardHoverImg" src="" alt="Card Art">
 </div>
+</main>
+
+<!-- ARIA Live Regions for Screen Reader Announcements -->
+<div id="ariaLiveRegion"
+     role="status"
+     aria-live="polite"
+     aria-atomic="true"
+     class="hub-sr-only"></div>
+
+<div id="ariaAlertRegion"
+     role="alert"
+     aria-live="assertive"
+     aria-atomic="true"
+     class="hub-sr-only"></div>
 
 <script type="module" src="/src/deckhub/deckhub-main.ts"></script>
 <script type="module" src="/src/shared/discord-popup.ts"></script>

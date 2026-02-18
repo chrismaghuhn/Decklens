@@ -109,7 +109,16 @@ type CollabClientMessage =
   | { type: 'goldfish-end'; result: string; turnCount: number }
   | { type: 'goldfish-comment'; text: string; turn: number }
   | { type: 'sideboard-plan-notify'; action: 'created' | 'updated' | 'deleted'; matchup: string }
-  | { type: 'test-session-notify'; action: 'logged'; sessionId: string };
+  | { type: 'test-session-notify'; action: 'logged'; sessionId: string }
+  // ── Multiplayer Goldfish (Phase 6) ──
+  | { type: 'mp-goldfish-create'; playerCount: number; deckName: string }
+  | { type: 'mp-goldfish-join'; deckName: string }
+  | { type: 'mp-goldfish-action'; action: string; playerId: string; details: string; turn: number }
+  | { type: 'mp-goldfish-turn-change'; currentPlayerIndex: number; turn: number; activePlayerId: string }
+  | { type: 'mp-goldfish-combat'; attackerPlayerId: string; attackers: Array<{ permanentId: string; targetPlayerId: string }> }
+  | { type: 'mp-goldfish-blockers'; defenderPlayerId: string; blockers: Array<{ permanentId: string; blockingPermanentId: string }> }
+  | { type: 'mp-goldfish-state-sync'; stateJson: string }
+  | { type: 'mp-goldfish-leave' };
 
 // Outbound message types (server → client)
 type CollabServerMessage =
@@ -156,7 +165,16 @@ type CollabServerMessage =
   | { type: 'goldfish-ended'; by: string; result: string; turnCount: number }
   | { type: 'goldfish-comment-broadcast'; by: string; text: string; turn: number }
   | { type: 'sideboard-plan-event'; action: string; matchup: string; by: string }
-  | { type: 'test-session-event'; action: string; sessionId: string; by: string };
+  | { type: 'test-session-event'; action: string; sessionId: string; by: string }
+  // ── Multiplayer Goldfish (Phase 6) ──
+  | { type: 'mp-goldfish-created'; gameId: string; hostPlayerId: string; by: string }
+  | { type: 'mp-goldfish-player-joined'; playerId: string; playerName: string; playerColor: string; by: string }
+  | { type: 'mp-goldfish-player-left'; playerId: string; by: string }
+  | { type: 'mp-goldfish-action-broadcast'; by: string; playerId: string; action: string; details: string; turn: number }
+  | { type: 'mp-goldfish-turn-change-broadcast'; currentPlayerIndex: number; turn: number; activePlayerId: string; by: string }
+  | { type: 'mp-goldfish-combat-broadcast'; attackerPlayerId: string; attackers: Array<{ permanentId: string; targetPlayerId: string }>; by: string }
+  | { type: 'mp-goldfish-blockers-broadcast'; defenderPlayerId: string; blockers: Array<{ permanentId: string; blockingPermanentId: string }>; by: string }
+  | { type: 'mp-goldfish-state-sync-broadcast'; stateJson: string; by: string };
 
 // ───── Slot Lock Type ─────
 
@@ -489,6 +507,23 @@ export class CollabSession {
         return this.onSideboardPlanNotify(ws, msg.action, msg.matchup);
       case 'test-session-notify':
         return this.onTestSessionNotify(ws, msg.action, msg.sessionId);
+      // ── Multiplayer Goldfish (Phase 6) ──
+      case 'mp-goldfish-create':
+        return this.onMPGoldfishCreate(ws, msg.playerCount, msg.deckName);
+      case 'mp-goldfish-join':
+        return this.onMPGoldfishJoin(ws, msg.deckName);
+      case 'mp-goldfish-action':
+        return this.onMPGoldfishAction(ws, msg.action, msg.playerId, msg.details, msg.turn);
+      case 'mp-goldfish-turn-change':
+        return this.onMPGoldfishTurnChange(ws, msg.currentPlayerIndex, msg.turn, msg.activePlayerId);
+      case 'mp-goldfish-combat':
+        return this.onMPGoldfishCombat(ws, msg.attackerPlayerId, msg.attackers);
+      case 'mp-goldfish-blockers':
+        return this.onMPGoldfishBlockers(ws, msg.defenderPlayerId, msg.blockers);
+      case 'mp-goldfish-state-sync':
+        return this.onMPGoldfishStateSync(ws, msg.stateJson);
+      case 'mp-goldfish-leave':
+        return this.onMPGoldfishLeave(ws);
       default:
         ws.send(JSON.stringify({ type: 'error', message: 'Unknown message type' } satisfies CollabServerMessage));
     }
@@ -1286,6 +1321,113 @@ export class CollabSession {
     } satisfies CollabServerMessage);
   }
 
+  // ───── Multiplayer Goldfish Handlers (Phase 6) ─────
+
+  private onMPGoldfishCreate(ws: WebSocket, playerCount: number, deckName: string): void {
+    const participant = this.connections.get(ws);
+    if (!participant) return;
+    const gameId = `mp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    this.broadcastAll({
+      type: 'mp-goldfish-created',
+      gameId,
+      hostPlayerId: participant.id,
+      by: participant.name,
+    } satisfies CollabServerMessage);
+    this.broadcastAll({
+      type: 'activity-logged',
+      action: 'mp-goldfish-create',
+      userName: participant.name,
+      detail: `started a ${playerCount}-player multiplayer goldfish game "${deckName}"`,
+    } satisfies CollabServerMessage);
+  }
+
+  private onMPGoldfishJoin(ws: WebSocket, deckName: string): void {
+    const participant = this.connections.get(ws);
+    if (!participant) return;
+
+    const joinMsg: CollabServerMessage = {
+      type: 'mp-goldfish-player-joined',
+      playerId: participant.id,
+      playerName: participant.name,
+      playerColor: participant.color,
+      by: participant.name,
+    };
+
+    // Notify all OTHER players that someone joined
+    this.broadcast(ws, joinMsg);
+
+    // Also send to the joiner so they know their assigned playerId
+    try { ws.send(JSON.stringify(joinMsg)); } catch { /* ignore */ }
+  }
+
+  private onMPGoldfishAction(ws: WebSocket, action: string, playerId: string, details: string, turn: number): void {
+    const participant = this.connections.get(ws);
+    if (!participant) return;
+    this.broadcast(ws, {
+      type: 'mp-goldfish-action-broadcast',
+      by: participant.name,
+      playerId,
+      action,
+      details,
+      turn,
+    } satisfies CollabServerMessage);
+  }
+
+  private onMPGoldfishTurnChange(ws: WebSocket, currentPlayerIndex: number, turn: number, activePlayerId: string): void {
+    const participant = this.connections.get(ws);
+    if (!participant) return;
+    this.broadcast(ws, {
+      type: 'mp-goldfish-turn-change-broadcast',
+      currentPlayerIndex,
+      turn,
+      activePlayerId,
+      by: participant.name,
+    } satisfies CollabServerMessage);
+  }
+
+  private onMPGoldfishCombat(ws: WebSocket, attackerPlayerId: string, attackers: Array<{ permanentId: string; targetPlayerId: string }>): void {
+    const participant = this.connections.get(ws);
+    if (!participant) return;
+    this.broadcast(ws, {
+      type: 'mp-goldfish-combat-broadcast',
+      attackerPlayerId,
+      attackers,
+      by: participant.name,
+    } satisfies CollabServerMessage);
+  }
+
+  private onMPGoldfishBlockers(ws: WebSocket, defenderPlayerId: string, blockers: Array<{ permanentId: string; blockingPermanentId: string }>): void {
+    const participant = this.connections.get(ws);
+    if (!participant) return;
+    this.broadcast(ws, {
+      type: 'mp-goldfish-blockers-broadcast',
+      defenderPlayerId,
+      blockers,
+      by: participant.name,
+    } satisfies CollabServerMessage);
+  }
+
+  private onMPGoldfishStateSync(ws: WebSocket, stateJson: string): void {
+    const participant = this.connections.get(ws);
+    if (!participant) return;
+    // Send state to all OTHER participants (for late joiners or resync)
+    this.broadcast(ws, {
+      type: 'mp-goldfish-state-sync-broadcast',
+      stateJson: stateJson.slice(0, 50000), // Cap size to prevent abuse
+      by: participant.name,
+    } satisfies CollabServerMessage);
+  }
+
+  private onMPGoldfishLeave(ws: WebSocket): void {
+    const participant = this.connections.get(ws);
+    if (!participant) return;
+    this.broadcast(ws, {
+      type: 'mp-goldfish-player-left',
+      playerId: participant.id,
+      by: participant.name,
+    } satisfies CollabServerMessage);
+  }
+
   // ───── Connection Management ─────
 
   private handleDisconnect(ws: WebSocket): void {
@@ -1311,6 +1453,13 @@ export class CollabSession {
       participantId: participant.id,
       participants,
     });
+
+    // Auto-broadcast MP leave on disconnect (so other players know)
+    this.broadcastAll({
+      type: 'mp-goldfish-player-left',
+      playerId: participant.id,
+      by: participant.name,
+    } satisfies CollabServerMessage);
 
     // Broadcast updated presence + locks after disconnect
     this.broadcastAll(this.buildPresenceSyncMessage());

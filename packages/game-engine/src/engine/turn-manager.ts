@@ -2,6 +2,7 @@ import type { GameState, Phase, Step } from '../types/game-state.ts';
 import type { PlayerState } from '../types/player.ts';
 import { PHASES, PHASE_STEPS } from '../types/game-state.ts';
 import { emptyManaPool } from '../types/player.ts';
+import { checkUpkeepTriggers, checkEndStepTriggers } from '../rules/triggers.ts';
 
 
 /**
@@ -34,9 +35,15 @@ export function advanceStep(state: GameState): GameState {
   const nextStep = getNextStep(state.phase, state.step);
 
   if (nextStep !== null) {
+    // CR 106.4: Empty mana pools when moving between steps
+    const players = [...state.players] as [PlayerState, PlayerState];
+    players[0] = { ...players[0], manaPool: emptyManaPool() };
+    players[1] = { ...players[1], manaPool: emptyManaPool() };
+
     // Stay in same phase, move to next step
     return applyStepEffects({
       ...state,
+      players,
       step: nextStep,
       bothPlayersPassed: false,
     });
@@ -49,14 +56,45 @@ export function advanceStep(state: GameState): GameState {
 /**
  * Advance to the next phase (first step of that phase).
  * If at ending phase, starts a new turn.
+ * Extra combats (CR 506.1): after combat phase, if extraCombats > 0,
+ * decrements the counter and returns to another combat phase instead of postcombat-main.
  */
 export function advancePhase(state: GameState): GameState {
+  // Extra combat phases: if leaving combat and extra combats remain,
+  // go back to another combat phase instead of advancing normally
+  if (state.phase === 'combat' && (state.extraCombats ?? 0) > 0) {
+    const players = [...state.players] as [PlayerState, PlayerState];
+    players[0] = { ...players[0], manaPool: emptyManaPool() };
+    players[1] = { ...players[1], manaPool: emptyManaPool() };
+
+    const firstStep = PHASE_STEPS['combat'][0];
+    return applyStepEffects({
+      ...state,
+      players,
+      phase: 'combat',
+      step: firstStep,
+      bothPlayersPassed: false,
+      extraCombats: (state.extraCombats ?? 0) - 1,
+      combat: {
+        attackers: [],
+        blockers: [],
+        currentStep: 'begin',
+      },
+    });
+  }
+
   const nextPhase = getNextPhase(state.phase);
 
   if (nextPhase !== null) {
+    // CR 106.4: Empty mana pools when moving between phases
+    const players = [...state.players] as [PlayerState, PlayerState];
+    players[0] = { ...players[0], manaPool: emptyManaPool() };
+    players[1] = { ...players[1], manaPool: emptyManaPool() };
+
     const firstStep = PHASE_STEPS[nextPhase][0];
     return applyStepEffects({
       ...state,
+      players,
       phase: nextPhase,
       step: firstStep,
       bothPlayersPassed: false,
@@ -75,15 +113,42 @@ export function advancePhase(state: GameState): GameState {
 /**
  * Start a new turn for the next player.
  * Handles: untap, reset turn state, mana pool empty, draw.
+ * Extra turns (CR 500.7): if extraTurns queue is non-empty, the next turn
+ * is taken by the player at the front of the queue instead of alternating.
  */
 export function startNewTurn(state: GameState): GameState {
-  const nextActivePlayer: 0 | 1 = state.activePlayer === 0 ? 1 : 0;
+  let nextActivePlayer: 0 | 1;
+  let updatedExtraTurns = state.extraTurns ? [...state.extraTurns] : [];
+
+  if (updatedExtraTurns.length > 0) {
+    // Extra turn: use the player from the front of the queue
+    const extraTurn = updatedExtraTurns.shift()!;
+    nextActivePlayer = extraTurn.player;
+  } else {
+    // Normal alternation
+    nextActivePlayer = state.activePlayer === 0 ? 1 : 0;
+  }
+
   const newTurn = state.activePlayer === 1 ? state.turn + 1 : state.turn;
 
   // Reset active player's turn state
   const players = [...state.players] as [PlayerState, PlayerState];
 
-  // Untap all permanents for the new active player
+  // CR 702.26d: Phasing — During the untap step, BEFORE untapping,
+  // all phased-out permanents controlled by the active player phase back in.
+  // Phased-in permanents with phasing would phase out here, but we only
+  // handle phase-in since phase-out is triggered by effects (not automatic phasing keyword).
+  players[nextActivePlayer] = {
+    ...players[nextActivePlayer],
+    battlefield: players[nextActivePlayer].battlefield.map((p) => {
+      if (p.phasedOut) {
+        return { ...p, phasedOut: false };
+      }
+      return p;
+    }),
+  };
+
+  // Untap all permanents for the new active player (after phasing)
   players[nextActivePlayer] = {
     ...players[nextActivePlayer],
     battlefield: players[nextActivePlayer].battlefield.map((p) => ({
@@ -93,6 +158,7 @@ export function startNewTurn(state: GameState): GameState {
         p.enteredBattlefieldTurn === newTurn ? true : false,
       attacking: false,
       blocking: null,
+      loyaltyUsedThisTurn: false, // Reset planeswalker loyalty usage
     })),
     landPlayedThisTurn: false,
     landsPlayedThisTurn: 0,
@@ -119,9 +185,54 @@ export function startNewTurn(state: GameState): GameState {
     combat: null,
     bothPlayersPassed: false,
     mulliganPhase: false, // Ensure mulligan phase is over for new turns
+    extraTurns: updatedExtraTurns.length > 0 ? updatedExtraTurns : undefined,
+    extraCombats: 0, // Reset extra combats for the new turn
   };
 
   return applyStepEffects(newState);
+}
+
+/**
+ * Grant an extra turn to a player (CR 500.7).
+ * Extra turns are queued in LIFO order: the most recently created extra turn
+ * is taken first. Push to the front of the queue.
+ */
+export function grantExtraTurn(state: GameState, player: 0 | 1): GameState {
+  const extraTurns = state.extraTurns ? [...state.extraTurns] : [];
+  // Most recently granted extra turn is taken first (LIFO), so unshift to front
+  extraTurns.unshift({ player });
+  return {
+    ...state,
+    extraTurns,
+    log: [...state.log, {
+      timestamp: Date.now(),
+      turn: state.turn,
+      phase: state.phase,
+      step: state.step,
+      player,
+      message: `${state.players[player].name} will take an extra turn.`,
+    }],
+  };
+}
+
+/**
+ * Grant an extra combat phase this turn (CR 506.1).
+ * After the current combat phase ends, an additional combat phase will occur
+ * before the postcombat main phase.
+ */
+export function grantExtraCombat(state: GameState): GameState {
+  return {
+    ...state,
+    extraCombats: (state.extraCombats ?? 0) + 1,
+    log: [...state.log, {
+      timestamp: Date.now(),
+      turn: state.turn,
+      phase: state.phase,
+      step: state.step,
+      player: state.activePlayer,
+      message: `${state.players[state.activePlayer].name} gets an additional combat phase.`,
+    }],
+  };
 }
 
 /**
@@ -130,7 +241,12 @@ export function startNewTurn(state: GameState): GameState {
  * Draw step: draw a card (skip for first player's first turn).
  */
 export function applyStepEffects(state: GameState): GameState {
-  
+
+  // Upkeep: check for "at the beginning of your upkeep" triggers
+  if (state.step === 'upkeep' && !state.mulliganPhase) {
+    state = checkUpkeepTriggers(state);
+  }
+
   if (state.step === 'draw') {
     const activePlayer = state.players[state.activePlayer];
 
@@ -190,26 +306,141 @@ export function applyStepEffects(state: GameState): GameState {
     return state;
   }
 
+  // End step: check "at the beginning of your end step" triggers
+  if (state.step === 'end' && !state.mulliganPhase) {
+    state = checkEndStepTriggers(state);
+  }
+
   // Combat Damage Steps: Damage is resolved by Game.resolveCombat() called by UI/bot
   // NOT automatically here to avoid double resolution
   // CRITICAL FIX: Removed duplicate combat damage resolution
   // The damage is resolved in Game.resolveCombat() which is called explicitly
 
-  // Cleanup step: discard to hand size, remove damage, etc.
+  // Cleanup step: remove damage, expire "until end of turn" effects
+  // CR 514.3a: If state-based actions are performed or triggered abilities are put
+  // on the stack during cleanup, players receive priority and another cleanup step
+  // occurs afterward. The Game class handles this via its game loop: after advancing
+  // to cleanup, runStateBasedActions() is called. If SBAs or triggers fire during
+  // cleanup, the priority system will give players a chance to act, and the step
+  // won't advance until both players pass. If pending discard exists, priority is
+  // likewise retained. A subsequent cleanup step will then follow naturally as the
+  // turn progresses.
   if (state.step === 'cleanup') {
     const players = [...state.players] as [PlayerState, PlayerState];
-    const active = players[state.activePlayer];
+    const logs: string[] = [];
 
-    // Remove damage from creatures
-    players[state.activePlayer] = {
-      ...active,
-      battlefield: active.battlefield.map((p) => ({
-        ...p,
-        damage: 0,
-      })),
-    };
+    // ── Phase 1: Return temporarily stolen permanents ──
+    // Collect all permanents that need to move back to their original controller
+    const stealsToReturn: { perm: (typeof players)[0]['battlefield'][0]; fromPlayer: 0 | 1 }[] = [];
 
-    return { ...state, players };
+    for (let i = 0; i < 2; i++) {
+      const player = players[i as 0 | 1];
+      const keeping: typeof player.battlefield = [];
+
+      for (const perm of player.battlefield) {
+        if (perm.temporaryControlChange) {
+          stealsToReturn.push({ perm, fromPlayer: i as 0 | 1 });
+          logs.push(`${perm.name} returns to ${state.players[perm.temporaryControlChange.originalController].name}'s control.`);
+        } else {
+          keeping.push(perm);
+        }
+      }
+
+      if (keeping.length !== player.battlefield.length) {
+        players[i as 0 | 1] = { ...player, battlefield: keeping };
+      }
+    }
+
+    // Move stolen permanents back to their original controllers
+    for (const { perm } of stealsToReturn) {
+      const origController = perm.temporaryControlChange!.originalController;
+      const returnedPerm = {
+        ...perm,
+        controller: origController,
+        temporaryControlChange: undefined,
+        tapped: true, // Returns tapped
+      };
+      players[origController] = {
+        ...players[origController],
+        battlefield: [...players[origController].battlefield, returnedPerm],
+      };
+    }
+
+    // ── Phase 2: Clean up per-permanent temporary effects ──
+    for (let i = 0; i < 2; i++) {
+      const player = players[i as 0 | 1];
+      players[i as 0 | 1] = {
+        ...player,
+        battlefield: player.battlefield.map((p) => {
+          let updated = { ...p, damage: 0 };
+          // Clear deathtouched flag
+          delete (updated as any).deathtouched;
+
+          // Remove temporary P/T modifications
+          const mods = updated.temporaryPtMods || [];
+          if (mods.length > 0) {
+            let powerRemoved = 0;
+            let toughRemoved = 0;
+            for (const mod of mods) {
+              powerRemoved += mod.power;
+              toughRemoved += mod.toughness;
+            }
+            if (updated.currentPower !== undefined) {
+              updated.currentPower -= powerRemoved;
+            }
+            if (updated.currentToughness !== undefined) {
+              updated.currentToughness -= toughRemoved;
+            }
+            updated.temporaryPtMods = [];
+            if (powerRemoved !== 0 || toughRemoved !== 0) {
+              logs.push(`${p.name}: temporary ${powerRemoved >= 0 ? '+' : ''}${powerRemoved}/${toughRemoved >= 0 ? '+' : ''}${toughRemoved} expires.`);
+            }
+          }
+
+          // Remove temporary keywords ("gains flying until end of turn")
+          if (updated.temporaryKeywords && updated.temporaryKeywords.length > 0) {
+            const keywords = updated.temporaryKeywords.map(k => k.keyword).join(', ');
+            logs.push(`${p.name}: temporary ${keywords} expires.`);
+            updated.temporaryKeywords = [];
+          }
+
+          return updated;
+        }),
+      };
+    }
+
+    const logEntries = logs.map((message) => ({
+      timestamp: Date.now(),
+      turn: state.turn,
+      phase: state.phase,
+      step: state.step,
+      player: null as 0 | 1 | null,
+      message,
+    }));
+
+    let cleanupState: GameState = { ...state, players, log: [...state.log, ...logEntries] };
+
+    // Hand size enforcement: active player must discard to 7
+    const MAX_HAND_SIZE = 7;
+    const activePlayer = cleanupState.players[cleanupState.activePlayer];
+    if (activePlayer.hand.length > MAX_HAND_SIZE) {
+      const discardCount = activePlayer.hand.length - MAX_HAND_SIZE;
+      cleanupState = {
+        ...cleanupState,
+        pendingDiscard: cleanupState.activePlayer,
+        pendingDiscardCount: discardCount,
+        log: [...cleanupState.log, {
+          timestamp: Date.now(),
+          turn: cleanupState.turn,
+          phase: cleanupState.phase,
+          step: cleanupState.step,
+          player: cleanupState.activePlayer,
+          message: `${activePlayer.name} has ${activePlayer.hand.length} cards and must discard ${discardCount}.`,
+        }],
+      };
+    }
+
+    return cleanupState;
   }
 
   return state;

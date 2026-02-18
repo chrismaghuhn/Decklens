@@ -6,6 +6,9 @@
  */
 
 import { initAuth, getCurrentUser, onAuthStateChange, getUser, loginWithGoogle, loginWithGitHub, logout } from '../shared/auth.js';
+import { debounce, trapFocus } from '../shared/utils.js';
+import { h, replaceChildren, mapChildren, fragment } from '../shared/dom.js';
+import { initDB, cacheDeck, getCachedDeck, saveRecentRepo, clearOldCache } from './deckhub-db.js';
 import {
   repoApi, branchApi, commitApi, prApi, reviewApi, checksApi,
   issueApi, releaseApi, settingsApi, collaboratorApi, commentApi,
@@ -20,7 +23,7 @@ import {
   adaptBranches, adaptCommits, adaptPRList, adaptPR, adaptIssues,
   adaptReleases, adaptChecks, adaptDeckState, adaptRepoHeader,
   adaptCollaborators, generatePRTemplate,
-  type AdaptedBranch, type AdaptedPR, type AdaptedIssue, type AdaptedRelease,
+  type AdaptedBranch, type AdaptedPR, type AdaptedIssue, type AdaptedIssue, type AdaptedRelease,
   type AdaptedCheck, type AdaptedCommit, type AdaptedCard, type AdaptedFile,
 } from './deckhub-data.js';
 
@@ -322,13 +325,27 @@ let selectedPRs: Set<number> = new Set();
 let selectedIssues: Set<number> = new Set();
 let bulkActionMode: 'pr' | 'issue' | null = null;
 
+// ───── Focus Trap Cleanup Functions ─────
+let prModalFocusCleanup: (() => void) | null = null;
+let issueModalFocusCleanup: (() => void) | null = null;
+let releaseModalFocusCleanup: (() => void) | null = null;
+let readmeModalFocusCleanup: (() => void) | null = null;
+
 // ───── Toast Utility ─────
 
 function showToast(message: string, type: 'success' | 'error' | 'info' = 'info', duration = 3500): void {
+  // Visual toast
   const toast = document.createElement('div');
   toast.className = `hub-toast${type === 'error' ? ' hub-toast--error' : type === 'success' ? ' hub-toast--success' : ''}`;
   toast.textContent = message;
   document.body.appendChild(toast);
+
+  // Screen reader announcement
+  const liveRegion = type === 'error' ? $('#ariaAlertRegion') : $('#ariaLiveRegion');
+  if (liveRegion) {
+    liveRegion.textContent = message;
+    setTimeout(() => { liveRegion.textContent = ''; }, 1000);
+  }
 
   setTimeout(() => {
     toast.classList.add('hub-toast--exiting');
@@ -336,11 +353,188 @@ function showToast(message: string, type: 'success' | 'error' | 'info' = 'info',
   }, duration);
 }
 
+// ───── Error Handling System ─────
+
+type ErrorCategory = 'network' | 'validation' | 'permission' | 'storage' | 'unknown';
+
+interface CategorizedError {
+  category: ErrorCategory;
+  userMessage: string;
+  retryable: boolean;
+}
+
+function categorizeError(err: unknown): CategorizedError {
+  const errObj = err as any;
+
+  // Network errors
+  if (errObj?.message?.includes('fetch') ||
+      errObj?.message?.includes('network') ||
+      errObj?.code === 'NETWORK_ERROR' ||
+      errObj?.name === 'NetworkError') {
+    return {
+      category: 'network',
+      userMessage: 'Network error — check connection and retry',
+      retryable: true
+    };
+  }
+
+  // Validation errors (400, 422)
+  if (errObj?.status === 400 || errObj?.status === 422) {
+    return {
+      category: 'validation',
+      userMessage: errObj?.body?.message || 'Invalid input — check your data',
+      retryable: false
+    };
+  }
+
+  // Permission errors (401, 403)
+  if (errObj?.status === 403 || errObj?.status === 401) {
+    return {
+      category: 'permission',
+      userMessage: 'Permission denied — sign in again',
+      retryable: false
+    };
+  }
+
+  // Storage errors (quota exceeded)
+  if (errObj?.name === 'QuotaExceededError' || errObj?.code === 22) {
+    return {
+      category: 'storage',
+      userMessage: 'Storage full — clear browser data or delete old decks',
+      retryable: false
+    };
+  }
+
+  // Rate limiting (429)
+  if (errObj?.status === 429) {
+    return {
+      category: 'network',
+      userMessage: 'Rate limited — wait a moment and retry',
+      retryable: true
+    };
+  }
+
+  // Unknown errors
+  return {
+    category: 'unknown',
+    userMessage: errObj?.message || 'Something went wrong — try again',
+    retryable: true
+  };
+}
+
+function showErrorToast(err: unknown, context?: string): void {
+  const cat = categorizeError(err);
+  console.error(`[DeckHub${context ? ` ${context}` : ''}]`, err);
+
+  const toast = h('div', { className: 'hub-toast hub-toast--error' },
+    h('div', {}, cat.userMessage),
+    cat.retryable ? h('button', {
+      className: 'hub-toast__retry',
+      style: 'margin-left:12px;padding:4px 12px;background:var(--hub-gold);color:var(--hub-void);border:none;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600',
+      onclick: () => {
+        toast.remove();
+        // Retry callback can be set externally if needed
+      }
+    }, '↻ Retry') : null
+  );
+
+  document.body.appendChild(toast);
+
+  // Screen reader announcement
+  const ariaAlert = $('#ariaAlertRegion');
+  if (ariaAlert) {
+    ariaAlert.textContent = cat.userMessage;
+    setTimeout(() => { ariaAlert.textContent = ''; }, 1000);
+  }
+
+  setTimeout(() => {
+    toast.classList.add('hub-toast--exiting');
+    toast.addEventListener('animationend', () => toast.remove());
+  }, 5000);
+}
+
+// ───── Loading State Manager ─────
+
+async function withLoading<T>(elementId: string, fn: () => Promise<T>): Promise<T> {
+  const el = $(`#${elementId}`);
+  if (el) el.setAttribute('aria-busy', 'true');
+
+  try {
+    return await fn();
+  } finally {
+    if (el) el.setAttribute('aria-busy', 'false');
+  }
+}
+
+// ───── Undo/Redo System ─────
+
+interface UndoAction {
+  description: string;
+  undo: () => void | Promise<void>;
+  redo: () => void | Promise<void>;
+}
+
+const undoStack: UndoAction[] = [];
+const redoStack: UndoAction[] = [];
+const MAX_UNDO = 50;
+
+function pushUndoAction(action: UndoAction): void {
+  undoStack.push(action);
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+  redoStack.length = 0; // Clear redo stack on new action
+  updateUndoRedoButtons();
+}
+
+async function undo(): Promise<void> {
+  const action = undoStack.pop();
+  if (!action) {
+    showToast('Nothing to undo', 'info');
+    return;
+  }
+
+  await action.undo();
+  redoStack.push(action);
+  showToast(`Undid: ${action.description}`, 'success', 2000);
+  updateUndoRedoButtons();
+}
+
+async function redo(): Promise<void> {
+  const action = redoStack.pop();
+  if (!action) {
+    showToast('Nothing to redo', 'info');
+    return;
+  }
+
+  await action.redo();
+  undoStack.push(action);
+  showToast(`Redid: ${action.description}`, 'success', 2000);
+  updateUndoRedoButtons();
+}
+
+function updateUndoRedoButtons(): void {
+  const btnUndo = $('#btnUndo') as HTMLButtonElement;
+  const btnRedo = $('#btnRedo') as HTMLButtonElement;
+
+  if (btnUndo) {
+    btnUndo.disabled = undoStack.length === 0;
+    btnUndo.title = undoStack.length > 0 ? `Undo: ${undoStack[undoStack.length - 1].description}` : 'Nothing to undo';
+  }
+
+  if (btnRedo) {
+    btnRedo.disabled = redoStack.length === 0;
+    btnRedo.title = redoStack.length > 0 ? `Redo: ${redoStack[redoStack.length - 1].description}` : 'Nothing to redo';
+  }
+}
+
 // ───── Live Data Loading ─────
 
 async function loadRepo(id: string): Promise<void> {
   repoId = id;
   isLiveMode = true;
+
+  // Set aria-busy on main content for screen readers
+  const mainContent = $('#panel-code');
+  if (mainContent) mainContent.setAttribute('aria-busy', 'true');
 
   // Show loading state
   showLoading();
@@ -408,6 +602,22 @@ async function loadRepo(id: string): Promise<void> {
     const defaultBranch = liveBranches.find(b => b.isDefault) || liveBranches[0];
     if (defaultBranch) {
       currentBranch = defaultBranch.name;
+
+      // Try to load from cache first (offline support)
+      const cachedDeckState = await getCachedDeck(id, defaultBranch.name);
+      if (cachedDeckState && !navigator.onLine) {
+        console.log('[DeckHub] Offline mode - using cached deck');
+        const adapted = adaptDeckState(cachedDeckState);
+        liveCards = adapted.cards;
+        liveFiles = adapted.files;
+        liveTotalCards = adapted.totalCards;
+        liveCommanderCount = adapted.commanderCount;
+        liveMainboardCount = adapted.mainboardCount;
+        liveSideboardCount = adapted.sideboardCount;
+        liveDeckMeta = cachedDeckState.meta || null;
+        showToast('Offline - showing cached data', 'info', 3000);
+      }
+
       const commits = await commitApi.list(id, defaultBranch.id, 10).catch(() => []);
       rawCommitData = commits;
       liveCommits = adaptCommits(commits, defaultBranch.name);
@@ -424,6 +634,11 @@ async function loadRepo(id: string): Promise<void> {
           liveMainboardCount = adapted.mainboardCount;
           liveSideboardCount = adapted.sideboardCount;
           liveDeckMeta = deckState.meta || null;
+
+          // Cache the fresh deck state
+          cacheDeck(id, defaultBranch.name, deckState).catch(err =>
+            console.warn('[DeckHub] Failed to cache deck:', err)
+          );
 
           // FIX: Database description should take precedence over Git history for the README/Primer
           // This ensures that when we save the README (which updates the DB), we see the new version
@@ -469,13 +684,25 @@ async function loadRepo(id: string): Promise<void> {
     if (countIssues) countIssues.textContent = String(issues.filter(i => i.status === 'open').length);
     if (countReleases) countReleases.textContent = String(releases.length);
 
+    // Save to recent repos
+    saveRecentRepo(id, repo.name).catch(err =>
+      console.warn('[DeckHub] Failed to save recent repo:', err)
+    );
+
     // Render live data
     renderLiveData(collabs);
+
+    // Remove aria-busy after successful load
+    if (mainContent) mainContent.setAttribute('aria-busy', 'false');
 
     console.log('[DeckHub] Loaded repo:', header.name, '| Branches:', branchList.length, '| PRs:', rawPRs.length, '| Issues:', issues.length, '| Cards:', liveTotalCards);
 
   } catch (err) {
-    console.error('[DeckHub] Failed to load repo:', err);
+    showErrorToast(err, 'Data Load');
+
+    // Remove aria-busy on error
+    if (mainContent) mainContent.setAttribute('aria-busy', 'false');
+
     showError(err instanceof Error ? err.message : 'Failed to load repository');
   }
 }
@@ -745,40 +972,50 @@ function renderLiveCardTable(): void {
   const hasCards = Object.values(liveCards).some(arr => arr.length > 0);
 
   if (!hasCards) {
-    el.innerHTML = `<div class="empty-state">
-      <div class="empty-state__icon">\u{1F0CF}</div>
-      <div class="empty-state__text">No cards yet — commit a deck from the editor</div>
-    </div>`;
+    replaceChildren(el,
+      h('div', { className: 'empty-state' },
+        h('div', { className: 'empty-state__icon' }, '🃏'),
+        h('div', { className: 'empty-state__text' }, 'No cards yet — commit a deck from the editor')
+      )
+    );
     return;
   }
 
-  // Sorting Toolbar
-  const toolbarHTML = `
-    <div style="display:flex;gap:12px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
-      <div class="hub-input-group" style="width:auto">
-        <span class="hub-input-icon">\u{1F50D}</span>
-        <input type="text" id="cardFilterInput" class="hub-input" placeholder="Filter cards..." value="${escapeHtml(cardFilterStr)}" style="max-width:200px">
-      </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:12px;color:var(--hub-text-muted)">Group by:</span>
-        <select id="groupSelect" class="hub-select" style="padding:4px 8px;font-size:12px">
-          <option value="board" ${currentGroup === 'board' ? 'selected' : ''}>Board</option>
-          <option value="type" ${currentGroup === 'type' ? 'selected' : ''}>Type</option>
-          <option value="tag" ${currentGroup === 'tag' ? 'selected' : ''}>Tag</option>
-          <option value="cmc" ${currentGroup === 'cmc' ? 'selected' : ''}>CMC</option>
-        </select>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:12px;color:var(--hub-text-muted)">Sort by:</span>
-        <select id="sortSelect" class="hub-select" style="padding:4px 8px;font-size:12px">
-          <option value="cmc" ${currentSort === 'cmc' ? 'selected' : ''}>CMC</option>
-          <option value="price" ${currentSort === 'price' ? 'selected' : ''}>Price</option>
-          <option value="name" ${currentSort === 'name' ? 'selected' : ''}>Name</option>
-          <option value="type" ${currentSort === 'type' ? 'selected' : ''}>Type</option>
-        </select>
-      </div>
-    </div>
-  `;
+  // Sorting Toolbar (using h() helper - XSS-safe!)
+  const toolbar = h('div', { style: 'display:flex;gap:12px;margin-bottom:12px;align-items:center;flex-wrap:wrap' },
+    h('div', { className: 'hub-input-group', style: 'width:auto' },
+      h('label', { htmlFor: 'cardFilterInput', className: 'hub-sr-only' }, 'Filter cards'),
+      h('span', { className: 'hub-input-icon', 'aria-hidden': 'true' }, '🔍'),
+      h('input', {
+        type: 'text',
+        id: 'cardFilterInput',
+        className: 'hub-input',
+        placeholder: 'Filter cards...',
+        value: cardFilterStr,
+        style: 'max-width:200px',
+        'aria-describedby': 'cardFilterHint'
+      }),
+      h('span', { id: 'cardFilterHint', className: 'hub-sr-only' }, 'Type to filter cards by name, type, or tag')
+    ),
+    h('div', { style: 'display:flex;align-items:center;gap:8px' },
+      h('label', { htmlFor: 'groupSelect', style: 'font-size:12px;color:var(--hub-text-muted)' }, 'Group by:'),
+      h('select', { id: 'groupSelect', className: 'hub-select', style: 'padding:4px 8px;font-size:12px' },
+        h('option', { value: 'board', selected: currentGroup === 'board' }, 'Board'),
+        h('option', { value: 'type', selected: currentGroup === 'type' }, 'Type'),
+        h('option', { value: 'tag', selected: currentGroup === 'tag' }, 'Tag'),
+        h('option', { value: 'cmc', selected: currentGroup === 'cmc' }, 'CMC')
+      )
+    ),
+    h('div', { style: 'display:flex;align-items:center;gap:8px' },
+      h('label', { htmlFor: 'sortSelect', style: 'font-size:12px;color:var(--hub-text-muted)' }, 'Sort by:'),
+      h('select', { id: 'sortSelect', className: 'hub-select', style: 'padding:4px 8px;font-size:12px' },
+        h('option', { value: 'cmc', selected: currentSort === 'cmc' }, 'CMC'),
+        h('option', { value: 'price', selected: currentSort === 'price' }, 'Price'),
+        h('option', { value: 'name', selected: currentSort === 'name' }, 'Name'),
+        h('option', { value: 'type', selected: currentSort === 'type' }, 'Type')
+      )
+    )
+  );
 
   // Filter
   const filter = cardFilterStr.toLowerCase().trim();
@@ -857,73 +1094,133 @@ function renderLiveCardTable(): void {
       sectionKeys.sort((a, b) => order.indexOf(a) - order.indexOf(b));
   }
 
-  sectionKeys.forEach(label => {
+  // Build sections using h() helper for XSS-safety and performance
+  const sectionElements = sectionKeys.map(label => {
     const cards = sections[label].sort(sortFn);
-    // Even if empty, we might want a drop target if it's a board group
-    // But currently we only render sections that have cards + we rely on headers for drop.
-    // To allow dropping into empty boards, we need fixed sections if grouping by board.
-    
-    // For Drag & Drop: Only allow if grouping by 'board'
+
     const isBoardGroup = currentGroup === 'board';
-    const dropAttr = isBoardGroup ? `ondragover="event.preventDefault();this.style.background='var(--hub-hover)'" ondragleave="this.style.background=''" ondrop="handleCardDrop(event, '${label}')"` : '';
+    if (cards.length === 0 && !isBoardGroup) return null;
 
-    if (cards.length === 0 && !isBoardGroup) return;
-
-    const rows = cards.map(c =>
-      `<tr data-card="${escapeHtml(c.name)}" class="card-row" draggable="true" ondragstart="handleCardDragStart(event, '${escapeHtml(c.name)}', '${label}')">
-        <td class="card-table__qty">${c.qty}</td>
-        <td class="card-table__name"><span class="card-table__blame-trigger" data-card="${escapeHtml(c.name)}" title="Click for blame info">${c.name}</span></td>
-        <td class="card-table__type">${c.type || '—'}</td>
-        <td class="card-table__cmc" style="text-align:center">${(c.cmc !== undefined && c.cmc !== null) ? c.cmc : '—'}</td>
-        <td class="card-table__tags">
-          ${c.tags.map(chipHTML).join('')}
-          <button class="hub-btn-icon tag-edit-btn" data-card-name="${escapeHtml(c.name)}" title="Edit Tags" style="opacity:0.5;margin-left:4px;cursor:pointer;border:none;background:none;color:var(--hub-text-muted);font-size:12px">&#x270E;</button>
-        </td>
-      </tr>`
-    ).join('');
-    
     const count = cards.reduce((s, c) => s + c.qty, 0);
     const price = cards.reduce((a, b) => a + ((b.price||0)*b.qty), 0);
-    
-    // Header is the drop target
-    tableHTML += `<div class="card-table__section" ${dropAttr}>${label} (${count}) <span style="font-size:11px;color:var(--hub-text-muted)">($${price.toFixed(2)})</span></div>
-      <table><thead><tr><th style="width:32px">#</th><th>Name</th><th>Type</th><th style="width:40px;text-align:center">CMC</th><th>Tags</th></tr></thead>
-      <tbody>${rows}</tbody></table>`;
-  });
 
-  el.innerHTML = toolbarHTML + tableHTML;
+    // Build card rows with h() - no more innerHTML!
+    const rows = mapChildren(cards, c =>
+      h('tr', {
+        'data-card': c.name,
+        className: 'card-row',
+        draggable: isBoardGroup ? 'true' : undefined,
+        ondragstart: isBoardGroup ? (e: DragEvent) => handleCardDragStart(e, c.name, label) : undefined
+      },
+        h('td', { className: 'card-table__qty' }, String(c.qty)),
+        h('td', { className: 'card-table__name' },
+          h('span', {
+            className: 'card-table__blame-trigger',
+            'data-card': c.name,
+            title: 'Click for blame info'
+          }, c.name)
+        ),
+        h('td', { className: 'card-table__type' }, c.type || '—'),
+        h('td', { className: 'card-table__cmc', style: 'text-align:center' },
+          (c.cmc !== undefined && c.cmc !== null) ? String(c.cmc) : '—'
+        ),
+        h('td', { className: 'card-table__tags' },
+          ...c.tags.map(t => {
+            // Keep chipHTML for now - migrate later if needed
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = chipHTML(t);
+            return tempDiv.firstChild as HTMLElement;
+          }),
+          h('button', {
+            className: 'hub-btn-icon tag-edit-btn',
+            'data-card-name': c.name,
+            title: 'Edit Tags',
+            style: 'opacity:0.5;margin-left:4px;cursor:pointer;border:none;background:none;color:var(--hub-text-muted);font-size:12px'
+          }, '✎')
+        )
+      )
+    );
+
+    // Section header with drag/drop support
+    const sectionHeader = h('div', {
+      className: 'card-table__section',
+      ondragover: isBoardGroup ? (e: DragEvent) => {
+        e.preventDefault();
+        (e.currentTarget as HTMLElement).style.background = 'var(--hub-hover)';
+      } : undefined,
+      ondragleave: isBoardGroup ? (e: DragEvent) => {
+        (e.currentTarget as HTMLElement).style.background = '';
+      } : undefined,
+      ondrop: isBoardGroup ? (e: DragEvent) => handleCardDrop(e, label) : undefined
+    },
+      `${label} (${count}) `,
+      h('span', { style: 'font-size:11px;color:var(--hub-text-muted)' }, `($${price.toFixed(2)})`)
+    );
+
+    return fragment(
+      sectionHeader,
+      h('table', {},
+        h('thead', {},
+          h('tr', {},
+            h('th', { style: 'width:32px' }, '#'),
+            h('th', {}, 'Name'),
+            h('th', {}, 'Type'),
+            h('th', { style: 'width:40px;text-align:center' }, 'CMC'),
+            h('th', {}, 'Tags')
+          )
+        ),
+        h('tbody', {}, ...rows)
+      )
+    );
+  }).filter(Boolean);
+
+  // Replace entire content with toolbar + sections (NO innerHTML!)
+  replaceChildren(el, toolbar, ...sectionElements);
 
   updateDeckPriceDisplay();
   setupCardHovers(el);
 
-  // Wire Events
-  el.querySelectorAll('.card-table__blame-trigger').forEach(span => {
-    span.addEventListener('click', (e) => {
-      const cardName = (e.target as HTMLElement).dataset.card;
-      if (cardName) showBlamePopover(cardName, e.target as HTMLElement);
-    });
-  });
+  // Wire Events - using event delegation for better performance
+  // Remove any existing delegated listener to avoid duplicates
+  const oldListener = (el as any).__cardTableListener;
+  if (oldListener) {
+    el.removeEventListener('click', oldListener);
+  }
 
-  el.querySelectorAll('.tag-edit-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const cardName = (e.target as HTMLElement).dataset.cardName;
-      if (cardName) openTagEditModal(cardName);
-    });
-  });
+  // Single delegated listener for all card table interactions
+  const cardTableListener = (e: Event) => {
+    const target = e.target as HTMLElement;
 
-  // Wire Toolbar
-  $('#cardFilterInput')?.addEventListener('input', (e) => {
-    cardFilterStr = (e.target as HTMLInputElement).value;
-    renderLiveCardTable();
-    // Maintain focus logic
-    const input = $<HTMLInputElement>('#cardFilterInput');
-    if (input) {
-        input.focus();
-        const val = input.value;
-        input.value = '';
-        input.value = val;
+    // Blame trigger click
+    if (target.classList.contains('card-table__blame-trigger')) {
+      const cardName = target.dataset.card;
+      if (cardName) showBlamePopover(cardName, target);
+      return;
     }
+
+    // Tag edit button click
+    if (target.classList.contains('tag-edit-btn') || target.closest('.tag-edit-btn')) {
+      e.stopPropagation();
+      const btn = target.classList.contains('tag-edit-btn') ? target : target.closest('.tag-edit-btn') as HTMLElement;
+      const cardName = btn?.dataset.cardName;
+      if (cardName) openTagEditModal(cardName);
+      return;
+    }
+  };
+
+  el.addEventListener('click', cardTableListener);
+  (el as any).__cardTableListener = cardTableListener;
+
+  // Wire Toolbar - with debouncing for better performance
+  const debouncedCardFilter = debounce((value: string) => {
+    cardFilterStr = value;
+    renderLiveCardTable();
+  }, 300);
+
+  $('#cardFilterInput')?.addEventListener('input', (e) => {
+    const input = e.target as HTMLInputElement;
+    debouncedCardFilter(input.value);
+    // Note: Removed focus manipulation as it's unnecessary with debouncing
   });
 
   $('#groupSelect')?.addEventListener('change', (e) => {
@@ -1009,8 +1306,7 @@ function renderLiveCardTable(): void {
       showToast('Moved', 'success');
       
   } catch (err) {
-    console.error('Drop error', err);
-    showToast('Failed to move card', 'error');
+    showErrorToast(err, 'Card Move');
   }
 };
 
@@ -1060,16 +1356,14 @@ function openTagEditModal(cardName: string): void {
   `;
 
   document.body.insertAdjacentHTML('beforeend', modalHTML);
-  
+
   const modal = $('#tagEditModal');
   const input = $<HTMLInputElement>('#newTagInput');
   const tagList = $('#tagList');
   let currentTags = [...card.tags];
 
-  // Auto-focus input
-  if (input) {
-      setTimeout(() => input.focus(), 50);
-  }
+  // Setup focus trap for accessibility
+  const cleanupFocus = modal ? trapFocus(modal) : () => {};
 
   function renderTags() {
     if(!tagList) return;
@@ -1079,7 +1373,7 @@ function openTagEditModal(cardName: string): void {
          <button class="tag-remove" data-tag="${escapeHtml(t)}" style="border:none;background:none;color:inherit;cursor:pointer;font-size:14px;line-height:1;margin-left:2px">&times;</button>
        </span>
     `).join('');
-    
+
     tagList.querySelectorAll('.tag-remove').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const t = (e.target as HTMLElement).dataset.tag;
@@ -1090,10 +1384,16 @@ function openTagEditModal(cardName: string): void {
       });
     });
   }
-  
+
+  // Close modal handler with focus cleanup
+  const closeModal = () => {
+    cleanupFocus();
+    modal?.remove();
+  };
+
   // Handlers
-  $('#tagEditClose')?.addEventListener('click', () => modal?.remove());
-  $('#tagEditCancel')?.addEventListener('click', () => modal?.remove());
+  $('#tagEditClose')?.addEventListener('click', closeModal);
+  $('#tagEditCancel')?.addEventListener('click', closeModal);
   
   const addTagAction = () => {
     const val = input?.value.trim();
@@ -1141,10 +1441,10 @@ function openTagEditModal(cardName: string): void {
     try {
       await commitApi.create(repoId, currentBranch, `Update tags for ${card!.name}`, newState);
       showToast('Tags updated!', 'success');
-      modal?.remove();
+      closeModal();
       loadRepo(repoId); // Reload to reflect changes globally
     } catch (err) {
-      showToast('Failed to save tags', 'error');
+      showErrorToast(err, 'Save Tags');
       btn.textContent = 'Save Changes';
       btn.disabled = false;
     }
@@ -1279,116 +1579,157 @@ function renderLivePRList(): void {
   const el = $('#prListBody');
   if (!el) return;
 
+  // Empty state
   if (livePRs.length === 0) {
-    el.innerHTML = `<div class="empty-state">
-      <div class="empty-state__icon">\u{1F501}</div>
-      <div class="empty-state__text">No pull requests yet</div>
-      <button class="hub-btn hub-btn--sm hub-btn--gold" style="margin-top:12px" id="btnEmptyNewPR">\u2795 New Pull Request</button>
-    </div>`;
-    const emptyBtn = $('#btnEmptyNewPR');
-    if (emptyBtn) emptyBtn.addEventListener('click', () => $('#btnNewPR')?.click());
+    replaceChildren(el,
+      h('div', { className: 'empty-state' },
+        h('div', { className: 'empty-state__icon' }, '🔁'),
+        h('div', { className: 'empty-state__text' }, 'No pull requests yet'),
+        h('button', {
+          className: 'hub-btn hub-btn--sm hub-btn--gold',
+          style: 'margin-top:12px',
+          onclick: () => $('#btnNewPR')?.click()
+        }, '➕ New Pull Request')
+      )
+    );
     return;
   }
 
-  // Bulk actions toolbar for open PRs
+  const children: HTMLElement[] = [];
+
+  // Bulk actions toolbar (only in live mode, only if has selected)
   const hasSelected = selectedPRs.size > 0;
-  let html = '';
-  
-  if (isLiveMode) {
-    html += `<div class="bulk-toolbar" style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--hub-border);background:var(--hub-raised);${hasSelected ? '' : 'display:none'}">
-      <span style="font-size:12px;color:var(--hub-text-muted)">${selectedPRs.size} selected</span>
-      <button class="hub-btn hub-btn--xs" id="btnBulkClosePRs">Close</button>
-      <button class="hub-btn hub-btn--xs hub-btn--danger" id="btnBulkClearPRs">Clear</button>
-    </div>`;
+  if (isLiveMode && hasSelected) {
+    children.push(
+      h('div', {
+        className: 'bulk-toolbar',
+        style: 'display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--hub-border);background:var(--hub-raised)'
+      },
+        h('span', { style: 'font-size:12px;color:var(--hub-text-muted)' }, `${selectedPRs.size} selected`),
+        h('button', {
+          className: 'hub-btn hub-btn--xs',
+          onclick: bulkClosePRs
+        }, 'Close'),
+        h('button', {
+          className: 'hub-btn hub-btn--xs hub-btn--danger',
+          onclick: () => {
+            selectedPRs.clear();
+            renderLivePRList();
+          }
+        }, 'Clear')
+      )
+    );
   }
 
+  // Open PRs
   const openPRs = livePRs.filter(p => p.status === 'open');
+  if (openPRs.length) {
+    children.push(...openPRs.map(pr => prItemElement(pr, true)));
+  }
+
+  // Merged PRs section
   const mergedPRs = livePRs.filter(p => p.status === 'merged');
-
-  if (openPRs.length) html += openPRs.map(pr => prItemHTML(pr, true)).join('');
   if (mergedPRs.length) {
-    html += `<div style="padding:10px 16px;font-size:12px;font-weight:600;color:var(--hub-text-muted);border-bottom:1px solid var(--hub-border)">Merged</div>`;
-    html += mergedPRs.map(pr => prItemHTML(pr, false)).join('');
+    children.push(
+      h('div', {
+        style: 'padding:10px 16px;font-size:12px;font-weight:600;color:var(--hub-text-muted);border-bottom:1px solid var(--hub-border)'
+      }, 'Merged')
+    );
+    children.push(...mergedPRs.map(pr => prItemElement(pr, false)));
   }
 
-  el.innerHTML = html;
-
-  // Attach checkbox handlers
-  if (isLiveMode) {
-    $$<HTMLInputElement>('.pr-bulk-checkbox').forEach(cb => {
-      cb.addEventListener('change', (e) => {
-        const prNumber = parseInt(cb.dataset.pr!, 10);
-        if ((e.target as HTMLInputElement).checked) {
-          selectedPRs.add(prNumber);
-        } else {
-          selectedPRs.delete(prNumber);
-        }
-        renderLivePRList(); // Re-render to show/hide toolbar
-      });
-    });
-
-    // Bulk action handlers
-    $('#btnBulkClosePRs')?.addEventListener('click', bulkClosePRs);
-    $('#btnBulkClearPRs')?.addEventListener('click', () => {
-      selectedPRs.clear();
-      renderLivePRList();
-    });
-  }
-
-  // Attach click handlers for PR items (not on checkbox)
-  $$<HTMLElement>('.pr-item[data-pr]').forEach(item => {
-    item.addEventListener('click', (e) => {
-      // Don't open modal if clicking checkbox
-      if ((e.target as HTMLElement).classList.contains('pr-bulk-checkbox')) return;
-      openLivePRModal(parseInt(item.dataset.pr!, 10));
-    });
-    item.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        openLivePRModal(parseInt(item.dataset.pr!, 10));
-      }
-    });
-  });
+  replaceChildren(el, ...children);
 }
 
-function prItemHTML(pr: AdaptedPR, showCheckbox = false): string {
+function prItemElement(pr: AdaptedPR, showCheckbox = false): HTMLElement {
   const iconClass: Record<string, string> = { open: 'pr-item__icon--open', merged: 'pr-item__icon--merged', closed: 'pr-item__icon--closed' };
-  const icon: Record<string, string> = { open: '\u{1F7E2}', merged: '\u{1F7E3}', closed: '\u{1F534}' };
+  const icon: Record<string, string> = { open: '🟢', merged: '🟣', closed: '🔴' };
 
-  let checksHTML = '';
+  // Checks badges (only for open PRs)
+  const checkElements: HTMLElement[] = [];
   if (pr.status === 'open') {
-    checksHTML = pr.checksPass
-      ? '<span class="hub-status hub-status--pass">\u2705 Checks pass</span>'
-      : '<span class="hub-status hub-status--fail">\u274C Checks failing</span>';
+    checkElements.push(
+      h('span', {
+        className: pr.checksPass ? 'hub-status hub-status--pass' : 'hub-status hub-status--fail'
+      }, pr.checksPass ? '✅ Checks pass' : '❌ Checks failing')
+    );
     if (pr.approved) {
-      checksHTML += ' <span class="hub-status hub-status--approved">\u2705 Approved</span>';
+      checkElements.push(
+        h('span', { className: 'hub-status hub-status--approved' }, '✅ Approved')
+      );
     }
   }
 
   // Look up raw PR for labels
   const rawPr = rawPRs.find(p => p.number === pr.number);
-  const labelsHTML = rawPr?.labels?.length ? `<div class="pr-item__labels">${renderScopeLabels(rawPr.labels)}</div>` : '';
+  const labelsElement = rawPr?.labels?.length
+    ? h('div', { className: 'pr-item__labels', innerHTML: renderScopeLabels(rawPr.labels) })
+    : null;
 
-  const checkboxHTML = showCheckbox && pr.status === 'open' 
-    ? `<input type="checkbox" class="pr-bulk-checkbox" data-pr="${pr.number}" ${selectedPRs.has(pr.number) ? 'checked' : ''} style="margin-right:10px;cursor:pointer">`
-    : '';
-  
+  // Pin button
   const isPinned = getPinnedPRs().includes(pr.number);
-  const pinHTML = `<button class="pr-pin-btn" data-pr="${pr.number}" style="background:none;border:none;cursor:pointer;font-size:14px;padding:0 6px;margin-right:4px;opacity:${isPinned ? '1' : '0.3'}" title="${isPinned ? 'Unpin' : 'Pin'}">${isPinned ? '\u2605' : '\u2606'}</button>`;
+  const pinBtn = h('button', {
+    className: 'pr-pin-btn',
+    'data-pr': String(pr.number),
+    style: `background:none;border:none;cursor:pointer;font-size:14px;padding:0 6px;margin-right:4px;opacity:${isPinned ? '1' : '0.3'}`,
+    title: isPinned ? 'Unpin' : 'Pin',
+    onclick: (e: Event) => {
+      e.stopPropagation();
+      togglePinPR(pr.number);
+    }
+  }, isPinned ? '★' : '☆');
 
-  return `<div class="pr-item" data-pr="${pr.number}" role="button" tabindex="0" aria-label="Pull request #${pr.number}: ${pr.title}">
-    ${checkboxHTML}
-    ${pinHTML}
-    <span class="pr-item__icon ${iconClass[pr.status]}">${icon[pr.status]}</span>
-    <div class="pr-item__body">
-      <div class="pr-item__title">${pr.title} <span style="color:var(--hub-text-muted);font-weight:400">#${pr.number}</span>${labelsHTML}</div>
-      <div class="pr-item__meta">
-        ${pr.status === 'merged' ? 'Merged' : 'Opened'} ${pr.time} by ${pr.author}
-        &middot; ${pr.branch} &rarr; ${pr.target}
-      </div>
-    </div>
-    <div class="pr-item__checks">${checksHTML}</div>
-  </div>`;
+  // Checkbox (only for open PRs when in bulk mode)
+  const checkboxEl = (showCheckbox && pr.status === 'open')
+    ? h('input', {
+        type: 'checkbox',
+        className: 'pr-bulk-checkbox',
+        'data-pr': String(pr.number),
+        checked: selectedPRs.has(pr.number),
+        style: 'margin-right:10px;cursor:pointer',
+        onclick: (e: Event) => e.stopPropagation(), // Prevent opening modal
+        onchange: (e: Event) => {
+          const checked = (e.target as HTMLInputElement).checked;
+          if (checked) {
+            selectedPRs.add(pr.number);
+          } else {
+            selectedPRs.delete(pr.number);
+          }
+          renderLivePRList();
+        }
+      })
+    : null;
+
+  return h('div', {
+    className: 'pr-item',
+    'data-pr': String(pr.number),
+    role: 'button',
+    tabindex: '0',
+    'aria-label': `Pull request #${pr.number}: ${pr.title}`,
+    onclick: () => openLivePRModal(pr.number),
+    onkeydown: (e: KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openLivePRModal(pr.number);
+      }
+    }
+  },
+    checkboxEl,
+    pinBtn,
+    h('span', { className: `pr-item__icon ${iconClass[pr.status]}` }, icon[pr.status]),
+    h('div', { className: 'pr-item__body' },
+      h('div', { className: 'pr-item__title' },
+        pr.title,
+        ' ',
+        h('span', { style: 'color:var(--hub-text-muted);font-weight:400' }, `#${pr.number}`),
+        labelsElement
+      ),
+      h('div', { className: 'pr-item__meta' },
+        `${pr.status === 'merged' ? 'Merged' : 'Opened'} ${pr.time} by ${pr.author} · ${pr.branch} → ${pr.target}`
+      )
+    ),
+    h('div', { className: 'pr-item__checks' }, ...checkElements)
+  );
 }
 
 async function bulkCloseIssues(): Promise<void> {
@@ -1490,18 +1831,20 @@ async function openLivePRModal(prNumber: number): Promise<void> {
   const rawPR = rawPRs.find(p => p.number === prNumber);
   if (!rawPR) return;
 
-  // Fetch reviews, checks, comments, and diff for this specific PR
-  const [reviews, checks, comments, diff] = await Promise.all([
-    reviewApi.list(repoId, prNumber).catch(() => []),
-    checksApi.list(repoId, prNumber).catch(() => []),
-    commentApi.list(repoId, prNumber).catch(() => [] as PRComment[]),
-    prApi.getDiff(repoId, prNumber).catch(() => [] as DeckPatchOp[]),
-  ]);
+  await withLoading('prModal', async () => {
+    // Fetch reviews, checks, comments, and diff for this specific PR
+    const [reviews, checks, comments, diff] = await Promise.all([
+      reviewApi.list(repoId!, prNumber).catch(() => []),
+      checksApi.list(repoId!, prNumber).catch(() => []),
+      commentApi.list(repoId!, prNumber).catch(() => [] as PRComment[]),
+      prApi.getDiff(repoId!, prNumber).catch(() => [] as DeckPatchOp[]),
+    ]);
 
-  const pr = adaptPR(rawPR, reviews, checks, rawBranches);
+    const pr = adaptPR(rawPR, reviews, checks, rawBranches);
 
-  // Open the modal with the assembled PR data + comments + diff
-  openPRModalWithData(pr, comments, diff);
+    // Open the modal with the assembled PR data + comments + diff
+    openPRModalWithData(pr, comments, diff);
+  });
 }
 
 function openPRModalWithData(pr: AdaptedPR, comments?: PRComment[], diff?: DeckPatchOp[]): void {
@@ -1937,7 +2280,12 @@ function openPRModalWithData(pr: AdaptedPR, comments?: PRComment[], diff?: DeckP
 
   modal.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
-  $('#prModalClose')?.focus();
+
+  // Setup focus trap for accessibility
+  if (prModalFocusCleanup) {
+    prModalFocusCleanup(); // Clean up any existing trap
+  }
+  prModalFocusCleanup = trapFocus(modal);
 }
 
 function renderLiveIssues(): void {
@@ -2318,36 +2666,52 @@ function renderLiveManaBalance(): void {
   const totalSources = Object.values(sourceCounts).reduce((a, b) => a + b, 0);
 
   if (totalSymbols === 0 && totalSources === 0) {
-    el.innerHTML = '<div style="font-size:12px;color:var(--hub-text-muted);padding:12px">Add cards with mana costs or lands to see balance</div>';
+    replaceChildren(el,
+      h('div', { style: 'font-size:12px;color:var(--hub-text-muted);padding:12px' },
+        'Add cards with mana costs or lands to see balance'
+      )
+    );
     return;
   }
 
-  const rows = (['W', 'U', 'B', 'R', 'G'] as const).map(color => {
-    const symbols = symbolCounts[color];
-    const sources = sourceCounts[color];
-    if (symbols === 0 && sources === 0) return '';
+  const colorNames = { W: 'White', U: 'Blue', B: 'Black', R: 'Red', G: 'Green' };
+  const colorVars = { W: '--mana-w', U: '--mana-u', B: '--mana-b', R: '--mana-r', G: '--mana-g' };
 
-    const symPercent = totalSymbols > 0 ? (symbols / totalSymbols) * 100 : 0;
-    const colorName = { W: 'White', U: 'Blue', B: 'Black', R: 'Red', G: 'Green' }[color];
-    const colorVar = { W: '--mana-w', U: '--mana-u', B: '--mana-b', R: '--mana-r', G: '--mana-g' }[color];
+  const rows = (['W', 'U', 'B', 'R', 'G'] as const)
+    .map(color => {
+      const symbols = symbolCounts[color];
+      const sources = sourceCounts[color];
+      if (symbols === 0 && sources === 0) return null;
 
-    return `
-      <tr>
-        <td style="width:24px"><span class="mana-symbol-icon mana-symbol-icon--${color.toLowerCase()}">${color}</span></td>
-        <td>
-          <div style="display:flex;justify-content:space-between;margin-bottom:2px">
-            <span style="font-weight:600">${colorName}</span>
-            <span style="color:var(--hub-text-muted)">${symbols} sym / ${sources} src</span>
-          </div>
-          <div class="mana-balance-bar">
-            <div class="mana-balance-fill" style="width:${symPercent}%; background:var(${colorVar}); box-shadow: 0 0 8px var(${colorVar})"></div>
-          </div>
-        </td>
-      </tr>
-    `;
-  }).join('');
+      const symPercent = totalSymbols > 0 ? (symbols / totalSymbols) * 100 : 0;
+      const colorName = colorNames[color];
+      const colorVar = colorVars[color];
 
-  el.innerHTML = `<table class="mana-balance-table"><tbody>${rows}</tbody></table>`;
+      return h('tr', {},
+        h('td', { style: 'width:24px' },
+          h('span', { className: `mana-symbol-icon mana-symbol-icon--${color.toLowerCase()}` }, color)
+        ),
+        h('td', {},
+          h('div', { style: 'display:flex;justify-content:space-between;margin-bottom:2px' },
+            h('span', { style: 'font-weight:600' }, colorName),
+            h('span', { style: 'color:var(--hub-text-muted)' }, `${symbols} sym / ${sources} src`)
+          ),
+          h('div', { className: 'mana-balance-bar' },
+            h('div', {
+              className: 'mana-balance-fill',
+              style: `width:${symPercent}%; background:var(${colorVar}); box-shadow: 0 0 8px var(${colorVar})`
+            })
+          )
+        )
+      );
+    })
+    .filter(row => row !== null);
+
+  replaceChildren(el,
+    h('table', { className: 'mana-balance-table' },
+      h('tbody', {}, ...rows)
+    )
+  );
 }
 
 function renderLiveInsights(): void {
@@ -2356,26 +2720,62 @@ function renderLiveInsights(): void {
   const checksEl = $('#insightChecksBody');
   if (checksEl) {
     if (liveChecks.length > 0) {
-      checksEl.innerHTML = liveChecks.map(c =>
-        `<div class="insight-row">
-          <span class="insight-row__icon">${c.pass ? '\u2705' : '\u274C'}</span>
-          <span class="insight-row__name">${c.name}</span>
-          <span class="insight-row__detail">${c.detail || ''}</span>
-        </div>`
-      ).join('');
+      replaceChildren(checksEl, ...mapChildren(liveChecks, c =>
+        h('div', { className: 'insight-row' },
+          h('span', { className: 'insight-row__icon' }, c.pass ? '✅' : '❌'),
+          h('span', { className: 'insight-row__name' }, c.name),
+          h('span', { className: 'insight-row__detail' }, c.detail || '')
+        )
+      ));
     } else {
-      checksEl.innerHTML = `<div style="font-size:12px;color:var(--hub-text-muted);padding:12px">No check data available — checks run when PRs are created</div>`;
+      replaceChildren(checksEl,
+        h('div', { style: 'font-size:12px;color:var(--hub-text-muted);padding:12px' },
+          'No check data available — checks run when PRs are created'
+        )
+      );
     }
   }
 
   const warningsEl = $('#insightWarningsBody');
   if (warningsEl) {
-    warningsEl.innerHTML = `<div style="font-size:12px;color:var(--hub-text-muted);padding:12px">No warnings</div>`;
+    const warnings = analyzeDeckWarnings();
+
+    if (warnings.length === 0) {
+      replaceChildren(warningsEl,
+        h('div', { style: 'padding:20px;text-align:center;color:var(--hub-text-muted)' },
+          h('div', { style: 'font-size:48px;opacity:0.3' }, '✅'),
+          h('div', { style: 'margin-top:8px;font-size:13px' }, 'No warnings — deck looks healthy!')
+        )
+      );
+    } else {
+      replaceChildren(warningsEl,
+        ...warnings.map(w =>
+          h('div', {
+            className: 'insight-row',
+            style: `padding:10px 12px;border-left:3px solid ${
+              w.level === 'error' ? 'var(--hub-red)' :
+              w.level === 'warning' ? 'var(--hub-gold)' :
+              'var(--hub-blue)'
+            }`
+          },
+            h('div', { style: 'display:flex;align-items:center;gap:8px' },
+              h('span', { style: 'font-size:18px' }, w.icon),
+              h('div', { style: 'flex:1' },
+                h('div', { style: 'font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--hub-text-muted);margin-bottom:2px' }, w.category),
+                h('div', { style: 'font-size:13px;color:var(--hub-text)' }, w.message)
+              )
+            )
+          )
+        )
+      );
+    }
   }
 
   const regressionsEl = $('#insightRegressionsBody');
   if (regressionsEl) {
-    regressionsEl.innerHTML = `<div style="font-size:12px;color:var(--hub-text-muted);padding:12px">No regressions tracked yet</div>`;
+    replaceChildren(regressionsEl,
+      h('div', { style: 'font-size:12px;color:var(--hub-text-muted);padding:12px' }, 'No regressions tracked yet')
+    );
   }
 
   // Package Changelog
@@ -2393,10 +2793,18 @@ function renderLiveInsights(): void {
           renderChangelogSection(section, entries)
         ).join('');
       } else {
-        changelogEl.innerHTML = `<div style="font-size:12px;color:var(--hub-text-muted);padding:12px">No card changes found in recent commits</div>`;
+        replaceChildren(changelogEl,
+          h('div', { style: 'font-size:12px;color:var(--hub-text-muted);padding:12px' },
+            'No card changes found in recent commits'
+          )
+        );
       }
     } else {
-      changelogEl.innerHTML = `<div style="font-size:12px;color:var(--hub-text-muted);padding:12px">No commit data — changelog unavailable</div>`;
+      replaceChildren(changelogEl,
+        h('div', { style: 'font-size:12px;color:var(--hub-text-muted);padding:12px' },
+          'No commit data — changelog unavailable'
+        )
+      );
     }
   }
 
@@ -2406,31 +2814,552 @@ function renderLiveInsights(): void {
     if (goldenDrift?.goldenCommitId && goldenDrift.drift) {
       const d = goldenDrift.drift;
       const level = d.driftPercent <= 5 ? 'low' : d.driftPercent <= 15 ? 'medium' : d.driftPercent <= 30 ? 'high' : 'critical';
-      goldenEl.innerHTML = `
-        <div class="hub-golden-card">
-          <div class="hub-golden-card__header">
-            <span class="hub-golden-drift hub-golden-drift--${level}">\u2B50 ${d.driftPercent}% drift</span>
-            <button class="hub-btn hub-btn--xs" id="btnClearGolden">\u274C Clear</button>
-          </div>
-          <div class="hub-golden-card__stats">
-            <span>+${d.added} added</span> <span>\u00B7</span>
-            <span>-${d.removed} removed</span> <span>\u00B7</span>
-            <span>${d.totalChanges} total changes</span>
-          </div>
-          <div style="font-size:11px;color:var(--hub-text-muted)">Commit: ${goldenDrift.goldenCommitId.slice(0, 8)}</div>
-        </div>`;
-      const btnClear = goldenEl.querySelector('#btnClearGolden');
-      if (btnClear) btnClear.addEventListener('click', () => setGoldenState(null));
+      replaceChildren(goldenEl,
+        h('div', { className: 'hub-golden-card' },
+          h('div', { className: 'hub-golden-card__header' },
+            h('span', { className: `hub-golden-drift hub-golden-drift--${level}` }, `⭐ ${d.driftPercent}% drift`),
+            h('button', {
+              className: 'hub-btn hub-btn--xs',
+              onclick: () => setGoldenState(null)
+            }, '❌ Clear')
+          ),
+          h('div', { className: 'hub-golden-card__stats' },
+            h('span', {}, `+${d.added} added`),
+            h('span', {}, ' · '),
+            h('span', {}, `-${d.removed} removed`),
+            h('span', {}, ' · '),
+            h('span', {}, `${d.totalChanges} total changes`)
+          ),
+          h('div', { style: 'font-size:11px;color:var(--hub-text-muted)' }, `Commit: ${goldenDrift.goldenCommitId.slice(0, 8)}`)
+        )
+      );
     } else if (goldenDrift && !goldenDrift.goldenCommitId && rawCommitData.length > 0) {
-      goldenEl.innerHTML = `<div style="font-size:12px;color:var(--hub-text-muted);padding:12px">
-        No golden state set. <button class="hub-btn hub-btn--xs" id="btnSetGolden">\u2B50 Set current as golden</button>
-      </div>`;
-      const btnSet = goldenEl.querySelector('#btnSetGolden');
-      if (btnSet) btnSet.addEventListener('click', () => { if (rawCommitData[0]) setGoldenState(rawCommitData[0].id); });
+      replaceChildren(goldenEl,
+        h('div', { style: 'font-size:12px;color:var(--hub-text-muted);padding:12px' },
+          'No golden state set. ',
+          h('button', {
+            className: 'hub-btn hub-btn--xs',
+            onclick: () => { if (rawCommitData[0]) setGoldenState(rawCommitData[0].id); }
+          }, '⭐ Set current as golden')
+        )
+      );
     } else {
-      goldenEl.innerHTML = `<div style="font-size:12px;color:var(--hub-text-muted);padding:12px">Golden state tracking unavailable</div>`;
+      replaceChildren(goldenEl,
+        h('div', { style: 'font-size:12px;color:var(--hub-text-muted);padding:12px' },
+          'Golden state tracking unavailable'
+        )
+      );
     }
   }
+
+  // Bracket Analysis
+  const powerEl = $('#insightPowerBody');
+  if (powerEl) {
+    const bracket = calculateBracket();
+
+    const bracketColors: Record<number, string> = {
+      1: 'var(--hub-blue)',
+      2: 'var(--hub-green)',
+      3: 'var(--hub-gold)',
+      4: 'var(--hub-red)',
+      5: '#9333ea', // purple for cEDH
+    };
+
+    replaceChildren(powerEl,
+      h('div', { style: 'text-align:center;padding:20px 0' },
+        h('div', { style: 'font-size:48px;font-weight:700;color:var(--hub-gold)' },
+          String(bracket.bracket)
+        ),
+        h('div', { style: 'font-size:14px;color:var(--hub-text-muted);margin-top:4px' },
+          bracket.label
+        ),
+        h('div', {
+          style: `display:inline-block;margin-top:12px;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:600;background:${
+            bracketColors[bracket.bracket] || 'var(--hub-blue)'
+          };color:var(--hub-void)`
+        }, bracket.summary)
+      ),
+      bracket.signals.length > 0 ? h('div', { style: 'margin-top:24px;padding-top:16px;border-top:1px solid var(--hub-border)' },
+        h('div', { style: 'font-size:11px;font-weight:600;color:var(--hub-text-muted);margin-bottom:12px' }, 'POWER SIGNALS'),
+        ...bracket.signals.map(s =>
+          h('div', { style: 'margin-bottom:12px' },
+            h('div', { style: 'display:flex;justify-content:space-between;margin-bottom:4px' },
+              h('span', { style: 'font-size:12px;font-weight:600' }, s.category),
+              h('span', { style: 'font-size:11px;color:var(--hub-gold)' }, s.impact)
+            ),
+            s.cards.length > 0 ? h('div', { style: 'font-size:11px;color:var(--hub-text-muted)' },
+              s.cards.slice(0, 3).join(', ') + (s.cards.length > 3 ? ` +${s.cards.length - 3} more` : '')
+            ) : null
+          )
+        )
+      ) : null
+    );
+  }
+
+  // Salt Score Analysis
+  const saltEl = $('#insightSaltBody');
+  if (saltEl) {
+    const salt = calculateSaltScore();
+
+    const saltColors: Record<string, string> = {
+      'Friendly': 'var(--hub-green)',
+      'Mild': 'var(--hub-blue)',
+      'Spicy': 'var(--hub-gold)',
+      'Salty': '#f97316', // orange
+      'Toxic': 'var(--hub-red)',
+    };
+
+    replaceChildren(saltEl,
+      h('div', { style: 'text-align:center;padding:20px 0' },
+        h('div', { style: 'font-size:48px;font-weight:700', className: salt.score >= 7.5 ? 'salt-warning' : '' },
+          salt.score.toFixed(1)
+        ),
+        h('div', { style: 'font-size:14px;color:var(--hub-text-muted);margin-top:4px' },
+          'out of 10.0'
+        ),
+        h('div', {
+          style: `display:inline-block;margin-top:12px;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:600;background:${
+            saltColors[salt.label] || 'var(--hub-green)'
+          };color:var(--hub-void)`
+        }, salt.label)
+      ),
+      salt.saltyCards.length > 0 ? h('div', { style: 'margin-top:24px;padding-top:16px;border-top:1px solid var(--hub-border)' },
+        h('div', { style: 'font-size:11px;font-weight:600;color:var(--hub-text-muted);margin-bottom:8px' }, 'SALTY CARDS'),
+        ...salt.saltyCards.slice(0, 5).map(card =>
+          h('div', { style: 'font-size:12px;color:var(--hub-text);margin-bottom:4px' }, `• ${card}`)
+        ),
+        salt.saltyCards.length > 5 ? h('div', { style: 'font-size:11px;color:var(--hub-text-muted);margin-top:4px' },
+          `+${salt.saltyCards.length - 5} more salty cards`
+        ) : null
+      ) : h('div', { style: 'text-align:center;padding:20px;color:var(--hub-text-muted);font-size:12px' },
+        '🤝 No salty cards detected'
+      )
+    );
+  }
+
+  // Budget Analysis
+  renderBudgetInsights();
+}
+
+// ═══════════════════════════════════════════════════
+// Smart Warnings System
+// ═══════════════════════════════════════════════════
+
+interface DeckWarning {
+  level: 'error' | 'warning' | 'info';
+  category: string;
+  message: string;
+  icon: string;
+}
+
+function analyzeDeckWarnings(): DeckWarning[] {
+  const warnings: DeckWarning[] = [];
+  const allCards = [
+    ...(liveCards.commander || []),
+    ...(liveCards.main || []),
+  ];
+
+  const totalCards = liveTotalCards || 0;
+  const format = liveDeckMeta?.format || 'EDH';
+
+  if (totalCards === 0 || allCards.length === 0) return warnings;
+
+  // 1. Format Violations
+  if (format === 'EDH' || format === 'Commander') {
+    if (totalCards !== 100) {
+      warnings.push({
+        level: 'error',
+        category: 'Format',
+        message: `Only ${totalCards} cards (need 100 for Commander)`,
+        icon: '🔴'
+      });
+    }
+
+    // Singleton check (exclude basic lands)
+    const nonBasics = allCards.filter(c =>
+      !(c.type || '').toLowerCase().includes('basic')
+    );
+    const duplicates = nonBasics.filter(c => c.qty > 1);
+    if (duplicates.length > 0) {
+      warnings.push({
+        level: 'error',
+        category: 'Format',
+        message: `Singleton rule violated: ${duplicates.slice(0,2).map(c => c.name).join(', ')}${duplicates.length > 2 ? '...' : ''}`,
+        icon: '🔴'
+      });
+    }
+  }
+
+  // 2. Mana Base
+  const lands = allCards.filter(c =>
+    (c.type || '').toLowerCase().includes('land')
+  ).reduce((sum, c) => sum + c.qty, 0);
+
+  if (lands < 33) {
+    warnings.push({
+      level: 'error',
+      category: 'Mana',
+      message: `Only ${lands} lands (recommended: 33-40)`,
+      icon: '🔴'
+    });
+  } else if (lands > 40) {
+    warnings.push({
+      level: 'warning',
+      category: 'Mana',
+      message: `${lands} lands is high (recommended: 33-40)`,
+      icon: '⚠️'
+    });
+  }
+
+  // 3. Ramp Check
+  const rampCards = allCards.filter(c =>
+    c.tags.some(t => t.toLowerCase() === 'ramp')
+  ).reduce((sum, c) => sum + c.qty, 0);
+
+  const avgCmc = totalCards > 0 ? allCards.reduce((sum, c) => sum + (c.cmc || 0) * c.qty, 0) / totalCards : 0;
+
+  if (rampCards < 8) {
+    warnings.push({
+      level: avgCmc > 3.5 ? 'error' : 'warning',
+      category: 'Ramp',
+      message: `Only ${rampCards} ramp sources (recommended: 8+)`,
+      icon: avgCmc > 3.5 ? '🔴' : '⚠️'
+    });
+  }
+
+  // 4. Card Draw
+  const drawCards = allCards.filter(c =>
+    c.tags.some(t => t.toLowerCase() === 'draw')
+  ).reduce((sum, c) => sum + c.qty, 0);
+
+  if (drawCards < 10) {
+    warnings.push({
+      level: 'warning',
+      category: 'Draw',
+      message: `Only ${drawCards} draw sources (recommended: 10+)`,
+      icon: '⚠️'
+    });
+  }
+
+  // 5. Interaction
+  const removalCards = allCards.filter(c =>
+    c.tags.some(t => ['removal', 'wipe', 'counter'].includes(t.toLowerCase()))
+  ).reduce((sum, c) => sum + c.qty, 0);
+
+  if (removalCards < 8) {
+    warnings.push({
+      level: 'warning',
+      category: 'Interaction',
+      message: `Only ${removalCards} interaction pieces (recommended: 8+)`,
+      icon: '⚠️'
+    });
+  }
+
+  // 6. Curve Problems
+  const highCmcCards = allCards.filter(c => (c.cmc || 0) > 6).reduce((sum, c) => sum + c.qty, 0);
+  const highCmcPercent = totalCards > 0 ? (highCmcCards / totalCards) * 100 : 0;
+
+  if (highCmcPercent > 20) {
+    warnings.push({
+      level: 'warning',
+      category: 'Curve',
+      message: `${Math.round(highCmcPercent)}% cards are 6+ CMC (recommended: <20%)`,
+      icon: '⚠️'
+    });
+  }
+
+  // 7. Budget Alerts
+  const expensiveCards = allCards.filter(c => (c.price || 0) > 100);
+  if (expensiveCards.length > 0) {
+    warnings.push({
+      level: 'info',
+      category: 'Budget',
+      message: `${expensiveCards.length} card(s) >$100: ${expensiveCards.slice(0, 2).map(c => c.name).join(', ')}${expensiveCards.length > 2 ? '...' : ''}`,
+      icon: 'ℹ️'
+    });
+  }
+
+  const totalPrice = allCards.reduce((sum, c) => sum + (c.price || 0) * c.qty, 0);
+  const isBudgetDeck = (liveDeckMeta?.name || '').toLowerCase().includes('budget');
+  if (isBudgetDeck && totalPrice > 500) {
+    warnings.push({
+      level: 'warning',
+      category: 'Budget',
+      message: `Deck costs $${totalPrice.toFixed(0)} but is tagged as "budget"`,
+      icon: '⚠️'
+    });
+  }
+
+  return warnings;
+}
+
+// ───── Bracket Calculator (WotC Official System) ─────
+
+// Official WotC Game Changers list (Feb 2026)
+const GAME_CHANGERS = new Set([
+  'rhystic study', 'cyclonic rift', 'smothering tithe', 'demonic tutor',
+  'ancient tomb', 'fierce guardianship', 'the one ring', "teferi's protection",
+  "jeska's will", 'vampiric tutor', 'enlightened tutor', 'mystical tutor',
+  'farewell', 'chrome mox', 'mana vault', 'worldly tutor', 'force of will',
+  'crop rotation', 'gamble', 'orcish bowmasters', 'mox diamond',
+  "bolas's citadel", 'seedborn muse', "thassa's oracle", 'underworld breach',
+  'field of the dead', "gaea's cradle", 'opposition agent', 'imperial seal',
+  'necropotence', 'drannith magistrate', 'consecrated sphinx', 'grim monolith',
+  "lion's eye diamond", 'narset, parter of veils', 'aura shards',
+  'notion thief', 'ad nauseam', 'tergrid, god of fright', 'natural order',
+  'grand arbiter augustin iv', 'intuition', 'gifts ungiven', 'glacial chasm',
+  'survival of the fittest', "serra's sanctum", "mishra's workshop",
+  'braids, cabal minion', 'the tabernacle at pendrell vale', 'humility',
+  'coalition victory', 'panoptic mirror', 'biorhythm',
+]);
+
+const FAST_MANA = new Set([
+  'sol ring', 'mana crypt', 'mana vault', 'chrome mox', 'mox diamond',
+  "lion's eye diamond", 'grim monolith', 'mox opal', 'mox amber',
+  'jeweled lotus', 'lotus petal', 'dark ritual', 'cabal ritual',
+  "rite of flame", 'simian spirit guide', 'elvish spirit guide',
+]);
+
+const MASS_LAND_DESTRUCTION = new Set([
+  'armageddon', 'ravages of war', 'cataclysm', 'obliterate',
+  'jokulhaups', 'decree of annihilation', 'apocalypse', 'sunder',
+  'ruination', 'from the ashes', 'keldon firebombers',
+]);
+
+const EXTRA_TURNS = new Set([
+  'time warp', 'temporal manipulation', 'temporal mastery',
+  'capture of jingzhou', 'time stretch', 'expropriate', 'nexus of fate',
+]);
+
+const STAX_PIECES = new Set([
+  'winter orb', 'static orb', 'stasis', 'smokestack', 'tangle wire',
+  'sphere of resistance', 'trinisphere', 'null rod', 'collector ouphe',
+  'stranglehold', 'aven mindcensor', 'rule of law', 'rest in peace',
+  'drannith magistrate', 'opposition agent', 'narset, parter of veils',
+  'blood moon', 'back to basics',
+]);
+
+interface BracketResult {
+  bracket: number; // 1-5
+  label: string;
+  gameChangers: string[];
+  signals: Array<{ category: string; cards: string[]; impact: string; }>;
+  summary: string;
+}
+
+function calculateBracket(): BracketResult {
+  const allCards = [...(liveCards.commander || []), ...(liveCards.main || [])];
+  const cardNames = allCards.map(c => c.name.trim().toLowerCase());
+  const signals: Array<{ category: string; cards: string[]; impact: string; }> = [];
+
+  // 1. Game Changers
+  const gameChangers = allCards.filter(c => GAME_CHANGERS.has(c.name.toLowerCase()));
+  const gcCount = gameChangers.length;
+  if (gcCount > 0) {
+    signals.push({
+      category: 'Game Changers',
+      cards: gameChangers.map(c => c.name),
+      impact: gcCount <= 3 ? 'Bracket 3+' : 'Bracket 4+',
+    });
+  }
+
+  // 2. Fast Mana
+  const fastManaCards = allCards.filter(c => FAST_MANA.has(c.name.toLowerCase()));
+  if (fastManaCards.length > 0) {
+    signals.push({
+      category: 'Fast Mana',
+      cards: fastManaCards.map(c => c.name),
+      impact: fastManaCards.length >= 3 ? 'Bracket 4+' : 'Bracket 3+',
+    });
+  }
+
+  // 3. Mass Land Destruction
+  const mldCards = allCards.filter(c => MASS_LAND_DESTRUCTION.has(c.name.toLowerCase()));
+  if (mldCards.length > 0) {
+    signals.push({
+      category: 'Mass Land Destruction',
+      cards: mldCards.map(c => c.name),
+      impact: 'Bracket 4+',
+    });
+  }
+
+  // 4. Extra Turns
+  const extraTurnCards = allCards.filter(c => EXTRA_TURNS.has(c.name.toLowerCase()));
+  if (extraTurnCards.length > 0) {
+    signals.push({
+      category: 'Extra Turns',
+      cards: extraTurnCards.map(c => c.name),
+      impact: extraTurnCards.length >= 2 ? 'Bracket 3+' : 'Bracket 2+',
+    });
+  }
+
+  // 5. Stax
+  const staxCards = allCards.filter(c => STAX_PIECES.has(c.name.toLowerCase()));
+  if (staxCards.length >= 3) {
+    signals.push({
+      category: 'Stax Package',
+      cards: staxCards.map(c => c.name),
+      impact: staxCards.length >= 5 ? 'Bracket 4+' : 'Bracket 3+',
+    });
+  }
+
+  // 6. Avg CMC
+  const nonLands = allCards.filter(c => !(c.type || '').toLowerCase().includes('land'));
+  const avgCmc = nonLands.reduce((sum, c) => sum + (c.cmc || 0) * c.qty, 0) / Math.max(1, nonLands.reduce((sum, c) => sum + c.qty, 0));
+
+  // 7. Tutors
+  let tutorCount = 0;
+  for (const card of allCards) {
+    const text = (card.type || '').toLowerCase();
+    if (text.includes('tutor') || text.includes('search your library')) tutorCount++;
+  }
+
+  // Calculate Bracket
+  let bracket = 1;
+
+  // Bracket 2: Optimization signals
+  if (avgCmc < 3.5 || tutorCount >= 2) {
+    bracket = Math.max(bracket, 2);
+  }
+
+  // Bracket 3: 1-3 game changers, extra turns, stax, tutors
+  if (gcCount >= 1 || extraTurnCards.length >= 1 || staxCards.length >= 2 || tutorCount >= 4) {
+    bracket = Math.max(bracket, 3);
+  }
+
+  // Bracket 4: 4+ game changers, MLD, heavy fast mana, heavy stax
+  if (gcCount > 3 || mldCards.length > 0 || fastManaCards.length >= 3 || staxCards.length >= 5 || (avgCmc < 2.5 && tutorCount >= 5)) {
+    bracket = Math.max(bracket, 4);
+  }
+
+  // Bracket 5: cEDH signals
+  if (avgCmc < 2.2 && tutorCount >= 6 && fastManaCards.length >= 4) {
+    bracket = Math.max(bracket, 5);
+  }
+
+  const labels: Record<number, string> = {
+    1: 'Exhibition',
+    2: 'Core',
+    3: 'Upgraded',
+    4: 'Optimized',
+    5: 'cEDH',
+  };
+
+  const summaryParts: string[] = [];
+  if (gcCount > 0) summaryParts.push(`${gcCount} Game Changer${gcCount > 1 ? 's' : ''}`);
+  if (fastManaCards.length > 0) summaryParts.push(`${fastManaCards.length} fast mana`);
+  if (mldCards.length > 0) summaryParts.push('mass LD');
+  if (extraTurnCards.length > 0) summaryParts.push(`${extraTurnCards.length} extra turns`);
+  if (staxCards.length >= 3) summaryParts.push(`${staxCards.length} stax`);
+
+  const summary = summaryParts.length > 0 ? summaryParts.join(', ') : (avgCmc > 3.5 ? 'Casual build' : 'Clean build');
+
+  return {
+    bracket,
+    label: labels[bracket] || 'Unknown',
+    gameChangers: gameChangers.map(c => c.name),
+    signals,
+    summary,
+  };
+}
+
+// ───── Salt Score Calculator ─────
+
+const SALT_PATTERNS = [
+  { pattern: 'extra turn', salt: 3, label: 'Extra turns' },
+  { pattern: 'land destruction', salt: 4, label: 'Land destruction' },
+  { pattern: 'destroy all land', salt: 5, label: 'Mass land destruction' },
+  { pattern: 'counter target', salt: 1, label: 'Counterspells' },
+  { pattern: "can't be countered", salt: 2, label: 'Uncounterable' },
+  { pattern: 'you win the game', salt: 3, label: 'Alt wincon' },
+  { pattern: 'opponent loses the game', salt: 3, label: 'Alt wincon' },
+  { pattern: 'stax', salt: 4, label: 'Stax effects' },
+  { pattern: 'each opponent sacrifices', salt: 2, label: 'Forced sacrifice' },
+  { pattern: "can't untap", salt: 3, label: 'Tap lock' },
+  { pattern: "can't cast", salt: 4, label: 'Cast prevention' },
+];
+
+interface SaltResult {
+  score: number; // 0-10
+  label: string;
+  saltyCards: string[];
+}
+
+function calculateSaltScore(): SaltResult {
+  const allCards = [...(liveCards.commander || []), ...(liveCards.main || [])];
+  let salt = 0;
+  const saltyCards: string[] = [];
+
+  for (const card of allCards) {
+    const text = (card.type || '').toLowerCase();
+
+    for (const rule of SALT_PATTERNS) {
+      if (text.includes(rule.pattern)) {
+        salt += rule.salt * card.qty;
+        if (!saltyCards.includes(`${card.name} (${rule.label})`)) {
+          saltyCards.push(`${card.name} (${rule.label})`);
+        }
+      }
+    }
+  }
+
+  const score = Math.min(10, salt / 5);
+
+  let label = 'Friendly';
+  if (score >= 2.5 && score < 5) label = 'Mild';
+  else if (score >= 5 && score < 7.5) label = 'Spicy';
+  else if (score >= 7.5 && score < 9) label = 'Salty';
+  else if (score >= 9) label = 'Toxic';
+
+  return { score, label, saltyCards };
+}
+
+// ───── Budget Analysis ─────
+
+function renderBudgetInsights(): void {
+  const budgetEl = $('#insightBudgetBody');
+  if (!budgetEl) return;
+
+  const allCards = [...(liveCards.commander || []), ...(liveCards.main || [])];
+  const totalPrice = allCards.reduce((sum, c) => sum + (c.price || 0) * c.qty, 0);
+  const avgPrice = totalPrice / (liveTotalCards || 100);
+
+  // Top 3 expensive
+  const sorted = allCards
+    .map(c => ({ ...c, totalPrice: (c.price || 0) * c.qty }))
+    .filter(c => c.totalPrice > 0)
+    .sort((a, b) => b.totalPrice - a.totalPrice);
+
+  const top3 = sorted.slice(0, 3);
+  const top3Total = top3.reduce((sum, c) => sum + c.totalPrice, 0);
+  const top3Percent = totalPrice > 0 ? (top3Total / totalPrice) * 100 : 0;
+
+  replaceChildren(budgetEl,
+    h('div', { style: 'text-align:center;padding:12px 0' },
+      h('div', { style: 'font-size:32px;font-weight:700;color:var(--hub-green)' },
+        `$${totalPrice.toFixed(2)}`
+      ),
+      h('div', { style: 'font-size:12px;color:var(--hub-text-muted);margin-top:4px' },
+        `Avg: $${avgPrice.toFixed(2)} per card`
+      )
+    ),
+    top3.length > 0 ? h('div', { style: 'margin-top:16px;padding-top:16px;border-top:1px solid var(--hub-border)' },
+      h('div', { style: 'font-size:11px;font-weight:600;color:var(--hub-text-muted);margin-bottom:8px' }, 'TOP 3 EXPENSIVE'),
+      ...top3.map(c =>
+        h('div', { style: 'display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px' },
+          h('span', { style: 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, c.name),
+          h('span', { style: 'font-weight:600;color:var(--hub-green);margin-left:8px' },
+            `$${c.totalPrice.toFixed(2)}`
+          )
+        )
+      ),
+      h('div', { style: 'margin-top:8px;font-size:11px;color:var(--hub-text-muted)' },
+        `Top 3 = ${top3Percent.toFixed(0)}% of total budget`
+      )
+    ) : h('div', { style: 'text-align:center;padding:20px;color:var(--hub-text-muted);font-size:12px' },
+      'No price data available'
+    )
+  );
 }
 
 // ───── Command Palette ─────
@@ -4150,12 +5079,24 @@ function openIssueModal(): void {
   $$<HTMLInputElement>('#issueLabelCheckboxes input[type="checkbox"]').forEach(cb => cb.checked = false);
   modal.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
-  title?.focus();
+
+  // Setup focus trap for accessibility
+  if (issueModalFocusCleanup) {
+    issueModalFocusCleanup(); // Clean up any existing trap
+  }
+  issueModalFocusCleanup = trapFocus(modal);
 }
 
 function closeIssueModal(): void {
   const modal = $('#issueModal');
   if (!modal) return;
+
+  // Cleanup focus trap
+  if (issueModalFocusCleanup) {
+    issueModalFocusCleanup();
+    issueModalFocusCleanup = null;
+  }
+
   modal.setAttribute('aria-hidden', 'true');
   document.body.style.overflow = '';
 }
@@ -4262,12 +5203,24 @@ function openReleaseModal(): void {
   if (autoNotes) autoNotes.checked = true;
   modal.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
-  tag?.focus();
+
+  // Setup focus trap for accessibility
+  if (releaseModalFocusCleanup) {
+    releaseModalFocusCleanup(); // Clean up any existing trap
+  }
+  releaseModalFocusCleanup = trapFocus(modal);
 }
 
 function closeReleaseModal(): void {
   const modal = $('#releaseModal');
   if (!modal) return;
+
+  // Cleanup focus trap
+  if (releaseModalFocusCleanup) {
+    releaseModalFocusCleanup();
+    releaseModalFocusCleanup = null;
+  }
+
   modal.setAttribute('aria-hidden', 'true');
   document.body.style.overflow = '';
 }
@@ -4656,6 +5609,13 @@ function openPRModal(prNumber: number): void {
 function closePRModal(): void {
   const modal = $('#prModal');
   if (!modal) return;
+
+  // Cleanup focus trap
+  if (prModalFocusCleanup) {
+    prModalFocusCleanup();
+    prModalFocusCleanup = null;
+  }
+
   modal.setAttribute('aria-hidden', 'true');
   document.body.style.overflow = '';
 }
@@ -5684,6 +6644,32 @@ function init(): void {
   initAddCardDialog();
   initHandSimulator();
   initCardFilter();
+  initKeyboardNavigation();
+  initKeyboardShortcuts();
+
+  // Undo/Redo button handlers
+  $('#btnUndo')?.addEventListener('click', undo);
+  $('#btnRedo')?.addEventListener('click', redo);
+  updateUndoRedoButtons();
+
+  // Touch gestures
+  initTouchGestures();
+
+  // Register Service Worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/deckhub-sw.js')
+      .then(reg => console.log('[DeckHub] Service Worker registered:', reg.scope))
+      .catch(err => console.error('[DeckHub] Service Worker registration failed:', err));
+  }
+
+  // Initialize IndexedDB
+  initDB()
+    .then(() => {
+      console.log('[DeckHub] IndexedDB ready');
+      // Clean old cache (> 7 days)
+      clearOldCache();
+    })
+    .catch(err => console.error('[DeckHub] IndexedDB init failed:', err));
 
   // Check for repo ID in URL
   const params = new URLSearchParams(location.search);
@@ -5914,6 +6900,99 @@ function initKeyboardNavigation(): void {
   });
 }
 
+// ───── Enhanced Keyboard Shortcuts ─────
+
+function initKeyboardShortcuts(): void {
+  document.addEventListener('keydown', (e: KeyboardEvent) => {
+    // Skip if in input or modal open
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+
+    const isMod = e.ctrlKey || e.metaKey;
+
+    // Cmd+Z: Undo
+    if (isMod && e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      undo();
+      return;
+    }
+
+    // Cmd+Shift+Z: Redo
+    if (isMod && e.key === 'z' && e.shiftKey) {
+      e.preventDefault();
+      redo();
+      return;
+    }
+
+    // Cmd+B: Toggle branch dropdown
+    if (isMod && e.key === 'b') {
+      e.preventDefault();
+      $('#branchBtn')?.click();
+      return;
+    }
+
+    // Cmd+P: New PR
+    if (isMod && e.key === 'p') {
+      e.preventDefault();
+      const btnNewPR = $('#btnNewPR');
+      if (btnNewPR) btnNewPR.click();
+      return;
+    }
+
+    // Cmd+I: New Issue
+    if (isMod && e.key === 'i') {
+      e.preventDefault();
+      openIssueModal();
+      return;
+    }
+
+    // G then C/P/I/R: Go to tab (GitHub-style)
+    if (e.key === 'g') {
+      let handled = false;
+      const handler = (e2: KeyboardEvent) => {
+        if (e2.key === 'c') { switchTab('code'); handled = true; }
+        else if (e2.key === 'p') { switchTab('prs'); handled = true; }
+        else if (e2.key === 'i') { switchTab('issues'); handled = true; }
+        else if (e2.key === 'r') { switchTab('releases'); handled = true; }
+        document.removeEventListener('keydown', handler);
+      };
+      document.addEventListener('keydown', handler);
+      setTimeout(() => {
+        if (!handled) document.removeEventListener('keydown', handler);
+      }, 1000);
+      return;
+    }
+
+    // ESC: Close modals/dropdowns
+    if (e.key === 'Escape') {
+      const dropdown = $('#branchDropdown');
+      if (dropdown?.getAttribute('aria-hidden') === 'false') {
+        $('#branchBtn')?.click();
+        return;
+      }
+
+      // Close any open modals
+      if ($('#prModal')?.getAttribute('aria-hidden') === 'false') {
+        closePRModal();
+        return;
+      }
+      if ($('#issueModal')?.getAttribute('aria-hidden') === 'false') {
+        closeIssueModal();
+        return;
+      }
+      if ($('#releaseModal')?.getAttribute('aria-hidden') === 'false') {
+        closeReleaseModal();
+        return;
+      }
+      if ($('#readmeModal')?.getAttribute('aria-hidden') === 'false') {
+        const btnClose = $('#readmeModalClose');
+        if (btnClose) btnClose.click();
+        return;
+      }
+    }
+  });
+}
+
 // ───── Pin System ─────
 
 function initPinSystem(): void {
@@ -5934,6 +7013,37 @@ function getPinnedIssues(): number[] {
   } catch {
     return [];
   }
+}
+
+// ───── Touch Gestures ─────
+
+let touchStartY = 0;
+let touchStartX = 0;
+
+function initTouchGestures(): void {
+  // Swipe down to close modals
+  const modals = $$<HTMLElement>('.pr-modal-overlay, .cmd-palette-overlay');
+
+  modals.forEach(overlay => {
+    const modalContent = overlay.querySelector('.pr-modal, .cmd-palette') as HTMLElement;
+    if (!modalContent) return;
+
+    modalContent.addEventListener('touchstart', (e: TouchEvent) => {
+      touchStartY = e.touches[0].clientY;
+      touchStartX = e.touches[0].clientX;
+    }, { passive: true });
+
+    modalContent.addEventListener('touchend', (e: TouchEvent) => {
+      const deltaY = e.changedTouches[0].clientY - touchStartY;
+      const deltaX = e.changedTouches[0].clientX - touchStartX;
+
+      // Swipe down >100px (and not horizontal swipe)
+      if (deltaY > 100 && Math.abs(deltaX) < 50) {
+        const closeBtn = overlay.querySelector('[id$="Close"]') as HTMLElement;
+        if (closeBtn) closeBtn.click();
+      }
+    }, { passive: true });
+  });
 }
 
 function togglePinPR(prNumber: number): void {
@@ -6464,14 +7574,26 @@ How do you win the game?
     }
     
     editor.value = content;
-    
+
     modal.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
-    editor.focus();
+
+    // Setup focus trap for accessibility
+    if (readmeModalFocusCleanup) {
+      readmeModalFocusCleanup(); // Clean up any existing trap
+    }
+    readmeModalFocusCleanup = trapFocus(modal);
   }
 
   function closeReadmeEditor(): void {
     if (!modal) return;
+
+    // Cleanup focus trap
+    if (readmeModalFocusCleanup) {
+      readmeModalFocusCleanup();
+      readmeModalFocusCleanup = null;
+    }
+
     modal.setAttribute('aria-hidden', 'true');
     document.body.style.overflow = '';
   }

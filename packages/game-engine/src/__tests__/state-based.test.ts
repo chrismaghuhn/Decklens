@@ -198,10 +198,13 @@ describe('checkStateBasedActions', () => {
     };
 
     const result = checkStateBasedActions(stateWithDupes);
-    expect(result.players[0].battlefield.length).toBe(1);
-    // Newest (turn 3) should survive
-    expect(result.players[0].battlefield[0].enteredBattlefieldTurn).toBe(3);
-    expect(result.players[0].graveyard.length).toBe(1);
+    // Legend rule now sets pendingLegendChoice instead of auto-resolving
+    expect(result.pendingLegendChoice).toBeTruthy();
+    expect(result.pendingLegendChoice!.player).toBe(0);
+    expect(result.pendingLegendChoice!.legendName).toBe('Thalia');
+    expect(result.pendingLegendChoice!.permanentIds.length).toBe(2);
+    // Both legends stay on battlefield until player chooses
+    expect(result.players[0].battlefield.length).toBe(2);
   });
 
   it('should not apply legend rule to non-legendary permanents', () => {

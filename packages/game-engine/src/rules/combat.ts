@@ -93,6 +93,19 @@ export function resolveCombatDamage(
       }
     } else {
       // Blocked — assign damage to/from blockers
+
+      // CR 510.1: If multiple blockers and no explicit damage assignment,
+      // check if we need to prompt for manual assignment
+      const needsManualAssignment = blockers.length > 1 &&
+        blockers.some(b => b.damageAssignment === undefined);
+
+      if (needsManualAssignment) {
+        // Set pending damage assignment — UI must resolve this before continuing
+        // For now, auto-assign using default DAO (first blocker gets lethal first)
+        // The pendingDamageAssignment state flag is set by Game.resolveCombat()
+        // if the UI needs to prompt the player. Here we use auto-assignment.
+      }
+
       let remainingPower = power;
 
       for (const block of blockers) {
@@ -106,47 +119,72 @@ export function resolveCombatDamage(
         if ((firstStrikeOnly && blockerHasFirstStrike) || (!firstStrikeOnly && blockerHasNormalStrike)) {
           const blockerPower = Math.max(0, blockerPerm.currentPower ?? 0);
           if (blockerPower > 0) {
-            const idx = attackerBattlefield.findIndex((p) => p.id === attackerPerm.id);
-            if (idx !== -1) {
-              attackerBattlefield[idx] = {
-                ...attackerBattlefield[idx],
-                damage: attackerBattlefield[idx].damage + blockerPower,
-              };
-              logs.push(`${blockerPerm.name} deals ${blockerPower} damage to ${attackerPerm.name}.`);
-            }
+            // Protection: attacker has protection from blocker's colors → prevent damage
+            if (hasProtectionFrom(attackerPerm, blockerPerm.colors || [])) {
+              logs.push(`${attackerPerm.name} has protection — ${blockerPower} damage from ${blockerPerm.name} prevented.`);
+            } else {
+              const idx = attackerBattlefield.findIndex((p) => p.id === attackerPerm.id);
+              if (idx !== -1) {
+                attackerBattlefield[idx] = {
+                  ...attackerBattlefield[idx],
+                  damage: attackerBattlefield[idx].damage + blockerPower,
+                  // Deathtouch: any damage from a deathtouch source marks creature
+                  ...(hasKeyword(blockerPerm, 'deathtouch') ? { deathtouched: true } : {}),
+                } as any;
+                logs.push(`${blockerPerm.name} deals ${blockerPower} damage to ${attackerPerm.name}.`);
+              }
 
-            // Lifelink on blocker
-            if (hasKeyword(blockerPerm, 'lifelink')) {
-              players[defendingPlayer] = {
-                ...players[defendingPlayer],
-                life: players[defendingPlayer].life + blockerPower,
-              };
+              // Lifelink on blocker
+              if (hasKeyword(blockerPerm, 'lifelink')) {
+                players[defendingPlayer] = {
+                  ...players[defendingPlayer],
+                  life: players[defendingPlayer].life + blockerPower,
+                };
+              }
             }
           }
         }
 
         // Attacker deals damage to blocker
         if (remainingPower > 0) {
-          const damageToBlocker = block.damageAssignment ?? Math.min(remainingPower, blockerPerm.currentToughness - blockerPerm.damage);
-          const actualDamage = Math.min(remainingPower, Math.max(0, damageToBlocker));
+          // Protection: blocker has protection from attacker's colors → prevent damage
+          if (hasProtectionFrom(blockerPerm, attackerPerm.colors || [])) {
+            logs.push(`${blockerPerm.name} has protection — damage from ${attackerPerm.name} prevented.`);
+            // Even though damage is prevented, the attacker still "used" its damage assignment
+            // For trample purposes we still reduce remaining power
+            const deathtouchLethal = hasKeyword(attackerPerm, 'deathtouch')
+              ? 1
+              : Math.min(remainingPower, blockerPerm.currentToughness - blockerPerm.damage);
+            const damageToBlocker = block.damageAssignment ?? deathtouchLethal;
+            remainingPower -= Math.min(remainingPower, Math.max(0, damageToBlocker));
+          } else {
+            // CR 510.1c: Deathtouch makes 1 damage = lethal for assignment purposes
+            const deathtouchLethal = hasKeyword(attackerPerm, 'deathtouch')
+              ? 1
+              : Math.min(remainingPower, blockerPerm.currentToughness - blockerPerm.damage);
+            const damageToBlocker = block.damageAssignment ?? deathtouchLethal;
+            const actualDamage = Math.min(remainingPower, Math.max(0, damageToBlocker));
 
-          const bIdx = defenderBattlefield.findIndex((p) => p.id === blockerPerm.id);
-          if (bIdx !== -1) {
-            defenderBattlefield[bIdx] = {
-              ...defenderBattlefield[bIdx],
-              damage: defenderBattlefield[bIdx].damage + actualDamage,
-            };
-            logs.push(`${attackerPerm.name} deals ${actualDamage} damage to ${blockerPerm.name}.`);
-          }
+            const bIdx = defenderBattlefield.findIndex((p) => p.id === blockerPerm.id);
+            if (bIdx !== -1) {
+              defenderBattlefield[bIdx] = {
+                ...defenderBattlefield[bIdx],
+                damage: defenderBattlefield[bIdx].damage + actualDamage,
+                // Deathtouch: any damage from a deathtouch source marks creature
+                ...(hasKeyword(attackerPerm, 'deathtouch') ? { deathtouched: true } : {}),
+              } as any;
+              logs.push(`${attackerPerm.name} deals ${actualDamage} damage to ${blockerPerm.name}.`);
+            }
 
-          remainingPower -= actualDamage;
+            remainingPower -= actualDamage;
 
-          // Lifelink
-          if (hasKeyword(attackerPerm, 'lifelink') && actualDamage > 0) {
-            players[activePlayer] = {
-              ...players[activePlayer],
-              life: players[activePlayer].life + actualDamage,
-            };
+            // Lifelink
+            if (hasKeyword(attackerPerm, 'lifelink') && actualDamage > 0) {
+              players[activePlayer] = {
+                ...players[activePlayer],
+                life: players[activePlayer].life + actualDamage,
+              };
+            }
           }
         }
       }
@@ -211,11 +249,12 @@ export function endCombat(state: GameState): GameState {
   for (let i = 0; i < 2; i++) {
     players[i as 0 | 1] = {
       ...players[i as 0 | 1],
-      battlefield: players[i as 0 | 1].battlefield.map((p) => ({
-        ...p,
-        attacking: false,
-        blocking: null,
-      })),
+      battlefield: players[i as 0 | 1].battlefield.map((p) => {
+        const cleaned = { ...p, attacking: false, blocking: null };
+        // Clear deathtouched flag after combat
+        delete (cleaned as any).deathtouched;
+        return cleaned;
+      }),
     };
   }
 
@@ -280,29 +319,313 @@ function isCommanderPermanent(perm: Permanent, player: PlayerState): boolean {
   return isLegendary && isOwner && (hasDealtCommanderDamage || player.commanderTax > 0);
 }
 
-/** Check if a permanent has a keyword ability (simplified — checks oracle text) */
-function hasKeyword(perm: Permanent, keyword: string): boolean {
-  return perm.oracleText.toLowerCase().includes(keyword.toLowerCase());
+/**
+ * Check if a permanent has a keyword ability.
+ * Checks both parsed abilities[] array AND oracle text for keywords.
+ */
+export function hasKeyword(perm: Permanent, keyword: string): boolean {
+  const lowerKw = keyword.toLowerCase();
+  // Check parsed static abilities first (fast path)
+  if (perm.abilities?.some(a => a.type === 'static' && a.text.toLowerCase().includes(lowerKw))) {
+    return true;
+  }
+  // Check temporary keywords (granted "until end of turn")
+  if (perm.temporaryKeywords?.some(tk => tk.keyword.toLowerCase() === lowerKw)) {
+    return true;
+  }
+  // Fallback: check oracle text directly (catches keywords not in first line)
+  return (perm.oracleText || '').toLowerCase().includes(lowerKw);
 }
 
-/** Get all creatures that can legally attack */
+/**
+ * Get the colors that a permanent has protection from.
+ * Returns an array of color codes (W, U, B, R, G) or special values.
+ *
+ * Checks for:
+ * - "protection from white/blue/black/red/green"
+ * - "protection from all colors"
+ * - "protection from multicolored" (future)
+ */
+export function getProtectionColors(perm: Permanent): string[] {
+  const oracleText = (perm.oracleText || '').toLowerCase();
+  const colors: string[] = [];
+
+  if (oracleText.includes('protection from all colors')) {
+    return ['W', 'U', 'B', 'R', 'G'];
+  }
+
+  const colorMap: Record<string, string> = {
+    white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G',
+  };
+
+  for (const [colorName, colorCode] of Object.entries(colorMap)) {
+    if (oracleText.includes(`protection from ${colorName}`)) {
+      colors.push(colorCode);
+    }
+  }
+
+  return colors;
+}
+
+/**
+ * Check if a permanent has protection from a source (card or permanent).
+ * Protection prevents DEBT: Damage, Enchanting/Equipping, Blocking, Targeting.
+ *
+ * This checks if the SOURCE's colors match any of the protected permanent's protections.
+ * A colorless source is never blocked by color-based protection.
+ */
+export function hasProtectionFrom(protectedPerm: Permanent, sourceColors: string[]): boolean {
+  if (sourceColors.length === 0) return false; // Colorless = not blocked by color protection
+
+  const protColors = getProtectionColors(protectedPerm);
+  if (protColors.length === 0) return false;
+
+  // Source is protected against if ANY of its colors match a protection color
+  return sourceColors.some(c => protColors.includes(c));
+}
+
+/**
+ * Get all creatures that can legally attack.
+ * Checks: is creature, untapped, no summoning sickness (unless haste), no defender.
+ */
 export function getEligibleAttackers(state: GameState): Permanent[] {
   const player = state.players[state.activePlayer];
   return player.battlefield.filter(
     (p) =>
       p.currentPower !== undefined &&
       !p.tapped &&
-      !p.summoningSick
+      !p.phasedOut &&
+      (!p.summoningSick || hasKeyword(p, 'haste')) &&
+      !hasKeyword(p, 'defender')
   );
 }
 
-/** Get all creatures that can legally block */
-export function getEligibleBlockers(state: GameState): Permanent[] {
+/**
+ * Get all creatures that can legally block a specific attacker (or any attacker).
+ * Checks: is creature, untapped, flying/reach restrictions.
+ */
+export function getEligibleBlockers(state: GameState, attackerPerm?: Permanent): Permanent[] {
   const defendingPlayer: 0 | 1 = state.activePlayer === 0 ? 1 : 0;
   const player = state.players[defendingPlayer];
-  return player.battlefield.filter(
-    (p) =>
-      p.currentPower !== undefined &&
-      !p.tapped
-  );
+  const defenderBattlefield = player.battlefield;
+  return defenderBattlefield.filter((p) => {
+    if (p.currentPower === undefined || p.tapped) return false;
+
+    // Phased-out permanents are treated as though they don't exist (CR 702.26)
+    if (p.phasedOut) return false;
+
+    // "can't block" temporary keyword
+    if (hasKeyword(p, "can't block")) return false;
+
+    // If checking against a specific attacker, apply evasion rules
+    if (attackerPerm) {
+      return canBlock(p, attackerPerm, defenderBattlefield);
+    }
+
+    return true;
+  });
+}
+
+/**
+ * Check if a blocker can legally block a specific attacker.
+ * Enforces: flying/reach, protection, menace (partially),
+ * fear, intimidate, skulk, and landwalk evasion keywords.
+ *
+ * @param defenderBattlefield — Optional: the defending player's battlefield,
+ *   needed for landwalk checks. If omitted, landwalk is not enforced.
+ */
+export function canBlock(blocker: Permanent, attacker: Permanent, defenderBattlefield?: Permanent[]): boolean {
+  if (blocker.tapped) return false;
+  if (blocker.currentPower === undefined) return false;
+
+  // "can't block" temporary keyword (e.g., from Falter, Goblin Shortcutter effects)
+  if (hasKeyword(blocker, "can't block")) return false;
+
+  // Defender keyword can block (that's its purpose), but "can't block" overrides it
+  // No extra check needed — defender CAN block by default
+
+  // Flying: only flyable/reach creatures can block
+  if (hasKeyword(attacker, 'flying') && !hasKeyword(blocker, 'flying') && !hasKeyword(blocker, 'reach')) {
+    return false;
+  }
+
+  // Menace-like unblockable: "can't be blocked" on attacker
+  if (hasKeyword(attacker, "can't be blocked")) return false;
+
+  // Protection from [color]: can't be blocked by that color
+  if (hasProtectionFrom(attacker, blocker.colors || [])) {
+    return false;
+  }
+
+  // Fear: can only be blocked by artifact creatures or black creatures (CR 702.36)
+  if (hasKeyword(attacker, 'fear')) {
+    const isArtifact = blocker.typeLine.toLowerCase().includes('artifact');
+    const isBlack = blocker.colors?.includes('B');
+    if (!isArtifact && !isBlack) return false;
+  }
+
+  // Intimidate: can only be blocked by artifact creatures or creatures sharing a color (CR 702.13)
+  if (hasKeyword(attacker, 'intimidate')) {
+    const isArtifact = blocker.typeLine.toLowerCase().includes('artifact');
+    const sharesColor = attacker.colors?.some(c => blocker.colors?.includes(c));
+    if (!isArtifact && !sharesColor) return false;
+  }
+
+  // Skulk: can't be blocked by creatures with greater power (CR 702.120)
+  if (hasKeyword(attacker, 'skulk')) {
+    if ((blocker.currentPower ?? 0) > (attacker.currentPower ?? 0)) return false;
+  }
+
+  // Landwalk: unblockable if defending player controls that basic land type (CR 702.14)
+  if (defenderBattlefield) {
+    const landwalkTypes: { keyword: string; landType: string }[] = [
+      { keyword: 'forestwalk', landType: 'forest' },
+      { keyword: 'islandwalk', landType: 'island' },
+      { keyword: 'mountainwalk', landType: 'mountain' },
+      { keyword: 'swampwalk', landType: 'swamp' },
+      { keyword: 'plainswalk', landType: 'plains' },
+    ];
+    for (const { keyword, landType } of landwalkTypes) {
+      if (hasKeyword(attacker, keyword)) {
+        const defenderHasLand = defenderBattlefield.some(
+          (p) => p.typeLine.toLowerCase().includes(landType)
+        );
+        if (defenderHasLand) return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Check if combat requires manual damage assignment for multi-blocker scenarios (CR 510.1).
+ * Returns a pendingDamageAssignment object if manual assignment is needed, null otherwise.
+ *
+ * Called before resolveCombatDamage() — if this returns non-null, the UI should prompt
+ * the attacking player to distribute damage before resolving.
+ */
+export function checkMultiBlockerAssignment(
+  state: GameState,
+  firstStrikeOnly: boolean = false
+): GameState['pendingDamageAssignment'] {
+  if (!state.combat || state.combat.attackers.length === 0) return null;
+
+  const activePlayer = state.activePlayer;
+
+  for (const attacker of state.combat.attackers) {
+    const attackerPerm = state.players[activePlayer].battlefield.find(
+      (p) => p.id === attacker.permanentId
+    );
+    if (!attackerPerm || attackerPerm.currentPower === undefined) continue;
+
+    const hasFirst = hasKeyword(attackerPerm, 'first strike') || hasKeyword(attackerPerm, 'double strike');
+    const hasNormal = !hasKeyword(attackerPerm, 'first strike') || hasKeyword(attackerPerm, 'double strike');
+    if (firstStrikeOnly && !hasFirst) continue;
+    if (!firstStrikeOnly && !hasNormal) continue;
+
+    const power = Math.max(0, attackerPerm.currentPower);
+    if (power === 0) continue;
+
+    const blockers = state.combat.blockers.filter((b) => b.blockingId === attacker.permanentId);
+    if (blockers.length <= 1) continue;
+
+    // Multiple blockers — check if all have explicit damage assignments
+    const allAssigned = blockers.every((b) => b.damageAssignment !== undefined);
+    if (allAssigned) continue;
+
+    // Need manual assignment
+    return {
+      player: activePlayer,
+      attackerId: attacker.permanentId,
+      totalDamage: power,
+      hasDeathtouch: hasKeyword(attackerPerm, 'deathtouch'),
+      blockerIds: blockers.map((b) => b.permanentId),
+      assignments: {},
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Validate a damage assignment against CR 510.1 rules.
+ * Each blocker must receive at least lethal damage (considering existing damage)
+ * before the next blocker in DAO can receive any damage.
+ * Deathtouch: 1 damage = lethal (CR 702.2b).
+ *
+ * Returns null if valid, or an error message string if invalid.
+ */
+export function validateDamageAssignment(
+  state: GameState,
+  assignments: Record<string, number>,
+  trampleDamage: number = 0
+): string | null {
+  const pending = state.pendingDamageAssignment;
+  if (!pending) return 'No pending damage assignment';
+
+  const defendingPlayer: 0 | 1 = state.activePlayer === 0 ? 1 : 0;
+  const defenderBf = state.players[defendingPlayer].battlefield;
+
+  // Total damage assigned must equal attacker's power
+  const totalAssigned = Object.values(assignments).reduce((a, b) => a + b, 0) + trampleDamage;
+  if (totalAssigned !== pending.totalDamage) {
+    return `Total damage (${totalAssigned}) must equal attacker power (${pending.totalDamage})`;
+  }
+
+  // Validate DAO ordering: each blocker in order must receive lethal before next gets any
+  for (let i = 0; i < pending.blockerIds.length; i++) {
+    const blockerId = pending.blockerIds[i];
+    const assigned = assignments[blockerId] || 0;
+    const blockerPerm = defenderBf.find((p) => p.id === blockerId);
+    if (!blockerPerm) continue;
+
+    const existingDamage = blockerPerm.damage || 0;
+    const toughness = blockerPerm.currentToughness ?? 0;
+    const lethalThreshold = pending.hasDeathtouch
+      ? 1  // CR 702.2b: deathtouch makes 1 damage lethal
+      : Math.max(0, toughness - existingDamage);
+
+    // Check if next blocker received damage before this one got lethal
+    if (assigned < lethalThreshold) {
+      // It's OK for the last blocker (or if there's trample) to get less than lethal
+      // if no later blocker received any damage
+      const laterBlockersGotDamage = pending.blockerIds.slice(i + 1).some(
+        (id) => (assignments[id] || 0) > 0
+      );
+      if (laterBlockersGotDamage) {
+        return `${blockerPerm.name} must receive lethal damage (${lethalThreshold}) before assigning to later blockers`;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Apply a validated damage assignment to combat state.
+ * Sets damageAssignment on each BlockingCreature, then clears pendingDamageAssignment.
+ */
+export function applyDamageAssignment(
+  state: GameState,
+  assignments: Record<string, number>,
+  trampleDamage: number = 0
+): GameState {
+  if (!state.combat || !state.pendingDamageAssignment) return state;
+
+  const updatedBlockers = state.combat.blockers.map((b) => {
+    if (b.blockingId === state.pendingDamageAssignment!.attackerId && assignments[b.permanentId] !== undefined) {
+      return { ...b, damageAssignment: assignments[b.permanentId] };
+    }
+    return b;
+  });
+
+  return {
+    ...state,
+    combat: {
+      ...state.combat,
+      blockers: updatedBlockers,
+    },
+    pendingDamageAssignment: null,
+  };
 }

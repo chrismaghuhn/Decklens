@@ -5,6 +5,9 @@ import type { Permanent } from '../types/permanent.ts';
 import type { ManaPayment } from '../types/mana.ts';
 import type { PlayerState } from '../types/player.ts';
 import { giveActivePlayerPriority } from './priority.ts';
+import { resolveEffect } from './effects.ts';
+import { parseAbilities } from './abilities.ts';
+import { checkETBTriggers } from './triggers.ts';
 
 let nextStackId = 0;
 
@@ -27,7 +30,8 @@ export function addSpellToStack(
   cardId: string,
   player: 0 | 1,
   targets: Target[],
-  _manaPayment: ManaPayment
+  _manaPayment: ManaPayment,
+  xValue?: number
 ): GameState {
   const playerState = state.players[player];
   const cardIndex = playerState.hand.findIndex((c) => c.id === cardId);
@@ -42,6 +46,7 @@ export function addSpellToStack(
     controller: player,
     targets,
     text: card.name,
+    xValue,
   };
 
   // Remove card from hand
@@ -56,6 +61,10 @@ export function addSpellToStack(
   const players = [...state.players] as [PlayerState, PlayerState];
   players[player] = updatedPlayer;
 
+  const castMessage = xValue !== undefined && xValue > 0
+    ? `${playerState.name} casts ${card.name} (X=${xValue}).`
+    : `${playerState.name} casts ${card.name}.`;
+
   return {
     ...state,
     players,
@@ -68,7 +77,7 @@ export function addSpellToStack(
         phase: state.phase,
         step: state.step,
         player,
-        message: `${playerState.name} casts ${card.name}.`,
+        message: castMessage,
         cardName: card.name,
         actionType: 'cast-spell',
       },
@@ -93,6 +102,17 @@ export function addAbilityToStack(
   const ability = source.abilities[abilityIndex];
   if (!ability) return state;
 
+  // Extract effect text from ability text (format: "cost: effect")
+  // For activated abilities, strip the cost prefix to get just the effect
+  let effectText = ability.text;
+  if (ability.type === 'activated' && ability.cost) {
+    // The text format is "{cost}: {effect}" — extract just the effect part
+    const colonIdx = effectText.indexOf(':');
+    if (colonIdx !== -1) {
+      effectText = effectText.substring(colonIdx + 1).trim();
+    }
+  }
+
   const stackObject: StackObject = {
     id: generateStackId(),
     type: 'ability',
@@ -100,6 +120,7 @@ export function addAbilityToStack(
     controller: player,
     targets,
     text: `${source.name}: ${ability.text}`,
+    oracleText: effectText,  // Set effect text for pattern matching
   };
 
   return {
@@ -136,6 +157,45 @@ export function resolveTopOfStack(state: GameState): GameState {
   const resolving = stackCopy.pop()!;
   let newState: GameState = { ...state, stack: stackCopy };
 
+  // ─── Fizzle Check ───
+  // If the spell/ability has targets and ALL targets are now illegal,
+  // the spell is countered by game rules (fizzles).
+  if (checkSpellFizzle(newState, resolving)) {
+    const fizzleName = resolving.card?.name ?? resolving.source?.name ?? resolving.text;
+
+    if (resolving.type === 'spell' && resolving.card && !isPermanentType(resolving.card)) {
+      // Instant/Sorcery spell fizzles → move card to graveyard without resolving effects
+      const controller = resolving.controller;
+      const players = [...newState.players] as [PlayerState, PlayerState];
+      players[controller] = {
+        ...players[controller],
+        graveyard: [...players[controller].graveyard, resolving.card],
+      };
+      newState = { ...newState, players };
+    }
+    // For abilities (or permanent spells that somehow fizzle), just skip resolution.
+    // Permanent spells with targets are unusual — they still enter the battlefield
+    // per MTG rules, but we handle the rare edge case by not fizzling permanents.
+
+    newState = {
+      ...newState,
+      log: [
+        ...newState.log,
+        {
+          timestamp: Date.now(),
+          turn: newState.turn,
+          phase: newState.phase,
+          step: newState.step,
+          player: resolving.controller,
+          message: `${fizzleName} fizzles (all targets became illegal).`,
+          cardName: resolving.card?.name ?? resolving.source?.name,
+        },
+      ],
+    };
+
+    return giveActivePlayerPriority(newState);
+  }
+
   if (resolving.type === 'spell' && resolving.card) {
     const card = resolving.card;
     const controller = resolving.controller;
@@ -149,49 +209,192 @@ export function resolveTopOfStack(state: GameState): GameState {
         battlefield: [...players[controller].battlefield, permanent],
       };
       newState = { ...newState, players };
+
+      // Check for ETB triggered abilities and queue them on the stack
+      newState = checkETBTriggers(newState, permanent);
+
+      // Try to resolve ETB effects from oracle text (e.g., "When ~ enters the battlefield, draw a card")
+      // Direct effect resolution for simple patterns
+      const effectResult = resolveEffect(newState, resolving);
+      newState = effectResult.state;
+      if (effectResult.resolved && effectResult.description) {
+        newState = {
+          ...newState,
+          log: [...newState.log, {
+            timestamp: Date.now(), turn: newState.turn, phase: newState.phase, step: newState.step,
+            player: controller,
+            message: `${card.name} resolves → ${effectResult.description}.`,
+            cardName: card.name, actionType: 'effect',
+          }],
+        };
+      } else {
+        newState = {
+          ...newState,
+          log: [...newState.log, {
+            timestamp: Date.now(), turn: newState.turn, phase: newState.phase, step: newState.step,
+            player: controller,
+            message: `${card.name} resolves.`,
+            cardName: card.name,
+          }],
+        };
+      }
     } else {
-      // Instant/Sorcery → graveyard
+      // Instant/Sorcery → try to auto-resolve effects BEFORE moving to graveyard
+      const effectResult = resolveEffect(newState, resolving);
+      newState = effectResult.state;
+
+      // Move instant/sorcery to graveyard after effect resolves
       const players = [...newState.players] as [PlayerState, PlayerState];
       players[controller] = {
         ...players[controller],
         graveyard: [...players[controller].graveyard, card],
       };
       newState = { ...newState, players };
-    }
 
-    newState = {
-      ...newState,
-      log: [
-        ...newState.log,
-        {
-          timestamp: Date.now(),
-          turn: newState.turn,
-          phase: newState.phase,
-          step: newState.step,
-          player: controller,
-          message: `${card.name} resolves.`,
-          cardName: card.name,
-        },
-      ],
-    };
+      if (effectResult.resolved && effectResult.description) {
+        newState = {
+          ...newState,
+          log: [...newState.log, {
+            timestamp: Date.now(), turn: newState.turn, phase: newState.phase, step: newState.step,
+            player: controller,
+            message: `${card.name} resolves → ${effectResult.description}.`,
+            cardName: card.name, actionType: 'effect',
+          }],
+          // Track whether manual resolution is needed
+          needsManualResolution: false,
+        };
+      } else {
+        newState = {
+          ...newState,
+          log: [...newState.log, {
+            timestamp: Date.now(), turn: newState.turn, phase: newState.phase, step: newState.step,
+            player: controller,
+            message: effectResult.description
+              ? `${card.name} resolves (manual: ${effectResult.description}).`
+              : `${card.name} resolves.`,
+            cardName: card.name,
+          }],
+          needsManualResolution: !effectResult.resolved,
+          manualResolutionCard: !effectResult.resolved ? card : undefined,
+          manualResolutionController: !effectResult.resolved ? controller : undefined,
+        };
+      }
+    }
   } else if (resolving.type === 'ability') {
-    newState = {
-      ...newState,
-      log: [
-        ...newState.log,
-        {
-          timestamp: Date.now(),
-          turn: newState.turn,
-          phase: newState.phase,
-          step: newState.step,
+    // Try to auto-resolve ability effects
+    const effectResult = resolveEffect(newState, resolving);
+    newState = effectResult.state;
+
+    if (effectResult.resolved && effectResult.description) {
+      newState = {
+        ...newState,
+        log: [...newState.log, {
+          timestamp: Date.now(), turn: newState.turn, phase: newState.phase, step: newState.step,
           player: resolving.controller,
-          message: `Ability resolves: ${resolving.text}`,
-        },
-      ],
-    };
+          message: `Ability resolves → ${effectResult.description}.`,
+          actionType: 'effect',
+        }],
+      };
+    } else {
+      newState = {
+        ...newState,
+        log: [...newState.log, {
+          timestamp: Date.now(), turn: newState.turn, phase: newState.phase, step: newState.step,
+          player: resolving.controller,
+          message: effectResult.description
+            ? `Ability resolves (manual: ${effectResult.description}).`
+            : `Ability resolves: ${resolving.text}`,
+        }],
+        needsManualResolution: !effectResult.resolved,
+        manualResolutionCard: !effectResult.resolved ? (resolving.source || resolving.card) : undefined,
+        manualResolutionController: !effectResult.resolved ? resolving.controller : undefined,
+      };
+    }
   }
 
   return giveActivePlayerPriority(newState);
+}
+
+/**
+ * Check if a spell or ability should fizzle (be countered by game rules).
+ *
+ * A spell/ability fizzles if it has targets AND none of those targets are
+ * still legal at resolution time:
+ *  - 'permanent' target: the permanent must still exist on some player's battlefield
+ *  - 'player' target: the player must still be alive (life > 0 and game not over for them)
+ *  - 'card-in-zone' target: the card must still exist in the specified zone
+ *
+ * If the spell has no targets, it never fizzles.
+ * If at least one target is still legal, the spell does NOT fizzle.
+ */
+export function checkSpellFizzle(state: GameState, stackObj: StackObject): boolean {
+  // No targets → never fizzles
+  if (!stackObj.targets || stackObj.targets.length === 0) {
+    return false;
+  }
+
+  // Check each target for legality — if ANY target is still legal, no fizzle
+  for (const target of stackObj.targets) {
+    if (isTargetLegal(state, target)) {
+      return false;
+    }
+  }
+
+  // All targets are illegal → fizzle
+  return true;
+}
+
+/** Check if a single target is still legal given the current game state */
+function isTargetLegal(state: GameState, target: Target): boolean {
+  switch (target.type) {
+    case 'permanent': {
+      // The permanent must exist on some player's battlefield
+      for (const player of state.players) {
+        if (player.battlefield.some((p) => p.id === target.id)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    case 'player': {
+      // The player must still be alive
+      const playerIndex = parseInt(target.id, 10);
+      if (playerIndex !== 0 && playerIndex !== 1) return false;
+      const playerState = state.players[playerIndex];
+      // A player is alive if life > 0 and the game isn't over
+      // (or the game is over but they aren't the loser)
+      if (state.gameOver) return false;
+      return playerState.life > 0;
+    }
+
+    case 'card-in-zone': {
+      if (!target.zone) return false;
+      // The card must still exist in the specified zone for some player
+      for (const player of state.players) {
+        const zoneCards = getZoneCards(player, target.zone);
+        if (zoneCards && zoneCards.some((c) => c.id === target.id)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    default:
+      return false;
+  }
+}
+
+/** Get the card array for a given zone from a player's state */
+function getZoneCards(player: PlayerState, zone: string): Card[] | null {
+  switch (zone) {
+    case 'library': return player.library;
+    case 'hand': return player.hand;
+    case 'graveyard': return player.graveyard;
+    case 'exile': return player.exile;
+    case 'commandZone': return player.commandZone;
+    default: return null;
+  }
 }
 
 /** Check if a card type represents a permanent */
@@ -212,24 +415,31 @@ function createPermanentFromCard(
   controller: 0 | 1,
   turn: number
 ): Permanent {
+  const basePower = card.power ? parseInt(card.power, 10) || 0 : undefined;
+  const baseToughness = card.toughness ? parseInt(card.toughness, 10) || 0 : undefined;
+
   return {
     ...card,
     controller,
     tapped: false,
     flipped: false,
     faceDown: false,
-    currentPower: card.power ? parseInt(card.power, 10) || 0 : undefined,
-    currentToughness: card.toughness ? parseInt(card.toughness, 10) || 0 : undefined,
+    currentPower: basePower,
+    currentToughness: baseToughness,
+    basePower,
+    baseToughness,
+    temporaryPtMods: [],
     damage: 0,
     currentLoyalty: card.loyalty ? parseInt(card.loyalty, 10) || 0 : undefined,
     counters: {},
     summoningSick: true,
     attacking: false,
     blocking: null,
-    abilities: [],
+    abilities: parseAbilities(card),
     x: 0,
     y: 0,
     enteredBattlefieldTurn: turn,
+    attachments: [],
   };
 }
 

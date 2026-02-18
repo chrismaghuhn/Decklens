@@ -101,6 +101,10 @@ function getFilteredSortedEntries(
 /** Invalidate the filter/sort memo cache. Call on deck mutations. */
 export function invalidateViewMemo(): void {
   filterSortMemo = null;
+  // Also invalidate render caches to force full rebuild on next render
+  lastGridRenderHash = '';
+  lastListRenderHash = '';
+  lastPileRenderHash = '';
 }
 
 // ==================== Persistence ====================
@@ -351,11 +355,25 @@ export function renderFilterBadge(container: HTMLElement, filter: ChartFilter, o
 
 // ==================== Grid View ====================
 
+/** Check if card was added recently (within last 5 minutes) */
+function isRecentlyAdded(entry: DeckbuilderCardEntry): boolean {
+  if (!entry.addedAt) return false;
+  const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+  return entry.addedAt > fiveMinutesAgo;
+}
+
+// Cache last render state to prevent full DOM rebuild
+let lastGridRenderHash = '';
+
 function renderGridView(container: HTMLElement, ctx: ViewModeContext): void {
   const allEntries = ctx.deck.boards[ctx.activeBoard];
   const entries = getFilteredSortedEntries(allEntries, ctx.chartFilter, ctx.deckFilter, listSortMode, ctx.resolvedCardByName);
 
+  // Generate fingerprint for current state
+  const currentHash = `${ctx.activeBoard}|${entries.map(e => `${e.name}:${e.qty}`).join(',')}|${ctx.chartFilter?.type}:${ctx.chartFilter?.value}|${ctx.deckFilter}`;
+
   if (allEntries.length === 0) {
+    lastGridRenderHash = ''; // Reset cache
     replaceChildren(container,
       h('div', { className: 'empty-state' },
         h('div', { className: 'empty-state-icon' }, '\uD83C\uDCCF'),
@@ -377,15 +395,38 @@ function renderGridView(container: HTMLElement, ctx: ViewModeContext): void {
 
   const selected = ctx.getSelectedCards();
 
+  // CRITICAL: Only rebuild if content actually changed (not just selection state)
+  const existingGrid = container.querySelector('.card-grid-img');
+  if (currentHash === lastGridRenderHash && existingGrid) {
+    // Content unchanged - just update selection classes without DOM rebuild
+    const allCards = existingGrid.querySelectorAll('.gcard');
+    allCards.forEach((card) => {
+      const cardName = card.getAttribute('data-card-name');
+      if (cardName) {
+        const key = normalizeNameKey(cardName);
+        if (selected.has(key)) {
+          card.classList.add('selected');
+        } else {
+          card.classList.remove('selected');
+        }
+      }
+    });
+    return; // Skip full rebuild - PREVENTS FLICKERING
+  }
+
+  // Content changed - full rebuild needed
+  lastGridRenderHash = currentHash;
+
   const grid = h('div', { className: 'card-grid-img' },
     ...mapChildren(entries, (entry) => {
       const key = normalizeNameKey(entry.name);
       const card = ctx.resolvedCardByName[key];
       const imgSrc = getCardImage(card);
       const isSelected = selected.has(key);
+      const isRecent = isRecentlyAdded(entry);
 
       return h('div', {
-        className: `gcard${isSelected ? ' selected' : ''}`,
+        className: `gcard${isSelected ? ' selected' : ''}${isRecent ? ' recently-added' : ''}`,
         'data-card-name': entry.name,
         'data-board': ctx.activeBoard,
         draggable: true,
@@ -395,7 +436,7 @@ function renderGridView(container: HTMLElement, ctx: ViewModeContext): void {
           : h('div', { className: 'gcard-placeholder' }, entry.name),
         entry.qty > 1 ? h('span', { className: 'gqty' }, `×${entry.qty}`) : null,
         teamOwnBadge(entry.name),
-        
+
         // Hover Overlay
         h('div', { className: 'gcard-overlay' },
           h('div', { className: 'gcard-actions-row' },
@@ -441,13 +482,17 @@ const VS_THRESHOLD = 30; // Only use virtual scroll for 30+ cards
 const VS_ROW_HEIGHT: Record<CardDensity, number> = { compact: 32, normal: 44, large: 56 };
 const VS_BUFFER = 5; // Extra rows above/below viewport
 
+// Cache last list render state
+let lastListRenderHash = '';
+
 function buildListRow(entry: DeckbuilderCardEntry, ctx: ViewModeContext, isSelected: boolean): HTMLElement {
   const key = normalizeNameKey(entry.name);
   const card = ctx.resolvedCardByName[key];
   const thumbSrc = getCardImage(card, 'small');
+  const isRecent = isRecentlyAdded(entry);
 
   return h('div', {
-    className: `board-row${isSelected ? ' selected' : ''}`,
+    className: `board-row${isSelected ? ' selected' : ''}${isRecent ? ' recently-added' : ''}`,
     'data-card-name': entry.name,
     'data-board': ctx.activeBoard,
     draggable: true,
@@ -504,7 +549,11 @@ function renderListView(container: HTMLElement, ctx: ViewModeContext): void {
   const allEntries = ctx.deck.boards[ctx.activeBoard];
   const entries = getFilteredSortedEntries(allEntries, ctx.chartFilter, ctx.deckFilter, listSortMode, ctx.resolvedCardByName);
 
+  // Generate fingerprint for current state
+  const currentHash = `${ctx.activeBoard}|${listSortMode}|${entries.map(e => `${e.name}:${e.qty}`).join(',')}|${ctx.chartFilter?.type}:${ctx.chartFilter?.value}|${ctx.deckFilter}`;
+
   if (allEntries.length === 0) {
+    lastListRenderHash = ''; // Reset cache
     replaceChildren(container,
       h('div', { className: 'empty-state' },
         h('div', { className: 'empty-state-icon' }, '\uD83C\uDCCF'),
@@ -528,6 +577,27 @@ function renderListView(container: HTMLElement, ctx: ViewModeContext): void {
 
   // Small decks: render all directly (no virtual scroll overhead)
   if (entries.length < VS_THRESHOLD) {
+    // CRITICAL: Only rebuild if content actually changed (not just selection state)
+    if (currentHash === lastListRenderHash && container.querySelector('.board-row')) {
+      // Content unchanged - just update selection classes without DOM rebuild
+      const allRows = container.querySelectorAll('.board-row');
+      allRows.forEach((row) => {
+        const cardName = row.getAttribute('data-card-name');
+        if (cardName) {
+          const key = normalizeNameKey(cardName);
+          if (selected.has(key)) {
+            row.classList.add('selected');
+          } else {
+            row.classList.remove('selected');
+          }
+        }
+      });
+      return; // Skip full rebuild - PREVENTS FLICKERING
+    }
+
+    // Content changed - full rebuild needed
+    lastListRenderHash = currentHash;
+
     const frag = document.createDocumentFragment();
     for (const entry of entries) {
       frag.appendChild(buildListRow(entry, ctx, selected.has(normalizeNameKey(entry.name))));
@@ -536,6 +606,9 @@ function renderListView(container: HTMLElement, ctx: ViewModeContext): void {
     container.appendChild(frag);
     return;
   }
+
+  // For large decks with virtual scroll, always rebuild (virtual scroll handles efficiently)
+  lastListRenderHash = currentHash;
 
   // ── Virtual Scroll for large decks ──
   const rowHeight = VS_ROW_HEIGHT[cardDensity];
@@ -586,11 +659,18 @@ function renderListView(container: HTMLElement, ctx: ViewModeContext): void {
 
 // ==================== Pile View ====================
 
+// Cache last pile render state
+let lastPileRenderHash = '';
+
 function renderPileView(container: HTMLElement, ctx: ViewModeContext): void {
   const allEntries = ctx.deck.boards[ctx.activeBoard];
   const entries = getFilteredSortedEntries(allEntries, ctx.chartFilter, ctx.deckFilter, 'name', ctx.resolvedCardByName);
 
+  // Generate fingerprint for current state
+  const currentHash = `${ctx.activeBoard}|${pileSortMode}|${entries.map(e => `${e.name}:${e.qty}`).join(',')}|${ctx.chartFilter?.type}:${ctx.chartFilter?.value}|${ctx.deckFilter}`;
+
   if (allEntries.length === 0) {
+    lastPileRenderHash = ''; // Reset cache
     replaceChildren(container,
       h('div', { className: 'empty-state' },
         h('div', { className: 'empty-state-icon' }, '\uD83C\uDCCF'),
@@ -611,6 +691,29 @@ function renderPileView(container: HTMLElement, ctx: ViewModeContext): void {
   }
 
   const selected = ctx.getSelectedCards();
+
+  // CRITICAL: Only rebuild if content actually changed (not just selection state)
+  const existingPileView = container.querySelector('.pile-view');
+  if (currentHash === lastPileRenderHash && existingPileView) {
+    // Content unchanged - just update selection classes without DOM rebuild
+    const allCards = existingPileView.querySelectorAll('.pile-card');
+    allCards.forEach((card) => {
+      const cardName = card.getAttribute('data-card-name');
+      if (cardName) {
+        const key = normalizeNameKey(cardName);
+        if (selected.has(key)) {
+          card.classList.add('selected');
+        } else {
+          card.classList.remove('selected');
+        }
+      }
+    });
+    return; // Skip full rebuild - PREVENTS FLICKERING
+  }
+
+  // Content changed - full rebuild needed
+  lastPileRenderHash = currentHash;
+
   const piles: Record<string, DeckbuilderCardEntry[]> = {};
 
   for (const entry of entries) {

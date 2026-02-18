@@ -36,6 +36,7 @@ export const STORAGE_KEYS = {
   DECKBUILDER_CURRENCY_PREFERENCE: 'decklens_deckbuilder_currency_pref',
   DECKBUILDER_CUSTOM_SHORTCUTS: 'decklens_deckbuilder_custom_shortcuts',
   DECKBUILDER_PANEL_LAYOUT: 'decklens_deckbuilder_panel_layout',
+  DECKBUILDER_LAYOUT_MODE: 'decklens_deckbuilder_layout_mode',
   // YGO - Note: These match actual production keys
   YGO_COLLECTION: 'ygo-collection',
   YGO_RECENT: 'decklens-recent',
