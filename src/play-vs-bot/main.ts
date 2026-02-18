@@ -11,15 +11,16 @@ import { MLBot, PolicyNetwork, ValueNetwork, FEATURE_DIM } from '@mtg/bot-ml';
 import { listDecks } from '../deckbuilder/storage.js';
 import type { DeckbuilderDeck, DeckbuilderCardEntry } from '../deckbuilder/types.js';
 import { getCardImageUrl } from './card-renderer.ts';
+import { resolveCardNames, validateEDHDeck, type ProgressCallback } from './card-resolver.ts';
 
 let gameLoop: GameLoop | null = null;
 
 // ==================== Deck Selection ====================
 
-/** Parse a decklist from text (Arena/MTGO format) */
-function parseDeckList(text: string): Card[] {
+/** Parse a decklist from text (Arena/MTGO format) into name+qty pairs */
+function parseDeckListNames(text: string): { name: string; qty: number }[] {
   const lines = text.trim().split('\n');
-  const cards: Card[] = [];
+  const entries: { name: string; qty: number }[] = [];
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
@@ -31,19 +32,10 @@ function parseDeckList(text: string): Card[] {
 
     const count = parseInt(match[1], 10);
     const name = match[2].trim();
-
-    for (let i = 0; i < count; i++) {
-      cards.push(createSimpleCard(
-        name,
-        guessTypeLine(name),
-        guessCost(name),
-        0 as 0 | 1,
-        { colors: [], colorIdentity: [] },
-      ));
-    }
+    entries.push({ name, qty: count });
   }
 
-  return cards;
+  return entries;
 }
 
 /** Guess type line from card name (basic heuristic) */
@@ -68,47 +60,78 @@ function guessCost(name: string): string {
 
 const BASIC_LANDS = ['plains', 'island', 'swamp', 'mountain', 'forest'];
 
-/** Convert a DeckbuilderDeck to Card[] + commander */
-function deckbuilderToCards(deck: DeckbuilderDeck): { deck: Card[]; commander: Card } | null {
+/** Convert a DeckbuilderDeck to Card[] + commander using Scryfall data */
+async function deckbuilderToCards(
+  deck: DeckbuilderDeck,
+  onProgress?: ProgressCallback,
+): Promise<{ deck: Card[]; commander: Card; warnings: string[] } | null> {
   const boards = deck.boards;
   if (!boards.commander.length) return null;
 
-  const cmdEntry = boards.commander[0];
-  const commander = createSimpleCard(
-    cmdEntry.name,
-    'Legendary Creature', // heuristic
-    '{2}',
-    0 as 0 | 1,
-    { colors: [], colorIdentity: [] },
-  );
-
-  const cards: Card[] = [commander];
-
-  const addEntries = (entries: DeckbuilderCardEntry[]) => {
-    for (const entry of entries) {
-      for (let i = 0; i < entry.qty; i++) {
-        if (cards.length >= 99) return;
-        cards.push(createSimpleCard(
-          entry.name,
-          guessTypeLine(entry.name),
-          guessCost(entry.name),
-          0 as 0 | 1,
-          { colors: [], colorIdentity: [] },
-        ));
-      }
+  // Collect all card names (with quantities) for bulk resolution
+  const allNames: string[] = [];
+  // Commander first
+  allNames.push(boards.commander[0].name);
+  // Then mainboard
+  for (const entry of boards.mainboard) {
+    for (let i = 0; i < entry.qty; i++) {
+      if (allNames.length >= 100) break;
+      allNames.push(entry.name);
     }
-  };
-
-  addEntries(boards.mainboard);
-
-  // Fill rest with forests if not enough cards
-  while (cards.length < 99) {
-    cards.push(createSimpleCard('Forest', 'Basic Land — Forest', '', 0 as 0 | 1, {
-      oracleText: '{T}: Add {G}.', colors: [], colorIdentity: ['G'] as any,
-    }));
   }
 
-  return { deck: cards, commander };
+  // Fill remaining with forests if deck is too small
+  while (allNames.length < 100) {
+    allNames.push('Forest');
+  }
+
+  // Resolve all card names via Scryfall (with cache)
+  const { cards, notFound } = await resolveCardNames(allNames, 0, onProgress);
+
+  const commander = cards[0];
+  const deckCards = cards.slice(1);
+
+  // Validate
+  const validation = validateEDHDeck(deckCards, commander);
+  const warnings = [...validation.warnings];
+  if (notFound.length > 0) {
+    warnings.push(`${notFound.length} cards not found on Scryfall: ${notFound.slice(0, 3).join(', ')}${notFound.length > 3 ? '...' : ''}`);
+  }
+
+  return { deck: deckCards, commander, warnings };
+}
+
+/** Convert text decklist to Card[] + commander using Scryfall data */
+async function textDeckToCards(
+  text: string,
+  onProgress?: ProgressCallback,
+): Promise<{ deck: Card[]; commander: Card; warnings: string[] } | null> {
+  const entries = parseDeckListNames(text);
+  if (entries.length < 5) return null;
+
+  // Expand quantities into flat name list
+  const allNames: string[] = [];
+  for (const entry of entries) {
+    for (let i = 0; i < entry.qty; i++) {
+      allNames.push(entry.name);
+    }
+  }
+
+  if (allNames.length < 10) return null;
+
+  // Resolve via Scryfall
+  const { cards, notFound } = await resolveCardNames(allNames, 0, onProgress);
+
+  // First card is commander
+  const commander = cards[0];
+  const deckCards = cards.slice(1);
+
+  const warnings: string[] = [];
+  if (notFound.length > 0) {
+    warnings.push(`${notFound.length} cards not found: ${notFound.slice(0, 3).join(', ')}`);
+  }
+
+  return { deck: deckCards, commander, warnings };
 }
 
 /** Create a sample deck for quick start */
@@ -227,42 +250,160 @@ async function loadMLBot(player: 0 | 1): Promise<MLBot | null> {
 
 // ==================== Game Initialization ====================
 
+// ==================== Loading UI ====================
+
+function showLoadingOverlay(): HTMLElement {
+  let overlay = document.getElementById('card-loading-overlay');
+  if (overlay) return overlay;
+
+  overlay = document.createElement('div');
+  overlay.id = 'card-loading-overlay';
+  overlay.innerHTML = `
+    <div class="card-loading-content">
+      <div class="card-loading-icon">&#9876;</div>
+      <h3>Forging Your Deck</h3>
+      <p id="card-loading-status">Loading card data...</p>
+      <div class="card-loading-bar-bg">
+        <div class="card-loading-bar-fill" id="card-loading-bar"></div>
+      </div>
+      <p class="card-loading-sub" id="card-loading-detail"></p>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // Inject styles once
+  if (!document.getElementById('card-loading-styles')) {
+    const style = document.createElement('style');
+    style.id = 'card-loading-styles';
+    style.textContent = `
+      #card-loading-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(10, 14, 23, 0.92);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 2000; animation: fadeIn 0.3s ease;
+      }
+      .card-loading-content {
+        background: linear-gradient(135deg, #1a1f2e, #0f1623);
+        border: 1px solid rgba(201, 168, 76, 0.3);
+        border-radius: 16px; padding: 32px 40px;
+        text-align: center; max-width: 380px; width: 90%;
+        font-family: 'Outfit', sans-serif; color: #e2e8f0;
+      }
+      .card-loading-icon {
+        font-size: 2.5rem; margin-bottom: 8px;
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+      .card-loading-content h3 {
+        color: #c9a84c; font-family: 'Cinzel', serif;
+        font-size: 1.2rem; margin: 0 0 12px;
+      }
+      #card-loading-status {
+        font-size: 0.9rem; margin: 0 0 16px; color: #94a3b8;
+      }
+      .card-loading-bar-bg {
+        width: 100%; height: 6px; background: rgba(201, 168, 76, 0.15);
+        border-radius: 3px; overflow: hidden;
+      }
+      .card-loading-bar-fill {
+        height: 100%; width: 0%; border-radius: 3px;
+        background: linear-gradient(90deg, #c9a84c, #e8d48b);
+        transition: width 0.3s ease;
+      }
+      .card-loading-sub {
+        font-size: 0.75rem; color: #64748b; margin: 10px 0 0;
+      }
+      @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+    `;
+    document.head.appendChild(style);
+  }
+
+  return overlay;
+}
+
+function updateLoadingProgress(resolved: number, total: number, status: string): void {
+  const bar = document.getElementById('card-loading-bar');
+  const statusEl = document.getElementById('card-loading-status');
+  const detailEl = document.getElementById('card-loading-detail');
+  if (bar) bar.style.width = `${Math.round((resolved / Math.max(total, 1)) * 100)}%`;
+  if (statusEl) statusEl.textContent = status;
+  if (detailEl) detailEl.textContent = `${resolved} / ${total} cards`;
+}
+
+function hideLoadingOverlay(): void {
+  document.getElementById('card-loading-overlay')?.remove();
+}
+
+// ==================== Game Initialization ====================
+
 async function initGame(deckText?: string, savedDeck?: DeckbuilderDeck): Promise<void> {
   resetIdCounter();
 
   let playerDeck: Card[];
   let playerCommander: Card;
+  let warnings: string[] = [];
 
-  if (savedDeck) {
-    // Load from deckbuilder storage
-    const converted = deckbuilderToCards(savedDeck);
-    if (converted) {
-      playerDeck = converted.deck;
-      playerCommander = converted.commander;
+  // Show loading overlay
+  showLoadingOverlay();
+
+  try {
+    if (savedDeck) {
+      // Load from deckbuilder storage with Scryfall resolution
+      const converted = await deckbuilderToCards(savedDeck, updateLoadingProgress);
+      if (converted) {
+        playerDeck = converted.deck;
+        playerCommander = converted.commander;
+        warnings = converted.warnings;
+      } else {
+        updateLoadingProgress(100, 100, 'No commander found, using sample deck...');
+        const sample = createSampleDeck(0);
+        playerDeck = sample.deck;
+        playerCommander = sample.commander;
+      }
+    } else if (deckText && deckText.trim().length > 10) {
+      // Parse text and resolve via Scryfall
+      const converted = await textDeckToCards(deckText, updateLoadingProgress);
+      if (converted) {
+        playerDeck = converted.deck;
+        playerCommander = converted.commander;
+        warnings = converted.warnings;
+      } else {
+        updateLoadingProgress(100, 100, 'Could not parse deck, using sample...');
+        const sample = createSampleDeck(0);
+        playerDeck = sample.deck;
+        playerCommander = sample.commander;
+      }
     } else {
-      alert('Deck has no commander. Using sample deck.');
-      const sample = createSampleDeck(0);
+      // Sample deck — also resolve via Scryfall for real card data
+      updateLoadingProgress(0, 100, 'Loading sample deck from Scryfall...');
+      const sample = await resolveSampleDeck(0, updateLoadingProgress);
       playerDeck = sample.deck;
       playerCommander = sample.commander;
     }
-  } else if (deckText && deckText.trim().length > 10) {
-    const parsed = parseDeckList(deckText);
-    if (parsed.length < 10) {
-      alert('Could not parse enough cards from the decklist. Using sample deck.');
-      const sample = createSampleDeck(0);
-      playerDeck = sample.deck;
-      playerCommander = sample.commander;
-    } else {
-      playerCommander = parsed[0];
-      playerDeck = parsed;
-    }
-  } else {
+
+    // Also resolve bot deck via Scryfall
+    updateLoadingProgress(80, 100, 'Loading bot deck...');
+    const botSample = await resolveSampleDeck(1, (r, t, s) => {
+      updateLoadingProgress(80 + Math.round((r / Math.max(t, 1)) * 20), 100, s);
+    });
+
+    updateLoadingProgress(100, 100, 'Ready!');
+  } catch (err) {
+    console.warn('[EDH Bot Arena] Scryfall resolution failed, falling back:', err);
+    updateLoadingProgress(100, 100, 'Scryfall unavailable, using fallback data...');
+    // Fallback to old heuristic system
     const sample = createSampleDeck(0);
     playerDeck = sample.deck;
     playerCommander = sample.commander;
+    var botSample = createSampleDeck(1);
   }
 
-  const botSample = createSampleDeck(1);
+  // Show warnings if any
+  if (warnings.length > 0) {
+    console.warn('[EDH Bot Arena] Deck warnings:', warnings);
+  }
+
+  // Hide loading overlay
+  hideLoadingOverlay();
 
   // Determine which bot to use
   const botType = (document.querySelector('input[name="bot-type"]:checked') as HTMLInputElement)?.value ?? 'heuristic';
@@ -286,7 +427,10 @@ async function initGame(deckText?: string, savedDeck?: DeckbuilderDeck): Promise
   const deckOverlay = document.getElementById('deck-overlay');
   if (deckOverlay) deckOverlay.classList.add('hidden');
 
-  gameLoop = new GameLoop(playerDeck, botSample.deck, playerCommander, botSample.commander, bot);
+  // Use resolved bot deck or fallback
+  const botDeck = typeof botSample !== 'undefined' ? botSample : createSampleDeck(1);
+
+  gameLoop = new GameLoop(playerDeck!, botDeck.deck, playerCommander!, botDeck.commander, bot);
 
   // Wire up buttons
   wireButtons();
@@ -296,6 +440,43 @@ async function initGame(deckText?: string, savedDeck?: DeckbuilderDeck): Promise
 
   // Start game loop
   await gameLoop.start();
+}
+
+/** Resolve the sample deck via Scryfall for real card data */
+async function resolveSampleDeck(
+  owner: 0 | 1,
+  onProgress?: ProgressCallback,
+): Promise<{ deck: Card[]; commander: Card }> {
+  const cmdName = owner === 0 ? "Atraxa, Praetors' Voice" : 'Kenrith, the Returned King';
+
+  const sampleNames = [
+    cmdName,
+    'Command Tower', 'Sol Ring', 'Arcane Signet',
+    'Forest', 'Forest', 'Forest', 'Forest', 'Forest', 'Forest', 'Forest', 'Forest',
+    'Island', 'Island', 'Island', 'Island', 'Island', 'Island',
+    'Plains', 'Plains', 'Plains', 'Plains', 'Plains',
+    'Swamp', 'Swamp', 'Swamp', 'Swamp', 'Swamp',
+    'Mountain', 'Mountain', 'Mountain', 'Mountain',
+    'Llanowar Elves', 'Birds of Paradise', 'Swords to Plowshares',
+    'Counterspell', 'Cultivate', "Kodama's Reach",
+    'Rhystic Study', 'Smothering Tithe', 'Beast Within',
+    'Path to Exile', 'Wrath of God', 'Heroic Intervention',
+    'Eternal Witness', 'Sun Titan', 'Mulldrifter',
+    'Sakura-Tribe Elder', 'Solemn Simulacrum',
+  ];
+
+  // Fill to 100
+  while (sampleNames.length < 100) {
+    sampleNames.push('Forest');
+  }
+
+  try {
+    const { cards } = await resolveCardNames(sampleNames, owner, onProgress);
+    return { deck: cards.slice(1), commander: cards[0] };
+  } catch {
+    // Fallback to hardcoded sample
+    return createSampleDeck(owner);
+  }
 }
 
 function wireButtons(): void {
