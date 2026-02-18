@@ -245,5 +245,9 @@ export type {
   ReplacementEffectDef,
 } from './rules/replacement-effects.ts';
 
+// === Cost Parser (Activated Abilities) ===
+export { parseCost, canPayAbilityCost, payAbilityCost } from './rules/cost-parser.ts';
+export type { AbilityCost } from './rules/cost-parser.ts';
+
 // === Game ===
 export { Game } from './engine/game.ts';

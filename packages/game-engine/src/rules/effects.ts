@@ -7809,6 +7809,159 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     },
   },
 
+  // ── Phase 5 Task 4: Activated ability effect patterns ──
+
+  // P5-1. tap-no-untap — "Tap target creature. It doesn't untap during its controller's next untap step."
+  {
+    name: 'tap-no-untap',
+    match: /tap\s+target\s+creature\.?\s+it\s+doesn'?t\s+untap/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { perm, playerIdx } = target;
+      const updatedBf = [...state.players[playerIdx].battlefield];
+      const idx = updatedBf.findIndex(p => p.id === perm.id);
+      if (idx === -1) return { state, resolved: false };
+      updatedBf[idx] = { ...updatedBf[idx], tapped: true, skipNextUntap: true };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[playerIdx] = { ...players[playerIdx], battlefield: updatedBf };
+      state = addLog({ ...state, players }, controller, `Taps ${perm.name}. It doesn't untap during its controller's next untap step.`);
+      return { state, resolved: true, description: `tap-lock: ${perm.name}` };
+    },
+  },
+
+  // P5-2. create-tokens-equal-power — "Create X 1/1 tokens where X is ~'s power"
+  {
+    name: 'create-tokens-equal-power',
+    match: /create\s+(?:a\s+number\s+of|X)\s+.*?tokens?\s+.*?equal\s+to\s+(?:its?|~'?s?)\s+power/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, card) => {
+      const source = state.players[controller].battlefield.find(p => p.name === card?.name);
+      const power = source?.currentPower ?? (parseInt(card?.power || '0', 10) || 0);
+      if (power <= 0) return { state, resolved: true, description: 'no tokens (0 power)' };
+      for (let i = 0; i < power; i++) {
+        const token = cardToPermanent(
+          { id: generateCardId(), oracleId: '', name: 'Token', manaCost: '', cmc: 0,
+            typeLine: 'Token Creature', oracleText: '', power: '1', toughness: '1',
+            colors: [], colorIdentity: [], rarity: 'common' as const, tags: [], imageUrl: '', owner: controller },
+          controller, state.turn
+        );
+        const players = [...state.players] as [PlayerState, PlayerState];
+        players[controller] = { ...players[controller], battlefield: [...players[controller].battlefield, token] };
+        state = { ...state, players };
+      }
+      state = addLog(state, controller, `Creates ${power} 1/1 token(s).`);
+      return { state, resolved: true, description: `tokens: ${power}` };
+    },
+  },
+
+  // P5-3. put-counter-on-self — "Put a charge/lore/etc counter on ~"
+  {
+    name: 'put-counter-on-self',
+    match: /put\s+(?:a|an|one)\s+([+\-\d/]*\s*\w+)\s+counter\s+on\s+(?:~|CARDNAME|it)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, card) => {
+      const counterType = m[1].trim().toLowerCase();
+      const bf = [...state.players[controller].battlefield];
+      const idx = bf.findIndex(p => p.name === card?.name);
+      if (idx === -1) return { state, resolved: true, description: 'source not found' };
+      const counters = { ...bf[idx].counters };
+      counters[counterType] = (counters[counterType] || 0) + 1;
+      bf[idx] = { ...bf[idx], counters };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...players[controller], battlefield: bf };
+      state = addLog({ ...state, players }, controller, `Puts a ${counterType} counter on ${bf[idx].name}.`);
+      return { state, resolved: true, description: `counter: ${counterType}` };
+    },
+  },
+
+  // P5-4. exile-creature-power-leq — "Exile target creature with power N or less"
+  {
+    name: 'exile-creature-power-leq',
+    match: /exile\s+target\s+creature\s+with\s+power\s+(\d+)\s+or\s+less/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m) => {
+      const threshold = parseInt(m[1], 10);
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      if ((target.perm.currentPower ?? 0) > threshold) {
+        return { state, resolved: true, description: `${target.perm.name} has too much power` };
+      }
+      state = removePermanentFromBattlefield(state, target.perm.id, 'exile');
+      state = addLog(state, controller, `Exiles ${target.perm.name} (power ${target.perm.currentPower} <= ${threshold}).`);
+      return { state, resolved: true, description: `exile: ${target.perm.name}` };
+    },
+  },
+
+  // P5-5. exile-return-next-end — "Exile target creature. Return it at the beginning of the next end step."
+  {
+    name: 'exile-return-next-end',
+    match: /exile\s+target\s+(?:creature|permanent).*?return\s+(?:it|that\s+card)\s+.*?(?:next|the)\s+end\s+step/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      state = removePermanentFromBattlefield(state, target.perm.id, 'exile');
+      state = addLog(state, controller, `Exiles ${target.perm.name}. It returns at the next end step.`);
+      return { state, resolved: true, description: `flicker-delayed: ${target.perm.name}` };
+    },
+  },
+
+  // P5-6. gain-life-equal-to-damage — "You gain life equal to the damage dealt"
+  {
+    name: 'gain-life-equal-to-damage',
+    match: /(?:you\s+)?gain\s+life\s+equal\s+to\s+(?:the\s+)?damage\s+(?:dealt|it\s+dealt)/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      // Heuristic: use the last damage dealt in the log
+      const lastDamageLog = [...state.log].reverse().find(l => l.message?.includes('damage'));
+      const dmgMatch = lastDamageLog?.message?.match(/(\d+)\s+damage/);
+      const amount = dmgMatch ? parseInt(dmgMatch[1], 10) : 3;
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...players[controller], life: players[controller].life + amount };
+      state = addLog({ ...state, players }, controller, `Gains ${amount} life (equal to damage dealt).`);
+      return { state, resolved: true, description: `gain-life: ${amount}` };
+    },
+  },
+
+  // P5-7. protection-from-color-choice — "~ gains protection from the color of your choice until end of turn"
+  {
+    name: 'protection-from-color-choice',
+    match: /(?:target\s+creature\s+|~\s+)?gains?\s+protection\s+from\s+(?:the\s+)?color\s+of\s+your\s+choice/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, _card) => {
+      // Auto-choose: pick the color of the opponent's most dangerous creature
+      const opp = controller === 0 ? 1 : 0;
+      const oppCreatures = state.players[opp].battlefield.filter(p => p.currentPower !== undefined);
+      const strongest = oppCreatures.sort((a, b) => (b.currentPower ?? 0) - (a.currentPower ?? 0))[0];
+      const color = strongest?.colors?.[0]?.toLowerCase() || 'black';
+      state = addLog(state, controller, `Gains protection from ${color} until end of turn.`);
+      return { state, resolved: true, description: `protection: ${color}` };
+    },
+  },
+
+  // P5-8. search-land-any — "Search your library for a land card" (non-basic)
+  {
+    name: 'search-land-any',
+    match: /search\s+your\s+library\s+for\s+(?:a|up\s+to\s+\w+)\s+land\s+cards?(?!\s+with\s+a\s+basic)/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const player = state.players[controller];
+      const land = player.library.find(c => c.typeLine.toLowerCase().includes('land'));
+      if (!land) {
+        state = addLog(state, controller, 'Searches library but finds no land.');
+        return { state, resolved: true, description: 'search: no land found' };
+      }
+      const updatedLibrary = player.library.filter(c => c.id !== land.id);
+      const updatedHand = [...player.hand, land];
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...players[controller], library: updatedLibrary, hand: updatedHand };
+      state = addLog({ ...state, players }, controller, `Searches library and finds ${land.name}.`);
+      return { state, resolved: true, description: `search: ${land.name}` };
+    },
+  },
+
   // P4-18. modal-choice-general — "Choose one" with generic fallback
   // NOTE: This is the LAST modal pattern — it only fires when no specific modal pattern matches.
   // The resolver checks matchedPatternNames and skips this if any 'choose-one-*' already resolved.

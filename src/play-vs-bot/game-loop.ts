@@ -8,7 +8,7 @@
  * - Game over → show result screen
  */
 
-import type { GameState, GameAction, Card, Permanent, Target } from '@mtg/game-engine';
+import type { GameState, GameAction, Card, Permanent, Target, Ability } from '@mtg/game-engine';
 import {
   Game,
   createInitialGameState,
@@ -20,6 +20,8 @@ import {
   autoTapLandsForCost,
   parseManaCost,
   isCreature,
+  parseCost,
+  canPayAbilityCost,
 } from '@mtg/game-engine';
 import { HeuristicBot } from '@mtg/bot-core';
 import { renderBoard, clearDomCache, type BoardCallbacks } from './board-renderer.ts';
@@ -644,7 +646,117 @@ export class GameLoop {
           }
         }
       }
+      return;
     }
+
+    // Ability activation — click your own permanent to activate abilities
+    if (controller === this.humanPlayer) {
+      this.onBattlefieldCardClick(perm.id);
+    }
+  }
+
+  /** Handle battlefield card click for ability activation */
+  private onBattlefieldCardClick(permanentId: string): void {
+    const state = this.game.getState();
+    if (!state || state.gameOver) return;
+    if (state.priorityPlayer !== this.humanPlayer) return;
+
+    const player = state.players[this.humanPlayer];
+    const perm = player.battlefield.find(p => p.id === permanentId);
+    if (!perm) return;
+
+    // Filter to abilities we can actually activate right now
+    const activatable = perm.abilities
+      .map((ability, index) => ({ ability, index }))
+      .filter(({ ability }) => {
+        if (ability.type === 'static' || ability.type === 'triggered') return false;
+        // Mana abilities — can only tap if untapped
+        if (ability.type === 'mana') {
+          return !perm.tapped;
+        }
+        // Activated abilities — check if we can pay the cost
+        const cost = parseCost(ability.cost || '');
+        return canPayAbilityCost(state, this.humanPlayer, perm.id, cost);
+      });
+
+    if (activatable.length === 0) return;
+
+    // If only one ability, activate directly (skip modal)
+    if (activatable.length === 1) {
+      const { ability, index } = activatable[0];
+      if (ability.type === 'mana') {
+        this.submitAction({ type: 'tap-for-mana', player: this.humanPlayer, permanentId: perm.id, abilityIndex: index });
+      } else {
+        this.submitAction({ type: 'activate-ability', player: this.humanPlayer, sourceId: perm.id, abilityIndex: index, targets: [] });
+      }
+      return;
+    }
+
+    // Multiple abilities — show picker modal
+    this.showAbilityPicker(perm, activatable);
+  }
+
+  /** Show a modal for choosing between activatable abilities on a permanent */
+  private showAbilityPicker(
+    perm: Permanent,
+    abilities: { ability: Ability; index: number }[]
+  ): void {
+    // Remove any existing modal
+    document.getElementById('ability-modal')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'ability-modal';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:1000;display:flex;align-items:center;justify-content:center;';
+
+    const panel = document.createElement('div');
+    panel.style.cssText = 'background:var(--abyss,#0f1623);border:1px solid var(--gold,#c9a84c);border-radius:16px;padding:24px;max-width:420px;width:90%;';
+
+    const title = document.createElement('h3');
+    title.textContent = perm.name;
+    title.style.cssText = 'font-family:Cinzel,serif;color:var(--gold,#c9a84c);margin:0 0 16px;font-size:18px;text-align:center;';
+    panel.appendChild(title);
+
+    for (const { ability, index } of abilities) {
+      const btn = document.createElement('button');
+      btn.style.cssText = 'display:block;width:100%;padding:12px 16px;margin-bottom:8px;background:var(--obsidian,#1a1f2e);border:1px solid var(--border,#2d3748);border-radius:10px;color:var(--text,#e2e8f0);cursor:pointer;text-align:left;font-family:Outfit,sans-serif;font-size:14px;transition:border-color 0.2s;';
+      btn.addEventListener('mouseenter', () => { btn.style.borderColor = 'var(--gold,#c9a84c)'; });
+      btn.addEventListener('mouseleave', () => { btn.style.borderColor = 'var(--border,#2d3748)'; });
+
+      // Show cost in gold, effect text in white
+      const costSpan = document.createElement('span');
+      costSpan.textContent = ability.cost ? `${ability.cost}: ` : '';
+      costSpan.style.cssText = 'color:var(--gold,#c9a84c);font-family:JetBrains Mono,monospace;font-size:13px;';
+
+      // Remove cost prefix from display text if present
+      const effectText = ability.text.replace(/^.*?:\s*/, '');
+      const effectSpan = document.createElement('span');
+      effectSpan.textContent = effectText;
+
+      btn.appendChild(costSpan);
+      btn.appendChild(effectSpan);
+
+      btn.addEventListener('click', () => {
+        overlay.remove();
+        if (ability.type === 'mana') {
+          this.submitAction({ type: 'tap-for-mana', player: this.humanPlayer, permanentId: perm.id, abilityIndex: index });
+        } else {
+          this.submitAction({ type: 'activate-ability', player: this.humanPlayer, sourceId: perm.id, abilityIndex: index, targets: [] });
+        }
+      });
+
+      panel.appendChild(btn);
+    }
+
+    // Cancel button
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.style.cssText = 'display:block;width:100%;padding:10px;margin-top:8px;background:transparent;border:1px solid var(--border,#2d3748);border-radius:10px;color:#888;cursor:pointer;font-family:Outfit,sans-serif;font-size:13px;';
+    cancelBtn.addEventListener('click', () => overlay.remove());
+    panel.appendChild(cancelBtn);
+
+    overlay.appendChild(panel);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
   }
 
   /** Highlight selected attackers */

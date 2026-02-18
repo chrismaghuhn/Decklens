@@ -8,6 +8,7 @@ import { giveActivePlayerPriority } from './priority.ts';
 import { resolveEffect } from './effects.ts';
 import { parseAbilities } from './abilities.ts';
 import { checkETBTriggers } from './triggers.ts';
+import { isAura, getAuraBonuses } from './equipment.ts';
 
 let nextStackId = 0;
 
@@ -282,6 +283,45 @@ export function resolveTopOfStack(state: GameState): GameState {
       // Check for ETB triggered abilities and queue them on the stack
       newState = checkETBTriggers(newState, permanent, { fromZone });
 
+      // ─── Aura Auto-Attachment (CR 303.4a) ───
+      // When an Aura spell resolves, it must attach to a valid target.
+      // If no valid target exists, the aura goes to the graveyard (CR 303.4g).
+      if (isAura(card)) {
+        const auraAttachResult = attachAuraOnResolution(newState, permanent, resolving, controller);
+        newState = auraAttachResult.state;
+
+        if (!auraAttachResult.attached) {
+          // CR 303.4g: Aura with no legal target goes to graveyard
+          // Remove the aura from the battlefield and put it in the graveyard
+          const playersGy = [...newState.players] as [PlayerState, PlayerState];
+          const bfWithoutAura = playersGy[controller].battlefield.filter(p => p.id !== permanent.id);
+          const auraAsCard: Card = {
+            id: permanent.id, oracleId: permanent.oracleId, name: permanent.name,
+            manaCost: permanent.manaCost, cmc: permanent.cmc, typeLine: permanent.typeLine,
+            oracleText: permanent.oracleText, power: permanent.power, toughness: permanent.toughness,
+            loyalty: permanent.loyalty, colors: permanent.colors, colorIdentity: permanent.colorIdentity,
+            rarity: permanent.rarity, tags: permanent.tags, imageUrl: permanent.imageUrl, owner: permanent.owner,
+          };
+          playersGy[controller] = {
+            ...playersGy[controller],
+            battlefield: bfWithoutAura,
+            graveyard: [...playersGy[controller].graveyard, auraAsCard],
+          };
+          newState = {
+            ...newState,
+            players: playersGy,
+            log: [...newState.log, {
+              timestamp: Date.now(), turn: newState.turn, phase: newState.phase, step: newState.step,
+              player: controller,
+              message: `${card.name} has no valid target and goes to graveyard.`,
+              cardName: card.name,
+            }],
+          };
+
+          return giveActivePlayerPriority(newState);
+        }
+      }
+
       // Try to resolve ETB effects from oracle text (e.g., "When ~ enters the battlefield, draw a card")
       // Direct effect resolution for simple patterns
       const effectResult = resolveEffect(newState, resolving);
@@ -405,6 +445,149 @@ export function resolveTopOfStack(state: GameState): GameState {
   }
 
   return giveActivePlayerPriority(newState);
+}
+
+/**
+ * Attach an Aura to its target when it resolves from the stack.
+ *
+ * Priority for finding a target:
+ * 1. Use the explicit target from stackObject.targets (if it's a permanent target)
+ * 2. Auto-select: for beneficial auras (+P/+T), enchant own strongest creature;
+ *    for harmful auras (-P/+T or -T), enchant opponent's strongest creature
+ *
+ * Sets `attachedTo` on the aura permanent and adds the aura's ID to the
+ * target creature's `attachments` array. Also applies P/T bonuses immediately.
+ *
+ * Returns { state, attached } — attached is false if no valid target was found.
+ *
+ * MTG Rules:
+ * - CR 303.4a: An Aura spell targets the object/player it will enchant
+ * - CR 303.4f: If the target is illegal on resolution, the Aura doesn't resolve
+ * - CR 303.4g: An Aura that's on the battlefield without being attached goes to graveyard
+ */
+function attachAuraOnResolution(
+  state: GameState,
+  auraPermanent: Permanent,
+  resolving: StackObject,
+  controller: 0 | 1
+): { state: GameState; attached: boolean } {
+  let targetId: string | null = null;
+
+  // 1. Use the explicit target from the stack object
+  if (resolving.targets && resolving.targets.length > 0) {
+    const target = resolving.targets[0];
+    if (target.type === 'permanent') {
+      // Verify target still exists on the battlefield
+      for (let pi = 0; pi < 2; pi++) {
+        if (state.players[pi as 0 | 1].battlefield.some(p => p.id === target.id)) {
+          targetId = target.id;
+          break;
+        }
+      }
+    }
+  }
+
+  // 2. Auto-select if no explicit target
+  if (!targetId) {
+    const bonuses = getAuraBonuses(auraPermanent);
+    const isPositive = bonuses.power >= 0 && bonuses.toughness >= 0;
+
+    if (isPositive) {
+      // Beneficial aura → enchant own strongest creature
+      const ownCreatures = state.players[controller].battlefield
+        .filter(p => p.currentPower !== undefined && p.id !== auraPermanent.id);
+      if (ownCreatures.length > 0) {
+        const sorted = [...ownCreatures].sort((a, b) => (b.currentPower ?? 0) - (a.currentPower ?? 0));
+        targetId = sorted[0].id;
+      }
+    } else {
+      // Harmful aura → enchant opponent's strongest creature
+      const opp = (controller === 0 ? 1 : 0) as 0 | 1;
+      const oppCreatures = state.players[opp].battlefield
+        .filter(p => p.currentPower !== undefined);
+      if (oppCreatures.length > 0) {
+        const sorted = [...oppCreatures].sort((a, b) => (b.currentPower ?? 0) - (a.currentPower ?? 0));
+        targetId = sorted[0].id;
+      }
+    }
+  }
+
+  // No valid target found — aura cannot attach
+  if (!targetId) {
+    return { state, attached: false };
+  }
+
+  // Find which player controls the target creature and attach the aura
+  for (let pi = 0; pi < 2; pi++) {
+    const playerIdx = pi as 0 | 1;
+    const player = state.players[playerIdx];
+    const targetIdx = player.battlefield.findIndex(p => p.id === targetId);
+
+    if (targetIdx !== -1) {
+      const targetCreature = player.battlefield[targetIdx];
+      const bonuses = getAuraBonuses(auraPermanent);
+
+      // Build updated battlefield for the controller (where the aura is)
+      const players = [...state.players] as [PlayerState, PlayerState];
+
+      // Update the aura: set attachedTo
+      const controllerBf = [...players[controller].battlefield];
+      const auraIdx = controllerBf.findIndex(p => p.id === auraPermanent.id);
+      if (auraIdx !== -1) {
+        controllerBf[auraIdx] = {
+          ...controllerBf[auraIdx],
+          attachedTo: targetId,
+        };
+        players[controller] = {
+          ...players[controller],
+          battlefield: controllerBf,
+        };
+      }
+
+      // Update the target creature: add aura to attachments, apply P/T bonuses
+      const targetBf = playerIdx === controller ? [...players[controller].battlefield] : [...players[playerIdx].battlefield];
+      const targetIdxInBf = targetBf.findIndex(p => p.id === targetId);
+      if (targetIdxInBf !== -1) {
+        const updatedCreature = {
+          ...targetBf[targetIdxInBf],
+          attachments: [...targetBf[targetIdxInBf].attachments, auraPermanent.id],
+          currentPower: targetBf[targetIdxInBf].currentPower !== undefined
+            ? targetBf[targetIdxInBf].currentPower! + bonuses.power
+            : undefined,
+          currentToughness: targetBf[targetIdxInBf].currentToughness !== undefined
+            ? targetBf[targetIdxInBf].currentToughness! + bonuses.toughness
+            : undefined,
+        };
+        targetBf[targetIdxInBf] = updatedCreature;
+        players[playerIdx] = {
+          ...players[playerIdx],
+          battlefield: targetBf,
+        };
+      }
+
+      const targetName = targetCreature.name;
+      return {
+        state: {
+          ...state,
+          players,
+          log: [...state.log, {
+            timestamp: Date.now(),
+            turn: state.turn,
+            phase: state.phase,
+            step: state.step,
+            player: controller,
+            message: `${auraPermanent.name} enchants ${targetName}.`,
+            cardName: auraPermanent.name,
+            actionType: 'effect',
+          }],
+        },
+        attached: true,
+      };
+    }
+  }
+
+  // Target not found on any battlefield (shouldn't happen if fizzle check passed)
+  return { state, attached: false };
 }
 
 /**

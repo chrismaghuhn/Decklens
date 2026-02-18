@@ -2,6 +2,7 @@ import type { GameState, GameAction, Card, ManaPayment } from '@mtg/game-engine'
 import {
   parseManaCost, canPayCost, autoPayCost, totalMana,
   isLand, isCreature, isInstant, hasFlash,
+  parseCost, canPayAbilityCost,
 } from '@mtg/game-engine';
 import { scoreCardInHand, getLandsInHand, getSpellsInHand } from '../evaluators/hand-evaluator.ts';
 
@@ -355,4 +356,86 @@ export function shouldHoldMana(state: GameState, player: 0 | 1): boolean {
   if (hasRemoval) return true;
 
   return false;
+}
+
+/** Ability activation candidate */
+export interface AbilityCandidate {
+  permanentId: string;
+  abilityIndex: number;
+  priority: number;
+  name: string;
+}
+
+/**
+ * Find all activated abilities the bot could activate right now.
+ *
+ * Evaluates each non-mana, non-static ability on every permanent the player
+ * controls, checking cost affordability and timing restrictions, then scores
+ * the ability by its effect text so the bot can pick the best one.
+ */
+export function getAbilityActivationCandidates(
+  state: GameState,
+  player: 0 | 1,
+): AbilityCandidate[] {
+  const candidates: AbilityCandidate[] = [];
+  const ps = state.players[player];
+
+  for (const perm of ps.battlefield) {
+    for (let i = 0; i < perm.abilities.length; i++) {
+      const ability = perm.abilities[i];
+
+      // Skip mana abilities (handled by mana system) and static abilities (passive)
+      if (ability.type === 'mana' || ability.type === 'static') continue;
+      // Only consider activated abilities (triggered resolve automatically)
+      if (ability.type !== 'activated') continue;
+
+      // Parse and check if we can pay the cost
+      const cost = parseCost(ability.cost || '');
+      if (!canPayAbilityCost(state, player, perm.id, cost)) continue;
+
+      // Timing check: non-instant-speed abilities only during main phase with empty stack
+      if (!ability.instantSpeed) {
+        if (state.step !== 'main') continue;
+        if (state.stack && state.stack.length > 0) continue;
+      }
+
+      // Score the ability based on its effect text
+      let priority = 0;
+      const text = ability.text.toLowerCase();
+
+      // High-value effects
+      if (text.includes('draw')) priority += 4;
+      if (text.includes('destroy') || text.includes('exile')) priority += 5;
+      if (text.includes('search your library')) priority += 4;
+      if (text.includes('counter target')) priority += 5;
+
+      // Medium-value effects
+      if (text.includes('token')) priority += 3;
+      if (text.includes('damage')) priority += 3;
+      if (text.includes('+1/+1 counter')) priority += 2;
+      if (text.includes('return') && text.includes('graveyard')) priority += 3;
+
+      // Low-value effects
+      if (text.includes('scry')) priority += 1;
+      if (text.includes('gain') && text.includes('life')) priority += 1;
+      if (text.includes('tap target')) priority += 2;
+
+      // Penalize expensive costs
+      if (cost.sacrificeSelf) priority -= 1; // Only sacrifice if the effect is worth it
+      if (cost.payLife && cost.payLife >= 3) priority -= 1;
+      if (cost.discardCount) priority -= 2;
+
+      // Only add if net positive value
+      if (priority > 0) {
+        candidates.push({
+          permanentId: perm.id,
+          abilityIndex: i,
+          priority,
+          name: perm.name,
+        });
+      }
+    }
+  }
+
+  return candidates.sort((a, b) => b.priority - a.priority);
 }

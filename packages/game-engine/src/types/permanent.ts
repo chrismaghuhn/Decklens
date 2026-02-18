@@ -106,6 +106,8 @@ export interface Permanent extends Card {
   sacrificeOnETB?: boolean;
   /** Whether this creature is goaded (must attack, CR 701.38) */
   goaded?: boolean;
+  /** Whether this permanent should skip untapping during its controller's next untap step */
+  skipNextUntap?: boolean;
 }
 
 /**

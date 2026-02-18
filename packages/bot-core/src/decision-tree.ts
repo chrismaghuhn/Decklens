@@ -5,7 +5,7 @@ import { identifyThreats, hasMustAnswerThreat } from './evaluators/threat-evalua
 import { evaluateBoardPosition } from './evaluators/board-evaluator.ts';
 import { hasWinningCombo, evaluateCombos } from './evaluators/combo-evaluator.ts';
 import { chooseMulliganAction } from './policies/mulligan-policy.ts';
-import { choosePlayAction, shouldHoldMana, getCyclingCandidates } from './policies/play-policy.ts';
+import { choosePlayAction, shouldHoldMana, getCyclingCandidates, getAbilityActivationCandidates } from './policies/play-policy.ts';
 import { chooseAttackers, chooseBlockers, shouldAttack } from './policies/combat-policy.ts';
 import { chooseStackAction } from './policies/stack-policy.ts';
 
@@ -114,6 +114,22 @@ export function makeDecision(state: GameState, botPlayer: 0 | 1): Decision {
         action: cyclingCandidates[0].action,
         reason: cyclingCandidates[0].reason,
         confidence: 0.6,
+      };
+    }
+
+    // No cycle either — try activating an ability on a permanent
+    const abilityCandidates = getAbilityActivationCandidates(state, botPlayer);
+    if (abilityCandidates.length > 0) {
+      const best = abilityCandidates[0];
+      return {
+        action: {
+          type: 'activate-ability' as const,
+          player: botPlayer,
+          sourceId: best.permanentId,
+          abilityIndex: best.abilityIndex,
+        },
+        reason: `Activate ability on ${best.name}`,
+        confidence: Math.min(0.8, 0.4 + best.priority * 0.05),
       };
     }
   }

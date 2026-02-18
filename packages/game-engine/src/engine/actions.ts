@@ -19,6 +19,7 @@ import { parseLoyaltyCost } from '../rules/abilities.ts';
 import { checkAttackTriggers, checkCastTriggers, checkETBTriggers } from '../rules/triggers.ts';
 import { handleCommanderDeath, handleCommanderExile } from '../rules/commander.ts';
 import { validateDamageAssignment, applyDamageAssignment, hasKeyword } from '../rules/combat.ts';
+import { parseCost as parseCostFromString, canPayAbilityCost, payAbilityCost } from '../rules/cost-parser.ts';
 
 /**
  * Execute a game action and return the new state.
@@ -438,55 +439,10 @@ function executeActivateAbility(
   const ability = source.abilities[action.abilityIndex];
   if (!ability) return state;
 
-  let newState = state;
-
-  // Pay costs if the ability has them
-  if (ability.cost) {
-    const costText = ability.cost.toLowerCase();
-
-    // {T} cost: tap the permanent
-    if (costText.includes('{t}')) {
-      const permIndex = player.battlefield.findIndex(p => p.id === action.sourceId);
-      if (permIndex === -1) return state;
-      const updatedBf = [...player.battlefield];
-      updatedBf[permIndex] = { ...updatedBf[permIndex], tapped: true };
-      const players = [...newState.players] as [PlayerState, PlayerState];
-      players[action.player] = { ...players[action.player], battlefield: updatedBf };
-      newState = { ...newState, players };
-    }
-
-    // Mana cost in the ability (e.g., {2}, {W}, {1}{R})
-    // Extract mana symbols from cost text (excluding {T}, {Q}, {X}, {S})
-    const manaMatch = costText.match(/\{([0-9wubrgc])\}/gi);
-    if (manaMatch) {
-      // Build a mana cost string from symbols
-      const manaCostStr = manaMatch.join('');
-
-      // Parse and pay the cost
-      const cost = parseManaCost(manaCostStr);
-      let currentPlayer = newState.players[action.player];
-
-      // Try to auto-tap lands if we don't have enough mana in pool
-      if (!canPayCost(currentPlayer.manaPool, cost, currentPlayer.life)) {
-        const tapResult = autoTapLandsForCost(currentPlayer, cost);
-        if (tapResult) {
-          currentPlayer = tapResult.updatedPlayer;
-        } else {
-          return state; // Can't pay cost
-        }
-      }
-
-      // Determine how to pay from the current pool
-      const payment = autoPayCost(currentPlayer.manaPool, cost, currentPlayer.life);
-      if (!payment) return state; // Can't determine payment
-
-      const newPool = payCost(currentPlayer.manaPool, cost, payment);
-      const updatedPlayer = { ...currentPlayer, manaPool: newPool };
-      const players = [...newState.players] as [PlayerState, PlayerState];
-      players[action.player] = updatedPlayer;
-      newState = { ...newState, players };
-    }
-  }
+  // Use universal cost parser for ALL cost types (mana, tap, sacrifice, life, discard, etc.)
+  const cost = parseCostFromString(ability.cost || '');
+  if (!canPayAbilityCost(state, action.player, action.sourceId, cost)) return state;
+  const newState = payAbilityCost(state, action.player, action.sourceId, cost);
 
   return addAbilityToStack(newState, action.sourceId, action.abilityIndex, action.player, action.targets);
 }
