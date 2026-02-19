@@ -2828,6 +2828,75 @@ body { font-size: 15px; line-height: 1.65; }
   .import-btn,
   .hand-btn { font-size: 0.74rem; }
 }
+
+/* ── TOOL CONTENT UTILITIES ───────────────────────── */
+.tool-textarea {
+  width: 100%;
+  min-height: 80px;
+  margin-bottom: 0.5rem;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  resize: vertical;
+}
+.tool-textarea:focus { outline: none; border-color: var(--gold); }
+.tool-number-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  max-width: 300px;
+}
+.tool-number-label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.tool-number-input {
+  width: 70px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.25rem 0.4rem;
+  color: var(--text);
+  font-size: 0.82rem;
+}
+.tool-number-input:focus { outline: none; border-color: var(--gold); }
+.btn-danger-ghost {
+  background: rgba(229, 62, 62, 0.1);
+  color: var(--banned);
+  border-color: rgba(229, 62, 62, 0.25);
+}
+.btn-danger-ghost:hover {
+  background: rgba(229, 62, 62, 0.18);
+  border-color: rgba(229, 62, 62, 0.4);
+}
+.tool-score-display {
+  text-align: center;
+  padding: 1rem;
+}
+.tool-score-num {
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--gold);
+  font-family: var(--font-display);
+  line-height: 1;
+}
+.tool-score-label {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-top: 0.4rem;
+}
+.tool-lead {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 1rem;
+}
 </style>
 </head>
 <body>
@@ -3051,10 +3120,10 @@ Sideboard:
    <!-- Compare Tab -->
    <div class="tools-content" id="tool-compare">
       <h4><svg class="ui-icon"><use href="#i-compare"></use></svg>Deck Comparison</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Compare two decks side by side.</p>
+     <p class="tool-lead">Compare two decks side by side.</p>
      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
-       <textarea id="compareDeck1" placeholder="Paste deck 1..." style="min-height:100px;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:0.5rem;color:var(--text);font-size:0.75rem;"></textarea>
-       <textarea id="compareDeck2" placeholder="Paste deck 2..." style="min-height:100px;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:0.5rem;color:var(--text);font-size:0.75rem;"></textarea>
+       <textarea id="compareDeck1" placeholder="Paste deck 1..." class="tool-textarea"></textarea>
+       <textarea id="compareDeck2" placeholder="Paste deck 2..." class="tool-textarea"></textarea>
      </div>
      <button class="hand-btn primary" id="btnRunCompare2">Compare</button>
      <div id="compareResults2" style="margin-top:1rem;"></div>
@@ -3063,7 +3132,7 @@ Sideboard:
    <!-- Buy Tab -->
    <div class="tools-content" id="tool-buy">
       <h4><svg class="ui-icon"><use href="#i-cart"></use></svg>Buy Cards</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Find best prices across vendors.</p>
+     <p class="tool-lead">Find best prices across vendors.</p>
      <div id="buyOptions" style="margin-top:0.5rem;">
        <p style="font-size:0.8rem;color:var(--text-dim);">Load a deck to see purchase options.</p>
      </div>
@@ -3072,7 +3141,7 @@ Sideboard:
    <!-- Wishlist Tab -->
    <div class="tools-content" id="tool-wishlist">
       <h4><svg class="ui-icon"><use href="#i-star"></use></svg>Wishlist</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Track cards you want to acquire.</p>
+     <p class="tool-lead">Track cards you want to acquire.</p>
      <div id="wishlistContent" style="margin-top:0.5rem;">
        <p style="font-size:0.8rem;color:var(--text-dim);">Click cards in your deck to add them to wishlist.</p>
      </div>
@@ -3081,12 +3150,12 @@ Sideboard:
    <!-- Probability Tab -->
    <div class="tools-content" id="tool-hyper">
       <h4><svg class="ui-icon"><use href="#i-target"></use></svg>Hypergeometric Calculator</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Calculate draw probabilities.</p>
-     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.5rem;max-width:300px;">
-       <label style="font-size:0.75rem;">Deck size: <input type="number" id="hyperDeck" value="60" style="width:60px;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:0.25rem;color:var(--text);"></label>
-       <label style="font-size:0.75rem;">Cards drawn: <input type="number" id="hyperDraw" value="7" style="width:60px;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:0.25rem;color:var(--text);"></label>
-       <label style="font-size:0.75rem;">Copies in deck: <input type="number" id="hyperCopies" value="4" style="width:60px;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:0.25rem;color:var(--text);"></label>
-       <label style="font-size:0.75rem;">Want at least: <input type="number" id="hyperWant" value="1" style="width:60px;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:0.25rem;color:var(--text);"></label>
+     <p class="tool-lead">Calculate draw probabilities.</p>
+     <div class="tool-number-grid">
+       <label class="tool-number-label">Deck size: <input type="number" id="hyperDeck" value="60" class="tool-number-input"></label>
+       <label class="tool-number-label">Cards drawn: <input type="number" id="hyperDraw" value="7" class="tool-number-input"></label>
+       <label class="tool-number-label">Copies in deck: <input type="number" id="hyperCopies" value="4" class="tool-number-input"></label>
+       <label class="tool-number-label">Want at least: <input type="number" id="hyperWant" value="1" class="tool-number-input"></label>
      </div>
      <button class="hand-btn primary" id="btnCalcHyper" style="margin-top:0.75rem;">Calculate</button>
      <div id="hyperResult" style="margin-top:0.75rem;font-size:0.85rem;color:var(--gold-light);"></div>
@@ -3095,7 +3164,7 @@ Sideboard:
    <!-- Tokens Tab -->
    <div class="tools-content" id="tool-tokens">
       <h4><svg class="ui-icon"><use href="#i-layers"></use></svg>Token Detection</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Find tokens your deck creates.</p>
+     <p class="tool-lead">Find tokens your deck creates.</p>
      <div id="tokensList" style="margin-top:0.5rem;">
        <p style="font-size:0.8rem;color:var(--text-dim);">Load a deck to detect tokens.</p>
      </div>
@@ -3104,7 +3173,7 @@ Sideboard:
    <!-- Combos Tab -->
    <div class="tools-content" id="tool-combos">
       <h4><svg class="ui-icon"><use href="#i-infinity"></use></svg>Combo Detection</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Find 2-card combos in your deck from 3,900+ Commander Spellbook entries.</p>
+     <p class="tool-lead">Find 2-card combos in your deck from 3,900+ Commander Spellbook entries.</p>
      <div id="combosList" style="margin-top:0.5rem;">
        <p style="font-size:0.8rem;color:var(--text-dim);">Load a deck to detect combos.</p>
      </div>
@@ -3113,7 +3182,7 @@ Sideboard:
    <!-- Versions Tab -->
    <div class="tools-content" id="tool-versions">
       <h4><svg class="ui-icon"><use href="#i-history"></use></svg>Version History</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Save and restore deck versions.</p>
+     <p class="tool-lead">Save and restore deck versions.</p>
      <button class="hand-btn primary" id="btnSaveVersion2">Save Current</button>
      <div id="versionsList2" style="margin-top:1rem;"></div>
    </div>
@@ -3138,10 +3207,10 @@ Sideboard:
    <!-- Power Tab -->
    <div class="tools-content" id="tool-power">
       <h4><svg class="ui-icon"><use href="#i-bolt"></use></svg>Power Level Estimate</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Estimate your deck's competitive power (1-10 scale).</p>
-     <div id="powerResult" style="text-align:center;padding:1rem;">
-       <div style="font-size:3rem;font-weight:700;color:var(--gold);" id="powerScore">?</div>
-       <div style="font-size:0.85rem;color:var(--text-dim);" id="powerLabel">Load a deck to analyze</div>
+     <p class="tool-lead">Estimate your deck's competitive power (1-10 scale).</p>
+     <div id="powerResult" class="tool-score-display">
+       <div class="tool-score-num" id="powerScore">?</div>
+       <div class="tool-score-label" id="powerLabel">Load a deck to analyze</div>
      </div>
      <div id="powerFactors" style="margin-top:1rem;font-size:0.8rem;"></div>
      <button class="hand-btn primary" id="btnCalcPower" style="margin-top:1rem;">Calculate Power</button>
@@ -3150,10 +3219,10 @@ Sideboard:
    <!-- Salt Tab -->
    <div class="tools-content" id="tool-salt">
       <h4><svg class="ui-icon"><use href="#i-flask"></use></svg>Salt Score</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">How annoying is your deck to play against?</p>
-     <div id="saltResult" style="text-align:center;padding:1rem;">
-       <div style="font-size:3rem;font-weight:700;color:var(--text);" id="saltScore">?</div>
-       <div style="font-size:0.85rem;color:var(--text-dim);" id="saltLabel">Load a deck to analyze</div>
+     <p class="tool-lead">How annoying is your deck to play against?</p>
+     <div id="saltResult" class="tool-score-display">
+       <div class="tool-score-num" style="color:var(--text);" id="saltScore">?</div>
+       <div class="tool-score-label" id="saltLabel">Load a deck to analyze</div>
      </div>
      <div id="saltCards" style="margin-top:1rem;font-size:0.8rem;"></div>
      <button class="hand-btn primary" id="btnCalcSalt" style="margin-top:1rem;">Calculate Salt</button>
@@ -3162,7 +3231,7 @@ Sideboard:
    <!-- Synergy Tab -->
    <div class="tools-content" id="tool-synergy">
       <h4><svg class="ui-icon"><use href="#i-network"></use></svg>Card Synergies</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Discover card interactions in your deck.</p>
+     <p class="tool-lead">Discover card interactions in your deck.</p>
      <div id="synergyResult" style="margin-top:0.5rem;">
        <p style="font-size:0.8rem;color:var(--text-dim);">Load a deck to find synergies.</p>
      </div>
@@ -3172,7 +3241,7 @@ Sideboard:
    <!-- Budget Tab -->
    <div class="tools-content" id="tool-budget">
       <h4><svg class="ui-icon"><use href="#i-wallet"></use></svg>Budget Alternatives</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Find cheaper replacements for expensive cards.</p>
+     <p class="tool-lead">Find cheaper replacements for expensive cards.</p>
      <div id="budgetResult" style="margin-top:0.5rem;">
        <p style="font-size:0.8rem;color:var(--text-dim);">Load a deck to find budget options.</p>
      </div>
@@ -3182,7 +3251,7 @@ Sideboard:
     <!-- Suggestions Tab -->
     <div class="tools-content" id="tool-recs">
        <h4><svg class="ui-icon"><use href="#i-spark"></use></svg>Card Suggestions</h4>
-      <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">AI-powered card recommendations for your deck.</p>
+      <p class="tool-lead">AI-powered card recommendations for your deck.</p>
       <div class="recs-filters">
         <div class="meta-mode-control">
           <label class="meta-mode-label" for="metaModeSelect">Meta Mode</label>
@@ -3202,7 +3271,7 @@ Sideboard:
     <!-- Matchup Tab -->
     <div class="tools-content" id="tool-matchup">
        <h4><svg class="ui-icon"><use href="#i-target"></use></svg>Matchup Guide</h4>
-      <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Generate pre-board and post-board plans with sideboard in/out swaps.</p>
+      <p class="tool-lead">Generate pre-board and post-board plans with sideboard in/out swaps.</p>
       <div id="matchupResult" style="margin-top:0.5rem;">
         <p style="font-size:0.8rem;color:var(--text-dim);">Load a deck and run matchup guide.</p>
       </div>
@@ -3242,11 +3311,11 @@ Sideboard:
  <div class="format-hint" style="margin-top:0.3rem">Import from Arena, MTGO, Moxfield export, Manabox CSV, or simple list. Also supports <code>4x Card Name</code> format.</div>
  <div class="coll-actions">
  <button class="import-btn" id="btnImportColl">Import Collection</button>
- <button class="import-btn" style="background:var(--bg-2);color:var(--text);border:1px solid var(--border)" id="btnMergeColl">Merge with Existing</button>
+ <button class="import-btn subtle" id="btnMergeColl">Merge with Existing</button>
  <input type="file" id="collFileInput" accept=".csv,.txt,.dec" style="display:none">
- <button class="import-btn" style="background:var(--bg-2);color:var(--text);border:1px solid var(--border)" id="btnCollUpload" > Upload File</button>
-  <button class="import-btn" style="background:rgba(229,62,62,0.15);color:var(--banned);border:1px solid rgba(229,62,62,0.25)" id="btnClearColl" > Clear</button>
-  <button class="import-btn" style="background:var(--bg-2);color:var(--text);border:1px solid var(--border)" id="btnExportColl"><svg class="ui-icon"><use href="#i-export"></use></svg>Export</button>
+ <button class="import-btn subtle" id="btnCollUpload">Upload File</button>
+  <button class="import-btn btn-danger-ghost" id="btnClearColl">Clear</button>
+  <button class="import-btn subtle" id="btnExportColl"><svg class="ui-icon"><use href="#i-export"></use></svg>Export</button>
   </div>
   <div class="coll-unresolved" id="collUnresolved" hidden>
   <div class="coll-unresolved-title">Unresolved Rows (manual fix)</div>
