@@ -14,11 +14,11 @@ import { evaluateStackThreat } from '../evaluators/threat-evaluator.ts';
  * - When to just let things resolve
  */
 
-/** Minimum threat score to counter a spell */
-const COUNTER_THRESHOLD = 5;
+/** Minimum threat score to counter a spell (lowered for more responsiveness) */
+const COUNTER_THRESHOLD = 3;
 
-/** Minimum threat score to use removal in response */
-const REMOVAL_THRESHOLD = 3;
+/** Minimum threat score to use removal in response (lowered for board control) */
+const REMOVAL_THRESHOLD = 2;
 
 /**
  * Get all instant-speed cards the bot can currently cast.
@@ -82,15 +82,22 @@ export function shouldCounterTopSpell(state: GameState, player: 0 | 1): GameActi
 }
 
 /**
+ * Check if a card is removal by tags or oracle text.
+ */
+function isRemovalSpell(card: Card): boolean {
+  if (card.tags.includes('removal')) return true;
+  const text = (card.oracleText ?? '').toLowerCase();
+  return /destroy\s+target|exile\s+target|deals?\s+\d+\s+damage\s+to\s+target|target\s+creature\s+gets?\s+-/.test(text);
+}
+
+/**
  * Decide if we should respond with instant-speed removal.
  */
 export function shouldRespondWithRemoval(state: GameState, player: 0 | 1): GameAction | null {
   const ps = state.players[player];
 
-  // Find instant-speed removal
-  const removal = getInstantSpeedOptions(state, player).filter((c) =>
-    c.tags.includes('removal')
-  );
+  // Find instant-speed removal (by tag OR oracle text)
+  const removal = getInstantSpeedOptions(state, player).filter(isRemovalSpell);
 
   if (removal.length === 0) return null;
 
@@ -108,8 +115,14 @@ export function shouldRespondWithRemoval(state: GameState, player: 0 | 1): GameA
     // Critical threats
     if (textLower.includes('you win the game')) score = 15;
     else if (textLower.includes('extra turn')) score = 10;
-    else if (perm.currentPower !== undefined && (perm.currentPower ?? 0) >= 5) score = 5;
     else if (perm.currentLoyalty !== undefined) score = 6;
+    else if (perm.currentPower !== undefined && (perm.currentPower ?? 0) >= 5) score = 5;
+    // Medium threats
+    else if (perm.currentPower !== undefined && (perm.currentPower ?? 0) >= 3) score = 3;
+    else if (textLower.includes('draw a card') || textLower.includes('whenever')) score = 3;
+    else if (textLower.includes('deals damage') || textLower.includes('each opponent')) score = 3;
+    // Low threats — at least worth considering
+    else if (perm.currentPower !== undefined) score = 2;
 
     if (score > REMOVAL_THRESHOLD && (!bestTarget || score > bestTarget.score)) {
       bestTarget = { id: perm.id, score };

@@ -35,7 +35,13 @@ import {
   getValidTargets,
 } from '@mtg/game-engine';
 import { HeuristicBot, evaluateBoardPosition, shouldKeepHand, explainMulliganDecision } from '@mtg/bot-core';
-import { renderBoard, clearDomCache, type BoardCallbacks } from './board-renderer.ts';
+import {
+  renderBoard, clearDomCache, type BoardCallbacks,
+  renderCombatArrows, clearCombatArrows,
+  trackLifeChanges, resetLifeTracking,
+  showPhaseBanner, trackTurnChange,
+  animateNewCards, resetAnimationTracking,
+} from './board-renderer.ts';
 import { logAction, logPhaseChange, logGameOver, logMessage } from './game-log.ts';
 import { generateCoachTips, getSuggestedPlays, type CoachTip } from './ai-coach.ts';
 import { analyzeGame, renderAnalysisOverlay, type GameAnalysis } from './post-game-analysis.ts';
@@ -717,6 +723,7 @@ export class GameLoop {
       this.pendingBlocker = null;
       this.inCombatSelection = false;
       this.cancelTargeting();
+      clearCombatArrows();
       resolver(action);
     }
   }
@@ -794,6 +801,30 @@ export class GameLoop {
   render(): void {
     const state = this.game.getState();
     renderBoard(state, this.humanPlayer, this.getCallbacks());
+
+    // ─── Visual Effects ───
+    const me = state.players[this.humanPlayer];
+    const opp = state.players[this.humanPlayer === 0 ? 1 : 0];
+
+    // Life change popups (floating +/- numbers)
+    trackLifeChanges(me.life, opp.life);
+
+    // Phase banner (dramatic text overlay on phase change)
+    showPhaseBanner(state.phase, state.step);
+
+    // Turn glow effect
+    trackTurnChange(state.turn);
+
+    // Card entrance animations for new battlefield permanents
+    const allPerms = [...me.battlefield, ...opp.battlefield];
+    animateNewCards(allPerms);
+
+    // Combat arrows (attack/block lines between creatures)
+    if (state.phase === 'combat' && (this.attackerSelection.length > 0 || this.blockerAssignment.size > 0)) {
+      renderCombatArrows(this.attackerSelection, this.blockerAssignment);
+    } else {
+      clearCombatArrows();
+    }
 
     // Coach tips
     if (this.coachEnabled && state.priorityPlayer === this.humanPlayer && !state.gameOver) {
@@ -932,6 +963,58 @@ export class GameLoop {
       }
     }
 
+    // Kicker — cast with extra kicker cost
+    const kickerMatch = oracle.match(/kicker\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    if (kickerMatch && tapResult) {
+      const kickerExtra = kickerMatch[1];
+      const totalCostStr = card.manaCost + kickerExtra;
+      const totalCost = parseManaCost(totalCostStr);
+      const kickerTap = autoTapLandsForCost(playerState, totalCost);
+      if (kickerTap) {
+        options.push({
+          label: `Cast with Kicker (${card.manaCost}+${kickerExtra})`,
+          action: () => {
+            const updatedState = {
+              ...state,
+              players: state.players.map((p, i) =>
+                i === this.humanPlayer ? kickerTap.updatedPlayer : p,
+              ) as [typeof state.players[0], typeof state.players[1]],
+            };
+            this.game.setState(updatedState);
+            if (this.spellNeedsTarget(card)) { this.enterTargetingMode(card); return; }
+            this.submitAction({ type: 'cast-spell', player: this.humanPlayer, cardId: card.id, targets: [], manaPayment: kickerTap.payment, kickerPaid: true } as any);
+          },
+        });
+      }
+    }
+
+    // Multikicker — cast with any number of kicker payments
+    const multikickerMatch = oracle.match(/multikicker\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    if (multikickerMatch && tapResult) {
+      const mkExtra = multikickerMatch[1];
+      // Offer 1x, 2x, 3x multikicker if affordable
+      for (let times = 1; times <= 3; times++) {
+        const totalCostStr = card.manaCost + mkExtra.repeat(times);
+        const totalCost = parseManaCost(totalCostStr);
+        const mkTap = autoTapLandsForCost(playerState, totalCost);
+        if (mkTap) {
+          options.push({
+            label: `Cast + Multikicker ×${times} (${card.manaCost}+${mkExtra}×${times})`,
+            action: () => {
+              const updatedState = {
+                ...state,
+                players: state.players.map((p, i) =>
+                  i === this.humanPlayer ? mkTap.updatedPlayer : p,
+                ) as [typeof state.players[0], typeof state.players[1]],
+              };
+              this.game.setState(updatedState);
+              this.submitAction({ type: 'cast-spell', player: this.humanPlayer, cardId: card.id, targets: [], manaPayment: mkTap.payment, kickerPaid: true } as any);
+            },
+          });
+        } else break; // Can't afford higher multikick
+      }
+    }
+
     // Cycling (always available, not a cast)
     const cycleMatch = oracle.match(/cycling\s+(\{[^}]+\})/i);
     if (cycleMatch) {
@@ -949,6 +1032,54 @@ export class GameLoop {
             };
             this.game.setState(updatedState);
             this.submitAction({ type: 'cycle', player: this.humanPlayer, cardId: card.id } as any);
+          },
+        });
+      }
+    }
+
+    // Buyback — cast and return to hand
+    const buybackMatch = oracle.match(/buyback\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    if (buybackMatch && tapResult) {
+      const bbExtra = buybackMatch[1];
+      const totalCostStr = card.manaCost + bbExtra;
+      const totalCost = parseManaCost(totalCostStr);
+      const bbTap = autoTapLandsForCost(playerState, totalCost);
+      if (bbTap) {
+        options.push({
+          label: `Cast with Buyback (${card.manaCost}+${bbExtra})`,
+          action: () => {
+            const updatedState = {
+              ...state,
+              players: state.players.map((p, i) =>
+                i === this.humanPlayer ? bbTap.updatedPlayer : p,
+              ) as [typeof state.players[0], typeof state.players[1]],
+            };
+            this.game.setState(updatedState);
+            if (this.spellNeedsTarget(card)) { this.enterTargetingMode(card); return; }
+            this.submitAction({ type: 'cast-spell', player: this.humanPlayer, cardId: card.id, targets: [], manaPayment: bbTap.payment, buybackPaid: true } as any);
+          },
+        });
+      }
+    }
+
+    // Overload — replaces "target" with "each"
+    const overloadMatch = oracle.match(/overload\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    if (overloadMatch) {
+      const overloadCost = parseManaCost(overloadMatch[1]);
+      const olTap = autoTapLandsForCost(playerState, overloadCost);
+      if (olTap) {
+        options.push({
+          label: `Overload (${overloadMatch[1]})`,
+          action: () => {
+            const updatedState = {
+              ...state,
+              players: state.players.map((p, i) =>
+                i === this.humanPlayer ? olTap.updatedPlayer : p,
+              ) as [typeof state.players[0], typeof state.players[1]],
+            };
+            this.game.setState(updatedState);
+            // Overload doesn't target — affects all
+            this.submitAction({ type: 'cast-spell', player: this.humanPlayer, cardId: card.id, targets: [], manaPayment: olTap.payment, overloadPaid: true } as any);
           },
         });
       }
@@ -1599,8 +1730,10 @@ export class GameLoop {
     const state = this.game.getState();
     if (state.step === 'declare-attackers') {
       this.showCombatOverlay(true, 'Declare Attackers');
+      renderCombatArrows(this.attackerSelection, this.blockerAssignment);
     } else if (state.step === 'declare-blockers') {
       this.showCombatOverlay(true, 'Declare Blockers');
+      renderCombatArrows(this.attackerSelection, this.blockerAssignment);
     }
   }
 

@@ -144,34 +144,90 @@ export function makeDecision(state: GameState, botPlayer: 0 | 1): Decision {
   }
 
   // --- 5. Main phase development ---
+  // Evaluate BOTH spell casting AND ability activation, pick the best
   if (state.step === 'main' && state.activePlayer === botPlayer) {
-    // Check if we should hold mana for responses
     const holdMana = shouldHoldMana(state, botPlayer);
 
+    // Get all candidates: spells, abilities, cycling
     const playAction = choosePlayAction(state, botPlayer, holdMana);
-    if (playAction) {
-      return {
-        action: playAction.action,
-        reason: playAction.reason,
-        confidence: 0.8,
-      };
-    }
-
-    // No spell to cast — check if we can cycle a low-value card
-    const cyclingCandidates = getCyclingCandidates(state, botPlayer);
-    if (cyclingCandidates.length > 0) {
-      return {
-        action: cyclingCandidates[0].action,
-        reason: cyclingCandidates[0].reason,
-        confidence: 0.6,
-      };
-    }
-
-    // No cycle either — try activating an ability on a permanent
     const abilityCandidates = getAbilityActivationCandidates(state, botPlayer);
+    const cyclingCandidates = getCyclingCandidates(state, botPlayer);
+
+    // Score each option — compare apples to apples
+    type ScoredOption = { decision: Decision; score: number };
+    const options: ScoredOption[] = [];
+
+    if (playAction) {
+      // Spells get confidence as score (0.8 base)
+      options.push({
+        decision: { action: playAction.action, reason: playAction.reason, confidence: 0.8 },
+        score: 0.8,
+      });
+    }
+
     if (abilityCandidates.length > 0) {
       const best = abilityCandidates[0];
-      // Smart target selection based on ability text
+      const targets = chooseAbilityTargets(state, botPlayer, best);
+      const abilityScore = Math.min(0.85, 0.4 + best.priority * 0.06);
+      options.push({
+        decision: {
+          action: {
+            type: 'activate-ability' as const,
+            player: botPlayer,
+            sourceId: best.permanentId,
+            abilityIndex: best.abilityIndex,
+            targets,
+          },
+          reason: `Activate ability on ${best.name} (priority ${best.priority})`,
+          confidence: abilityScore,
+        },
+        score: abilityScore,
+      });
+    }
+
+    if (cyclingCandidates.length > 0) {
+      options.push({
+        decision: {
+          action: cyclingCandidates[0].action,
+          reason: cyclingCandidates[0].reason,
+          confidence: 0.55,
+        },
+        score: 0.55,
+      });
+    }
+
+    // Pick the highest-scored option
+    if (options.length > 0) {
+      options.sort((a, b) => b.score - a.score);
+      return options[0].decision;
+    }
+  }
+
+  // --- 6. Instant-speed plays during opponent's turn ---
+  // Bot should try to respond to ANY significant threat, not just critical ones
+  if (state.activePlayer !== botPlayer) {
+    // Try stack interactions first (counter/removal in response)
+    if (state.stack.length > 0) {
+      const stackAction = chooseStackAction(state, botPlayer);
+      if (stackAction.type !== 'pass') {
+        return {
+          action: stackAction,
+          reason: 'Responding to opponent spell',
+          confidence: 0.7,
+        };
+      }
+    }
+
+    // Try instant-speed abilities (e.g., tap abilities, flash abilities)
+    const abilityCandidates = getAbilityActivationCandidates(state, botPlayer);
+    const instantAbilities = abilityCandidates.filter(c => {
+      const perm = state.players[botPlayer].battlefield.find(p => p.id === c.permanentId);
+      if (!perm) return false;
+      const ability = perm.abilities[c.abilityIndex];
+      return ability?.instantSpeed;
+    });
+    if (instantAbilities.length > 0 && instantAbilities[0].priority >= 3) {
+      const best = instantAbilities[0];
       const targets = chooseAbilityTargets(state, botPlayer, best);
       return {
         action: {
@@ -181,24 +237,23 @@ export function makeDecision(state: GameState, botPlayer: 0 | 1): Decision {
           abilityIndex: best.abilityIndex,
           targets,
         },
-        reason: `Activate ability on ${best.name}`,
-        confidence: Math.min(0.8, 0.4 + best.priority * 0.05),
+        reason: `Activate instant-speed ability on ${best.name}`,
+        confidence: Math.min(0.75, 0.4 + best.priority * 0.05),
       };
     }
-  }
 
-  // --- 6. Instant-speed plays during opponent's turn ---
-  if (state.activePlayer !== botPlayer && legalTypes.includes('cast-spell')) {
-    // Only respond if there's a reason to
-    const threats = identifyThreats(state, botPlayer);
-    if (threats.length > 0 && threats[0].level === 'critical') {
-      const stackAction = chooseStackAction(state, botPlayer);
-      if (stackAction.type !== 'pass') {
-        return {
-          action: stackAction,
-          reason: `Responding to critical threat: ${threats[0].name}`,
-          confidence: 0.7,
-        };
+    // Try flash creatures / instants if board position is concerning
+    if (legalTypes.includes('cast-spell')) {
+      const threats = identifyThreats(state, botPlayer);
+      if (threats.length > 0 && (threats[0].level === 'critical' || threats[0].level === 'high')) {
+        const stackAction = chooseStackAction(state, botPlayer);
+        if (stackAction.type !== 'pass') {
+          return {
+            action: stackAction,
+            reason: `Responding to threat: ${threats[0].name}`,
+            confidence: 0.7,
+          };
+        }
       }
     }
   }

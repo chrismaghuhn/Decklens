@@ -392,6 +392,238 @@ function setCount(id: string, count: number): void {
   if (e) e.textContent = String(count);
 }
 
+// ═══════════════ Combat Arrows ═══════════════
+
+/** Draw SVG arrows between attackers (bot BF) and blockers (your BF) */
+export function renderCombatArrows(
+  attackerIds: string[],
+  blockerAssignment: Map<string, string>,
+): void {
+  const svg = document.getElementById('combat-arrows') as unknown as SVGSVGElement | null;
+  if (!svg) return;
+  svg.innerHTML = '';
+
+  const bfContainer = document.getElementById('battlefield');
+  if (!bfContainer) return;
+  const bfRect = bfContainer.getBoundingClientRect();
+
+  // Arrow marker def
+  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+
+  const attackMarker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+  attackMarker.setAttribute('id', 'arrow-attack');
+  attackMarker.setAttribute('markerWidth', '8');
+  attackMarker.setAttribute('markerHeight', '8');
+  attackMarker.setAttribute('refX', '8');
+  attackMarker.setAttribute('refY', '4');
+  attackMarker.setAttribute('orient', 'auto');
+  const attackPoly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  attackPoly.setAttribute('points', '0,0 8,4 0,8');
+  attackPoly.setAttribute('fill', '#ef4444');
+  attackMarker.appendChild(attackPoly);
+  defs.appendChild(attackMarker);
+
+  const blockMarker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+  blockMarker.setAttribute('id', 'arrow-block');
+  blockMarker.setAttribute('markerWidth', '8');
+  blockMarker.setAttribute('markerHeight', '8');
+  blockMarker.setAttribute('refX', '8');
+  blockMarker.setAttribute('refY', '4');
+  blockMarker.setAttribute('orient', 'auto');
+  const blockPoly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  blockPoly.setAttribute('points', '0,0 8,4 0,8');
+  blockPoly.setAttribute('fill', '#6366f1');
+  blockMarker.appendChild(blockPoly);
+  defs.appendChild(blockMarker);
+
+  svg.appendChild(defs);
+
+  // Draw attack arrows (attacker → center divider)
+  for (const attackerId of attackerIds) {
+    const attackerEl = document.querySelector(`[data-permanent-id="${attackerId}"]`) as HTMLElement | null;
+    if (!attackerEl) continue;
+    const aRect = attackerEl.getBoundingClientRect();
+    const fromX = aRect.left + aRect.width / 2 - bfRect.left;
+    const fromY = aRect.top + aRect.height / 2 - bfRect.top;
+    // Arrow points toward the center (divider between bot and player BF)
+    const toY = bfRect.height / 2;
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', String(fromX));
+    line.setAttribute('y1', String(fromY));
+    line.setAttribute('x2', String(fromX));
+    line.setAttribute('y2', String(toY));
+    line.setAttribute('class', 'attack-arrow');
+    line.setAttribute('marker-end', 'url(#arrow-attack)');
+    svg.appendChild(line);
+  }
+
+  // Draw block arrows (blocker → attacker)
+  for (const [blockerId, attackerId] of blockerAssignment.entries()) {
+    const blockerEl = document.querySelector(`[data-permanent-id="${blockerId}"]`) as HTMLElement | null;
+    const attackerEl = document.querySelector(`[data-permanent-id="${attackerId}"]`) as HTMLElement | null;
+    if (!blockerEl || !attackerEl) continue;
+
+    const bRect = blockerEl.getBoundingClientRect();
+    const aRect = attackerEl.getBoundingClientRect();
+    const fromX = bRect.left + bRect.width / 2 - bfRect.left;
+    const fromY = bRect.top + bRect.height / 2 - bfRect.top;
+    const toX = aRect.left + aRect.width / 2 - bfRect.left;
+    const toY = aRect.top + aRect.height / 2 - bfRect.top;
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', String(fromX));
+    line.setAttribute('y1', String(fromY));
+    line.setAttribute('x2', String(toX));
+    line.setAttribute('y2', String(toY));
+    line.setAttribute('class', 'block-arrow');
+    line.setAttribute('marker-end', 'url(#arrow-block)');
+    svg.appendChild(line);
+  }
+}
+
+/** Clear all combat arrows */
+export function clearCombatArrows(): void {
+  const svg = document.getElementById('combat-arrows');
+  if (svg) svg.innerHTML = '';
+}
+
+// ═══════════════ Life Change Popups ═══════════════
+
+let _lastLifeYou = -1;
+let _lastLifeBot = -1;
+
+/** Show floating life change numbers when life changes */
+export function trackLifeChanges(yourLife: number, botLife: number): void {
+  if (_lastLifeYou === -1) {
+    // First call — initialize
+    _lastLifeYou = yourLife;
+    _lastLifeBot = botLife;
+    return;
+  }
+
+  const yourDelta = yourLife - _lastLifeYou;
+  const botDelta = botLife - _lastLifeBot;
+
+  if (yourDelta !== 0) {
+    const lifeEl = document.getElementById('your-life');
+    if (lifeEl) showLifePopup(lifeEl, yourDelta);
+  }
+  if (botDelta !== 0) {
+    const lifeEl = document.getElementById('bot-life');
+    if (lifeEl) showLifePopup(lifeEl, botDelta);
+  }
+
+  _lastLifeYou = yourLife;
+  _lastLifeBot = botLife;
+}
+
+function showLifePopup(anchor: HTMLElement, delta: number): void {
+  const rect = anchor.getBoundingClientRect();
+  const popup = document.createElement('div');
+  popup.className = `pvb-life-popup ${delta < 0 ? 'damage' : 'heal'}`;
+  popup.textContent = delta > 0 ? `+${delta}` : String(delta);
+  popup.style.left = `${rect.left + rect.width / 2 - 20}px`;
+  popup.style.top = `${rect.top - 10}px`;
+  document.body.appendChild(popup);
+  setTimeout(() => popup.remove(), 1300);
+}
+
+/** Reset life tracking (e.g. on new game) */
+export function resetLifeTracking(): void {
+  _lastLifeYou = -1;
+  _lastLifeBot = -1;
+}
+
+// ═══════════════ Phase Banner ═══════════════
+
+let _lastBannerPhase = '';
+
+/** Show a dramatic phase banner on major phase changes */
+export function showPhaseBanner(phase: Phase, step: Step): void {
+  const phaseKey = `${phase}-${step}`;
+  if (phaseKey === _lastBannerPhase) return;
+  _lastBannerPhase = phaseKey;
+
+  // Only show banners for significant phases
+  let text = '';
+  let isCombat = false;
+  switch (phase) {
+    case 'precombat-main':
+      text = 'Main Phase';
+      break;
+    case 'combat':
+      if (step === 'begin-combat') { text = 'Combat'; isCombat = true; }
+      else if (step === 'declare-attackers') { text = 'Declare Attackers'; isCombat = true; }
+      else if (step === 'declare-blockers') { text = 'Declare Blockers'; isCombat = true; }
+      else if (step === 'combat-damage') { text = 'Combat Damage'; isCombat = true; }
+      break;
+    case 'postcombat-main':
+      text = 'Main Phase 2';
+      break;
+    case 'ending':
+      if (step === 'end') text = 'End Step';
+      break;
+    default:
+      break;
+  }
+
+  if (!text) return;
+
+  const banner = document.createElement('div');
+  banner.className = `pvb-phase-banner${isCombat ? ' combat' : ''}`;
+  banner.textContent = text;
+  document.body.appendChild(banner);
+  setTimeout(() => banner.remove(), 1500);
+}
+
+// ═══════════════ Turn Glow ═══════════════
+
+let _lastTurn = -1;
+
+/** Flash the turn indicator on new turn */
+export function trackTurnChange(turn: number): void {
+  if (turn === _lastTurn) return;
+  _lastTurn = turn;
+  const turnEl = document.getElementById('turn-display');
+  if (turnEl) {
+    turnEl.classList.remove('new-turn');
+    // Force reflow for re-triggering animation
+    void turnEl.offsetWidth;
+    turnEl.classList.add('new-turn');
+    setTimeout(() => turnEl.classList.remove('new-turn'), 1600);
+  }
+}
+
+// ═══════════════ Card Entrance Tracking ═══════════════
+
+let _lastBattlefieldIds = new Set<string>();
+
+/** Track which cards are new on battlefield and add entrance animation */
+export function animateNewCards(permanents: { id: string }[]): void {
+  const currentIds = new Set(permanents.map(p => p.id));
+  for (const id of currentIds) {
+    if (!_lastBattlefieldIds.has(id)) {
+      // New card — add entrance animation after render
+      requestAnimationFrame(() => {
+        const cardEl = document.querySelector(`[data-permanent-id="${id}"]`);
+        if (cardEl) {
+          cardEl.classList.add('zone-enter');
+          setTimeout(() => cardEl.classList.remove('zone-enter'), 400);
+        }
+      });
+    }
+  }
+  _lastBattlefieldIds = currentIds;
+}
+
+/** Reset animation tracking */
+export function resetAnimationTracking(): void {
+  _lastBattlefieldIds = new Set();
+  _lastBannerPhase = '';
+  _lastTurn = -1;
+}
+
 /** Format phase + step for display */
 function formatPhase(phase: Phase, step: Step): string {
   switch (phase) {

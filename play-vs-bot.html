@@ -420,6 +420,141 @@
     .monarch-crown { font-size: 1.1em; vertical-align: super; }
     .goaded-badge { position: absolute; top: 2px; right: 2px; background: #e53e3e; color: #fff; border-radius: 50%; width: 16px; height: 16px; font-size: 10px; font-weight: bold; display: flex; align-items: center; justify-content: center; z-index: 5; }
     .dashed-badge { position: absolute; top: 2px; left: 2px; background: #3182ce; color: #fff; border-radius: 50%; width: 16px; height: 16px; font-size: 10px; display: flex; align-items: center; justify-content: center; z-index: 5; }
+
+    /* ═══════════════ Combat Arrows SVG Overlay ═══════════════ */
+    .pvb-combat-arrows {
+      position: absolute; inset: 0; z-index: 12; pointer-events: none;
+    }
+    .pvb-combat-arrows line {
+      stroke-width: 2.5; stroke-linecap: round;
+    }
+    .pvb-combat-arrows .attack-arrow {
+      stroke: #ef4444; filter: drop-shadow(0 0 4px rgba(239,68,68,0.6));
+      animation: arrowPulse 1.5s ease-in-out infinite;
+    }
+    .pvb-combat-arrows .block-arrow {
+      stroke: #6366f1; filter: drop-shadow(0 0 4px rgba(99,102,241,0.6));
+      animation: arrowPulse 1.5s ease-in-out infinite 0.3s;
+    }
+    .pvb-combat-arrows polygon {
+      filter: drop-shadow(0 0 3px rgba(0,0,0,0.5));
+    }
+    @keyframes arrowPulse {
+      0%, 100% { opacity: 0.8; }
+      50% { opacity: 1; }
+    }
+
+    /* ═══════════════ Life Change Popup ═══════════════ */
+    .pvb-life-popup {
+      position: fixed; z-index: 300; pointer-events: none;
+      font-family: 'Cinzel', serif; font-weight: 700; font-size: 1.8rem;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+      animation: lifePopFloat 1.2s ease-out forwards;
+    }
+    .pvb-life-popup.damage { color: #ef4444; }
+    .pvb-life-popup.heal { color: #34d399; }
+    @keyframes lifePopFloat {
+      0% { opacity: 1; transform: translateY(0) scale(1); }
+      20% { transform: translateY(-10px) scale(1.15); }
+      100% { opacity: 0; transform: translateY(-50px) scale(0.8); }
+    }
+
+    /* ═══════════════ Phase Banner ═══════════════ */
+    .pvb-phase-banner {
+      position: fixed; top: 50%; left: 50%; z-index: 250;
+      transform: translate(-50%, -50%);
+      font-family: 'Cinzel', serif; font-weight: 700;
+      font-size: 2.2rem; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--gold); text-shadow: 0 0 20px var(--gold-glow), 0 0 40px rgba(201,168,76,0.3);
+      pointer-events: none;
+      animation: phaseBannerIn 1.4s ease-out forwards;
+      white-space: nowrap;
+    }
+    .pvb-phase-banner.combat { color: #ef4444; text-shadow: 0 0 20px rgba(239,68,68,0.5), 0 0 40px rgba(239,68,68,0.2); }
+    .pvb-phase-banner::after {
+      content: ''; position: absolute; bottom: -4px; left: 10%; right: 10%;
+      height: 2px; background: linear-gradient(90deg, transparent, currentColor, transparent);
+    }
+    @keyframes phaseBannerIn {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); letter-spacing: 0.4em; }
+      15% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); letter-spacing: 0.12em; }
+      30% { transform: translate(-50%, -50%) scale(1); }
+      70% { opacity: 1; }
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+    }
+
+    /* ═══════════════ Card Entrance / Exit Animations ═══════════════ */
+    .pvb-card.zone-enter {
+      animation: zoneEnter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+    @keyframes zoneEnter {
+      from { transform: translateY(20px) scale(0.85); opacity: 0; filter: brightness(2); }
+      to { transform: translateY(0) scale(1); opacity: 1; filter: brightness(1); }
+    }
+    .pvb-card.zone-exit {
+      animation: zoneExit 0.3s ease-in forwards;
+    }
+    @keyframes zoneExit {
+      to { transform: translateY(-20px) scale(0.85); opacity: 0; filter: brightness(0.3); }
+    }
+
+    /* ═══════════════ Attacking Creature Sword Icon ═══════════════ */
+    .pvb-card.attacking::after {
+      content: '⚔️'; position: absolute; top: -8px; right: -4px;
+      font-size: 0.85rem; z-index: 6; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.8));
+      animation: swordBounce 0.8s ease-in-out infinite;
+    }
+    @keyframes swordBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-3px); }
+    }
+
+    /* ═══════════════ Blocking Creature Shield Icon ═══════════════ */
+    .pvb-card.blocking::after {
+      content: '🛡️'; position: absolute; top: -8px; right: -4px;
+      font-size: 0.85rem; z-index: 6; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.8));
+    }
+
+    /* ═══════════════ Turn Number Glow on New Turn ═══════════════ */
+    .pvb-turn.new-turn {
+      animation: turnGlow 1.5s ease-out;
+    }
+    @keyframes turnGlow {
+      0% { text-shadow: 0 0 20px var(--gold-glow); transform: scale(1.2); }
+      100% { text-shadow: none; transform: scale(1); }
+    }
+
+    /* ═══════════════ Stack Item Entrance ═══════════════ */
+    .pvb-stack-item {
+      animation: stackSlideIn 0.25s ease-out;
+    }
+    @keyframes stackSlideIn {
+      from { transform: translateX(20px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* ═══════════════ Mana Pool Glow ═══════════════ */
+    .pvb-mana-active { animation: manaGlow 1.5s ease-in-out infinite; }
+    @keyframes manaGlow {
+      0%, 100% { box-shadow: 0 0 4px var(--gold-glow); }
+      50% { box-shadow: 0 0 12px var(--gold-glow); }
+    }
+
+    /* ═══════════════ Loyalty Badge ═══════════════ */
+    .loyalty-badge {
+      position: absolute; bottom: 1px; right: 1px; font-size: 0.6rem; font-weight: 700;
+      background: rgba(99,102,241,0.9); color: #fff; padding: 1px 5px; border-radius: 3px;
+      z-index: 5;
+    }
+
+    /* ═══════════════ Attachment Badges ═══════════════ */
+    .attached-badge {
+      position: absolute; top: 2px; left: 2px; font-size: 0.6rem; z-index: 5;
+    }
+    .equipped-badge {
+      position: absolute; top: 2px; right: 18px; font-size: 0.55rem; font-weight: 700;
+      background: #c9a84c; color: #000; padding: 0 3px; border-radius: 3px; z-index: 5;
+    }
   </style>
 </head>
 <body>
@@ -515,6 +650,7 @@
           <span class="pvb-bf-label">Your Battlefield</span>
         </div>
         <div class="pvb-bot-thinking hidden" id="bot-thinking">Bot is thinking...</div>
+        <svg class="pvb-combat-arrows" id="combat-arrows"></svg>
         <div class="pvb-combat-overlay hidden" id="combat-overlay">
           <div class="pvb-combat-title" id="combat-title"></div>
           <div class="pvb-combat-creatures" id="combat-creatures"></div>
