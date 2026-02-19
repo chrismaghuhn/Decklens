@@ -205,4 +205,13 @@ export interface GameState {
   companion?: [Card | null, Card | null];
   /** Whether each player has already moved their companion to hand this game */
   companionUsed?: [boolean, boolean];
+
+  /** Damage prevention shields — "prevent the next N damage" effects (CR 615.7) */
+  damageShields?: Array<{
+    targetId: string; // permanent ID or 'player-0'/'player-1'
+    amount: number; // remaining prevention amount (decremented as damage is prevented)
+    source?: string; // description of what created this shield
+    turn: number; // turn created (for cleanup of permanent shields vs one-turn)
+    untilEndOfTurn: boolean; // whether this expires at cleanup
+  }>;
 }

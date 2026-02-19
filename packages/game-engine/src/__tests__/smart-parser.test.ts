@@ -542,10 +542,10 @@ describe('Smart Parser', () => {
       expect(result.resolved).toBe(true);
       // Creature destroyed
       expect(result.state.players[1].battlefield.find(p => p.id === permId)).toBeUndefined();
-      // "Its controller" scope is detected but the lose-life handler doesn't have
-      // specific "its-controller" logic — it falls through to the default (controller loses).
-      // The controller (player 0) who cast the spell loses the 2 life.
-      expect(result.state.players[0].life).toBe(controllerLifeBefore - 2);
+      // Smart Parser V2: "Its controller" now correctly resolves to the permanent's controller (player 1)
+      // via context tracking from the preceding "Destroy target creature" clause.
+      const targetControllerLifeBefore = state.players[1].life;
+      expect(result.state.players[1].life).toBe(targetControllerLifeBefore - 2);
     });
 
     it('should resolve "Draw two cards, then discard a card."', () => {

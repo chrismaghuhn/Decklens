@@ -17,6 +17,10 @@ export interface TemporaryPtMod {
   toughness: number;
   source: string; // description of where this came from
   turn: number; // turn it was applied
+  /** If true, this is a Layer 7b "set to" effect rather than a +/- modification */
+  isSetEffect?: boolean;
+  /** Timestamp for ordering — higher = applied later (CR 613.7) */
+  timestamp?: number;
 }
 
 /** A temporary control change that expires at end of turn (e.g., Threaten effects) */

@@ -896,33 +896,102 @@ function executeManualPT(
   };
 }
 
+// ─── Common Token Templates ───
+
+/** Pre-defined token templates for common MTG token types with proper colors and type lines */
+const TOKEN_TEMPLATES: Record<string, {
+  colors: string[];
+  typeLine: string;
+  oracleText?: string;
+  power?: string;
+  toughness?: string;
+}> = {
+  'soldier': { colors: ['W'], typeLine: 'Token Creature — Soldier', power: '1', toughness: '1' },
+  'warrior': { colors: ['W'], typeLine: 'Token Creature — Warrior', power: '1', toughness: '1' },
+  'spirit': { colors: ['W'], typeLine: 'Token Creature — Spirit', power: '1', toughness: '1' },
+  'angel': { colors: ['W'], typeLine: 'Token Creature — Angel', power: '4', toughness: '4' },
+  'knight': { colors: ['W'], typeLine: 'Token Creature — Knight', power: '2', toughness: '2' },
+  'human': { colors: ['W'], typeLine: 'Token Creature — Human', power: '1', toughness: '1' },
+  'bird': { colors: ['W'], typeLine: 'Token Creature — Bird', power: '1', toughness: '1' },
+  'cat': { colors: ['W'], typeLine: 'Token Creature — Cat', power: '1', toughness: '1' },
+  'zombie': { colors: ['B'], typeLine: 'Token Creature — Zombie', power: '2', toughness: '2' },
+  'vampire': { colors: ['B'], typeLine: 'Token Creature — Vampire', power: '1', toughness: '1' },
+  'bat': { colors: ['B'], typeLine: 'Token Creature — Bat', power: '1', toughness: '1' },
+  'faerie rogue': { colors: ['B'], typeLine: 'Token Creature — Faerie Rogue', power: '1', toughness: '1' },
+  'goblin': { colors: ['R'], typeLine: 'Token Creature — Goblin', power: '1', toughness: '1' },
+  'elemental': { colors: ['R'], typeLine: 'Token Creature — Elemental', power: '1', toughness: '1' },
+  'dragon': { colors: ['R'], typeLine: 'Token Creature — Dragon', power: '5', toughness: '5' },
+  'saproling': { colors: ['G'], typeLine: 'Token Creature — Saproling', power: '1', toughness: '1' },
+  'beast': { colors: ['G'], typeLine: 'Token Creature — Beast', power: '3', toughness: '3' },
+  'elf warrior': { colors: ['G'], typeLine: 'Token Creature — Elf Warrior', power: '1', toughness: '1' },
+  'wolf': { colors: ['G'], typeLine: 'Token Creature — Wolf', power: '2', toughness: '2' },
+  'insect': { colors: ['G'], typeLine: 'Token Creature — Insect', power: '1', toughness: '1' },
+  'plant': { colors: ['G'], typeLine: 'Token Creature — Plant', power: '0', toughness: '1' },
+  'squirrel': { colors: ['G'], typeLine: 'Token Creature — Squirrel', power: '1', toughness: '1' },
+  'treasure': { colors: [], typeLine: 'Token Artifact — Treasure', oracleText: '{T}, Sacrifice this artifact: Add one mana of any color.', power: undefined, toughness: undefined },
+  'food': { colors: [], typeLine: 'Token Artifact — Food', oracleText: '{2}, {T}, Sacrifice this artifact: You gain 3 life.', power: undefined, toughness: undefined },
+  'clue': { colors: [], typeLine: 'Token Artifact — Clue', oracleText: '{2}, Sacrifice this artifact: Draw a card.', power: undefined, toughness: undefined },
+  'blood': { colors: [], typeLine: 'Token Artifact — Blood', oracleText: '{1}, {T}, Discard a card, Sacrifice this artifact: Draw a card.', power: undefined, toughness: undefined },
+  'powerstone': { colors: [], typeLine: 'Token Artifact — Powerstone', oracleText: '{T}: Add {C}. This mana can\'t be spent to cast a nonartifact spell.', power: undefined, toughness: undefined },
+  'map': { colors: [], typeLine: 'Token Artifact — Map', oracleText: '{1}, {T}, Sacrifice this artifact: Target creature you control explores.', power: undefined, toughness: undefined },
+  'thopter': { colors: [], typeLine: 'Token Artifact Creature — Thopter', oracleText: 'Flying', power: '1', toughness: '1' },
+  'servo': { colors: [], typeLine: 'Token Artifact Creature — Servo', power: '1', toughness: '1' },
+  'myr': { colors: [], typeLine: 'Token Artifact Creature — Myr', power: '1', toughness: '1' },
+  'construct': { colors: [], typeLine: 'Token Artifact Creature — Construct', power: '1', toughness: '1' },
+  'golem': { colors: [], typeLine: 'Token Artifact Creature — Golem', power: '3', toughness: '3' },
+};
+
+/**
+ * Look up a token template by name (case-insensitive).
+ * Returns undefined if no template matches.
+ */
+function getTokenTemplate(name: string): typeof TOKEN_TEMPLATES[string] | undefined {
+  return TOKEN_TEMPLATES[name.toLowerCase()];
+}
+
 function executeManualToken(
   state: GameState,
   action: Extract<GameAction, { type: 'manual-token' }>
 ): GameState {
   const player = state.players[action.player];
   const tokens: import('../types/permanent.ts').Permanent[] = [];
+  const template = getTokenTemplate(action.name);
 
   for (let i = 0; i < action.qty; i++) {
+    // Generate a token-prefixed ID for easy identification throughout the engine
+    const tokenId = `token-${generateCardId()}`;
+
+    // Use template defaults with action overrides
+    const tokenTypeLine = action.typeLine
+      || template?.typeLine
+      || `Token Creature — ${action.name}`;
+    const tokenColors = template?.colors || [];
+    const tokenOracleText = template?.oracleText || '';
+    const tokenPower = String(action.power);
+    const tokenToughness = String(action.toughness);
+
+    const isCreatureToken = tokenTypeLine.toLowerCase().includes('creature');
+
     const tokenCard: import('../types/card.ts').Card = {
-      id: generateCardId(),
-      oracleId: `token_${action.name}`,
+      id: tokenId,
+      oracleId: `token_${action.name.toLowerCase().replace(/\s+/g, '_')}`,
       name: action.name,
       manaCost: '',
       cmc: 0,
-      typeLine: action.typeLine || `Token Creature — ${action.name}`,
-      oracleText: '',
-      power: String(action.power),
-      toughness: String(action.toughness),
-      colors: [],
-      colorIdentity: [],
+      typeLine: tokenTypeLine,
+      oracleText: tokenOracleText,
+      power: isCreatureToken ? tokenPower : undefined,
+      toughness: isCreatureToken ? tokenToughness : undefined,
+      colors: tokenColors,
+      colorIdentity: tokenColors,
       rarity: 'common',
       tags: [],
       imageUrl: '',
       owner: action.player,
     };
     const perm = cardToPermanent(tokenCard, action.player, state.turn);
-    perm.summoningSick = true;
+    // Creature tokens get summoning sickness; non-creature tokens (Treasure, Food, etc.) do not
+    perm.summoningSick = isCreatureToken;
     tokens.push(perm);
   }
 

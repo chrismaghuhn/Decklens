@@ -51,6 +51,21 @@ interface EffectResult {
   description?: string;
 }
 
+/**
+ * Context passed between clauses for pronoun resolution.
+ * When a clause affects a target permanent (e.g., "Destroy target creature"),
+ * the context stores its controller so that subsequent clauses like
+ * "Its controller loses 2 life" can resolve the pronoun "its controller".
+ */
+interface ClauseContext {
+  /** Controller of the last affected permanent (for "its controller" resolution) */
+  lastTargetController?: 0 | 1;
+  /** ID of the last affected permanent (for "it" resolution) */
+  lastTargetPermanentId?: string;
+  /** Name of the last affected permanent (for logging) */
+  lastTargetName?: string;
+}
+
 // ─── ID Generation ───
 
 let _smartId = 90000;
@@ -232,17 +247,78 @@ function stripReminderText(text: string): string {
   return text.replace(/\([^)]*\)/g, '').trim();
 }
 
+/**
+ * Check if a string fragment starts with an action verb (used for " and " splitting).
+ * Only split on " and " when the right side starts with a verb, to avoid splitting
+ * noun phrases like "artifacts and enchantments".
+ */
+function startsWithActionVerb(text: string): boolean {
+  const actionPrefixes = [
+    'destroy', 'exile', 'draw', 'discard', 'deal', 'gain', 'lose',
+    'create', 'put', 'return', 'search', 'reveal', 'shuffle', 'tap',
+    'untap', 'counter', 'sacrifice', 'each', 'all', 'scry',
+    'mill', 'fight', 'add', 'remove', 'prevent', 'choose', 'look',
+    'it gains', 'it gets', 'that creature', 'that player', 'its controller',
+    'its owner', 'you gain', 'you draw', 'you lose', 'you may',
+    'target player', 'target opponent', 'target creature',
+  ];
+  const lower = text.toLowerCase().trim();
+  return actionPrefixes.some(v => lower.startsWith(v));
+}
+
+/**
+ * Smart Parser V2: Split compound oracle text into individual clauses.
+ *
+ * Handles compound clauses that the original splitter missed:
+ * - "Draw 2 cards, then discard a card" -> ["Draw 2 cards", "discard a card"]
+ * - "Destroy target creature. Its controller loses 2 life." -> ["Destroy target creature", "Its controller loses 2 life"]
+ * - "Exile target creature and create a 1/1 token" -> ["Exile target creature", "create a 1/1 token"]
+ * - "Untap it. It gains haste until end of turn" -> ["Untap it", "It gains haste until end of turn"]
+ */
 function splitIntoClauses(text: string): string[] {
   // Normalize newlines to periods for multi-line oracle text
   let normalized = text.replace(/\n/g, '. ');
 
-  // Split on ". ", "; ", ", then "
-  const rawClauses = normalized
-    .split(/(?:\.\s+|;\s+|,\s+then\s+)/i)
-    .map(c => c.trim())
+  // Phase 1: Split on sentence boundaries — ". " followed by capital letter
+  // Handles: "Destroy target creature. Its controller loses 2 life."
+  const sentences = normalized.split(/(?<=[a-z])\.\s+(?=[A-Z])/);
+
+  let allClauses: string[] = [];
+
+  for (const sentence of sentences) {
+    // Phase 2: Split on "; " (semicolons always separate independent clauses)
+    const semiParts = sentence.split(/;\s+/);
+
+    for (const semiPart of semiParts) {
+      // Phase 3: Split on ", then " (sequential effects)
+      // Handles: "Draw 2 cards, then discard a card"
+      const thenParts = semiPart.split(/,\s*then\s+/i);
+      if (thenParts.length > 1) {
+        allClauses.push(...thenParts);
+        continue;
+      }
+
+      // Phase 4: Split on " and " ONLY when both sides are action clauses
+      // Handles: "Exile target creature and create a 1/1 token"
+      // Does NOT split: "destroy target artifact or enchantment" (noun conjunction)
+      const andParts = semiPart.split(/\s+and\s+/i);
+      if (andParts.length === 2 && startsWithActionVerb(andParts[1].trim())) {
+        allClauses.push(...andParts);
+        continue;
+      }
+
+      // Phase 5: Split on ". " without requiring case change (catch-all for remaining periods)
+      const periodParts = semiPart.split(/\.\s+/);
+      allClauses.push(...periodParts);
+    }
+  }
+
+  // Clean and filter clauses
+  const cleaned = allClauses
+    .map(c => c.trim().replace(/\.$/, '').trim())
     .filter(c => c.length > 0);
 
-  return rawClauses.filter(clause => {
+  return cleaned.filter(clause => {
     const lower = clause.toLowerCase();
 
     // Filter out trigger/condition lines
@@ -621,6 +697,60 @@ function resolveDynamicQuantity(
 }
 
 // ─── Clause Execution ───
+
+/**
+ * Resolve a clause that references "its controller" using the context from a prior clause.
+ * Returns null if context is insufficient or the clause doesn't reference a pronoun.
+ */
+function resolveItsControllerClause(
+  clause: ParsedClause,
+  state: GameState,
+  ctx: ClauseContext,
+  source?: Card,
+): EffectResult | null {
+  if (clause.targetScope !== 'its-controller') return null;
+  if (ctx.lastTargetController === undefined) return null;
+
+  const resolvedPlayer = ctx.lastTargetController;
+
+  // "its controller loses N life"
+  if (clause.verb === 'lose') {
+    const s = loseLife(state, resolvedPlayer, clause.quantity);
+    return { state: s, resolved: true, description: `${s.players[resolvedPlayer].name} loses ${clause.quantity} life` };
+  }
+  // "its controller draws a card"
+  if (clause.verb === 'draw') {
+    const s = drawCards(state, resolvedPlayer, clause.quantity);
+    return { state: s, resolved: true, description: `${s.players[resolvedPlayer].name} draws ${clause.quantity} card(s)` };
+  }
+  // "its controller gains N life"
+  if (clause.verb === 'gain') {
+    const s = gainLife(state, resolvedPlayer, clause.quantity);
+    return { state: s, resolved: true, description: `${s.players[resolvedPlayer].name} gains ${clause.quantity} life` };
+  }
+  // "its controller discards a card"
+  if (clause.verb === 'discard') {
+    return {
+      state: { ...state, pendingDiscard: resolvedPlayer, pendingDiscardCount: clause.quantity },
+      resolved: true,
+      description: `${state.players[resolvedPlayer].name} must discard ${clause.quantity} card(s)`,
+    };
+  }
+  // "its controller sacrifices a creature"
+  if (clause.verb === 'sacrifice') {
+    const filter = clause.targetFilter || 'permanent';
+    return {
+      state: {
+        ...state,
+        pendingSacrifice: { player: resolvedPlayer, filter, count: clause.quantity, sourceName: source?.name },
+      },
+      resolved: true,
+      description: `${state.players[resolvedPlayer].name} must sacrifice ${clause.quantity} ${filter}(s)`,
+    };
+  }
+
+  return null;
+}
 
 function executeClause(
   clause: ParsedClause,
@@ -1895,15 +2025,44 @@ export function smartParserResolve(
   let anyResolved = false;
   const descriptions: string[] = [];
 
+  // Context tracks the last affected permanent's controller for pronoun resolution
+  // e.g., "Destroy target creature. Its controller loses 2 life."
+  let ctx: ClauseContext = {};
+
   for (const clauseText of clauses) {
     const parsed = parseClause(clauseText);
     if (!parsed) continue;
+
+    // Try "its controller" pronoun resolution first
+    const pronounResult = resolveItsControllerClause(parsed, currentState, ctx, source);
+    if (pronounResult && pronounResult.resolved) {
+      currentState = pronounResult.state;
+      anyResolved = true;
+      if (pronounResult.description) descriptions.push(pronounResult.description);
+      continue;
+    }
 
     const result = executeClause(parsed, currentState, controller, targets, source);
     if (result.resolved) {
       currentState = result.state;
       anyResolved = true;
       if (result.description) descriptions.push(result.description);
+
+      // Update context: if this clause targeted/destroyed/exiled a permanent, track its controller
+      if (parsed.targetScope === 'target' && (parsed.verb === 'destroy' || parsed.verb === 'exile' || parsed.verb === 'bounce')) {
+        const permTarget = targets.find(t => t.type === 'permanent');
+        if (permTarget) {
+          // The permanent was already removed, so look up from original state
+          const found = findPermanentById(state, permTarget.id);
+          if (found) {
+            ctx = {
+              lastTargetController: found.playerIdx,
+              lastTargetPermanentId: found.perm.id,
+              lastTargetName: found.perm.name,
+            };
+          }
+        }
+      }
     }
   }
 

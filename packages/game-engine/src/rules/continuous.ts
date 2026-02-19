@@ -96,6 +96,22 @@ const PT_BONUS_PATTERN =
 const KEYWORD_GRANT_PATTERN =
   /(?:(other|each other)\s+)?(?:(\w+)\s+)?creatures?\s+(?:(you|your opponents?)\s+control)\s+(?:have|has|gain|gains)\s+(.+)/gi;
 
+/**
+ * Matches static "set base P/T" patterns (Layer 7b), e.g.:
+ *   "Creatures you control have base power and toughness 1/1" (Humility variant)
+ *   "Creatures your opponents control are 1/1" (mass debuff)
+ *   "Other creatures you control have base power and toughness 0/1"
+ *
+ * Captures:
+ * 1. Optional "other" prefix
+ * 2. Optional type filter (e.g. "Elf")
+ * 3. Controller filter: "you control" or "your opponents control"
+ * 4. Power value
+ * 5. Toughness value
+ */
+const SET_PT_PATTERN =
+  /(?:(other|each other)\s+)?(?:(\w+)\s+)?creatures?\s+(?:(you|your opponents?)\s+control)\s+(?:have\s+base\s+power\s+and\s+toughness\s+|(?:are|become)\s+)(\d+)\/(\d+)/gi;
+
 /** All MTG combat/evergreen keywords we recognize */
 const RECOGNIZED_KEYWORDS = new Set([
   'flying', 'first strike', 'double strike', 'trample', 'lifelink',
@@ -230,6 +246,68 @@ function parseStaticEffects(perm: Permanent): ParsedStaticEffect[] {
           });
         }
       }
+    }
+  }
+
+  return effects;
+}
+
+/**
+ * Parse static "set base P/T" effects from a permanent's oracle text (Layer 7b).
+ *
+ * These are continuous effects like Humility ("All creatures lose all abilities
+ * and have base power and toughness 1/1") that override a creature's base P/T
+ * rather than adding a +/- modifier.
+ *
+ * Unlike temporaryPtMods with isSetEffect (which are one-shot spell effects),
+ * these are static abilities that continuously apply as long as the source is
+ * on the battlefield.
+ */
+function parseStaticSetPtEffects(perm: Permanent): ParsedStaticEffect[] {
+  const text = perm.oracleText || '';
+  if (!text) return [];
+
+  const effects: ParsedStaticEffect[] = [];
+  const paragraphs = text.split('\n');
+
+  for (const paragraph of paragraphs) {
+    const trimmed = paragraph.trim();
+    if (!trimmed) continue;
+
+    // Skip triggered/activated/temporary abilities (same filters as parseStaticEffects)
+    if (/^when(ever)?[\s,]/i.test(trimmed)) continue;
+    if (/^at\s+(the\s+)?beginning/i.test(trimmed)) continue;
+    if (/until\s+end\s+of\s+turn/i.test(trimmed)) continue;
+    if (/\{[^}]*\}\s*:/i.test(trimmed) && !/^\{t\}\s*:/i.test(trimmed)) continue;
+
+    SET_PT_PATTERN.lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = SET_PT_PATTERN.exec(trimmed)) !== null) {
+      const otherPrefix = match[1];
+      const typeWord = match[2];
+      const target = match[3];
+      const power = parseInt(match[4], 10);
+      const toughness = parseInt(match[5], 10);
+
+      const excludeSelf = !!otherPrefix;
+      const appliesToController = target.toLowerCase() === 'you';
+
+      let typeFilter = '';
+      if (typeWord && typeWord.toLowerCase() !== 'creature' && typeWord.toLowerCase() !== 'creatures') {
+        typeFilter = typeWord.toLowerCase();
+      }
+
+      effects.push({
+        sourceId: perm.id,
+        sourceController: perm.controller,
+        excludeSelf,
+        appliesToController,
+        typeFilter,
+        power,
+        toughness,
+        keywords: [],
+      });
     }
   }
 
@@ -415,6 +493,8 @@ function doesEffectApply(
 export function applyContinuousEffects(state: GameState): GameState {
   // Pre-parse all static effects from both battlefields (avoid re-parsing per creature)
   const allEffects: ParsedStaticEffect[] = [];
+  // Pre-parse Layer 7b static "set P/T" effects (e.g. Humility: "creatures ... have base power and toughness 1/1")
+  const allStaticSetPtEffects: ParsedStaticEffect[] = [];
 
   for (let p = 0; p < 2; p++) {
     const player = state.players[p as 0 | 1];
@@ -422,6 +502,8 @@ export function applyContinuousEffects(state: GameState): GameState {
       if (!perm.oracleText) continue;
       const effects = parseStaticEffects(perm);
       allEffects.push(...effects);
+      const setPtEffects = parseStaticSetPtEffects(perm);
+      allStaticSetPtEffects.push(...setPtEffects);
     }
   }
 
@@ -460,8 +542,24 @@ export function applyContinuousEffects(state: GameState): GameState {
       let totalToughness = creature.baseToughness;
 
       // --- Layer 7b: Set P/T to specific value (e.g. "becomes a 3/3") ---
-      // Handled by temporaryPtMods with a "set" flag when implemented.
-      // For now, no-op — set effects override base P/T when present.
+      // Sort set-effects by timestamp; the latest one wins (CR 613.7)
+      const setEffects = creature.temporaryPtMods.filter(m => m.isSetEffect);
+      if (setEffects.length > 0) {
+        // Sort by timestamp (ascending), last one wins
+        setEffects.sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
+        const latest = setEffects[setEffects.length - 1];
+        totalPower = latest.power;
+        totalToughness = latest.toughness;
+      }
+
+      // Static "set P/T" effects from permanents (e.g. Humility: "Creatures lose all abilities and have base power and toughness 1/1")
+      // These are parsed from oracle text and applied as Layer 7b effects
+      for (const effect of allStaticSetPtEffects) {
+        if (doesEffectApply(effect, creature, playerIdx)) {
+          totalPower = effect.power;
+          totalToughness = effect.toughness;
+        }
+      }
 
       // --- Layer 7c: P/T modifications (+X/+Y from all sources) ---
       // Equipment and Aura bonuses
@@ -481,9 +579,12 @@ export function applyContinuousEffects(state: GameState): GameState {
       }
 
       // Temporary P/T mods (pump spells, "until end of turn" effects)
+      // Skip set-effects here — they were already handled in Layer 7b above
       for (const mod of creature.temporaryPtMods) {
-        totalPower += mod.power;
-        totalToughness += mod.toughness;
+        if (!mod.isSetEffect) {
+          totalPower += mod.power;
+          totalToughness += mod.toughness;
+        }
       }
 
       // Static ability bonuses (Lords, Anthems, opponent debuffs)

@@ -18,7 +18,7 @@ import type { GameState } from '../types/game-state.ts';
 import type { PlayerState } from '../types/player.ts';
 import type { Permanent } from '../types/permanent.ts';
 import type { Card } from '../types/card.ts';
-import { hasProtectionFrom } from './combat.ts';
+import { hasProtectionFrom, hasProtectionFromPermanent } from './combat.ts';
 
 // ─── Type Helpers ───
 
@@ -131,8 +131,8 @@ export function attachEquipment(
   if (!isEquipment(equipment)) return state;
   if (creature.currentPower === undefined) return state;
 
-  // Protection: creature has protection from equipment's colors → can't equip
-  if (hasProtectionFrom(creature, equipment.colors || [])) {
+  // Protection: creature has protection from equipment (color or type) → can't equip (DEBT: E)
+  if (hasProtectionFromPermanent(creature, equipment)) {
     return state;
   }
 
@@ -219,7 +219,7 @@ export function handleAttachmentCleanup(state: GameState): GameState {
       // Check for protection violations: aura/equipment attached to creature that has protection from its colors
       if (perm.attachedTo && bfIds.has(perm.attachedTo)) {
         const attachedCreature = bf.find(p => p.id === perm.attachedTo);
-        if (attachedCreature && isAura(perm) && hasProtectionFrom(attachedCreature, perm.colors || [])) {
+        if (attachedCreature && isAura(perm) && hasProtectionFromPermanent(attachedCreature, perm)) {
           // Remove from creature's attachments list
           const crIdx = bf.findIndex(p => p.id === perm.attachedTo);
           if (crIdx !== -1) {
@@ -257,7 +257,7 @@ export function handleAttachmentCleanup(state: GameState): GameState {
           playerChanged = true;
           continue;
         }
-        if (attachedCreature && isEquipment(perm) && hasProtectionFrom(attachedCreature, perm.colors || [])) {
+        if (attachedCreature && isEquipment(perm) && hasProtectionFromPermanent(attachedCreature, perm)) {
           // Equipment falls off due to protection — stays on battlefield, becomes unattached
           bf[j] = { ...perm, attachedTo: undefined };
           logs.push(`${perm.name} detaches — ${attachedCreature.name} has protection from its color.`);

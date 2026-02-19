@@ -3927,30 +3927,48 @@ export class GameLoop {
     const controller = state.manualResolutionController!;
     if (!card) return;
 
+    this.injectPhase8Styles();
+
     // Remove any existing panel
     document.querySelector('.manual-resolution-overlay')?.remove();
 
     const overlay = document.createElement('div');
     overlay.className = 'manual-resolution-overlay';
 
+    // Build Scryfall image URL for card preview
+    const scryfallImgUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.name)}&format=image&version=normal`;
+
     overlay.innerHTML = `
       <div class="manual-resolution-panel">
-        <h3 class="manual-res-title">\u26A0\uFE0F Manual Resolution</h3>
-        <div class="manual-res-card-name">${card.name}</div>
-        <div class="manual-res-type">${card.typeLine}</div>
-        <div class="manual-res-oracle">${card.oracleText || 'No oracle text'}</div>
-        <p class="manual-res-hint">This effect couldn't be auto-resolved. Use the buttons below to apply the effect manually, then click Done.</p>
-        <div class="manual-res-actions">
-          <button class="manual-res-btn" data-action="draw">\uD83C\uDCCF Draw Cards</button>
-          <button class="manual-res-btn" data-action="damage">\u26A1 Deal Damage</button>
-          <button class="manual-res-btn" data-action="life">\uD83D\uDC9A Gain Life</button>
-          <button class="manual-res-btn" data-action="loselife">\uD83D\uDC80 Lose Life (Opponent)</button>
-          <button class="manual-res-btn" data-action="token">\u2728 Create Token</button>
-          <button class="manual-res-btn" data-action="counter">\uD83D\uDD22 Add Counter</button>
-          <button class="manual-res-btn" data-action="destroy">\uD83D\uDDD1\uFE0F Destroy Permanent</button>
+        <h3 class="manual-res-title">Manual Resolution</h3>
+        <div class="manual-res-header">
+          <div class="manual-res-card-preview">
+            <img src="${scryfallImgUrl}" alt="${card.name}" class="manual-res-card-img"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+            <div class="manual-res-card-img-fallback" style="display:none;">
+              <span>${card.name}</span>
+            </div>
+          </div>
+          <div class="manual-res-card-info">
+            <div class="manual-res-card-name">${card.name}</div>
+            <div class="manual-res-type">${card.typeLine}</div>
+            <div class="manual-res-mana">${card.manaCost || ''}</div>
+            <div class="manual-res-oracle">${card.oracleText || 'No oracle text'}</div>
+          </div>
+        </div>
+        <p class="manual-res-hint">Auto-resolve couldn't handle this effect. Use the actions below, then click Done.</p>
+        <div class="manual-res-actions-grid">
+          <button class="manual-res-btn" data-action="draw"><span class="manual-res-btn-icon">&#127183;</span>Draw Cards</button>
+          <button class="manual-res-btn" data-action="damage"><span class="manual-res-btn-icon">&#9889;</span>Deal Damage</button>
+          <button class="manual-res-btn" data-action="life"><span class="manual-res-btn-icon">&#128154;</span>Gain Life</button>
+          <button class="manual-res-btn" data-action="loselife"><span class="manual-res-btn-icon">&#128128;</span>Lose Life</button>
+          <button class="manual-res-btn" data-action="token"><span class="manual-res-btn-icon">&#10024;</span>Create Token</button>
+          <button class="manual-res-btn" data-action="counter"><span class="manual-res-btn-icon">&#128290;</span>Add Counter</button>
+          <button class="manual-res-btn" data-action="destroy"><span class="manual-res-btn-icon">&#128465;</span>Destroy Perm</button>
+          <button class="manual-res-btn" data-action="move"><span class="manual-res-btn-icon">&#128230;</span>Move Card</button>
         </div>
         <div class="manual-res-log"></div>
-        <button class="manual-res-done">\u2705 Done \u2014 Continue Game</button>
+        <button class="manual-res-done">Done &#8212; Continue Game</button>
       </div>
     `;
 
@@ -3960,7 +3978,7 @@ export class GameLoop {
     const addLogMsg = (msg: string) => {
       const p = document.createElement('div');
       p.className = 'manual-res-log-entry';
-      p.textContent = `\u2713 ${msg}`;
+      p.innerHTML = `<span style="color:#34d399;margin-right:4px;">&#10003;</span> ${msg}`;
       logEl.appendChild(p);
       logEl.scrollTop = logEl.scrollHeight;
     };
@@ -4065,25 +4083,34 @@ export class GameLoop {
         const count = parseInt(n) || 1;
         const st = getState();
         const player = st.players[controller];
-        const creature = player.battlefield.find(p => p.typeLine?.toLowerCase().includes('creature'));
-        if (creature) {
-          const updatedBf = player.battlefield.map(p => {
-            if (p.id !== creature.id) return p;
-            const counters = { ...p.counters, [type]: (p.counters[type] || 0) + count };
-            const powerMod = type === '+1/+1' ? count : type === '-1/-1' ? -count : 0;
-            return {
-              ...p, counters,
-              currentPower: (p.currentPower ?? 0) + powerMod,
-              currentToughness: (p.currentToughness ?? 0) + powerMod,
-            };
-          });
-          const players = [...st.players] as [typeof st.players[0], typeof st.players[1]];
-          players[controller] = { ...player, battlefield: updatedBf };
-          setState({ ...st, players });
-          addLogMsg(`Put ${count} ${type} counter(s) on ${creature.name}`);
-        } else {
+        // Let user pick which creature to put counters on
+        const creatures = player.battlefield.filter(p => p.typeLine?.toLowerCase().includes('creature'));
+        if (creatures.length === 0) {
           addLogMsg('No creature to put counters on');
+          return;
         }
+        let targetCreature = creatures[0];
+        if (creatures.length > 1) {
+          const names = creatures.map((c, i) => `${i}: ${c.name}`).join('\n');
+          const choice = prompt(`Choose creature:\n${names}`, '0');
+          if (choice === null) return;
+          const idx = parseInt(choice);
+          if (idx >= 0 && idx < creatures.length) targetCreature = creatures[idx];
+        }
+        const updatedBf = player.battlefield.map(p => {
+          if (p.id !== targetCreature.id) return p;
+          const counters = { ...p.counters, [type]: (p.counters[type] || 0) + count };
+          const powerMod = type === '+1/+1' ? count : type === '-1/-1' ? -count : 0;
+          return {
+            ...p, counters,
+            currentPower: (p.currentPower ?? 0) + powerMod,
+            currentToughness: (p.currentToughness ?? 0) + powerMod,
+          };
+        });
+        const players = [...st.players] as [typeof st.players[0], typeof st.players[1]];
+        players[controller] = { ...player, battlefield: updatedBf };
+        setState({ ...st, players });
+        addLogMsg(`Put ${count} ${type} counter(s) on ${targetCreature.name}`);
       }
     });
 
@@ -4116,6 +4143,52 @@ export class GameLoop {
           addLogMsg(`Destroyed ${perm.name}`);
         }
       }
+    });
+
+    // Move Card (zone-to-zone)
+    overlay.querySelector('[data-action="move"]')!.addEventListener('click', () => {
+      const cardName = prompt('Card name to move?');
+      if (!cardName) return;
+      const from = prompt('From zone? (hand / graveyard / exile / battlefield)', 'graveyard') || 'graveyard';
+      const to = prompt('To zone? (hand / graveyard / exile / battlefield)', 'hand') || 'hand';
+      const st = getState();
+      // Check both players for the card
+      for (const pi of [controller, (controller === 0 ? 1 : 0) as 0 | 1] as const) {
+        const player = st.players[pi];
+        const zone = (player as any)[from] as any[];
+        if (!zone) continue;
+        const cardIdx = zone.findIndex((c: any) => c.name?.toLowerCase().includes(cardName.toLowerCase()));
+        if (cardIdx === -1) continue;
+        const foundCard = zone[cardIdx];
+        const updatedFrom = [...zone];
+        updatedFrom.splice(cardIdx, 1);
+        const players = [...st.players] as [typeof st.players[0], typeof st.players[1]];
+        const targetPlayer = to === 'battlefield' ? controller : pi;
+        // Build updated player state
+        const fromPlayer = { ...players[pi], [from]: updatedFrom };
+        players[pi] = fromPlayer;
+        if (to === 'battlefield') {
+          // Create a permanent from the card
+          const perm = {
+            ...foundCard, card: foundCard, controller: targetPlayer, tapped: false, flipped: false, faceDown: false,
+            currentPower: parseInt(foundCard.power) || 0, currentToughness: parseInt(foundCard.toughness) || 0,
+            basePower: parseInt(foundCard.power) || 0, baseToughness: parseInt(foundCard.toughness) || 0,
+            damage: 0, summoningSick: true, attacking: false, blocking: null,
+            abilities: [], counters: {} as Record<string, number>, temporaryPtMods: [],
+            temporaryKeywords: [], attachments: [] as string[], x: 0, y: 0,
+            enteredBattlefieldTurn: st.turn,
+          };
+          players[targetPlayer] = { ...players[targetPlayer], battlefield: [...players[targetPlayer].battlefield, perm as any] };
+        } else {
+          // Card zones (hand, graveyard, exile)
+          const toZone = (players[targetPlayer] as any)[to] as any[];
+          players[targetPlayer] = { ...players[targetPlayer], [to]: [...toZone, foundCard] };
+        }
+        setState({ ...st, players });
+        addLogMsg(`Moved ${foundCard.name} from ${from} to ${to}`);
+        return;
+      }
+      addLogMsg(`Card "${cardName}" not found in ${from}`);
     });
 
     // Done button
@@ -4478,56 +4551,190 @@ export class GameLoop {
     overlay.className = 'p8-overlay';
 
     const content = document.createElement('div');
-    content.className = 'p8-content';
-    content.style.maxWidth = '500px';
+    content.className = 'p8-content gy-viewer-content';
+    content.style.maxWidth = '560px';
 
     const isYou = player === this.humanPlayer;
     const ps = state.players[player];
-    content.innerHTML = `<h3>${isYou ? 'Your' : "Bot's"} Graveyard (${ps.graveyard.length})</h3>`;
+
+    // ─── Type summary counts ───
+    const typeCounts: Record<string, number> = {};
+    for (const card of ps.graveyard) {
+      const tl = (card.typeLine || '').toLowerCase();
+      let mainType = 'Other';
+      if (tl.includes('creature')) mainType = 'Creature';
+      else if (tl.includes('instant')) mainType = 'Instant';
+      else if (tl.includes('sorcery')) mainType = 'Sorcery';
+      else if (tl.includes('enchantment')) mainType = 'Enchantment';
+      else if (tl.includes('artifact')) mainType = 'Artifact';
+      else if (tl.includes('planeswalker')) mainType = 'Planeswalker';
+      else if (tl.includes('land')) mainType = 'Land';
+      typeCounts[mainType] = (typeCounts[mainType] || 0) + 1;
+    }
+    const summaryParts = Object.entries(typeCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([type, count]) => `<span class="gy-type-pill gy-type-${type.toLowerCase()}">${count} ${type}${count !== 1 ? 's' : ''}</span>`);
+
+    content.innerHTML = `
+      <h3>${isYou ? 'Your' : "Bot's"} Graveyard <span class="gy-count-badge">${ps.graveyard.length}</span></h3>
+      ${ps.graveyard.length > 0 ? `<div class="gy-type-summary">${summaryParts.join('')}</div>` : ''}
+    `;
+
+    // ─── Card image preview container (shows on hover/click) ───
+    const previewContainer = document.createElement('div');
+    previewContainer.className = 'gy-card-preview-container';
+    previewContainer.style.display = 'none';
+    const previewImg = document.createElement('img');
+    previewImg.className = 'gy-card-preview';
+    previewContainer.appendChild(previewImg);
+    content.appendChild(previewContainer);
 
     const browser = document.createElement('div');
-    browser.style.maxHeight = '400px';
-    browser.style.overflowY = 'auto';
+    browser.className = 'gy-browser';
 
     if (ps.graveyard.length === 0) {
       const empty = document.createElement('div');
-      empty.style.cssText = 'text-align:center;color:#666;padding:20px;';
+      empty.className = 'gy-empty';
       empty.textContent = 'Graveyard is empty';
       browser.appendChild(empty);
     } else {
       for (const card of ps.graveyard) {
         const row = document.createElement('div');
-        row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid #1a1f2e;';
-        const name = document.createElement('span');
-        name.style.cssText = 'color:#e5e7eb;font-size:14px;';
-        name.textContent = card.name;
-        const type = document.createElement('span');
-        type.style.cssText = 'color:#6b7280;font-size:11px;';
-        type.textContent = card.typeLine;
-        row.appendChild(name);
-        row.appendChild(type);
+        row.className = 'gy-card-row';
 
-        // Flashback badge
+        // Card color indicator bar
+        const colorBar = document.createElement('div');
+        colorBar.className = 'gy-color-bar';
+        const colors = card.colors || [];
+        if (colors.length === 0) colorBar.style.background = '#94a3b8';
+        else if (colors.length === 1) {
+          const colorMap: Record<string, string> = { W: '#f9faf4', U: '#0e68ab', B: '#564d54', R: '#d3202a', G: '#00733e' };
+          colorBar.style.background = colorMap[colors[0]] || '#94a3b8';
+        } else {
+          colorBar.style.background = 'linear-gradient(180deg, #c9a84c, #b8963f)'; // Gold for multicolor
+        }
+        row.appendChild(colorBar);
+
+        // Card info
+        const info = document.createElement('div');
+        info.className = 'gy-card-info';
+
+        const nameRow = document.createElement('div');
+        nameRow.className = 'gy-card-name-row';
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'gy-card-name';
+        nameSpan.textContent = card.name;
+        nameRow.appendChild(nameSpan);
+
+        // Mana cost
+        if (card.manaCost) {
+          const costSpan = document.createElement('span');
+          costSpan.className = 'gy-card-cost';
+          costSpan.textContent = card.manaCost;
+          nameRow.appendChild(costSpan);
+        }
+        info.appendChild(nameRow);
+
+        const typeSpan = document.createElement('div');
+        typeSpan.className = 'gy-card-type';
+        typeSpan.textContent = card.typeLine;
+        info.appendChild(typeSpan);
+
+        row.appendChild(info);
+
+        // ─── Badges container ───
+        const badges = document.createElement('div');
+        badges.className = 'gy-badges';
+
+        // Flashback
         if (card.oracleText?.match(/flashback/i)) {
           const badge = document.createElement('span');
-          badge.style.cssText = 'color:#c9a84c;font-size:10px;margin-left:8px;padding:2px 6px;border:1px solid #c9a84c;border-radius:50px;';
+          badge.className = 'gy-badge gy-badge-flashback';
           badge.textContent = 'Flashback';
-          row.appendChild(badge);
+          badges.appendChild(badge);
         }
-        // Escape badge
+        // Escape
         if (card.oracleText?.match(/escape/i)) {
           const badge = document.createElement('span');
-          badge.style.cssText = 'color:#34d399;font-size:10px;margin-left:8px;padding:2px 6px;border:1px solid #34d399;border-radius:50px;';
+          badge.className = 'gy-badge gy-badge-escape';
           badge.textContent = 'Escape';
-          row.appendChild(badge);
+          badges.appendChild(badge);
         }
-        // Jump-start badge
+        // Jump-start
         if (card.oracleText?.match(/jump-start/i)) {
           const badge = document.createElement('span');
-          badge.style.cssText = 'color:#60a5fa;font-size:10px;margin-left:8px;padding:2px 6px;border:1px solid #60a5fa;border-radius:50px;';
+          badge.className = 'gy-badge gy-badge-jumpstart';
           badge.textContent = 'Jump-start';
-          row.appendChild(badge);
+          badges.appendChild(badge);
         }
+        // Dredge
+        if (card.oracleText?.match(/dredge\s*\d/i)) {
+          const match = card.oracleText.match(/dredge\s*(\d+)/i);
+          const badge = document.createElement('span');
+          badge.className = 'gy-badge gy-badge-dredge';
+          badge.textContent = `Dredge ${match ? match[1] : ''}`;
+          badges.appendChild(badge);
+        }
+        // Unearth
+        if (card.oracleText?.match(/unearth/i)) {
+          const badge = document.createElement('span');
+          badge.className = 'gy-badge gy-badge-unearth';
+          badge.textContent = 'Unearth';
+          badges.appendChild(badge);
+        }
+        // Embalm
+        if (card.oracleText?.match(/embalm/i)) {
+          const badge = document.createElement('span');
+          badge.className = 'gy-badge gy-badge-embalm';
+          badge.textContent = 'Embalm';
+          badges.appendChild(badge);
+        }
+        // Eternalize
+        if (card.oracleText?.match(/eternalize/i)) {
+          const badge = document.createElement('span');
+          badge.className = 'gy-badge gy-badge-eternalize';
+          badge.textContent = 'Eternalize';
+          badges.appendChild(badge);
+        }
+        // Disturb
+        if (card.oracleText?.match(/disturb/i)) {
+          const badge = document.createElement('span');
+          badge.className = 'gy-badge gy-badge-disturb';
+          badge.textContent = 'Disturb';
+          badges.appendChild(badge);
+        }
+        // Retrace
+        if (card.oracleText?.match(/retrace/i)) {
+          const badge = document.createElement('span');
+          badge.className = 'gy-badge gy-badge-retrace';
+          badge.textContent = 'Retrace';
+          badges.appendChild(badge);
+        }
+
+        if (badges.children.length > 0) {
+          row.appendChild(badges);
+        }
+
+        // Hover/click to show Scryfall image preview
+        row.addEventListener('mouseenter', () => {
+          const imgUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.name)}&format=image&version=small`;
+          previewImg.src = imgUrl;
+          previewImg.alt = card.name;
+          previewContainer.style.display = 'block';
+          previewImg.onerror = () => { previewContainer.style.display = 'none'; };
+        });
+        row.addEventListener('mouseleave', () => {
+          previewContainer.style.display = 'none';
+        });
+        // On click, show larger image
+        row.addEventListener('click', () => {
+          const imgUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.name)}&format=image&version=normal`;
+          previewImg.src = imgUrl;
+          previewImg.alt = card.name;
+          previewContainer.style.display = previewContainer.style.display === 'block' ? 'none' : 'block';
+          previewContainer.classList.toggle('gy-preview-large');
+        });
+
         browser.appendChild(row);
       }
     }
@@ -5443,46 +5650,180 @@ export class GameLoop {
         margin-top: 20px;
       }
 
-      /* ─── Manual Resolution Panel ─── */
+      /* ─── Manual Resolution Panel (Enhanced) ─── */
       .manual-resolution-overlay {
-        position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+        position: fixed; inset: 0; background: rgba(10, 14, 23, 0.9);
         display: flex; align-items: center; justify-content: center; z-index: 9999;
+        animation: p8FadeIn 0.2s ease;
       }
       .manual-resolution-panel {
-        background: #0a0e17; border: 2px solid #c9a84c; border-radius: 16px;
-        padding: 24px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;
+        background: linear-gradient(135deg, #0f1623, #1a1f2e);
+        border: 1px solid rgba(201, 168, 76, 0.4); border-radius: 16px;
+        padding: 24px; max-width: 560px; width: 92%; max-height: 85vh; overflow-y: auto;
+        scrollbar-width: thin; scrollbar-color: #c9a84c #1a1f2e;
+        box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 0 60px rgba(201,168,76,0.08);
       }
       .manual-res-title {
-        font-family: 'Cinzel', serif; color: #c9a84c; margin: 0 0 16px 0; font-size: 20px;
+        font-family: 'Cinzel', serif; color: #c9a84c; margin: 0 0 16px 0;
+        font-size: 18px; text-align: center; letter-spacing: 1px;
       }
+      .manual-res-header {
+        display: flex; gap: 16px; margin-bottom: 16px; align-items: flex-start;
+      }
+      .manual-res-card-preview {
+        flex-shrink: 0; width: 130px; border-radius: 10px; overflow: hidden;
+        border: 1px solid rgba(201,168,76,0.3);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      }
+      .manual-res-card-img {
+        width: 100%; display: block; border-radius: 10px;
+      }
+      .manual-res-card-img-fallback {
+        width: 130px; height: 180px; background: #1a1f2e;
+        display: flex; align-items: center; justify-content: center;
+        color: #94a3b8; font-size: 12px; text-align: center; padding: 8px;
+        border-radius: 10px;
+      }
+      .manual-res-card-info { flex: 1; min-width: 0; }
       .manual-res-card-name {
-        font-family: 'Cinzel', serif; color: #c9a84c; font-size: 18px; margin-bottom: 4px;
+        font-family: 'Cinzel', serif; color: #c9a84c; font-size: 16px; margin-bottom: 4px;
+        font-weight: 600;
       }
-      .manual-res-type { color: #9ca3af; font-size: 13px; margin-bottom: 8px; }
+      .manual-res-type { color: #9ca3af; font-size: 12px; margin-bottom: 4px; }
+      .manual-res-mana {
+        color: #e5e7eb; font-size: 13px; font-family: 'JetBrains Mono', monospace;
+        margin-bottom: 8px;
+      }
       .manual-res-oracle {
-        color: #e5e7eb; font-size: 14px; line-height: 1.5; padding: 12px;
-        background: #1a1f2e; border-radius: 8px; margin-bottom: 12px;
-        white-space: pre-wrap;
+        color: #d1d5db; font-size: 13px; line-height: 1.5; padding: 10px;
+        background: rgba(10, 14, 23, 0.6); border-radius: 10px;
+        border: 1px solid rgba(26, 31, 46, 0.8); white-space: pre-wrap;
       }
-      .manual-res-hint { color: #9ca3af; font-size: 12px; margin-bottom: 16px; }
-      .manual-res-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+      .manual-res-hint {
+        color: #c9a84c; font-size: 11px; margin-bottom: 14px; text-align: center;
+        padding: 8px 12px; background: rgba(201,168,76,0.08); border-radius: 10px;
+        border: 1px solid rgba(201,168,76,0.15);
+      }
+      .manual-res-actions-grid {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px;
+      }
       .manual-res-btn {
-        background: #1a1f2e; border: 1px solid #c9a84c; color: #c9a84c;
-        padding: 10px 16px; border-radius: 50px; cursor: pointer; font-size: 13px;
+        background: #1a1f2e; border: 1px solid #374151; color: #e5e7eb;
+        padding: 10px 14px; border-radius: 50px; cursor: pointer; font-size: 13px;
         transition: all 0.2s; font-family: 'Outfit', sans-serif;
+        display: flex; align-items: center; gap: 6px; justify-content: center;
       }
-      .manual-res-btn:hover { background: #c9a84c; color: #0a0e17; }
+      .manual-res-btn:hover { border-color: #c9a84c; color: #c9a84c; background: rgba(201,168,76,0.08); }
+      .manual-res-btn:active { transform: scale(0.97); }
+      .manual-res-btn-icon { font-size: 15px; }
       .manual-res-log {
-        max-height: 120px; overflow-y: auto; margin-bottom: 16px; padding: 8px;
-        background: #0f1623; border-radius: 8px;
+        max-height: 100px; overflow-y: auto; margin-bottom: 16px; padding: 8px 12px;
+        background: rgba(10,14,23,0.5); border-radius: 10px; border: 1px solid #1a1f2e;
+        scrollbar-width: thin; scrollbar-color: #34d399 #0f1623;
       }
-      .manual-res-log-entry { color: #34d399; font-size: 12px; padding: 2px 0; }
+      .manual-res-log:empty { display: none; }
+      .manual-res-log-entry {
+        color: #d1d5db; font-size: 12px; padding: 3px 0;
+        font-family: 'Outfit', sans-serif;
+      }
       .manual-res-done {
-        width: 100%; padding: 14px; background: #c9a84c; color: #0a0e17;
-        border: none; border-radius: 50px; font-size: 16px; font-weight: 600;
-        cursor: pointer; font-family: 'Cinzel', serif; transition: all 0.2s;
+        width: 100%; padding: 14px; background: linear-gradient(135deg, #c9a84c, #b8963f);
+        color: #0a0e17; border: none; border-radius: 50px; font-size: 15px; font-weight: 600;
+        cursor: pointer; font-family: 'Outfit', sans-serif; transition: all 0.2s;
       }
-      .manual-res-done:hover { background: #d4b55a; }
+      .manual-res-done:hover { opacity: 0.9; box-shadow: 0 0 16px rgba(201,168,76,0.3); }
+
+      /* ─── Enhanced Graveyard Viewer ─── */
+      .gy-viewer-content { max-width: 560px !important; }
+      .gy-viewer-content h3 {
+        display: flex; align-items: center; gap: 8px; justify-content: center;
+      }
+      .gy-count-badge {
+        background: rgba(201,168,76,0.2); color: #c9a84c; font-size: 13px;
+        padding: 2px 10px; border-radius: 50px; font-weight: 700;
+        font-family: 'JetBrains Mono', monospace;
+      }
+      .gy-type-summary {
+        display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
+        margin-bottom: 14px; padding: 8px; background: rgba(10,14,23,0.5);
+        border-radius: 10px; border: 1px solid rgba(26,31,46,0.8);
+      }
+      .gy-type-pill {
+        font-size: 11px; padding: 3px 10px; border-radius: 50px;
+        font-family: 'Outfit', sans-serif; font-weight: 500;
+      }
+      .gy-type-creature { background: rgba(52,211,153,0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.3); }
+      .gy-type-instant { background: rgba(96,165,250,0.15); color: #60a5fa; border: 1px solid rgba(96,165,250,0.3); }
+      .gy-type-sorcery { background: rgba(244,114,182,0.15); color: #f472b6; border: 1px solid rgba(244,114,182,0.3); }
+      .gy-type-enchantment { background: rgba(192,132,252,0.15); color: #c084fc; border: 1px solid rgba(192,132,252,0.3); }
+      .gy-type-artifact { background: rgba(148,163,184,0.15); color: #94a3b8; border: 1px solid rgba(148,163,184,0.3); }
+      .gy-type-planeswalker { background: rgba(251,191,36,0.15); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); }
+      .gy-type-land { background: rgba(161,98,7,0.15); color: #d97706; border: 1px solid rgba(161,98,7,0.3); }
+      .gy-type-other { background: rgba(100,116,139,0.15); color: #64748b; border: 1px solid rgba(100,116,139,0.3); }
+      .gy-card-preview-container {
+        text-align: center; margin-bottom: 12px;
+        transition: all 0.2s ease;
+      }
+      .gy-card-preview {
+        border-radius: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        border: 2px solid rgba(201,168,76,0.4); max-height: 180px;
+        transition: max-height 0.3s ease;
+      }
+      .gy-preview-large .gy-card-preview {
+        max-height: 340px;
+      }
+      .gy-browser {
+        max-height: 360px; overflow-y: auto;
+        scrollbar-width: thin; scrollbar-color: #c9a84c #1a1f2e;
+      }
+      .gy-empty {
+        text-align: center; color: #4a5568; padding: 32px; font-size: 14px;
+        font-style: italic;
+      }
+      .gy-card-row {
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 12px; border-radius: 10px; margin: 4px 0;
+        background: rgba(201,168,76,0.03); border: 1px solid rgba(201,168,76,0.08);
+        cursor: pointer; transition: all 0.2s;
+      }
+      .gy-card-row:hover {
+        background: rgba(201,168,76,0.1); border-color: rgba(201,168,76,0.3);
+      }
+      .gy-color-bar {
+        width: 4px; height: 32px; border-radius: 2px; flex-shrink: 0;
+      }
+      .gy-card-info { flex: 1; min-width: 0; }
+      .gy-card-name-row {
+        display: flex; align-items: center; gap: 8px;
+      }
+      .gy-card-name {
+        color: #e2e8f0; font-weight: 500; font-size: 13px;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .gy-card-cost {
+        color: #c9a84c; font-size: 11px; font-family: 'JetBrains Mono', monospace;
+        flex-shrink: 0;
+      }
+      .gy-card-type {
+        color: #64748b; font-size: 11px; margin-top: 1px;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .gy-badges {
+        display: flex; flex-wrap: wrap; gap: 4px; flex-shrink: 0;
+      }
+      .gy-badge {
+        font-size: 9px; padding: 2px 7px; border-radius: 50px; font-weight: 600;
+        font-family: 'Outfit', sans-serif; white-space: nowrap;
+      }
+      .gy-badge-flashback { color: #c9a84c; border: 1px solid rgba(201,168,76,0.5); background: rgba(201,168,76,0.1); }
+      .gy-badge-escape { color: #34d399; border: 1px solid rgba(52,211,153,0.5); background: rgba(52,211,153,0.1); }
+      .gy-badge-jumpstart { color: #60a5fa; border: 1px solid rgba(96,165,250,0.5); background: rgba(96,165,250,0.1); }
+      .gy-badge-dredge { color: #a78bfa; border: 1px solid rgba(167,139,250,0.5); background: rgba(167,139,250,0.1); }
+      .gy-badge-unearth { color: #f87171; border: 1px solid rgba(248,113,113,0.5); background: rgba(248,113,113,0.1); }
+      .gy-badge-embalm { color: #fbbf24; border: 1px solid rgba(251,191,36,0.5); background: rgba(251,191,36,0.1); }
+      .gy-badge-eternalize { color: #38bdf8; border: 1px solid rgba(56,189,248,0.5); background: rgba(56,189,248,0.1); }
+      .gy-badge-disturb { color: #c084fc; border: 1px solid rgba(192,132,252,0.5); background: rgba(192,132,252,0.1); }
+      .gy-badge-retrace { color: #fb923c; border: 1px solid rgba(251,146,60,0.5); background: rgba(251,146,60,0.1); }
     `;
     document.head.appendChild(style);
   }

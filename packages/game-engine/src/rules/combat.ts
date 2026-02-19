@@ -15,6 +15,47 @@ import type { CombatState, AttackingCreature, BlockingCreature } from '../types/
  * 6. End Combat — cleanup, remove from combat
  */
 
+/**
+ * Apply damage through damage prevention shields (CR 615.7).
+ * Checks all shields targeting the given permanent or player and decrements
+ * their amounts. Returns the actual damage that gets through after prevention.
+ *
+ * Uses immutable state patterns — returns a new state with updated shields.
+ */
+export function applyDamageWithShields(
+  state: GameState,
+  targetId: string, // permanent ID or 'player-0'/'player-1'
+  damage: number
+): { state: GameState; actualDamage: number } {
+  if (!state.damageShields?.length || damage <= 0) return { state, actualDamage: damage };
+
+  let remaining = damage;
+  const updatedShields = [...state.damageShields];
+
+  for (let i = updatedShields.length - 1; i >= 0; i--) {
+    const shield = updatedShields[i];
+    if (shield.targetId !== targetId) continue;
+
+    if (shield.amount >= remaining) {
+      // Shield absorbs all remaining damage
+      updatedShields[i] = { ...shield, amount: shield.amount - remaining };
+      remaining = 0;
+      break;
+    } else {
+      // Shield is fully consumed, some damage remains
+      remaining -= shield.amount;
+      updatedShields.splice(i, 1);
+    }
+  }
+
+  // Remove fully depleted shields (amount === 0)
+  const activeShields = updatedShields.filter(s => s.amount > 0);
+  return {
+    state: { ...state, damageShields: activeShields.length > 0 ? activeShields : undefined },
+    actualDamage: remaining,
+  };
+}
+
 /** Initialize combat state when entering combat phase */
 export function initializeCombat(state: GameState): GameState {
   return {
@@ -53,6 +94,35 @@ export function resolveCombatDamage(
   const logs: string[] = [];
   const commanderDamageDealt: { commanderId: string; damage: number; defenderId: 0 | 1 | string }[] = [];
 
+  // Track damage shields throughout combat resolution (mutable copy)
+  let currentShields = state.damageShields ? [...state.damageShields.map(s => ({ ...s }))] : [];
+
+  /** Consume shields for a target, returning the actual damage after prevention */
+  function consumeShields(targetId: string, damage: number): number {
+    if (currentShields.length === 0 || damage <= 0) return damage;
+    let remaining = damage;
+    for (let i = currentShields.length - 1; i >= 0; i--) {
+      const shield = currentShields[i];
+      if (shield.targetId !== targetId) continue;
+      if (shield.amount >= remaining) {
+        shield.amount -= remaining;
+        const prevented = remaining;
+        remaining = 0;
+        if (prevented > 0) logs.push(`Damage shield prevents ${prevented} damage (${shield.source || 'shield'}).`);
+        break;
+      } else {
+        remaining -= shield.amount;
+        const prevented = shield.amount;
+        shield.amount = 0;
+        currentShields.splice(i, 1);
+        if (prevented > 0) logs.push(`Damage shield prevents ${prevented} damage (${shield.source || 'shield'}).`);
+      }
+    }
+    // Remove depleted shields
+    currentShields = currentShields.filter(s => s.amount > 0);
+    return remaining;
+  }
+
   for (const attacker of state.combat.attackers) {
     const attackerPerm = attackerBattlefield.find((p) => p.id === attacker.permanentId);
     if (!attackerPerm || attackerPerm.currentPower === undefined) continue;
@@ -82,16 +152,20 @@ export function resolveCombatDamage(
           const pwIdx = bf.findIndex(p => p.id === attacker.defenderId);
           if (pwIdx !== -1) {
             const pw = bf[pwIdx];
-            const newLoyalty = Math.max(0, (pw.currentLoyalty ?? 0) - power);
-            bf[pwIdx] = { ...pw, currentLoyalty: newLoyalty };
-            logs.push(`${attackerPerm.name} deals ${power} damage to ${pw.name} (loyalty: ${newLoyalty}).`);
+            // Apply damage prevention shields to planeswalker
+            const pwActualDamage = consumeShields(pw.id, power);
+            if (pwActualDamage > 0) {
+              const newLoyalty = Math.max(0, (pw.currentLoyalty ?? 0) - pwActualDamage);
+              bf[pwIdx] = { ...pw, currentLoyalty: newLoyalty };
+              logs.push(`${attackerPerm.name} deals ${pwActualDamage} damage to ${pw.name} (loyalty: ${newLoyalty}).`);
+            }
             pwFound = true;
 
-            // Lifelink still applies when damaging planeswalkers
-            if (hasKeyword(attackerPerm, 'lifelink')) {
+            // Lifelink still applies when damaging planeswalkers (based on actual damage dealt)
+            if (hasKeyword(attackerPerm, 'lifelink') && pwActualDamage > 0) {
               players[activePlayer] = {
                 ...players[activePlayer],
-                life: players[activePlayer].life + power,
+                life: players[activePlayer].life + pwActualDamage,
               };
             }
             break;
@@ -101,32 +175,39 @@ export function resolveCombatDamage(
         if (!pwFound) continue;
       } else {
         // ─── Player combat damage (original path) ───
+        // Apply damage prevention shields to defending player
+        const playerActualDamage = consumeShields(`player-${defendingPlayer}`, power);
+
         // Infect (CR 702.89): damage to players is dealt as poison counters instead of life loss
         if (hasKeyword(attackerPerm, 'infect')) {
-          players[defendingPlayer] = {
-            ...players[defendingPlayer],
-            poisonCounters: players[defendingPlayer].poisonCounters + power,
-          };
-          logs.push(`${attackerPerm.name} deals ${power} poison to ${players[defendingPlayer].name}.`);
+          if (playerActualDamage > 0) {
+            players[defendingPlayer] = {
+              ...players[defendingPlayer],
+              poisonCounters: players[defendingPlayer].poisonCounters + playerActualDamage,
+            };
+            logs.push(`${attackerPerm.name} deals ${playerActualDamage} poison to ${players[defendingPlayer].name}.`);
+          }
         } else {
-          defenderLife -= power;
-          logs.push(`${attackerPerm.name} deals ${power} damage to ${players[defendingPlayer].name}.`);
+          if (playerActualDamage > 0) {
+            defenderLife -= playerActualDamage;
+            logs.push(`${attackerPerm.name} deals ${playerActualDamage} damage to ${players[defendingPlayer].name}.`);
+          }
         }
 
-        // Track commander damage (only for player damage, not planeswalker)
-        if (isCommanderPermanent(attackerPerm, players[activePlayer])) {
+        // Track commander damage (only for actual damage dealt, not prevented)
+        if (playerActualDamage > 0 && isCommanderPermanent(attackerPerm, players[activePlayer])) {
           commanderDamageDealt.push({
             commanderId: attackerPerm.id,
-            damage: power,
+            damage: playerActualDamage,
             defenderId: defendingPlayer,
           });
         }
 
-        // Lifelink (works with infect too — CR 702.89c)
-        if (hasKeyword(attackerPerm, 'lifelink')) {
+        // Lifelink (works with infect too — CR 702.89c, based on actual damage dealt)
+        if (hasKeyword(attackerPerm, 'lifelink') && playerActualDamage > 0) {
           players[activePlayer] = {
             ...players[activePlayer],
-            life: players[activePlayer].life + power,
+            life: players[activePlayer].life + playerActualDamage,
           };
         }
       }
@@ -158,37 +239,41 @@ export function resolveCombatDamage(
         if ((firstStrikeOnly && blockerHasFirstStrike) || (!firstStrikeOnly && blockerHasNormalStrike)) {
           const blockerPower = Math.max(0, blockerPerm.currentPower ?? 0);
           if (blockerPower > 0) {
-            // Protection: attacker has protection from blocker's colors → prevent damage
-            if (hasProtectionFrom(attackerPerm, blockerPerm.colors || [])) {
+            // Protection: attacker has protection from blocker (color/type) → prevent damage (DEBT: D)
+            if (hasProtectionFromPermanent(attackerPerm, blockerPerm)) {
               logs.push(`${attackerPerm.name} has protection — ${blockerPower} damage from ${blockerPerm.name} prevented.`);
             } else {
-              const idx = attackerBattlefield.findIndex((p) => p.id === attackerPerm.id);
-              if (idx !== -1) {
-                // Infect/Wither (CR 702.89/702.79): damage to creatures as -1/-1 counters
-                if (hasKeyword(blockerPerm, 'infect') || hasKeyword(blockerPerm, 'wither')) {
-                  const prevCounters = attackerBattlefield[idx].counters || {};
-                  attackerBattlefield[idx] = {
-                    ...attackerBattlefield[idx],
-                    counters: { ...prevCounters, '-1/-1': (prevCounters['-1/-1'] || 0) + blockerPower },
-                    ...(hasKeyword(blockerPerm, 'deathtouch') ? { deathtouched: true } : {}),
-                  } as any;
-                  logs.push(`${blockerPerm.name} puts ${blockerPower} -1/-1 counters on ${attackerPerm.name}.`);
-                } else {
-                  attackerBattlefield[idx] = {
-                    ...attackerBattlefield[idx],
-                    damage: attackerBattlefield[idx].damage + blockerPower,
-                    // Deathtouch: any damage from a deathtouch source marks creature
-                    ...(hasKeyword(blockerPerm, 'deathtouch') ? { deathtouched: true } : {}),
-                  } as any;
-                  logs.push(`${blockerPerm.name} deals ${blockerPower} damage to ${attackerPerm.name}.`);
+              // Apply damage prevention shields to the attacker
+              const blockerActualDmg = consumeShields(attackerPerm.id, blockerPower);
+              if (blockerActualDmg > 0) {
+                const idx = attackerBattlefield.findIndex((p) => p.id === attackerPerm.id);
+                if (idx !== -1) {
+                  // Infect/Wither (CR 702.89/702.79): damage to creatures as -1/-1 counters
+                  if (hasKeyword(blockerPerm, 'infect') || hasKeyword(blockerPerm, 'wither')) {
+                    const prevCounters = attackerBattlefield[idx].counters || {};
+                    attackerBattlefield[idx] = {
+                      ...attackerBattlefield[idx],
+                      counters: { ...prevCounters, '-1/-1': (prevCounters['-1/-1'] || 0) + blockerActualDmg },
+                      ...(hasKeyword(blockerPerm, 'deathtouch') ? { deathtouched: true } : {}),
+                    } as any;
+                    logs.push(`${blockerPerm.name} puts ${blockerActualDmg} -1/-1 counters on ${attackerPerm.name}.`);
+                  } else {
+                    attackerBattlefield[idx] = {
+                      ...attackerBattlefield[idx],
+                      damage: attackerBattlefield[idx].damage + blockerActualDmg,
+                      // Deathtouch: any damage from a deathtouch source marks creature
+                      ...(hasKeyword(blockerPerm, 'deathtouch') ? { deathtouched: true } : {}),
+                    } as any;
+                    logs.push(`${blockerPerm.name} deals ${blockerActualDmg} damage to ${attackerPerm.name}.`);
+                  }
                 }
               }
 
-              // Lifelink on blocker
-              if (hasKeyword(blockerPerm, 'lifelink')) {
+              // Lifelink on blocker (based on actual damage dealt)
+              if (hasKeyword(blockerPerm, 'lifelink') && blockerActualDmg > 0) {
                 players[defendingPlayer] = {
                   ...players[defendingPlayer],
-                  life: players[defendingPlayer].life + blockerPower,
+                  life: players[defendingPlayer].life + blockerActualDmg,
                 };
               }
             }
@@ -197,8 +282,8 @@ export function resolveCombatDamage(
 
         // Attacker deals damage to blocker
         if (remainingPower > 0) {
-          // Protection: blocker has protection from attacker's colors → prevent damage
-          if (hasProtectionFrom(blockerPerm, attackerPerm.colors || [])) {
+          // Protection: blocker has protection from attacker (color/type) → prevent damage (DEBT: D)
+          if (hasProtectionFromPermanent(blockerPerm, attackerPerm)) {
             logs.push(`${blockerPerm.name} has protection — damage from ${attackerPerm.name} prevented.`);
             // Even though damage is prevented, the attacker still "used" its damage assignment
             // For trample purposes we still reduce remaining power
@@ -213,37 +298,40 @@ export function resolveCombatDamage(
               ? 1
               : Math.min(remainingPower, blockerPerm.currentToughness - blockerPerm.damage);
             const damageToBlocker = block.damageAssignment ?? deathtouchLethal;
-            const actualDamage = Math.min(remainingPower, Math.max(0, damageToBlocker));
+            const assignedDamage = Math.min(remainingPower, Math.max(0, damageToBlocker));
+
+            // Apply damage prevention shields to the blocker
+            const blockerShieldedDmg = consumeShields(blockerPerm.id, assignedDamage);
 
             const bIdx = defenderBattlefield.findIndex((p) => p.id === blockerPerm.id);
-            if (bIdx !== -1) {
+            if (bIdx !== -1 && blockerShieldedDmg > 0) {
               // Infect/Wither (CR 702.89/702.79): damage to creatures as -1/-1 counters
               if (hasKeyword(attackerPerm, 'infect') || hasKeyword(attackerPerm, 'wither')) {
                 const prevCounters = defenderBattlefield[bIdx].counters || {};
                 defenderBattlefield[bIdx] = {
                   ...defenderBattlefield[bIdx],
-                  counters: { ...prevCounters, '-1/-1': (prevCounters['-1/-1'] || 0) + actualDamage },
+                  counters: { ...prevCounters, '-1/-1': (prevCounters['-1/-1'] || 0) + blockerShieldedDmg },
                   ...(hasKeyword(attackerPerm, 'deathtouch') ? { deathtouched: true } : {}),
                 } as any;
-                logs.push(`${attackerPerm.name} puts ${actualDamage} -1/-1 counters on ${blockerPerm.name}.`);
+                logs.push(`${attackerPerm.name} puts ${blockerShieldedDmg} -1/-1 counters on ${blockerPerm.name}.`);
               } else {
                 defenderBattlefield[bIdx] = {
                   ...defenderBattlefield[bIdx],
-                  damage: defenderBattlefield[bIdx].damage + actualDamage,
+                  damage: defenderBattlefield[bIdx].damage + blockerShieldedDmg,
                   // Deathtouch: any damage from a deathtouch source marks creature
                   ...(hasKeyword(attackerPerm, 'deathtouch') ? { deathtouched: true } : {}),
                 } as any;
-                logs.push(`${attackerPerm.name} deals ${actualDamage} damage to ${blockerPerm.name}.`);
+                logs.push(`${attackerPerm.name} deals ${blockerShieldedDmg} damage to ${blockerPerm.name}.`);
               }
             }
 
-            remainingPower -= actualDamage;
+            remainingPower -= assignedDamage;
 
-            // Lifelink
-            if (hasKeyword(attackerPerm, 'lifelink') && actualDamage > 0) {
+            // Lifelink (based on actual damage dealt, not prevented)
+            if (hasKeyword(attackerPerm, 'lifelink') && blockerShieldedDmg > 0) {
               players[activePlayer] = {
                 ...players[activePlayer],
-                life: players[activePlayer].life + actualDamage,
+                life: players[activePlayer].life + blockerShieldedDmg,
               };
             }
           }
@@ -259,40 +347,58 @@ export function resolveCombatDamage(
             const pwIdx = bf.findIndex(p => p.id === attacker.defenderId);
             if (pwIdx !== -1) {
               const pw = bf[pwIdx];
-              const newLoyalty = Math.max(0, (pw.currentLoyalty ?? 0) - remainingPower);
-              bf[pwIdx] = { ...pw, currentLoyalty: newLoyalty };
-              logs.push(`${attackerPerm.name} tramples ${remainingPower} damage to ${pw.name} (loyalty: ${newLoyalty}).`);
+              // Apply damage prevention shields to planeswalker
+              const tramplePwDmg = consumeShields(pw.id, remainingPower);
+              if (tramplePwDmg > 0) {
+                const newLoyalty = Math.max(0, (pw.currentLoyalty ?? 0) - tramplePwDmg);
+                bf[pwIdx] = { ...pw, currentLoyalty: newLoyalty };
+                logs.push(`${attackerPerm.name} tramples ${tramplePwDmg} damage to ${pw.name} (loyalty: ${newLoyalty}).`);
+              }
+              // Lifelink on trample to planeswalker
+              if (hasKeyword(attackerPerm, 'lifelink') && tramplePwDmg > 0) {
+                players[activePlayer] = {
+                  ...players[activePlayer],
+                  life: players[activePlayer].life + tramplePwDmg,
+                };
+              }
               break;
             }
           }
         } else {
-          // Trample excess goes to defending player
+          // Trample excess goes to defending player — apply shields
+          const tramplePlayerDmg = consumeShields(`player-${defendingPlayer}`, remainingPower);
+
           // Infect + Trample: excess damage as poison counters (CR 702.89)
           if (hasKeyword(attackerPerm, 'infect')) {
-            players[defendingPlayer] = {
-              ...players[defendingPlayer],
-              poisonCounters: players[defendingPlayer].poisonCounters + remainingPower,
-            };
-            logs.push(`${attackerPerm.name} tramples ${remainingPower} poison to ${players[defendingPlayer].name}.`);
+            if (tramplePlayerDmg > 0) {
+              players[defendingPlayer] = {
+                ...players[defendingPlayer],
+                poisonCounters: players[defendingPlayer].poisonCounters + tramplePlayerDmg,
+              };
+              logs.push(`${attackerPerm.name} tramples ${tramplePlayerDmg} poison to ${players[defendingPlayer].name}.`);
+            }
           } else {
-            defenderLife -= remainingPower;
-            logs.push(`${attackerPerm.name} tramples ${remainingPower} damage to ${players[defendingPlayer].name}.`);
+            if (tramplePlayerDmg > 0) {
+              defenderLife -= tramplePlayerDmg;
+              logs.push(`${attackerPerm.name} tramples ${tramplePlayerDmg} damage to ${players[defendingPlayer].name}.`);
+            }
           }
 
-          if (isCommanderPermanent(attackerPerm, players[activePlayer])) {
+          if (tramplePlayerDmg > 0 && isCommanderPermanent(attackerPerm, players[activePlayer])) {
             commanderDamageDealt.push({
               commanderId: attackerPerm.id,
-              damage: remainingPower,
+              damage: tramplePlayerDmg,
               defenderId: defendingPlayer,
             });
           }
-        }
 
-        if (hasKeyword(attackerPerm, 'lifelink')) {
-          players[activePlayer] = {
-            ...players[activePlayer],
-            life: players[activePlayer].life + remainingPower,
-          };
+          // Lifelink on trample (based on actual damage)
+          if (hasKeyword(attackerPerm, 'lifelink') && tramplePlayerDmg > 0) {
+            players[activePlayer] = {
+              ...players[activePlayer],
+              life: players[activePlayer].life + tramplePlayerDmg,
+            };
+          }
         }
       }
     }
@@ -344,6 +450,8 @@ export function resolveCombatDamage(
       players,
       log: [...state.log, ...finalLogEntries],
       ...(monarchStolen ? { monarch: activePlayer } : {}),
+      // Write back updated damage shields after combat resolution
+      damageShields: currentShields.length > 0 ? currentShields : undefined,
     },
     commanderDamageDealt,
   };
@@ -484,13 +592,22 @@ export function hasKeyword(perm: Permanent, keyword: string): boolean {
  * Checks for:
  * - "protection from white/blue/black/red/green"
  * - "protection from all colors"
- * - "protection from multicolored" (future)
+ * - "protection from all colors" / "protection from each color"
+ * - "protection from multicolored"
+ * - "protection from colorless"
+ * - "protection from everything"
  */
 export function getProtectionColors(perm: Permanent): string[] {
   const oracleText = (perm.oracleText || '').toLowerCase();
   const colors: string[] = [];
 
-  if (oracleText.includes('protection from all colors')) {
+  // "Protection from everything" covers all colors plus colorless
+  if (oracleText.includes('protection from everything')) {
+    return ['W', 'U', 'B', 'R', 'G', 'C', 'everything'];
+  }
+
+  if (oracleText.includes('protection from all colors') ||
+      oracleText.includes('protection from each color')) {
     return ['W', 'U', 'B', 'R', 'G'];
   }
 
@@ -504,7 +621,54 @@ export function getProtectionColors(perm: Permanent): string[] {
     }
   }
 
+  // "Protection from colorless" — blocks colorless sources (CR 702.16)
+  if (oracleText.includes('protection from colorless')) {
+    colors.push('C');
+  }
+
+  // "Protection from multicolored" — tracked as a special marker
+  if (oracleText.includes('protection from multicolored')) {
+    colors.push('multicolored');
+  }
+
   return colors;
+}
+
+/**
+ * Get the card/permanent types that a permanent has protection from.
+ * Returns an array of lowercase type strings (singular form).
+ *
+ * Checks for patterns like:
+ * - "protection from creatures"
+ * - "protection from artifacts"
+ * - "protection from enchantments"
+ * - "protection from instants"
+ * - "protection from sorceries"
+ * - "protection from planeswalkers"
+ */
+export function getProtectionTypes(perm: Permanent): string[] {
+  const oracleText = (perm.oracleText || '').toLowerCase();
+  const types: string[] = [];
+
+  // "Protection from everything" blocks all types
+  if (oracleText.includes('protection from everything')) {
+    return ['everything'];
+  }
+
+  // Match "protection from [type]" patterns for card types
+  const typePatterns: string[] = [
+    'creatures', 'artifacts', 'enchantments',
+    'instants', 'sorceries', 'planeswalkers',
+  ];
+
+  for (const typeName of typePatterns) {
+    if (oracleText.includes(`protection from ${typeName}`)) {
+      // Store as singular form for matching against type lines
+      types.push(typeName.replace(/s$/, ''));
+    }
+  }
+
+  return types;
 }
 
 /**
@@ -512,16 +676,61 @@ export function getProtectionColors(perm: Permanent): string[] {
  * Protection prevents DEBT: Damage, Enchanting/Equipping, Blocking, Targeting.
  *
  * This checks if the SOURCE's colors match any of the protected permanent's protections.
- * A colorless source is never blocked by color-based protection.
+ * A colorless source is blocked only by "protection from colorless" or "protection from everything".
  */
 export function hasProtectionFrom(protectedPerm: Permanent, sourceColors: string[]): boolean {
-  if (sourceColors.length === 0) return false; // Colorless = not blocked by color protection
-
   const protColors = getProtectionColors(protectedPerm);
   if (protColors.length === 0) return false;
 
+  // "Protection from everything" blocks all sources
+  if (protColors.includes('everything')) return true;
+
+  // Colorless source: blocked by "protection from colorless" (C marker) only
+  if (sourceColors.length === 0) {
+    return protColors.includes('C');
+  }
+
+  // "Protection from multicolored": blocks sources with 2+ colors
+  if (protColors.includes('multicolored') && sourceColors.length > 1) {
+    return true;
+  }
+
   // Source is protected against if ANY of its colors match a protection color
   return sourceColors.some(c => protColors.includes(c));
+}
+
+/**
+ * Check if a permanent has protection from another permanent, considering both
+ * color-based protection AND type-based protection (CR 702.16).
+ *
+ * This is a more comprehensive check than hasProtectionFrom() which only checks colors.
+ * Use this for DEBT checks involving permanents on the battlefield.
+ *
+ * @param protectedPerm - The permanent with protection abilities
+ * @param sourcePerm - The source permanent (attacker, equipment, aura, etc.)
+ * @returns true if the protected permanent has protection from the source
+ */
+export function hasProtectionFromPermanent(protectedPerm: Permanent, sourcePerm: Permanent): boolean {
+  // Check color-based protection first
+  if (hasProtectionFrom(protectedPerm, sourcePerm.colors || [])) {
+    return true;
+  }
+
+  // Check type-based protection (e.g., "protection from creatures", "protection from artifacts")
+  const protTypes = getProtectionTypes(protectedPerm);
+  if (protTypes.length === 0) return false;
+
+  // "Protection from everything" already handled by hasProtectionFrom above
+  if (protTypes.includes('everything')) return true;
+
+  const sourceTypeLine = (sourcePerm.typeLine || '').toLowerCase();
+  for (const protType of protTypes) {
+    if (sourceTypeLine.includes(protType)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -592,8 +801,8 @@ export function canBlock(blocker: Permanent, attacker: Permanent, defenderBattle
   // Menace-like unblockable: "can't be blocked" on attacker
   if (hasKeyword(attacker, "can't be blocked")) return false;
 
-  // Protection from [color]: can't be blocked by that color
-  if (hasProtectionFrom(attacker, blocker.colors || [])) {
+  // Protection from [color/type]: can't be blocked by source with matching protection (DEBT: B)
+  if (hasProtectionFromPermanent(attacker, blocker)) {
     return false;
   }
 

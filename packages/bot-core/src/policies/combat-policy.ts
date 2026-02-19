@@ -9,7 +9,73 @@ import { evaluateBoardPosition, getOpponentTotalPower } from '../evaluators/boar
  * - Which creatures to attack with
  * - Which creatures to block with
  * - Favorable vs unfavorable attacks
+ * - Token-aware decisions (tokens are expendable)
  */
+
+// ─── Token Detection ───
+
+/**
+ * Check if a permanent is a token.
+ * Tokens have IDs starting with 'token-' or oracleIds starting with 'token_'.
+ */
+function isToken(perm: Permanent): boolean {
+  return (perm.id?.startsWith('token-') || perm.oracleId?.startsWith('token_')
+    || (perm.typeLine ?? '').toLowerCase().startsWith('token'));
+}
+
+/**
+ * Get the "intrinsic value" of a creature for combat trading decisions.
+ * Tokens have near-zero value, making them ideal for expendable combat roles.
+ * Utility creatures (with tap abilities) are valued higher.
+ */
+function creatureValue(perm: Permanent): number {
+  if (isToken(perm)) return 0.5; // Tokens are nearly free
+
+  let value = 2; // Base value for a real card
+  const power = perm.currentPower ?? 0;
+  const toughness = perm.currentToughness ?? 0;
+
+  value += power + toughness * 0.5;
+
+  // Utility creatures are more valuable to keep alive
+  const textLower = (perm.oracleText || '').toLowerCase();
+  if (textLower.includes('{t}:')) value += 2; // Has tap abilities
+
+  // Commander is very valuable (don't throw away)
+  const typeLine = (perm.typeLine ?? '').toLowerCase();
+  if (typeLine.includes('legendary') && typeLine.includes('creature')) value += 5;
+
+  // Equipped/enchanted creatures are more valuable
+  value += (perm.attachments?.length || 0) * 2;
+
+  return value;
+}
+
+/**
+ * Calculate block priority: higher value = should block first (as a blocker).
+ * Tokens should block first since they're expendable.
+ * Among real creatures, prefer blocking with the weakest ones.
+ */
+export function blockPriority(creature: Permanent): number {
+  if (isToken(creature)) return 100; // Tokens should block first (expendable)
+
+  // Among real creatures, weakest first (least valuable to lose)
+  const power = creature.currentPower ?? 0;
+  const toughness = creature.currentToughness ?? 0;
+
+  // Lower-value creatures should block first
+  let priority = 20 - (power + toughness);
+
+  // Utility creatures should block last (they're more useful untapped)
+  const textLower = (creature.oracleText || '').toLowerCase();
+  if (textLower.includes('{t}:')) priority -= 10;
+
+  // Commander should almost never block (too valuable)
+  const typeLine = (creature.typeLine ?? '').toLowerCase();
+  if (typeLine.includes('legendary') && typeLine.includes('creature')) priority -= 15;
+
+  return priority;
+}
 
 /** Attack plan for a single creature */
 interface AttackPlan {
@@ -19,6 +85,8 @@ interface AttackPlan {
   toughness: number;
   /** Score for attacking (higher = more should attack) */
   attackScore: number;
+  /** Whether this is a token creature */
+  isToken: boolean;
 }
 
 /**
@@ -41,6 +109,7 @@ function getEligibleBlockers(state: GameState, player: 0 | 1): Permanent[] {
 
 /**
  * Score how profitable it is to attack with a creature.
+ * Token-aware: tokens are expendable, so they attack more aggressively.
  */
 function scoreAttack(
   attacker: Permanent,
@@ -51,8 +120,26 @@ function scoreAttack(
   const power = attacker.currentPower ?? 0;
   const toughness = attacker.currentToughness ?? 0;
   const textLower = (attacker.oracleText || '').toLowerCase();
+  const attackerIsToken = isToken(attacker);
 
   let score = 0;
+
+  // ── Token aggression bonus ──
+  // Tokens are expendable — they should attack aggressively.
+  // Even trading a token for a real creature is great value.
+  if (attackerIsToken) {
+    score += 3; // Base bonus: tokens want to attack
+
+    // If opponent has no untapped blockers, tokens always attack
+    const untappedBlockers = opponentCreatures.filter(b => !b.tapped);
+    if (untappedBlockers.length === 0) score += 5;
+
+    // Token trading with a real creature is advantageous
+    const canTradeWithReal = opponentCreatures.some(
+      (b) => !b.tapped && (b.currentToughness ?? 0) <= power && !isToken(b)
+    );
+    if (canTradeWithReal) score += 2;
+  }
 
   // Evasion creatures should almost always attack (using hasKeyword)
   if (hasKeyword(attacker, 'flying')) score += 5;
@@ -91,16 +178,17 @@ function scoreAttack(
   // If we're ahead on board, be aggressive
   if (boardAdvantage > 5) score += 3;
 
-  // Don't attack with small creatures into bigger blockers (unless evasion)
-  if (score < 5) {
+  // Don't attack with small NON-TOKEN creatures into bigger blockers (unless evasion)
+  // Tokens are expendable, so this penalty is reduced for them
+  if (score < 5 && !attackerIsToken) {
     const canBeBlocked = opponentCreatures.some(
       (b) => (b.currentToughness ?? 0) > power && (b.currentPower ?? 0) >= toughness
     );
     if (canBeBlocked) score -= 4;
   }
 
-  // Don't attack with utility creatures we want to keep
-  if (textLower.includes('{t}:') && !textLower.includes('attacks')) {
+  // Don't attack with utility creatures we want to keep (tokens don't have useful tap abilities)
+  if (textLower.includes('{t}:') && !textLower.includes('attacks') && !attackerIsToken) {
     score -= 2; // Tap ability creatures are better untapped
   }
 
@@ -126,6 +214,7 @@ export function chooseAttackers(state: GameState, player: 0 | 1): GameAction {
     power: perm.currentPower ?? 0,
     toughness: perm.currentToughness ?? 0,
     attackScore: scoreAttack(perm, opponentCreatures, opponentLife, boardAdvantage),
+    isToken: isToken(perm),
   }));
 
   // Force-include goaded creatures (must attack if able, CR 701.38)
@@ -169,6 +258,7 @@ export function chooseAttackers(state: GameState, player: 0 | 1): GameAction {
 
 /**
  * Score how good a block assignment is.
+ * Token-aware: tokens are preferred blockers since they're expendable.
  */
 function scoreBlock(
   blocker: Permanent,
@@ -178,8 +268,22 @@ function scoreBlock(
   const bToughness = blocker.currentToughness ?? 0;
   const aPower = attacker.currentPower ?? 0;
   const aToughness = attacker.currentToughness ?? 0;
+  const blockerIsToken = isToken(blocker);
+  const attackerIsToken = isToken(attacker);
 
   let score = 0;
+
+  // ── Token blocking preference ──
+  // Tokens should be preferred as blockers over real creatures.
+  // A token blocking a real creature (even as a chump) is value.
+  if (blockerIsToken) {
+    score += 4; // Tokens are expendable blockers
+
+    // Token chump-blocking a big real creature = excellent trade
+    if (!attackerIsToken && aPower >= 3) {
+      score += 2; // Great value: absorb damage, save life
+    }
+  }
 
   // Can we kill the attacker?
   if (bPower >= aToughness) score += 5;
@@ -196,25 +300,42 @@ function scoreBlock(
   // Trample attacker — blocking is less effective (damage spills over)
   if (hasKeyword(attacker, 'trample')) score -= 2;
 
-  // Deathtouch attacker — our blocker WILL die, reduce willingness
-  if (hasKeyword(attacker, 'deathtouch')) score -= 3;
+  // Deathtouch attacker — our blocker WILL die, reduce willingness for non-tokens
+  if (hasKeyword(attacker, 'deathtouch')) {
+    if (blockerIsToken) {
+      score -= 1; // Token dying to deathtouch is fine
+    } else {
+      score -= 3; // Real creature dying is worse
+    }
+  }
 
   // First strike attacker — may kill our blocker before it deals damage
   if (hasKeyword(attacker, 'first strike') || hasKeyword(attacker, 'double strike')) {
     if (aPower >= bToughness) score -= 3; // Will die before dealing damage
   }
 
-  // Trade (we kill them, they kill us) — worth it if attacker is bigger
+  // Trade evaluation — adjust based on whether creatures are tokens
   if (bPower >= aToughness && aPower >= bToughness) {
-    score += (aPower - bPower) * 0.5;
+    if (blockerIsToken && !attackerIsToken) {
+      score += 5; // Token-for-real-creature trade is EXCELLENT
+    } else if (!blockerIsToken && attackerIsToken) {
+      score -= 2; // Real creature for token is bad
+    } else {
+      score += (aPower - bPower) * 0.5;
+    }
   }
 
   // Block lethal damage to protect life total
   score += aPower * 0.3; // Value of damage prevented
 
-  // Don't chump-block small creatures
+  // Don't chump-block small creatures with REAL creatures
+  // But tokens are fine to chump-block with (they're expendable)
   if (bPower < aToughness && aPower >= bToughness && aPower <= 2) {
-    score -= 3; // Not worth losing a creature for 2 damage
+    if (blockerIsToken) {
+      score -= 1; // Slight penalty even for tokens on tiny attackers
+    } else {
+      score -= 3; // Not worth losing a real creature for 2 damage
+    }
   }
 
   return score;
@@ -252,11 +373,16 @@ export function chooseBlockers(state: GameState, player: 0 | 1): GameAction {
     blockerId: string;
     attackerId: string;
     score: number;
+    /** Higher = blocker should be preferred (tokens get priority) */
+    blockerPriority: number;
   }
 
   const options: BlockOption[] = [];
 
-  for (const blocker of eligible) {
+  // Sort eligible blockers so tokens appear first (preferred blockers)
+  const sortedEligible = [...eligible].sort((a, b) => blockPriority(b) - blockPriority(a));
+
+  for (const blocker of sortedEligible) {
     for (const atk of state.combat.attackers) {
       const attacker = opponentField.find((p) => p.id === atk.permanentId);
       if (!attacker) continue;
@@ -266,16 +392,23 @@ export function chooseBlockers(state: GameState, player: 0 | 1): GameAction {
       // Increase block priority if damage is lethal
       if (isLethal) score += 5;
 
+      // Tiebreaker: prefer token blockers over real creature blockers
+      const bPriority = blockPriority(blocker);
+
       options.push({
         blockerId: blocker.id,
         attackerId: atk.permanentId,
         score,
+        blockerPriority: bPriority,
       });
     }
   }
 
-  // Sort by score descending
-  options.sort((a, b) => b.score - a.score);
+  // Sort by score descending, then by blocker priority (tokens first) for tiebreaking
+  options.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return b.blockerPriority - a.blockerPriority;
+  });
 
   // Greedily assign blocks (each blocker/attacker used at most once)
   for (const opt of options) {

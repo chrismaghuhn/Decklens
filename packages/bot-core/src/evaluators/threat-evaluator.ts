@@ -137,15 +137,86 @@ export function evaluateStackThreat(obj: StackObject, botPlayer: 0 | 1): Threat 
 }
 
 /**
+ * Detect if a permanent is a "lord" or "anthem" effect that buffs other creatures.
+ * Lords/anthems make wide boards (many tokens) exponentially more dangerous.
+ */
+function isAnthemOrLord(perm: Permanent): boolean {
+  const oracle = (perm.oracleText || '').toLowerCase();
+  // Common anthem patterns: "other creatures you control get +X/+X"
+  if (oracle.includes('creatures you control get +')) return true;
+  // Tribal lords: "other Goblins get +1/+1"
+  if (/other\s+\w+\s+(?:you control\s+)?get\s+\+/.test(oracle)) return true;
+  // Static pumps
+  if (oracle.includes('creatures you control have')) return true;
+  return false;
+}
+
+/**
+ * Evaluate "wide board" threat from many creatures (especially tokens).
+ * A board with 5+ creatures is dangerous; with anthems it's critical.
+ */
+function evaluateWideBoardThreat(
+  creatures: Permanent[],
+  allPermanents: Permanent[],
+): Threat | null {
+  if (creatures.length < 3) return null; // Need at least 3 creatures for "wide board"
+
+  let score = 0;
+  const totalPower = creatures.reduce((sum, c) => sum + (c.currentPower ?? 0), 0);
+
+  // Base threat: total power of all creatures
+  score += totalPower * 0.5;
+
+  // Width bonus: more creatures = exponentially more dangerous
+  // (board wipes become critical, alpha strikes become lethal)
+  if (creatures.length >= 3) score += 2;
+  if (creatures.length >= 5) score += 3;
+  if (creatures.length >= 8) score += 5;
+  if (creatures.length >= 10) score += 7;
+
+  // Anthem/lord multiplier: wide board + anthem = very dangerous
+  const anthemCount = allPermanents.filter(p => isAnthemOrLord(p)).length;
+  if (anthemCount > 0) {
+    // Each anthem makes the wide board significantly more dangerous
+    score += anthemCount * creatures.length * 0.5;
+  }
+
+  // Token swarm bonus: if most creatures are tokens, they can all attack freely
+  const tokenCount = creatures.filter(c =>
+    c.id?.startsWith('token-') || c.oracleId?.startsWith('token_')
+    || (c.typeLine ?? '').toLowerCase().startsWith('token')
+  ).length;
+  if (tokenCount >= 3) {
+    score += tokenCount * 0.3; // Token armies are expendable attackers
+  }
+
+  if (score < 3) return null;
+
+  const level: ThreatLevel = score >= 12 ? 'critical'
+    : score >= 8 ? 'high'
+    : score >= 4 ? 'medium'
+    : 'low';
+
+  return {
+    type: 'permanent',
+    sourceId: 'wide-board',
+    name: `Wide board (${creatures.length} creatures, ${totalPower} total power${anthemCount > 0 ? `, ${anthemCount} anthem(s)` : ''})`,
+    level,
+    score,
+  };
+}
+
+/**
  * Scan the entire board for threats from the opponent.
  * Returns threats sorted by severity (most dangerous first).
  */
 export function identifyThreats(state: GameState, botPlayer: 0 | 1): Threat[] {
   const opponent = (botPlayer === 0 ? 1 : 0) as 0 | 1;
   const threats: Threat[] = [];
+  const opponentField = state.players[opponent].battlefield;
 
-  // Board threats
-  for (const perm of state.players[opponent].battlefield) {
+  // Board threats (individual permanents)
+  for (const perm of opponentField) {
     const threat = evaluatePermanentThreat(perm);
     if (threat) threats.push(threat);
   }
@@ -155,6 +226,11 @@ export function identifyThreats(state: GameState, botPlayer: 0 | 1): Threat[] {
     const threat = evaluateStackThreat(obj, botPlayer);
     if (threat) threats.push(threat);
   }
+
+  // Wide board threat: many creatures (especially tokens) are collectively dangerous
+  const opponentCreatures = opponentField.filter(p => p.currentPower !== undefined);
+  const wideboardThreat = evaluateWideBoardThreat(opponentCreatures, opponentField);
+  if (wideboardThreat) threats.push(wideboardThreat);
 
   // Monarch awareness: if opponent is monarch, consider it a medium threat
   // (they draw an extra card each end step)

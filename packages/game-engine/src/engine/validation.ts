@@ -6,7 +6,7 @@ import { canPlayerAct } from '../rules/priority.ts';
 import { hasKeyword, canBlock } from '../rules/combat.ts';
 import { isEquipment, getEquipCost } from '../rules/equipment.ts';
 import { parseLoyaltyCost } from '../rules/abilities.ts';
-import { hasProtectionFrom } from '../rules/combat.ts';
+import { hasProtectionFrom, hasProtectionFromPermanent, getProtectionColors, getProtectionTypes } from '../rules/combat.ts';
 
 /**
  * Validate whether a game action is legal in the current state.
@@ -679,13 +679,17 @@ function validateCastSpell(
 
 /**
  * Validate that all permanent targets are legally targetable.
- * Checks hexproof, shroud, and protection from colors.
+ * Checks hexproof, shroud, protection from colors, protection from types,
+ * and protection from everything (full DEBT Targeting enforcement).
+ *
+ * @param sourcePerm - Optional: the source permanent (for activate-ability protection checks)
  */
 function validateTargetLegality(
   state: GameState,
   caster: 0 | 1,
   targets: import('../types/action.ts').Target[],
   sourceCard?: import('../types/card.ts').Card,
+  sourcePerm?: import('../types/permanent.ts').Permanent,
 ): string | null {
   for (const target of targets) {
     if (target.type !== 'permanent') continue;
@@ -715,40 +719,53 @@ function validateTargetLegality(
         return `${perm.name} has ward — targeting requires paying an additional cost.`;
       }
 
-      // Protection from [color]: can't be targeted by spells/abilities of that color (DEBT: Targeting)
-      const oracleText = (perm.oracleText || '').toLowerCase();
-      if (sourceCard && sourceCard.colors.length > 0) {
-        const colorMap: Record<string, string> = {
-          W: 'white', U: 'blue', B: 'black', R: 'red', G: 'green'
-        };
-        for (const color of sourceCard.colors) {
-          const colorName = colorMap[color];
-          if (colorName && oracleText.includes(`protection from ${colorName}`)) {
-            return `${perm.name} has protection from ${colorName} and cannot be targeted.`;
-          }
-        }
-        // Protection from all colors
-        if (oracleText.includes('protection from all colors')) {
-          return `${perm.name} has protection from all colors and cannot be targeted.`;
-        }
-        // Protection from multicolored
-        if (oracleText.includes('protection from multicolored') && sourceCard.colors.length > 1) {
-          return `${perm.name} has protection from multicolored and cannot be targeted.`;
-        }
+      // ─── Protection checks (DEBT: Targeting) ───
+      // Use hasProtectionFrom helper for color-based checks
+      const sourceColors = sourceCard?.colors || sourcePerm?.colors || [];
+
+      // Protection from colors: use centralized helper (CR 702.16)
+      if (hasProtectionFrom(perm, sourceColors)) {
+        const protColors = getProtectionColors(perm);
+        const colorNames: Record<string, string> = { W: 'white', U: 'blue', B: 'black', R: 'red', G: 'green' };
+        const matchedColors = sourceColors
+          .filter(c => protColors.includes(c))
+          .map(c => colorNames[c] || c);
+        return `${perm.name} has protection from ${matchedColors.join('/')} and cannot be targeted.`;
       }
+
       // Protection from everything (blocks ALL targeting regardless of source)
+      const oracleText = (perm.oracleText || '').toLowerCase();
       if (oracleText.includes('protection from everything')) {
         return `${perm.name} has protection from everything and cannot be targeted.`;
       }
-      // Protection from creature types (e.g., "protection from Goblins")
-      if (sourceCard) {
+
+      // Protection from card types (e.g., "protection from creatures", "protection from artifacts")
+      const protTypes = getProtectionTypes(perm);
+      if (protTypes.length > 0) {
+        // Check source card type line
+        const sourceTypeLine = (sourceCard?.typeLine || sourcePerm?.typeLine || '').toLowerCase();
+        if (sourceTypeLine) {
+          for (const protType of protTypes) {
+            if (protType === 'everything') {
+              return `${perm.name} has protection from everything and cannot be targeted.`;
+            }
+            if (sourceTypeLine.includes(protType)) {
+              return `${perm.name} has protection from ${protType}s and cannot be targeted.`;
+            }
+          }
+        }
+      }
+
+      // Protection from specific subtypes (e.g., "protection from Goblins", "protection from Elves")
+      if (sourceCard || sourcePerm) {
         const protMatch = oracleText.match(/protection from (\w+)s?\b/gi);
         if (protMatch) {
-          const sourceType = (sourceCard.typeLine || '').toLowerCase();
+          const sourceType = (sourceCard?.typeLine || sourcePerm?.typeLine || '').toLowerCase();
           for (const prot of protMatch) {
             const protType = prot.replace(/protection from /i, '').replace(/s$/, '').toLowerCase();
-            // Skip color-based protection (already handled above)
-            if (['white','blue','black','red','green','all','multicolored','everything','each'].includes(protType)) continue;
+            // Skip already-handled protection types
+            if (['white','blue','black','red','green','all','multicolored','everything','each',
+                 'colorless','creature','artifact','enchantment','instant','sorcery','planeswalker'].includes(protType)) continue;
             if (sourceType.includes(protType)) {
               return `${perm.name} has ${prot} and cannot be targeted.`;
             }
@@ -787,8 +804,8 @@ function validateActivateAbility(
     }
   }
 
-  // Check hexproof/shroud/protection for ability targets
-  const targetError = validateTargetLegality(state, action.player, action.targets);
+  // Check hexproof/shroud/protection for ability targets (pass source permanent for DEBT checks)
+  const targetError = validateTargetLegality(state, action.player, action.targets, undefined, source);
   if (targetError) return targetError;
 
   return null;
@@ -1126,9 +1143,9 @@ function validateEquip(
   if (!creature) return 'Target creature not on your battlefield.';
   if (creature.currentPower === undefined) return 'Target is not a creature.';
 
-  // Protection: can't equip creature that has protection from equipment's colors
-  if (hasProtectionFrom(creature, equipment.colors || [])) {
-    return `${creature.name} has protection from ${equipment.name}'s color and cannot be equipped.`;
+  // Protection: can't equip creature that has protection from equipment (color or type, DEBT: E)
+  if (hasProtectionFromPermanent(creature, equipment)) {
+    return `${creature.name} has protection from ${equipment.name} and cannot be equipped.`;
   }
 
   // Check equip cost

@@ -630,6 +630,12 @@ export function applyStepEffects(state: GameState): GameState {
 
     let cleanupState: GameState = { ...state, players, log: [...state.log, ...logEntries] };
 
+    // Remove end-of-turn damage prevention shields (CR 615.7)
+    if (cleanupState.damageShields?.length) {
+      const remainingShields = cleanupState.damageShields.filter(s => !s.untilEndOfTurn);
+      cleanupState = { ...cleanupState, damageShields: remainingShields.length > 0 ? remainingShields : undefined };
+    }
+
     // Hand size enforcement: active player must discard to 7
     const MAX_HAND_SIZE = 7;
     const activePlayer = cleanupState.players[cleanupState.activePlayer];

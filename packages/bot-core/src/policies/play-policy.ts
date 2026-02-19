@@ -1,8 +1,8 @@
-import type { GameState, GameAction, Card, ManaPayment } from '@mtg/game-engine';
+import type { GameState, GameAction, Card, ManaPayment, Permanent } from '@mtg/game-engine';
 import {
   parseManaCost, canPayCost, autoPayCost, totalMana,
   isLand, isCreature, isInstant, hasFlash,
-  parseCost, canPayAbilityCost,
+  parseCost, canPayAbilityCost, hasKeyword,
 } from '@mtg/game-engine';
 import { scoreCardInHand, getLandsInHand, getSpellsInHand } from '../evaluators/hand-evaluator.ts';
 
@@ -94,6 +94,171 @@ export function chooseLandDrop(state: GameState, player: 0 | 1): PlayCandidate |
   };
 }
 
+// ─── Removal Targeting Intelligence ───
+
+/**
+ * Rank an opponent's permanent as a removal target.
+ * Higher score = more valuable to remove.
+ *
+ * Priority order:
+ *  1. Highest threat (power + abilities)
+ *  2. Commanders (huge tempo hit)
+ *  3. Equipped/Enchanted creatures (buffed = more value)
+ *  4. Tokens last (least value, they're free)
+ */
+export function rankTarget(perm: Permanent, state: GameState): number {
+  let score = 0;
+  const typeLine = (perm.typeLine ?? '').toLowerCase();
+  const oracle = (perm.oracleText || '').toLowerCase();
+
+  // Base: power + toughness for creatures
+  score += (perm.currentPower || 0) + (perm.currentToughness || 0);
+
+  // Planeswalker bonus (high threat, generates value every turn)
+  if (typeLine.includes('planeswalker')) {
+    score += 8 + (perm.currentLoyalty || 0);
+  }
+
+  // Commander bonus (killing a commander = tempo + commander tax)
+  if (typeLine.includes('legendary') && typeLine.includes('creature')) {
+    score += 10;
+  }
+
+  // Equipment/Aura attachments (removing a buffed creature is higher value)
+  score += (perm.attachments?.length || 0) * 3;
+
+  // Keywords that make it dangerous
+  if (hasKeyword(perm, 'flying')) score += 2;
+  if (hasKeyword(perm, 'trample')) score += 2;
+  if (hasKeyword(perm, 'lifelink')) score += 2;
+  if (hasKeyword(perm, 'deathtouch')) score += 3;
+  if (hasKeyword(perm, 'double strike')) score += (perm.currentPower || 0); // Effective double power
+  if (hasKeyword(perm, 'infect')) score += 5;
+  if (hasKeyword(perm, "can't be blocked")) score += 3;
+
+  // Hexproof penalty: don't waste targeted removal (will be filtered out)
+  if (hasKeyword(perm, 'hexproof')) score -= 100;
+  // Indestructible penalty for destroy effects (not exile)
+  if (hasKeyword(perm, 'indestructible')) score -= 50;
+
+  // Engine permanents generating ongoing value
+  if (oracle.includes('whenever') && oracle.includes('draw')) score += 5;
+  if (oracle.includes('at the beginning') && oracle.includes('draw')) score += 4;
+  if (oracle.includes('whenever') && oracle.includes('create')) score += 3;
+
+  // Must-answer threats
+  if (oracle.includes('you win the game')) score += 15;
+  if (oracle.includes('extra turn')) score += 10;
+  if (oracle.includes('each opponent loses')) score += 8;
+
+  // Token penalty (less valuable to remove — they're expendable and free)
+  if (perm.id?.startsWith('token-') || perm.oracleId?.startsWith('token_')) {
+    score -= 3;
+  }
+
+  // Non-creature, non-planeswalker permanents (enchantments, artifacts) that generate value
+  if (typeLine.includes('enchantment') && !typeLine.includes('creature')) {
+    score += 4;
+  }
+  if (typeLine.includes('artifact') && !typeLine.includes('creature')) {
+    score += 3;
+  }
+
+  return score;
+}
+
+/**
+ * Choose the best targets for a removal spell by ranking opponent permanents.
+ * Returns target IDs sorted by priority (best target first).
+ *
+ * @param isDestroyEffect - true if the spell uses "destroy" (indestructible immune)
+ * @param isExileEffect - true if the spell exiles (ignores indestructible)
+ */
+export function chooseRemovalTargets(
+  state: GameState,
+  player: 0 | 1,
+  card: Card,
+  isDestroyEffect: boolean = false,
+  isExileEffect: boolean = false,
+): string[] {
+  const opponent = (player === 0 ? 1 : 0) as 0 | 1;
+  const opponentField = state.players[opponent].battlefield;
+  const oracle = (card.oracleText || '').toLowerCase();
+
+  // Determine what kind of targets the spell can hit
+  const canTargetCreatures = oracle.includes('target creature') || oracle.includes('target permanent');
+  const canTargetPlaneswalkers = oracle.includes('target planeswalker') || oracle.includes('target permanent');
+  const canTargetArtifacts = oracle.includes('target artifact') || oracle.includes('target permanent');
+  const canTargetEnchantments = oracle.includes('target enchantment') || oracle.includes('target permanent');
+  const canTargetNonland = oracle.includes('target nonland permanent');
+
+  // If the spell text doesn't specify target types, assume it targets creatures
+  const hasTargetType = canTargetCreatures || canTargetPlaneswalkers || canTargetArtifacts || canTargetEnchantments || canTargetNonland;
+
+  const scored: { id: string; score: number }[] = [];
+
+  for (const perm of opponentField) {
+    const typeLine = (perm.typeLine ?? '').toLowerCase();
+
+    // Filter by valid target types
+    if (hasTargetType) {
+      const isCreaturePerm = typeLine.includes('creature');
+      const isPwPerm = typeLine.includes('planeswalker');
+      const isArtifactPerm = typeLine.includes('artifact');
+      const isEnchantmentPerm = typeLine.includes('enchantment');
+      const isLandPerm = typeLine.includes('land') && !typeLine.includes('creature');
+
+      const valid = (canTargetCreatures && isCreaturePerm)
+        || (canTargetPlaneswalkers && isPwPerm)
+        || (canTargetArtifacts && isArtifactPerm)
+        || (canTargetEnchantments && isEnchantmentPerm)
+        || (canTargetNonland && !isLandPerm);
+
+      if (!valid) continue;
+    }
+
+    let score = rankTarget(perm, state);
+
+    // Filter out hexproof targets (can't be targeted by opponent spells)
+    if (hasKeyword(perm, 'hexproof')) continue;
+
+    // If destroy effect, penalize indestructible (won't work)
+    if (isDestroyEffect && !isExileEffect && hasKeyword(perm, 'indestructible')) {
+      continue; // Skip entirely — destroy won't work on indestructible
+    }
+
+    scored.push({ id: perm.id, score });
+  }
+
+  // Sort by score descending, return IDs
+  scored.sort((a, b) => b.score - a.score);
+  return scored.map(s => s.id);
+}
+
+/**
+ * Detect whether a card is a removal spell and auto-select the best targets.
+ */
+function autoSelectTargets(state: GameState, player: 0 | 1, card: Card): string[] {
+  const oracle = (card.oracleText || '').toLowerCase();
+  const tags = card.tags;
+
+  // Check if this is a targeted removal spell
+  const isRemoval = tags.includes('removal')
+    || oracle.includes('destroy target')
+    || oracle.includes('exile target')
+    || oracle.includes('return target')
+    || oracle.includes('deals damage to target');
+
+  if (!isRemoval) return [];
+
+  const isDestroyEffect = oracle.includes('destroy');
+  const isExileEffect = oracle.includes('exile');
+
+  const targets = chooseRemovalTargets(state, player, card, isDestroyEffect, isExileEffect);
+  // Return only the top target (most removal spells target one thing)
+  return targets.length > 0 ? [targets[0]] : [];
+}
+
 /**
  * Get all castable spell candidates with priorities.
  */
@@ -154,18 +319,21 @@ export function getCastCandidates(state: GameState, player: 0 | 1): PlayCandidat
     // Creature bonus (develops board)
     if (isCreature(card)) priority += 1;
 
+    // Smart targeting: auto-select best targets for removal spells
+    const targets = autoSelectTargets(state, player, card);
+
     candidates.push({
       card,
       action: {
         type: 'cast-spell',
         player,
         cardId: card.id,
-        targets: [], // Simplified — no targeting AI yet
+        targets,
         manaPayment: payment,
         ...(xValue > 0 ? { xValue } : {}),
       } as any,
       priority,
-      reason: `Cast ${card.name}${xValue > 0 ? ` (X=${xValue})` : ''} (tags: ${card.tags.join(', ')})`,
+      reason: `Cast ${card.name}${xValue > 0 ? ` (X=${xValue})` : ''}${targets.length > 0 ? ` (targeting)` : ''} (tags: ${card.tags.join(', ')})`,
     });
   }
 

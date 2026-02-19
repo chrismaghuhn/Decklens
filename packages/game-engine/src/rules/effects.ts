@@ -17,7 +17,7 @@ import type { Card } from '../types/card.ts';
 import { drawCards, shuffleLibrary, millCards } from '../engine/zone-manager.ts';
 import { cardToPermanent, transformPermanent } from '../types/permanent.ts';
 import { generateCardId } from '../engine/factory.ts';
-import { hasProtectionFrom } from './combat.ts';
+import { hasProtectionFrom, applyDamageWithShields } from './combat.ts';
 import { copyStackObject } from './stack.ts';
 import { checkLeavesBattlefieldTriggers, checkSacrificeTriggers, checkLifegainTriggers, checkETBTriggers } from './triggers.ts';
 import { smartParserResolve } from './smart-parser.ts';
@@ -45,6 +45,20 @@ interface EffectPattern {
     match: RegExpMatchArray,
     source?: Card,
   ) => EffectResult;
+}
+
+// ─── Timestamp Counter (CR 613.7) ───
+
+/** Global monotonic counter for effect ordering — higher = more recent */
+let _effectTimestamp = 0;
+
+/**
+ * Get the next effect timestamp for ordering. Each call returns a strictly
+ * increasing value, ensuring that later-applied effects always have a
+ * higher timestamp than earlier ones (CR 613.7: timestamp ordering).
+ */
+export function nextEffectTimestamp(): number {
+  return ++_effectTimestamp;
 }
 
 // ─── Helper Functions ───
@@ -102,8 +116,14 @@ function sacrificePermanent(state: GameState, permanentId: string): GameState {
 }
 
 function damagePlayer(state: GameState, playerIdx: 0 | 1, amount: number): GameState {
+  // Apply damage prevention shields (CR 615.7)
+  const shieldResult = applyDamageWithShields(state, `player-${playerIdx}`, amount);
+  state = shieldResult.state;
+  const actualDamage = shieldResult.actualDamage;
+  if (actualDamage <= 0) return state;
+
   const player = state.players[playerIdx];
-  const updatedPlayer = { ...player, life: player.life - amount };
+  const updatedPlayer = { ...player, life: player.life - actualDamage };
   const players = [...state.players] as [PlayerState, PlayerState];
   players[playerIdx] = updatedPlayer;
   return { ...state, players };
@@ -120,14 +140,24 @@ function damagePermanent(state: GameState, permanentId: string, amount: number, 
     return state; // Damage prevented
   }
 
-  const player = state.players[playerIdx];
-  const updatedPerm = { ...perm, damage: perm.damage + amount };
+  // Apply damage prevention shields (CR 615.7)
+  const shieldResult = applyDamageWithShields(state, permanentId, amount);
+  state = shieldResult.state;
+  const actualDamage = shieldResult.actualDamage;
+  if (actualDamage <= 0) return state;
+
+  // Re-find after shield state update (state is immutable, references may change)
+  const refound = findPermanentById(state, permanentId);
+  if (!refound) return state;
+
+  const player = state.players[refound.playerIdx];
+  const updatedPerm = { ...refound.perm, damage: refound.perm.damage + actualDamage };
   const updatedBf = [...player.battlefield];
-  updatedBf[permIdx] = updatedPerm;
+  updatedBf[refound.permIdx] = updatedPerm;
 
   const updatedPlayer = { ...player, battlefield: updatedBf };
   const players = [...state.players] as [PlayerState, PlayerState];
-  players[playerIdx] = updatedPlayer;
+  players[refound.playerIdx] = updatedPlayer;
 
   return { ...state, players };
 }
@@ -1055,14 +1085,211 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     },
   },
 
-  // ── Prevent Damage ──
+  // ── Prevent Damage (Shield-based, CR 615.7) ──
+
+  // "prevent the next N damage that would be dealt to target creature/player"
   {
-    name: 'prevent-damage',
+    name: 'prevent-next-n-damage-target',
+    match: /prevent\s+the\s+next\s+(\d+)\s+damage\s+(?:that\s+would\s+be\s+dealt\s+to\s+)?(target\s+(?:creature|player|permanent)|you|any\s+target)/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m, source) => {
+      const amount = parseInt(m[1], 10);
+      const targetText = (m[2] || '').toLowerCase();
+      let targetId: string;
+      let targetName: string;
+      const cardName = source?.name || 'spell';
+
+      if (targetText === 'you') {
+        targetId = `player-${controller}`;
+        targetName = state.players[controller].name;
+      } else {
+        const permTarget = getTargetPermanent(state, targets);
+        const playerTarget = getTargetPlayer(targets);
+        if (permTarget) {
+          targetId = permTarget.perm.id;
+          targetName = permTarget.perm.name;
+        } else if (playerTarget !== null) {
+          targetId = `player-${playerTarget}`;
+          targetName = state.players[playerTarget].name;
+        } else {
+          // Default to controller if no target found
+          targetId = `player-${controller}`;
+          targetName = state.players[controller].name;
+        }
+      }
+
+      const shield = {
+        targetId,
+        amount,
+        source: cardName,
+        turn: state.turn,
+        untilEndOfTurn: true,
+      };
+      const newState = {
+        ...state,
+        damageShields: [...(state.damageShields || []), shield],
+      };
+      return {
+        state: addLog(newState, controller, `${cardName} creates a shield preventing the next ${amount} damage to ${targetName}.`),
+        resolved: true,
+        description: `prevent next ${amount} damage to ${targetName}`,
+      };
+    },
+  },
+
+  // "prevent the next N damage" (no target specified — applies to controller)
+  {
+    name: 'prevent-next-n-damage-self',
     match: /prevent\s+the\s+next\s+(\d+)\s+damage/i,
     requiresTarget: false,
-    apply: (state, controller, _targets, m) => {
-      // Damage prevention shields require a continuous effect tracker — mark unresolved
-      return { state, resolved: false, description: 'prevent damage requires shield tracking' };
+    apply: (state, controller, _targets, m, source) => {
+      const amount = parseInt(m[1], 10);
+      const cardName = source?.name || 'spell';
+      const targetId = `player-${controller}`;
+
+      const shield = {
+        targetId,
+        amount,
+        source: cardName,
+        turn: state.turn,
+        untilEndOfTurn: true,
+      };
+      const newState = {
+        ...state,
+        damageShields: [...(state.damageShields || []), shield],
+      };
+      return {
+        state: addLog(newState, controller, `${cardName} creates a shield preventing the next ${amount} damage to ${state.players[controller].name}.`),
+        resolved: true,
+        description: `prevent next ${amount} damage`,
+      };
+    },
+  },
+
+  // "prevent all damage that would be dealt to target creature this turn"
+  {
+    name: 'prevent-all-damage-target-creature',
+    match: /prevent\s+all\s+damage\s+(?:that\s+would\s+be\s+dealt\s+to\s+)?target\s+creature\s*(?:this\s+turn)?/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, _m, source) => {
+      const cardName = source?.name || 'spell';
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+
+      const shield = {
+        targetId: target.perm.id,
+        amount: 999999, // "all damage" = effectively infinite
+        source: cardName,
+        turn: state.turn,
+        untilEndOfTurn: true,
+      };
+      const newState = {
+        ...state,
+        damageShields: [...(state.damageShields || []), shield],
+      };
+      return {
+        state: addLog(newState, controller, `${cardName} prevents all damage to ${target.perm.name} this turn.`),
+        resolved: true,
+        description: `prevent all damage to ${target.perm.name}`,
+      };
+    },
+  },
+
+  // "prevent all damage that would be dealt to you this turn"
+  {
+    name: 'prevent-all-damage-to-you',
+    match: /prevent\s+all\s+damage\s+(?:that\s+would\s+be\s+dealt\s+to\s+)?you\s*(?:this\s+turn)?/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      const cardName = source?.name || 'spell';
+      const shield = {
+        targetId: `player-${controller}`,
+        amount: 999999,
+        source: cardName,
+        turn: state.turn,
+        untilEndOfTurn: true,
+      };
+      const newState = {
+        ...state,
+        damageShields: [...(state.damageShields || []), shield],
+      };
+      return {
+        state: addLog(newState, controller, `${cardName} prevents all damage to ${state.players[controller].name} this turn.`),
+        resolved: true,
+        description: `prevent all damage to you`,
+      };
+    },
+  },
+
+  // "prevent the next N damage that would be dealt to any target"
+  {
+    name: 'prevent-next-n-damage-any',
+    match: /prevent\s+the\s+next\s+(\d+)\s+damage\s+(?:that\s+would\s+be\s+dealt\s+to\s+)?any\s+target/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m, source) => {
+      const amount = parseInt(m[1], 10);
+      const cardName = source?.name || 'spell';
+
+      const permTarget = getTargetPermanent(state, targets);
+      const playerTarget = getTargetPlayer(targets);
+      let targetId: string;
+      let targetName: string;
+
+      if (permTarget) {
+        targetId = permTarget.perm.id;
+        targetName = permTarget.perm.name;
+      } else if (playerTarget !== null) {
+        targetId = `player-${playerTarget}`;
+        targetName = state.players[playerTarget].name;
+      } else {
+        targetId = `player-${controller}`;
+        targetName = state.players[controller].name;
+      }
+
+      const shield = {
+        targetId,
+        amount,
+        source: cardName,
+        turn: state.turn,
+        untilEndOfTurn: true,
+      };
+      const newState = {
+        ...state,
+        damageShields: [...(state.damageShields || []), shield],
+      };
+      return {
+        state: addLog(newState, controller, `${cardName} creates a shield preventing the next ${amount} damage to ${targetName}.`),
+        resolved: true,
+        description: `prevent next ${amount} damage to ${targetName}`,
+      };
+    },
+  },
+
+  // "prevent all damage a source of your choice would deal this turn"
+  {
+    name: 'prevent-all-damage-source',
+    match: /prevent\s+all\s+damage\s+(?:a\s+)?(?:source|target\s+source)\s+(?:of\s+your\s+choice\s+)?would\s+deal\s*(?:this\s+turn)?/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      const cardName = source?.name || 'spell';
+      // Apply shield to both players and all their creatures (blanket prevention)
+      let newState = state;
+      const shield0 = {
+        targetId: `player-${controller}`,
+        amount: 999999,
+        source: `${cardName} (source prevention)`,
+        turn: state.turn,
+        untilEndOfTurn: true,
+      };
+      newState = {
+        ...newState,
+        damageShields: [...(newState.damageShields || []), shield0],
+      };
+      return {
+        state: addLog(newState, controller, `${cardName} prevents all damage from a chosen source this turn.`),
+        resolved: true,
+        description: `prevent all damage from a source`,
+      };
     },
   },
 
@@ -4946,8 +5173,10 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
         ...perm,
         currentPower: power,
         currentToughness: toughness,
+        basePower: perm.basePower ?? power,
+        baseToughness: perm.baseToughness ?? toughness,
         typeLine: perm.typeLine.includes('Creature') ? perm.typeLine : `${perm.typeLine} Creature`,
-        temporaryPtMods: [...(perm.temporaryPtMods || []), { power, toughness, source: 'animate', turn: state.turn }],
+        temporaryPtMods: [...(perm.temporaryPtMods || []), { power, toughness, source: 'animate', turn: state.turn, isSetEffect: true, timestamp: nextEffectTimestamp() }],
       };
       const updatedBf = [...player.battlefield];
       updatedBf[permIdx] = updatedPerm;
@@ -5248,7 +5477,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
   // ── C. Creature Modification ──
   // ══════════════════════════════════════════════════════════════
 
-  // 54. target-creature-base-pt — target creature becomes N/N
+  // 54. target-creature-base-pt — target creature becomes N/N (Layer 7b set effect)
   {
     name: 'target-creature-base-pt',
     match: /target creature.*becomes?\s+(\d+)\/(\d+)/i,
@@ -5261,7 +5490,19 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const { playerIdx, permIdx, perm } = found;
       const player = state.players[playerIdx];
       const updatedBf = [...player.battlefield];
-      updatedBf[permIdx] = { ...perm, basePower: newPower, baseToughness: newToughness, currentPower: newPower, currentToughness: newToughness };
+      updatedBf[permIdx] = {
+        ...perm,
+        currentPower: newPower,
+        currentToughness: newToughness,
+        temporaryPtMods: [...(perm.temporaryPtMods || []), {
+          power: newPower,
+          toughness: newToughness,
+          source: 'set-base-pt',
+          turn: state.turn,
+          isSetEffect: true,
+          timestamp: nextEffectTimestamp(),
+        }],
+      };
       const players = [...state.players] as [PlayerState, PlayerState];
       players[playerIdx] = { ...player, battlefield: updatedBf };
       state = { ...state, players };
@@ -5270,7 +5511,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     },
   },
 
-  // 55. all-creatures-base-pt — all creatures become N/N
+  // 55. all-creatures-base-pt — all creatures become N/N (Layer 7b set effect)
   {
     name: 'all-creatures-base-pt',
     match: /all creatures become (\d+)\/(\d+)/i,
@@ -5278,12 +5519,25 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, _targets, m) => {
       const newPower = parseInt(m[1]);
       const newToughness = parseInt(m[2]);
+      const ts = nextEffectTimestamp();
       const players = [...state.players] as [PlayerState, PlayerState];
       for (let pi = 0; pi < 2; pi++) {
         const player = state.players[pi as 0 | 1];
         const updatedBf = player.battlefield.map(p => {
           if (p.currentPower !== undefined) {
-            return { ...p, basePower: newPower, baseToughness: newToughness, currentPower: newPower, currentToughness: newToughness };
+            return {
+              ...p,
+              currentPower: newPower,
+              currentToughness: newToughness,
+              temporaryPtMods: [...(p.temporaryPtMods || []), {
+                power: newPower,
+                toughness: newToughness,
+                source: 'set-base-pt',
+                turn: state.turn,
+                isSetEffect: true,
+                timestamp: ts,
+              }],
+            };
           }
           return p;
         });
@@ -10440,6 +10694,578 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       return { state, resolved: true, description: `companion: ${restriction}` };
     },
   },
+
+  // ━━━ Smart Parser V2: New Effect Patterns ━━━
+
+  // ── V2-1. each-player-loses-life — "each player loses N life" ──
+  {
+    name: 'each-player-loses-life',
+    match: /each\s+player\s+loses?\s+(\d+)\s+life/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const amount = parseInt(m[1]);
+      state = damagePlayer(state, 0, amount);
+      state = damagePlayer(state, 1, amount);
+      state = addLog(state, controller, `Each player loses ${amount} life.`);
+      return { state, resolved: true, description: `each player loses ${amount} life` };
+    },
+  },
+
+  // ── V2-2. untap-gains-haste — "Untap (target creature|it). It gains haste until end of turn" ──
+  // Part of Threaten-style effects: the "untap + haste" portion after gaining control
+  {
+    name: 'untap-gains-haste',
+    match: /untap\s+(?:target\s+creature|it|that\s+creature)\s*[.,]?\s*(?:It|That creature)\s+gains?\s+haste\s+until\s+end\s+of\s+turn/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { playerIdx, permIdx, perm } = target;
+      const updatedPerm = {
+        ...perm,
+        tapped: false,
+        summoningSick: false,
+        temporaryKeywords: [...(perm.temporaryKeywords || []), {
+          keyword: 'haste',
+          source: 'untap-gains-haste',
+          turn: state.turn,
+        }],
+      };
+      const player = state.players[playerIdx];
+      const updatedBf = [...player.battlefield];
+      updatedBf[permIdx] = updatedPerm;
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[playerIdx] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `${perm.name} untapped and gains haste until end of turn.`);
+      return { state, resolved: true, description: `untap ${perm.name} + haste` };
+    },
+  },
+
+  // ── V2-3. its-controller-loses-life — "Its controller loses N life" ──
+  // For compound effects like "Destroy target creature. Its controller loses 2 life."
+  {
+    name: 'its-controller-loses-life',
+    match: /its\s+controller\s+loses?\s+(\d+)\s+life/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m) => {
+      const amount = parseInt(m[1]);
+      const permTarget = getTargetPermanent(state, targets);
+      if (permTarget) {
+        state = damagePlayer(state, permTarget.playerIdx, amount);
+        state = addLog(state, controller, `${state.players[permTarget.playerIdx].name} loses ${amount} life.`);
+        return { state, resolved: true, description: `controller loses ${amount} life` };
+      }
+      // Fallback: damage opponent (most common case)
+      const opp: 0 | 1 = controller === 0 ? 1 : 0;
+      state = damagePlayer(state, opp, amount);
+      state = addLog(state, controller, `Opponent loses ${amount} life.`);
+      return { state, resolved: true, description: `opponent loses ${amount} life` };
+    },
+  },
+
+  // ── V2-4. its-controller-draws — "Its controller draws a card" ──
+  {
+    name: 'its-controller-draws',
+    match: /its\s+controller\s+draws?\s+(a|an|one|two|three|\d+)\s+cards?/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m) => {
+      const count = parseNumber(m[1]);
+      const permTarget = getTargetPermanent(state, targets);
+      const targetPlayer = permTarget ? permTarget.playerIdx : (controller === 0 ? 1 : 0) as 0 | 1;
+      state = drawCards(state, targetPlayer, count);
+      state = addLog(state, controller, `${state.players[targetPlayer].name} draws ${count} card(s).`);
+      return { state, resolved: true, description: `controller draws ${count}` };
+    },
+  },
+
+  // ── V2-5. its-controller-gains-life — "Its controller gains N life" ──
+  {
+    name: 'its-controller-gains-life',
+    match: /its\s+controller\s+gains?\s+(\d+)\s+life/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m) => {
+      const amount = parseInt(m[1]);
+      const permTarget = getTargetPermanent(state, targets);
+      const targetPlayer = permTarget ? permTarget.playerIdx : controller;
+      state = gainLife(state, targetPlayer, amount);
+      state = addLog(state, controller, `${state.players[targetPlayer].name} gains ${amount} life.`);
+      return { state, resolved: true, description: `controller gains ${amount} life` };
+    },
+  },
+
+  // ── V2-6. its-controller-sacrifices — "Its controller sacrifices a [type]" ──
+  {
+    name: 'its-controller-sacrifices',
+    match: /its\s+controller\s+sacrifices?\s+(?:a|an)\s+(\w+)/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m) => {
+      const filter = m[1].toLowerCase();
+      const permTarget = getTargetPermanent(state, targets);
+      const targetPlayer = permTarget ? permTarget.playerIdx : (controller === 0 ? 1 : 0) as 0 | 1;
+      return {
+        state: {
+          ...state,
+          pendingSacrifice: {
+            player: targetPlayer,
+            filter,
+            count: 1,
+            sourceName: 'effect',
+          },
+        },
+        resolved: true,
+        description: `controller must sacrifice a ${filter}`,
+      };
+    },
+  },
+
+  // ── V2-7. destroy-all-type — "destroy all [type]" (generic board wipe for any type) ──
+  {
+    name: 'destroy-all-type',
+    match: /destroy\s+all\s+(creatures?\s+and\s+planeswalkers?|nonland\s+permanents?|permanents?|nonartifact\s+creatures?|nonblack\s+creatures?|nonwhite\s+creatures?|non-?\w+\s+creatures?)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const typeDesc = m[1].toLowerCase();
+      let count = 0;
+      for (let pi = 0; pi < 2; pi++) {
+        const player = state.players[pi as 0 | 1];
+        for (const perm of player.battlefield) {
+          const tl = perm.typeLine.toLowerCase();
+          let matches = false;
+          if (typeDesc.includes('nonland permanent')) matches = !tl.includes('land');
+          else if (typeDesc.includes('permanent')) matches = true;
+          else if (typeDesc.includes('creatures') && typeDesc.includes('planeswalker')) {
+            matches = tl.includes('creature') || tl.includes('planeswalker');
+          } else if (typeDesc.includes('nonartifact creature')) {
+            matches = tl.includes('creature') && !tl.includes('artifact');
+          } else if (typeDesc.includes('nonblack creature')) {
+            matches = tl.includes('creature') && !(perm.colors || []).includes('B');
+          } else if (typeDesc.includes('nonwhite creature')) {
+            matches = tl.includes('creature') && !(perm.colors || []).includes('W');
+          } else if (typeDesc.includes('creature')) matches = tl.includes('creature');
+          if (matches) {
+            state = removePermanentFromBattlefield(state, perm.id, 'graveyard');
+            count++;
+          }
+        }
+      }
+      state = addLog(state, controller, `Destroys all ${typeDesc} (${count}).`);
+      return { state, resolved: true, description: `destroy all ${typeDesc} (${count})` };
+    },
+  },
+
+  // ── V2-8. exile-all-type — "exile all [type]" (generic exile board wipe) ──
+  {
+    name: 'exile-all-type',
+    match: /exile\s+all\s+(nonland\s+permanents?|permanents?|artifacts?\s+and\s+enchantments?|creatures?|artifacts?|enchantments?|lands?|planeswalkers?)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const typeDesc = m[1].toLowerCase();
+      let count = 0;
+      for (let pi = 0; pi < 2; pi++) {
+        const player = state.players[pi as 0 | 1];
+        for (const perm of player.battlefield) {
+          const tl = perm.typeLine.toLowerCase();
+          let matches = false;
+          if (typeDesc.includes('nonland permanent')) matches = !tl.includes('land');
+          else if (typeDesc.includes('permanent')) matches = true;
+          else if (typeDesc.includes('artifact') && typeDesc.includes('enchantment')) {
+            matches = tl.includes('artifact') || tl.includes('enchantment');
+          }
+          else if (typeDesc.includes('creature')) matches = tl.includes('creature');
+          else if (typeDesc.includes('artifact')) matches = tl.includes('artifact');
+          else if (typeDesc.includes('enchantment')) matches = tl.includes('enchantment');
+          else if (typeDesc.includes('land')) matches = tl.includes('land');
+          else if (typeDesc.includes('planeswalker')) matches = tl.includes('planeswalker');
+          if (matches) {
+            state = removePermanentFromBattlefield(state, perm.id, 'exile');
+            count++;
+          }
+        }
+      }
+      state = addLog(state, controller, `Exiles all ${typeDesc} (${count}).`);
+      return { state, resolved: true, description: `exile all ${typeDesc} (${count})` };
+    },
+  },
+
+  // ── V2-9. target-creature-gets-multi-keyword — "target creature gets +X/+Y and gains KEYWORD1 and KEYWORD2 until end of turn" ──
+  {
+    name: 'target-creature-gets-multi-keyword',
+    match: /target\s+creature\s+gets\s+([+-]\d+)\/([+-]\d+)\s+and\s+gains?\s+(.+?)\s+until\s+end\s+of\s+turn/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m) => {
+      const target = targets.find(t => t.type === 'permanent');
+      if (!target) return { state, resolved: false };
+      const found = findPermanentById(state, target.id);
+      if (!found) return { state, resolved: false };
+      const { playerIdx, permIdx, perm } = found;
+      const powerDelta = parseInt(m[1]);
+      const toughnessDelta = parseInt(m[2]);
+      const keywordStr = m[3].toLowerCase();
+      const keywordList = keywordStr.split(/,\s*|\s+and\s+/).map(k => k.trim()).filter(k => k.length > 0);
+      const updatedPerm = {
+        ...perm,
+        currentPower: (perm.currentPower ?? parseInt(perm.power || '0')) + powerDelta,
+        currentToughness: (perm.currentToughness ?? parseInt(perm.toughness || '0')) + toughnessDelta,
+        temporaryPtMods: [
+          ...(perm.temporaryPtMods || []),
+          { power: powerDelta, toughness: toughnessDelta, source: 'multi-keyword', turn: state.turn },
+        ],
+        temporaryKeywords: [
+          ...(perm.temporaryKeywords || []),
+          ...keywordList.map(kw => ({ keyword: kw, source: 'multi-keyword', turn: state.turn })),
+        ],
+      };
+      const player = state.players[playerIdx];
+      const updatedBf = [...player.battlefield];
+      updatedBf[permIdx] = updatedPerm;
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[playerIdx] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `${perm.name} gets ${m[1]}/${m[2]} and gains ${keywordList.join(', ')} until end of turn.`);
+      return { state, resolved: true, description: `${perm.name} ${m[1]}/${m[2]} + ${keywordList.join(', ')}` };
+    },
+  },
+
+  // ── V2-10. creatures-you-control-get-and-gain — "Creatures you control get +N/+M and gain KEYWORD until end of turn" (Overrun) ──
+  {
+    name: 'creatures-you-control-get-and-gain',
+    match: /creatures?\s+you\s+control\s+get\s+([+-]\d+)\/([+-]\d+)\s+and\s+gain\s+(.+?)\s+until\s+end\s+of\s+turn/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const powerMod = parseInt(m[1]);
+      const toughMod = parseInt(m[2]);
+      const keywordStr = m[3].toLowerCase();
+      const keywordList = keywordStr.split(/,\s*|\s+and\s+/).map(k => k.trim()).filter(k => k.length > 0);
+      const player = state.players[controller];
+      let count = 0;
+      const updatedBf = player.battlefield.map(perm => {
+        if (!perm.typeLine?.toLowerCase().includes('creature')) return perm;
+        count++;
+        return {
+          ...perm,
+          currentPower: (perm.currentPower ?? 0) + powerMod,
+          currentToughness: (perm.currentToughness ?? 0) + toughMod,
+          temporaryPtMods: [...(perm.temporaryPtMods || []), { power: powerMod, toughness: toughMod, source: 'overrun', turn: state.turn }],
+          temporaryKeywords: [
+            ...(perm.temporaryKeywords || []),
+            ...keywordList.map(kw => ({ keyword: kw, source: 'overrun', turn: state.turn })),
+          ],
+        };
+      });
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `Creatures you control get ${m[1]}/${m[2]} and gain ${keywordList.join(', ')} until end of turn (${count}).`);
+      return { state, resolved: true, description: `${count} creatures ${m[1]}/${m[2]} + ${keywordList.join(', ')}` };
+    },
+  },
+
+  // ── V2-11. opponents-creatures-get-v2 — "Creatures your opponents control get -N/-M until end of turn" (broader) ──
+  {
+    name: 'opponents-creatures-get-v2',
+    match: /creatures?\s+(?:your\s+opponents?\s+controls?|(?:an\s+)?opponents?\s+controls?)\s+get\s+([+-]\d+)\/([+-]\d+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const powerMod = parseInt(m[1]);
+      const toughMod = parseInt(m[2]);
+      const opp: 0 | 1 = controller === 0 ? 1 : 0;
+      const player = state.players[opp];
+      let count = 0;
+      const updatedBf = player.battlefield.map(perm => {
+        if (perm.currentPower !== undefined && perm.typeLine?.toLowerCase().includes('creature')) {
+          count++;
+          return {
+            ...perm,
+            currentPower: (perm.currentPower ?? 0) + powerMod,
+            currentToughness: (perm.currentToughness ?? 0) + toughMod,
+            temporaryPtMods: [...(perm.temporaryPtMods || []), { power: powerMod, toughness: toughMod, source: 'opp-creatures-pump', turn: state.turn }],
+          };
+        }
+        return perm;
+      });
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[opp] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `Opponent's creatures get ${m[1]}/${m[2]} until end of turn (${count}).`);
+      return { state, resolved: true, description: `${count} opp creatures ${m[1]}/${m[2]}` };
+    },
+  },
+
+  // ── V2-12. gain-control-untap-haste — Full Threaten: "Gain control + Untap + Haste" ──
+  {
+    name: 'gain-control-untap-haste',
+    match: /gain\s+control\s+of\s+target\s+creature\s+until\s+end\s+of\s+turn\s*[.,]?\s*(?:Untap\s+(?:it|that\s+creature)\s*[.,]?\s*)?(?:It|That\s+creature)\s+gains?\s+haste/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      const target = targets.find(t => t.type === 'permanent');
+      if (!target) return { state, resolved: false };
+      const found = findPermanentById(state, target.id);
+      if (!found) return { state, resolved: false };
+      const { playerIdx, permIdx, perm } = found;
+      if (playerIdx === controller) {
+        state = addLog(state, controller, `Already controls ${perm.name}.`);
+        return { state, resolved: true, description: 'already controlled' };
+      }
+      const oppPlayer = state.players[playerIdx];
+      const updatedOppBf = [...oppPlayer.battlefield];
+      updatedOppBf.splice(permIdx, 1);
+      const stolenPerm = {
+        ...perm,
+        controller,
+        tapped: false,
+        summoningSick: false,
+        temporaryControlChange: {
+          originalController: playerIdx,
+          source: 'threaten',
+          turn: state.turn,
+        },
+        temporaryKeywords: [...(perm.temporaryKeywords || []), { keyword: 'haste', source: 'threaten', turn: state.turn }],
+      };
+      const ctrlPlayer = state.players[controller];
+      const updatedCtrlBf = [...ctrlPlayer.battlefield, stolenPerm];
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[playerIdx] = { ...oppPlayer, battlefield: updatedOppBf };
+      players[controller] = { ...ctrlPlayer, battlefield: updatedCtrlBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `Gains control of ${perm.name} until end of turn (untapped, haste).`);
+      return { state, resolved: true, description: `threaten ${perm.name}` };
+    },
+  },
+
+  // ── V2-13. target-cant-attack-or-block — "target creature can't attack or block this turn" ──
+  {
+    name: 'target-cant-attack-or-block',
+    match: /target\s+creature\s+can'?t\s+attack\s+or\s+block\s+(?:this\s+turn|until)/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { playerIdx, permIdx, perm } = target;
+      const updatedPerm = {
+        ...perm,
+        temporaryKeywords: [
+          ...(perm.temporaryKeywords || []),
+          { keyword: "can't attack", source: 'effect', turn: state.turn },
+          { keyword: "can't block", source: 'effect', turn: state.turn },
+        ],
+      };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const bf = [...players[playerIdx].battlefield];
+      bf[permIdx] = updatedPerm;
+      players[playerIdx] = { ...players[playerIdx], battlefield: bf };
+      state = { ...state, players };
+      state = addLog(state, controller, `${perm.name} can't attack or block this turn.`);
+      return { state, resolved: true, description: `${perm.name} can't attack/block` };
+    },
+  },
+
+  // ── V2-14. target-player-puts-top-into-gy — older mill phrasing ──
+  {
+    name: 'target-player-puts-top-into-gy',
+    match: /target\s+player\s+puts?\s+the\s+top\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+cards?\s+of\s+(?:their|his\s+or\s+her)\s+library\s+into\s+(?:their|his\s+or\s+her)\s+graveyard/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m) => {
+      const count = parseNumber(m[1]);
+      const targetIdx = getTargetPlayer(targets) ?? (controller === 0 ? 1 : 0) as 0 | 1;
+      state = millCards(state, targetIdx, count);
+      state = addLog(state, controller, `${state.players[targetIdx].name} mills ${count} card(s).`);
+      return { state, resolved: true, description: `${state.players[targetIdx].name} mills ${count}` };
+    },
+  },
+
+  // ── V2-15. flicker-permanent — "Exile target permanent, then return it" (broader than creature-only) ──
+  {
+    name: 'flicker-permanent',
+    match: /exile\s+target\s+(?:permanent|nonland\s+permanent)\s*(?:,|\.)?\s*(?:then\s+)?return\s+(?:it|that\s+card)\s+to\s+the\s+battlefield/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      state = removePermanentFromBattlefield(state, target.perm.id, 'exile');
+      const player = state.players[target.playerIdx];
+      const exiledCard = player.exile[player.exile.length - 1];
+      if (exiledCard) {
+        const newPerm = cardToPermanent(exiledCard, target.playerIdx, state.turn);
+        const updatedExile = player.exile.slice(0, -1);
+        const players = [...state.players] as [PlayerState, PlayerState];
+        players[target.playerIdx] = {
+          ...player,
+          exile: updatedExile,
+          battlefield: [...player.battlefield, newPerm],
+        };
+        state = { ...state, players };
+        state = checkETBTriggers(state, newPerm);
+      }
+      state = addLog(state, controller, `Flickered ${target.perm.name} (exile + return).`);
+      return { state, resolved: true, description: `flicker ${target.perm.name}` };
+    },
+  },
+
+  // ── V2-16. each-opponent-mills — "each opponent mills N cards" ──
+  {
+    name: 'each-opponent-mills',
+    match: /each\s+opponent\s+mills?\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+cards?/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const count = parseNumber(m[1]);
+      const opp: 0 | 1 = controller === 0 ? 1 : 0;
+      state = millCards(state, opp, count);
+      state = addLog(state, controller, `Each opponent mills ${count} card(s).`);
+      return { state, resolved: true, description: `opponent mills ${count}` };
+    },
+  },
+
+  // ── V2-17. draw-then-discard-compound — "Draw N cards, then discard M cards" (compound) ──
+  {
+    name: 'draw-then-discard-compound',
+    match: /draw\s+(a|an|one|two|three|four|five|\d+)\s+cards?\s*[.,]?\s*(?:then\s+)?discard\s+(a|an|one|two|three|four|five|\d+)\s+cards?/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const drawCount = parseNumber(m[1]);
+      const discardCount = parseNumber(m[2]);
+      state = drawCards(state, controller, drawCount);
+      state = addLog(state, controller, `Draws ${drawCount} card(s), must discard ${discardCount}.`);
+      return {
+        state: {
+          ...state,
+          pendingDiscard: controller,
+          pendingDiscardCount: discardCount,
+        },
+        resolved: true,
+        description: `draw ${drawCount}, discard ${discardCount}`,
+      };
+    },
+  },
+
+  // ── V2-18. target-creature-gains-any-keyword — broader keyword grant with more keywords ──
+  {
+    name: 'target-creature-gains-any-keyword',
+    match: /target\s+creature\s+gains?\s+(flying|haste|trample|lifelink|deathtouch|first\s+strike|double\s+strike|hexproof|indestructible|menace|vigilance|reach|defender|intimidate|fear|shadow|skulk|prowess)\s+until\s+end\s+of\s+turn/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m) => {
+      const keyword = m[1].toLowerCase();
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { playerIdx, permIdx, perm } = target;
+      const updatedPerm: Permanent = {
+        ...perm,
+        temporaryKeywords: [...(perm.temporaryKeywords || []), {
+          keyword,
+          source: 'keyword-grant',
+          turn: state.turn,
+        }],
+      };
+      if (keyword === 'haste') {
+        updatedPerm.summoningSick = false;
+      }
+      const player = state.players[playerIdx];
+      const updatedBf = [...player.battlefield];
+      updatedBf[permIdx] = updatedPerm;
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[playerIdx] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `${perm.name} gains ${keyword} until end of turn.`);
+      return { state, resolved: true, description: `${perm.name} gains ${keyword}` };
+    },
+  },
+
+  // ── V2-19. copy-spell-v2 — "Copy target instant or sorcery spell" (broader) ──
+  {
+    name: 'copy-spell-v2',
+    match: /copy\s+target\s+(?:instant\s+or\s+sorcery\s+)?spell/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      const spellTarget = targets.find(t => t.type === 'card-in-zone' && t.zone === 'stack');
+      if (spellTarget && state.stack.length > 0) {
+        const original = state.stack.find(s => s.id === spellTarget.id);
+        if (original) {
+          const copy = copyStackObject(original, controller);
+          state = { ...state, stack: [...state.stack, copy] };
+          state = addLog(state, controller, `Copies ${original.text || 'target spell'}.`);
+          return { state, resolved: true, description: `copy ${original.text || 'spell'}` };
+        }
+      }
+      state = addLog(state, controller, `Copy spell fizzled (no valid target).`);
+      return { state, resolved: true, description: 'copy fizzled' };
+    },
+  },
+
+  // ── V2-20. each-player-mills — "each player mills N cards" ──
+  {
+    name: 'each-player-mills',
+    match: /each\s+player\s+mills?\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+cards?/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const count = parseNumber(m[1]);
+      state = millCards(state, 0, count);
+      state = millCards(state, 1, count);
+      state = addLog(state, controller, `Each player mills ${count} card(s).`);
+      return { state, resolved: true, description: `each player mills ${count}` };
+    },
+  },
+
+  // ── V2-21. return-target-to-hand — "Return target [type] to its owner's hand" (broader) ──
+  {
+    name: 'return-target-to-hand',
+    match: /return\s+target\s+(creature|permanent|nonland\s+permanent|artifact|enchantment)\s+to\s+its\s+owner'?s?\s+hand/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m) => {
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { playerIdx, perm } = target;
+      const ownerIdx = perm.owner;
+      const controllerPlayer = state.players[playerIdx];
+      const bfIdx = controllerPlayer.battlefield.findIndex(p => p.id === target.perm.id);
+      if (bfIdx === -1) return { state, resolved: false };
+      const updatedBf = [...controllerPlayer.battlefield];
+      updatedBf.splice(bfIdx, 1);
+      const cardObj: Card = {
+        id: perm.id, oracleId: perm.oracleId, name: perm.name, manaCost: perm.manaCost,
+        cmc: perm.cmc, typeLine: perm.typeLine, oracleText: perm.oracleText,
+        power: perm.power, toughness: perm.toughness, loyalty: perm.loyalty,
+        colors: perm.colors, colorIdentity: perm.colorIdentity, rarity: perm.rarity,
+        tags: perm.tags, imageUrl: perm.imageUrl, owner: perm.owner,
+      };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[playerIdx] = { ...controllerPlayer, battlefield: updatedBf };
+      const ownerPlayer = playerIdx === ownerIdx ? players[ownerIdx] : { ...state.players[ownerIdx] };
+      players[ownerIdx] = { ...ownerPlayer, hand: [...ownerPlayer.hand, cardObj] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Returns ${perm.name} to its owner's hand.`);
+      return { state, resolved: true, description: `bounce ${perm.name}` };
+    },
+  },
+
+  // ── V2-22. your-creatures-gain-multi-keyword — "creatures you control gain X and Y until end of turn" ──
+  {
+    name: 'your-creatures-gain-multi-keyword',
+    match: /creatures?\s+you\s+control\s+gain\s+(.+?)\s+until\s+end\s+of\s+turn/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const keywordStr = m[1].toLowerCase();
+      const keywordList = keywordStr.split(/,\s*|\s+and\s+/).map(k => k.trim()).filter(k => k.length > 0);
+      const player = state.players[controller];
+      let count = 0;
+      const updatedBf = player.battlefield.map(perm => {
+        if (!perm.typeLine?.toLowerCase().includes('creature')) return perm;
+        count++;
+        return {
+          ...perm,
+          temporaryKeywords: [
+            ...(perm.temporaryKeywords || []),
+            ...keywordList.map(kw => ({ keyword: kw, source: 'mass-keyword', turn: state.turn })),
+          ],
+          ...(keywordList.includes('haste') ? { summoningSick: false } : {}),
+        };
+      });
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `Creatures you control gain ${keywordList.join(', ')} until end of turn (${count}).`);
+      return { state, resolved: true, description: `${count} creatures gain ${keywordList.join(', ')}` };
+    },
+  },
 ];
 
 // ─── Fallback Generic Resolver ───
@@ -10525,14 +11351,82 @@ function fallbackGenericResolve(state: GameState, controller: 0 | 1, text: strin
   return { state, resolved: false };
 }
 
+// ─── Smart Parser V2: Compound Clause Splitting ───
+
+/**
+ * Check if text starts with an action verb.
+ * Used to determine whether " and " separates two independent clauses
+ * (both are actions) vs. a noun conjunction ("artifacts and enchantments").
+ */
+function startsWithVerb(text: string): boolean {
+  const verbs = [
+    'destroy', 'exile', 'draw', 'discard', 'deal', 'gain', 'lose',
+    'create', 'put', 'return', 'search', 'reveal', 'shuffle', 'tap',
+    'untap', 'counter', 'sacrifice', 'each', 'all', 'scry',
+    'mill', 'fight', 'add', 'remove', 'prevent', 'choose', 'look',
+    'it gains', 'it gets', 'that creature', 'that player', 'its controller',
+    'its owner', 'you gain', 'you draw', 'you lose', 'you may',
+    'target player', 'target opponent', 'target creature',
+  ];
+  const lower = text.toLowerCase().trim();
+  return verbs.some(v => lower.startsWith(v));
+}
+
+/**
+ * Smart Parser V2: Split compound oracle text into individual clauses.
+ *
+ * Handles compound effects that the simple ". " splitter missed:
+ * - "Draw 2 cards, then discard a card" -> ["Draw 2 cards", "discard a card"]
+ * - "Destroy target creature. Its controller loses 2 life." -> ["Destroy target creature", "Its controller loses 2 life"]
+ * - "Exile target creature and create a 1/1 token" -> ["Exile target creature", "create a 1/1 token"]
+ */
+function splitOracleIntoClauses(text: string): string[] {
+  // Remove reminder text in parentheses
+  let cleaned = text.replace(/\([^)]*\)/g, '').trim();
+
+  // Phase 1: Split on sentence boundaries — period + space/newline, or actual newlines
+  const rawSentences = cleaned.split(/(?:\.\s+|\n)+/).map(s => s.trim()).filter(s => s.length > 0);
+
+  const allClauses: string[] = [];
+
+  for (const sentence of rawSentences) {
+    // Phase 2: Split on ", then " (sequential effects)
+    const thenParts = sentence.split(/,\s*then\s+/i);
+    if (thenParts.length > 1) {
+      allClauses.push(...thenParts.map(p => p.trim()).filter(p => p.length > 0));
+      continue;
+    }
+
+    // Phase 3: Split on " and " only when the right side starts with an action verb
+    // Avoid splitting noun phrases like "destroy target artifact or enchantment"
+    const andParts = sentence.split(/\s+and\s+/i);
+    if (andParts.length === 2 && startsWithVerb(andParts[1].trim())) {
+      allClauses.push(...andParts.map(p => p.trim()).filter(p => p.length > 0));
+      continue;
+    }
+
+    // Phase 4: Split on "; " (semicolons separate independent clauses)
+    const semiParts = sentence.split(/;\s+/);
+    if (semiParts.length > 1) {
+      allClauses.push(...semiParts.map(p => p.trim()).filter(p => p.length > 0));
+      continue;
+    }
+
+    allClauses.push(sentence);
+  }
+
+  return allClauses.map(c => c.trim().replace(/\.$/, '').trim()).filter(c => c.length > 0);
+}
+
 // ─── Main Resolver ───
 
 /**
  * Try to resolve an effect from a stack object's oracle text.
  *
- * Multi-effect resolution: Oracle text is split into sentences (by period or newline),
- * and each sentence is matched independently against all patterns. This allows cards
- * like "Deal 3 damage to any target. You gain 3 life." to resolve BOTH effects.
+ * Multi-effect resolution: Oracle text is split into clauses via V2 compound splitter
+ * (periods, ", then ", " and " with verb check, semicolons), and each clause is matched
+ * independently against all patterns. This allows cards like
+ * "Deal 3 damage to any target. You gain 3 life." to resolve BOTH effects.
  *
  * Returns { resolved: true } if ALL effects were auto-resolved.
  * Returns { resolved: false } if ANY effect needs manual resolution.
@@ -10574,12 +11468,12 @@ export function resolveEffect(
   // Replace "you may [action]" with just "[action]" so existing patterns match.
   oracleText = oracleText.replace(/\byou may (draw|put|return|search|destroy|exile|gain|add|create|look|play|cast|sacrifice)/gi, 'you $1');
 
-  // Split oracle text into individual effect sentences
-  // Split on periods followed by space/newline, or actual newlines
-  const sentences = oracleText
-    .split(/(?:\.\s+|\n)+/)
-    .map(s => s.trim())
-    .filter(s => s.length > 0);
+  // ── Smart Parser V2: Enhanced compound clause splitting ──
+  // Split oracle text into individual effect clauses using multi-phase splitting:
+  // Phase 1: Split on ". " / newline (sentence boundaries)
+  // Phase 2: Split on ", then " (sequential effects)
+  // Phase 3: Split on " and " only when the right side starts with an action verb
+  const sentences = splitOracleIntoClauses(oracleText);
 
   let currentState = state;
   const descriptions: string[] = [];
