@@ -816,6 +816,7 @@ export class GameLoop {
       onHandCardClick: (card, index) => this.onHandCardClick(card, index),
       onBattlefieldCardClick: (perm, controller) => this.onBattlefieldClick(perm, controller),
       onExileClick: (_player) => this.showExileBrowser(),
+      onGraveyardClick: (player) => this.showGraveyardViewer(player),
       canUndo: () => this.game.canUndo(),
       selectedHandCardId: this.selectedHandCard?.card.id ?? null,
       targetingMode: this.targetingMode,
@@ -4270,6 +4271,84 @@ export class GameLoop {
     content.appendChild(browser);
 
     // Close button
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'p8-btn-primary';
+    closeBtn.textContent = 'Close';
+    closeBtn.style.marginTop = '12px';
+    closeBtn.addEventListener('click', () => overlay.remove());
+    content.appendChild(closeBtn);
+
+    overlay.appendChild(content);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+  }
+
+  /** Show graveyard viewer for a player */
+  private showGraveyardViewer(player: 0 | 1): void {
+    this.injectPhase8Styles();
+    const state = this.game.getState();
+    document.getElementById('gy-viewer-modal')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'gy-viewer-modal';
+    overlay.className = 'p8-overlay';
+
+    const content = document.createElement('div');
+    content.className = 'p8-content';
+    content.style.maxWidth = '500px';
+
+    const isYou = player === this.humanPlayer;
+    const ps = state.players[player];
+    content.innerHTML = `<h3>${isYou ? 'Your' : "Bot's"} Graveyard (${ps.graveyard.length})</h3>`;
+
+    const browser = document.createElement('div');
+    browser.style.maxHeight = '400px';
+    browser.style.overflowY = 'auto';
+
+    if (ps.graveyard.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'text-align:center;color:#666;padding:20px;';
+      empty.textContent = 'Graveyard is empty';
+      browser.appendChild(empty);
+    } else {
+      for (const card of ps.graveyard) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid #1a1f2e;';
+        const name = document.createElement('span');
+        name.style.cssText = 'color:#e5e7eb;font-size:14px;';
+        name.textContent = card.name;
+        const type = document.createElement('span');
+        type.style.cssText = 'color:#6b7280;font-size:11px;';
+        type.textContent = card.typeLine;
+        row.appendChild(name);
+        row.appendChild(type);
+
+        // Flashback badge
+        if (card.oracleText?.match(/flashback/i)) {
+          const badge = document.createElement('span');
+          badge.style.cssText = 'color:#c9a84c;font-size:10px;margin-left:8px;padding:2px 6px;border:1px solid #c9a84c;border-radius:50px;';
+          badge.textContent = 'Flashback';
+          row.appendChild(badge);
+        }
+        // Escape badge
+        if (card.oracleText?.match(/escape/i)) {
+          const badge = document.createElement('span');
+          badge.style.cssText = 'color:#34d399;font-size:10px;margin-left:8px;padding:2px 6px;border:1px solid #34d399;border-radius:50px;';
+          badge.textContent = 'Escape';
+          row.appendChild(badge);
+        }
+        // Jump-start badge
+        if (card.oracleText?.match(/jump-start/i)) {
+          const badge = document.createElement('span');
+          badge.style.cssText = 'color:#60a5fa;font-size:10px;margin-left:8px;padding:2px 6px;border:1px solid #60a5fa;border-radius:50px;';
+          badge.textContent = 'Jump-start';
+          row.appendChild(badge);
+        }
+        browser.appendChild(row);
+      }
+    }
+    content.appendChild(browser);
+
     const closeBtn = document.createElement('button');
     closeBtn.className = 'p8-btn-primary';
     closeBtn.textContent = 'Close';

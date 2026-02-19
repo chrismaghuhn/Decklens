@@ -39,6 +39,14 @@ export interface StackObject {
   isDashed?: boolean;
   /** Whether this spell was cast with overload (replace "target" with "each") */
   isOverloaded?: boolean;
+  /** Whether buyback was paid (return to hand instead of GY on resolution) */
+  isBuyback?: boolean;
+  /** Whether escape was used (exile after resolution) */
+  isEscape?: boolean;
+  /** Whether jump-start was used (exile after resolution) */
+  isJumpStart?: boolean;
+  /** Whether this was cast via foretell cost */
+  isForetold?: boolean;
 }
 
 /** All possible game actions a player can take */
@@ -78,6 +86,14 @@ export type GameAction =
       dashPaid?: boolean;
       /** Overload — pay alt cost, replace "target" with "each" for mass effect (CR 702.95) */
       overloadPaid?: boolean;
+      /** Buyback — pay extra cost, return to hand after resolution (CR 702.26) */
+      buybackPaid?: boolean;
+      /** Escape — cast from graveyard, exiling N other GY cards (CR 702.137) */
+      escapePaid?: boolean;
+      /** Jump-start — cast from graveyard by discarding a card, exile after (CR 702.132) */
+      jumpStartPaid?: boolean;
+      /** Foretell — cast from exile for foretell cost (CR 702.142) */
+      foretellCast?: boolean;
     }
   | {
       type: 'activate-ability';

@@ -35,16 +35,16 @@ export function addSpellToStack(
   targets: Target[],
   _manaPayment: ManaPayment,
   xValue?: number,
-  opts?: { isFlashback?: boolean; isKicked?: boolean; isAdventure?: boolean; isFaceDown?: boolean; isEvoked?: boolean; isDashed?: boolean; isOverloaded?: boolean; oracleTextOverride?: string }
+  opts?: { isFlashback?: boolean; isKicked?: boolean; isAdventure?: boolean; isFaceDown?: boolean; isEvoked?: boolean; isDashed?: boolean; isOverloaded?: boolean; isBuyback?: boolean; isEscape?: boolean; isJumpStart?: boolean; isForetold?: boolean; oracleTextOverride?: string }
 ): GameState {
   const playerState = state.players[player];
 
-  // Flashback: card comes from graveyard instead of hand
+  // Flashback/Escape/Jump-start: card comes from graveyard instead of hand
   let card: Card | undefined;
   let updatedPlayer: PlayerState;
 
-  if (opts?.isFlashback) {
-    // Flashback: card from graveyard
+  if (opts?.isFlashback || opts?.isEscape || opts?.isJumpStart) {
+    // Card from graveyard
     const gyIndex = playerState.graveyard.findIndex((c) => c.id === cardId);
     if (gyIndex === -1) return state;
     card = playerState.graveyard[gyIndex];
@@ -98,6 +98,10 @@ export function addSpellToStack(
     isEvoked: opts?.isEvoked,
     isDashed: opts?.isDashed,
     isOverloaded: opts?.isOverloaded,
+    isBuyback: opts?.isBuyback,
+    isEscape: opts?.isEscape,
+    isJumpStart: opts?.isJumpStart,
+    isForetold: opts?.isForetold,
   };
 
   const players = [...state.players] as [PlayerState, PlayerState];
@@ -110,6 +114,10 @@ export function addSpellToStack(
   if (opts?.isEvoked) castMessage += ' (evoked)';
   if (opts?.isDashed) castMessage += ' (dashed)';
   if (opts?.isOverloaded) castMessage += ' (overloaded)';
+  if (opts?.isBuyback) castMessage += ' (buyback)';
+  if (opts?.isEscape) castMessage += ' (escape)';
+  if (opts?.isJumpStart) castMessage += ' (jump-start)';
+  if (opts?.isForetold) castMessage += ' (foretold)';
   if (xValue !== undefined && xValue > 0) castMessage += ` (X=${xValue})`;
   castMessage += '.';
 
@@ -273,11 +281,13 @@ export function resolveTopOfStack(state: GameState): GameState {
       }
       newState = resolveModalChoices(newState, resolving, autoChoices);
 
-      // Move instant/sorcery to graveyard after modal resolution
+      // Move instant/sorcery to destination zone after modal resolution
       if (resolving.type === 'spell' && resolving.card && !isPermanentType(resolving.card)) {
         const ctrl = resolving.controller;
         const players = [...newState.players] as [PlayerState, PlayerState];
-        if (resolving.isFlashback) {
+        if (resolving.isBuyback) {
+          players[ctrl] = { ...players[ctrl], hand: [...players[ctrl].hand, resolving.card] };
+        } else if (resolving.isFlashback || resolving.isEscape || resolving.isJumpStart) {
           players[ctrl] = { ...players[ctrl], exile: [...players[ctrl].exile, resolving.card] };
         } else {
           players[ctrl] = { ...players[ctrl], graveyard: [...players[ctrl].graveyard, resolving.card] };
@@ -424,11 +434,19 @@ export function resolveTopOfStack(state: GameState): GameState {
       newState = effectResult.state;
 
       // Determine destination zone after resolution:
-      // - Flashback: exile instead of graveyard (CR 702.34a)
+      // - Buyback: return to hand (CR 702.26)
+      // - Flashback/Escape/Jump-start: exile (CR 702.34a, 702.137, 702.132)
       // - Adventure: exile with onAdventure flag (CR 715.4)
+      // - Rebound: exile with reboundExile flag (CR 702.87)
       // - Normal: graveyard
       const players = [...newState.players] as [PlayerState, PlayerState];
-      if (resolving.isFlashback) {
+      if (resolving.isBuyback) {
+        // Buyback: return to hand instead of graveyard (CR 702.26)
+        players[controller] = {
+          ...players[controller],
+          hand: [...players[controller].hand, card],
+        };
+      } else if (resolving.isFlashback || resolving.isEscape || resolving.isJumpStart) {
         players[controller] = {
           ...players[controller],
           exile: [...players[controller].exile, card],
@@ -439,7 +457,7 @@ export function resolveTopOfStack(state: GameState): GameState {
           ...players[controller],
           exile: [...players[controller].exile, adventureCard],
         };
-      } else if (!resolving.isFlashback && card.oracleText?.toLowerCase().includes('rebound')) {
+      } else if (card.oracleText?.toLowerCase().includes('rebound')) {
         // Rebound (CR 702.87): exile instead of graveyard, cast again next upkeep
         const reboundCard = { ...card, reboundExile: true };
         players[controller] = {

@@ -389,6 +389,72 @@ function validateCastSpell(
     return null;
   }
 
+  // ─── Buyback: adds extra cost, returns to hand on resolution (CR 702.26) ───
+  // Buyback is validated as a normal cast (from hand) with extra mana cost checked in mana payment
+
+  // ─── Escape: cast from graveyard, exile N other cards as additional cost (CR 702.137) ───
+  if (action.escapePaid) {
+    const card = player.graveyard.find((c) => c.id === action.cardId);
+    if (!card) return 'Card not in graveyard.';
+    const escapeMatch = card.oracleText?.match(/escape[—\-]\s*(\{[^}]+\}(?:\{[^}]+\})*),?\s*exile\s+(\d+)\s+other\s+cards?\s+from\s+your\s+graveyard/i);
+    if (!escapeMatch) return 'Card does not have escape.';
+    const escapeN = parseInt(escapeMatch[2]);
+    const otherGYCards = player.graveyard.filter(c => c.id !== card.id);
+    if (otherGYCards.length < escapeN) return `Not enough cards in graveyard to exile (need ${escapeN}, have ${otherGYCards.length}).`;
+    const escapeCost = parseManaCost(escapeMatch[1]);
+    if (!canPayCost(player.manaPool, escapeCost, player.life)) {
+      const tapResult = autoTapLandsForCost(player, escapeCost);
+      if (!tapResult) return 'Not enough mana to pay escape cost.';
+    }
+    // Escape can be instant or sorcery speed based on card type
+    if (!isInstant(card) && !hasFlash(card)) {
+      if (state.step !== 'main') return 'Can only escape sorcery-speed spells during main phase.';
+      if (state.activePlayer !== action.player) return 'Can only escape on your turn.';
+      if (state.stack.length > 0) return 'Cannot escape while stack is not empty.';
+    }
+    return validateTargetLegality(state, action.player, action.targets, card);
+  }
+
+  // ─── Jump-start: cast from graveyard by discarding a card, exile after (CR 702.132) ───
+  if (action.jumpStartPaid) {
+    const card = player.graveyard.find((c) => c.id === action.cardId);
+    if (!card) return 'Card not in graveyard.';
+    if (!card.oracleText?.match(/jump-start/i)) return 'Card does not have jump-start.';
+    if (player.hand.length === 0) return 'No card in hand to discard for jump-start.';
+    const cost = parseManaCost(card.manaCost);
+    if (!canPayCost(player.manaPool, cost, player.life)) {
+      const tapResult = autoTapLandsForCost(player, cost);
+      if (!tapResult) return 'Not enough mana to pay jump-start cost.';
+    }
+    // Jump-start is instant speed (most are instants/sorceries)
+    if (!isInstant(card) && !hasFlash(card)) {
+      if (state.step !== 'main') return 'Can only jump-start sorcery-speed spells during main phase.';
+      if (state.activePlayer !== action.player) return 'Can only jump-start on your turn.';
+      if (state.stack.length > 0) return 'Cannot jump-start while stack is not empty.';
+    }
+    return validateTargetLegality(state, action.player, action.targets, card);
+  }
+
+  // ─── Foretell cast: cast from exile for foretell cost (CR 702.142) ───
+  if (action.foretellCast) {
+    const card = player.exile.find((c) => c.id === action.cardId);
+    if (!card) return 'Card not in exile.';
+    if (!(state.foretoldCards || []).includes(card.id)) return 'Card was not foretold.';
+    const foretellMatch = card.oracleText?.match(/foretell\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    if (!foretellMatch) return 'Card does not have foretell.';
+    const cost = parseManaCost(foretellMatch[1]);
+    if (!canPayCost(player.manaPool, cost, player.life)) {
+      const tapResult = autoTapLandsForCost(player, cost);
+      if (!tapResult) return 'Not enough mana to pay foretell cost.';
+    }
+    if (!isInstant(card) && !hasFlash(card)) {
+      if (state.step !== 'main') return 'Can only cast foretold sorcery-speed spells during main phase.';
+      if (state.activePlayer !== action.player) return 'Can only cast foretold spells on your turn.';
+      if (state.stack.length > 0) return 'Cannot cast foretold sorcery-speed spells while stack is not empty.';
+    }
+    return validateTargetLegality(state, action.player, action.targets, card);
+  }
+
   // ─── Normal cast from hand ───
   const card = player.hand.find((c) => c.id === action.cardId);
   if (!card) return 'Card not in hand.';

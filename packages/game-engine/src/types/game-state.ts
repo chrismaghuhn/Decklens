@@ -197,4 +197,7 @@ export interface GameState {
 
   /** Cards exiled with time counters for Suspend mechanic */
   suspendedCards?: Array<{ cardId: string; ownerId: 0 | 1; counters: number }>;
+
+  /** Card IDs that were foretold (exiled face-down, can be cast for foretell cost) */
+  foretoldCards?: string[];
 }

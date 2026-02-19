@@ -290,11 +290,14 @@ function executeCastSpell(
 ): GameState {
   let player = state.players[action.player];
 
-  // ─── Find the card (hand, graveyard for flashback, exile for adventure creature) ───
+  // ─── Find the card (hand, graveyard for flashback/escape/jump-start, exile for adventure/foretell) ───
   let card: import('../types/card.ts').Card | undefined;
   let castFromExile = false;
-  if (action.castWithFlashback) {
+  if (action.castWithFlashback || action.escapePaid || action.jumpStartPaid) {
     card = player.graveyard.find((c) => c.id === action.cardId);
+  } else if (action.foretellCast) {
+    card = player.exile.find((c) => c.id === action.cardId);
+    if (card) castFromExile = true;
   } else {
     card = player.hand.find((c) => c.id === action.cardId);
     // Also check exile for adventure creatures
@@ -333,6 +336,17 @@ function executeCastSpell(
     // Dash: use dash cost (CR 702.108)
     const dashMatch = card.oracleText?.match(/dash\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
     manaCostStr = dashMatch ? dashMatch[1] : card.manaCost;
+  } else if (action.escapePaid) {
+    // Escape: use escape mana cost (CR 702.137)
+    const escapeMatch = card.oracleText?.match(/escape[—\-]\s*(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    manaCostStr = escapeMatch ? escapeMatch[1] : card.manaCost;
+  } else if (action.jumpStartPaid) {
+    // Jump-start: use normal mana cost (CR 702.132)
+    manaCostStr = card.manaCost;
+  } else if (action.foretellCast) {
+    // Foretell: use foretell cost (CR 702.142)
+    const foretellMatch = card.oracleText?.match(/foretell\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    manaCostStr = foretellMatch ? foretellMatch[1] : card.manaCost;
   } else {
     manaCostStr = card.manaCost;
   }
@@ -345,6 +359,12 @@ function executeCastSpell(
   if (action.kickerPaid) {
     const kickerCostStr = getKickerCost(card);
     if (kickerCostStr) manaCostStr += kickerCostStr;
+  }
+
+  // Buyback: add buyback cost to total (CR 702.26)
+  if (action.buybackPaid) {
+    const buybackMatch = card.oracleText?.match(/buyback\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    if (buybackMatch) manaCostStr += buybackMatch[1];
   }
 
   let cost = parseManaCost(manaCostStr);
@@ -391,6 +411,32 @@ function executeCastSpell(
     };
   }
 
+  // ─── Escape: exile N other cards from graveyard as additional cost (CR 702.137) ───
+  if (action.escapePaid) {
+    const escapeMatch = card.oracleText?.match(/escape[—\-]\s*\{[^}]+\}(?:\{[^}]+\})*,?\s*exile\s+(\d+)\s+other/i);
+    const escapeN = escapeMatch ? parseInt(escapeMatch[1]) : 0;
+    if (escapeN > 0) {
+      const otherGY = updatedPlayer.graveyard.filter(c => c.id !== card.id);
+      const toExile = otherGY.slice(0, escapeN);
+      const exileIds = new Set(toExile.map(c => c.id));
+      updatedPlayer = {
+        ...updatedPlayer,
+        graveyard: updatedPlayer.graveyard.filter(c => c.id !== card.id && !exileIds.has(c.id)),
+        exile: [...updatedPlayer.exile, ...toExile],
+      };
+    }
+  }
+
+  // ─── Jump-start: discard a card as additional cost (CR 702.132) ───
+  if (action.jumpStartPaid && updatedPlayer.hand.length > 0) {
+    const discarded = updatedPlayer.hand[updatedPlayer.hand.length - 1]; // discard last card
+    updatedPlayer = {
+      ...updatedPlayer,
+      hand: updatedPlayer.hand.slice(0, -1),
+      graveyard: [...updatedPlayer.graveyard.filter(c => c.id !== card.id), discarded],
+    };
+  }
+
   const players = [...state.players] as [PlayerState, PlayerState];
   players[action.player] = updatedPlayer;
 
@@ -407,6 +453,10 @@ function executeCastSpell(
       isEvoked: action.evokePaid,
       isDashed: action.dashPaid,
       isOverloaded: action.overloadPaid,
+      isBuyback: action.buybackPaid,
+      isEscape: action.escapePaid,
+      isJumpStart: action.jumpStartPaid,
+      isForetold: action.foretellCast,
       // MDFC: pass back face oracle text so effects resolve from back face
       oracleTextOverride: action.castBackFace && card.backFace ? card.backFace.oracleText : undefined,
     }

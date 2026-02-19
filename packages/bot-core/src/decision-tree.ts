@@ -1,13 +1,60 @@
-import type { GameState, GameAction } from '@mtg/game-engine';
+import type { GameState, GameAction, Target } from '@mtg/game-engine';
 import { getLegalActionTypes } from '@mtg/game-engine';
 
 import { identifyThreats, hasMustAnswerThreat } from './evaluators/threat-evaluator.ts';
 import { evaluateBoardPosition } from './evaluators/board-evaluator.ts';
 import { hasWinningCombo, evaluateCombos } from './evaluators/combo-evaluator.ts';
 import { chooseMulliganAction } from './policies/mulligan-policy.ts';
-import { choosePlayAction, shouldHoldMana, getCyclingCandidates, getAbilityActivationCandidates } from './policies/play-policy.ts';
+import { choosePlayAction, shouldHoldMana, getCyclingCandidates, getAbilityActivationCandidates, type AbilityCandidate } from './policies/play-policy.ts';
 import { chooseAttackers, chooseBlockers, shouldAttack } from './policies/combat-policy.ts';
 import { chooseStackAction } from './policies/stack-policy.ts';
+
+/** Choose targets for an activated ability based on its text */
+function chooseAbilityTargets(state: GameState, botPlayer: 0 | 1, candidate: AbilityCandidate): Target[] {
+  const perm = state.players[botPlayer].battlefield.find(p => p.id === candidate.permanentId);
+  if (!perm) return [];
+  const ability = perm.abilities[candidate.abilityIndex];
+  if (!ability) return [];
+  const text = (ability.text || '').toLowerCase();
+  const opponent = (botPlayer === 0 ? 1 : 0) as 0 | 1;
+
+  // Target creature/permanent — choose based on whether it's removal or buff
+  if (/target\s+(creature|permanent|artifact|enchantment)/i.test(text)) {
+    const isRemoval = /destroy|exile|deal.*damage|sacrifice|return.*to.*hand|tap target/i.test(text);
+    const isBuff = /\+\d|counter|untap|indestructible|hexproof|protection/i.test(text);
+
+    if (isRemoval) {
+      // Target opponent's best creature/permanent
+      const oppPerms = state.players[opponent].battlefield.filter(p =>
+        p.typeLine?.toLowerCase().includes('creature') || p.typeLine?.toLowerCase().includes('artifact') || p.typeLine?.toLowerCase().includes('enchantment')
+      );
+      if (oppPerms.length > 0) {
+        const best = oppPerms.sort((a, b) =>
+          ((b.currentPower || 0) + (b.currentToughness || 0)) - ((a.currentPower || 0) + (a.currentToughness || 0))
+        )[0];
+        return [{ type: 'permanent', id: best.id }];
+      }
+    } else if (isBuff) {
+      // Target own best creature
+      const ownCreatures = state.players[botPlayer].battlefield.filter(p =>
+        p.typeLine?.toLowerCase().includes('creature')
+      );
+      if (ownCreatures.length > 0) {
+        const best = ownCreatures.sort((a, b) =>
+          ((b.currentPower || 0) + (b.currentToughness || 0)) - ((a.currentPower || 0) + (a.currentToughness || 0))
+        )[0];
+        return [{ type: 'permanent', id: best.id }];
+      }
+    }
+  }
+
+  // Target player/opponent
+  if (/target\s+(player|opponent)/i.test(text)) {
+    return [{ type: 'player', id: String(opponent) }];
+  }
+
+  return [];
+}
 
 /**
  * Decision Tree — Main heuristic decision engine.
@@ -124,12 +171,15 @@ export function makeDecision(state: GameState, botPlayer: 0 | 1): Decision {
     const abilityCandidates = getAbilityActivationCandidates(state, botPlayer);
     if (abilityCandidates.length > 0) {
       const best = abilityCandidates[0];
+      // Smart target selection based on ability text
+      const targets = chooseAbilityTargets(state, botPlayer, best);
       return {
         action: {
           type: 'activate-ability' as const,
           player: botPlayer,
           sourceId: best.permanentId,
           abilityIndex: best.abilityIndex,
+          targets,
         },
         reason: `Activate ability on ${best.name}`,
         confidence: Math.min(0.8, 0.4 + best.priority * 0.05),

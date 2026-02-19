@@ -1660,6 +1660,136 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     },
   },
 
+  // ── Create blood tokens ──
+  {
+    name: 'create-blood',
+    match: /create\s+(a|an|\d+|two|three|four|five)\s+blood\s+tokens?/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const count = parseNumber(m[1]);
+      const tokens: Permanent[] = [];
+      for (let i = 0; i < count; i++) {
+        const tokenCard: Card = {
+          id: generateCardId(), oracleId: 'token_blood', name: 'Blood',
+          manaCost: '', cmc: 0, typeLine: 'Token Artifact — Blood',
+          oracleText: '{1}, {T}, Discard a card, Sacrifice this artifact: Draw a card.',
+          colors: [], colorIdentity: [], rarity: 'common', tags: [], imageUrl: '', owner: controller,
+        };
+        tokens.push(cardToPermanent(tokenCard, controller, state.turn));
+      }
+      const player = state.players[controller];
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, battlefield: [...player.battlefield, ...tokens] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Created ${count} Blood token(s).`);
+      return { state, resolved: true, description: `create ${count} Blood` };
+    },
+  },
+
+  // ── Create powerstone tokens ──
+  {
+    name: 'create-powerstone',
+    match: /create\s+(a|an|\d+|two|three|four|five)\s+powerstone\s+tokens?/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const count = parseNumber(m[1]);
+      const tokens: Permanent[] = [];
+      for (let i = 0; i < count; i++) {
+        const tokenCard: Card = {
+          id: generateCardId(), oracleId: 'token_powerstone', name: 'Powerstone',
+          manaCost: '', cmc: 0, typeLine: 'Token Artifact — Powerstone',
+          oracleText: '{T}: Add {C}. This mana can\'t be spent to cast nonartifact spells.',
+          colors: [], colorIdentity: [], rarity: 'common', tags: [], imageUrl: '', owner: controller,
+        };
+        tokens.push(cardToPermanent(tokenCard, controller, state.turn));
+      }
+      const player = state.players[controller];
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, battlefield: [...player.battlefield, ...tokens] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Created ${count} Powerstone token(s).`);
+      return { state, resolved: true, description: `create ${count} Powerstone` };
+    },
+  },
+
+  // ── Create servo tokens (1/1 colorless Servo artifact creatures) ──
+  {
+    name: 'create-servo',
+    match: /create\s+(a|an|\d+|two|three|four|five)\s+(?:\d+\/\d+\s+)?(?:colorless\s+)?servo\s+(?:artifact\s+creature\s+)?tokens?/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const count = parseNumber(m[1]);
+      const tokens: Permanent[] = [];
+      for (let i = 0; i < count; i++) {
+        const tokenCard: Card = {
+          id: generateCardId(), oracleId: 'token_servo', name: 'Servo',
+          manaCost: '', cmc: 0, typeLine: 'Token Artifact Creature — Servo',
+          oracleText: '', power: '1', toughness: '1',
+          colors: [], colorIdentity: [], rarity: 'common', tags: [], imageUrl: '', owner: controller,
+        };
+        const perm = cardToPermanent(tokenCard, controller, state.turn);
+        perm.currentPower = 1; perm.currentToughness = 1; perm.basePower = 1; perm.baseToughness = 1;
+        tokens.push(perm);
+      }
+      const player = state.players[controller];
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, battlefield: [...player.battlefield, ...tokens] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Created ${count} 1/1 Servo token(s).`);
+      return { state, resolved: true, description: `create ${count} Servo` };
+    },
+  },
+
+  // ── Incubate N (create Incubator artifact token with N +1/+1 counters) ──
+  {
+    name: 'incubate',
+    match: /incubate\s+(\d+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const n = parseInt(m[1]);
+      const tokenCard: Card = {
+        id: generateCardId(), oracleId: 'token_incubator', name: 'Incubator',
+        manaCost: '', cmc: 0, typeLine: 'Token Artifact — Incubator',
+        oracleText: '{2}: Transform this artifact.',
+        colors: [], colorIdentity: [], rarity: 'common', tags: [], imageUrl: '', owner: controller,
+      };
+      const perm = cardToPermanent(tokenCard, controller, state.turn);
+      perm.counters['+1/+1'] = n;
+      const player = state.players[controller];
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, battlefield: [...player.battlefield, perm] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Incubate ${n}: created Incubator token with ${n} +1/+1 counters.`);
+      return { state, resolved: true, description: `incubate ${n}` };
+    },
+  },
+
+  // ── Create map tokens ──
+  {
+    name: 'create-map',
+    match: /create\s+(a|an|\d+|two|three|four|five)\s+map\s+tokens?/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const count = parseNumber(m[1]);
+      const tokens: Permanent[] = [];
+      for (let i = 0; i < count; i++) {
+        const tokenCard: Card = {
+          id: generateCardId(), oracleId: 'token_map', name: 'Map',
+          manaCost: '', cmc: 0, typeLine: 'Token Artifact — Map',
+          oracleText: '{1}, {T}, Sacrifice this artifact: Target creature you control explores.',
+          colors: [], colorIdentity: [], rarity: 'common', tags: [], imageUrl: '', owner: controller,
+        };
+        tokens.push(cardToPermanent(tokenCard, controller, state.turn));
+      }
+      const player = state.players[controller];
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, battlefield: [...player.battlefield, ...tokens] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Created ${count} Map token(s).`);
+      return { state, resolved: true, description: `create ${count} Map` };
+    },
+  },
+
   // ── Target creature gets +X/+X and gains keyword until end of turn ──
   {
     name: 'pump-and-keyword',

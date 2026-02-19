@@ -140,6 +140,24 @@ export function renderBoard(
   setupExileClick('your-exile-count', humanPlayer, callbacks);
   setupExileClick('bot-exile-count', botPlayer, callbacks);
 
+  // Make graveyard zone links clickable
+  setupGraveyardClick('your-gy-count', humanPlayer, callbacks);
+  setupGraveyardClick('bot-gy-count', botPlayer, callbacks);
+
+  // Commander damage display
+  const yourCmdr = el('your-cmdr-dmg');
+  const botCmdr = el('bot-cmdr-dmg');
+  if (yourCmdr) {
+    const totalDmg = Object.values(me.commanderDamage || {}).reduce((a, b) => a + b, 0);
+    yourCmdr.textContent = `Cmdr: ${totalDmg}/21`;
+    yourCmdr.className = `pvb-cmdr-dmg${totalDmg >= 15 ? ' danger' : ''}`;
+  }
+  if (botCmdr) {
+    const totalDmg = Object.values(opp.commanderDamage || {}).reduce((a, b) => a + b, 0);
+    botCmdr.textContent = `Cmdr: ${totalDmg}/21`;
+    botCmdr.className = `pvb-cmdr-dmg${totalDmg >= 15 ? ' danger' : ''}`;
+  }
+
   // Undo button
   const undoBtn = el('btn-undo') as HTMLButtonElement | null;
   if (undoBtn) undoBtn.disabled = !callbacks.canUndo?.();
@@ -150,6 +168,7 @@ export interface BoardCallbacks {
   onHandCardClick?: (card: Card, index: number) => void;
   onBattlefieldCardClick?: (perm: Permanent, controller: 0 | 1) => void;
   onExileClick?: (player: 0 | 1) => void;
+  onGraveyardClick?: (player: 0 | 1) => void;
   canUndo?: () => boolean;
   selectedHandCardId?: string | null;
   targetingMode?: boolean;
@@ -350,6 +369,20 @@ function setupExileClick(countId: string, player: 0 | 1, callbacks: BoardCallbac
   (zoneLink as HTMLElement).style.cursor = 'pointer';
   zoneLink.addEventListener('click', () => {
     callbacks.onExileClick?.(player);
+  });
+}
+
+/** Make a graveyard zone count clickable to open graveyard browser */
+function setupGraveyardClick(countId: string, player: 0 | 1, callbacks: BoardCallbacks): void {
+  const countEl = el(countId);
+  if (!countEl) return;
+  const zoneLink = countEl.closest('.pvb-zone-link');
+  if (!zoneLink) return;
+  if ((zoneLink as HTMLElement).dataset.gyWired) return;
+  (zoneLink as HTMLElement).dataset.gyWired = '1';
+  (zoneLink as HTMLElement).style.cursor = 'pointer';
+  zoneLink.addEventListener('click', () => {
+    callbacks.onGraveyardClick?.(player);
   });
 }
 
