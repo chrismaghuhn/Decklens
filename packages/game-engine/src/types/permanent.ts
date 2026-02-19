@@ -129,6 +129,11 @@ export interface Permanent extends Card {
   /** Stores original oracle text before "loses all abilities" was applied (for restoration at cleanup) */
   originalOracleText?: string;
 
+  /** Whether this permanent is a melded oversized permanent (CR 701.36) */
+  isMelded?: boolean;
+  /** IDs of the two component cards that melded into this permanent */
+  meldComponents?: [string, string];
+
   // ─── Equipment / Aura Attachment ───
 
   /** ID of the permanent this is attached to (for Equipment/Auras) */

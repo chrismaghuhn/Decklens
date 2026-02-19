@@ -281,6 +281,50 @@ export function applyStepEffects(state: GameState): GameState {
     }
   }
 
+  // ─── Day/Night Flip (CR 722.3) ───
+  // At the beginning of each upkeep:
+  // - If it's day and active player cast 0 spells last turn → becomes night
+  // - If it's night and active player cast 2+ spells last turn → becomes day
+  if (state.step === 'upkeep' && !state.mulliganPhase && state.dayNight != null) {
+    const spells = state.spellsCastThisTurn || 0;
+    if (state.dayNight === 'day' && spells === 0) {
+      state = {
+        ...state,
+        dayNight: 'night',
+        log: [...state.log, {
+          timestamp: Date.now(), turn: state.turn, phase: state.phase, step: state.step,
+          player: state.activePlayer,
+          message: `It becomes Night (${state.players[state.activePlayer].name} cast no spells last turn).`,
+        }],
+      };
+      // Transform all daybound creatures to nightbound face
+      const players = [...state.players] as [PlayerState, PlayerState];
+      for (let pi = 0; pi < 2; pi++) {
+        const player = players[pi as 0 | 1];
+        const updatedBf = player.battlefield.map(perm => {
+          if ((perm.oracleText || '').toLowerCase().includes('daybound')) {
+            return { ...perm, temporaryKeywords: [...(perm.temporaryKeywords || []), { keyword: 'night-transformed', source: 'day-night', turn: state.turn }] };
+          }
+          return perm;
+        });
+        if (updatedBf !== player.battlefield) {
+          players[pi as 0 | 1] = { ...player, battlefield: updatedBf };
+        }
+      }
+      state = { ...state, players };
+    } else if (state.dayNight === 'night' && spells >= 2) {
+      state = {
+        ...state,
+        dayNight: 'day',
+        log: [...state.log, {
+          timestamp: Date.now(), turn: state.turn, phase: state.phase, step: state.step,
+          player: state.activePlayer,
+          message: `It becomes Day (${state.players[state.activePlayer].name} cast 2+ spells last turn).`,
+        }],
+      };
+    }
+  }
+
   // Begin combat (CR 507.1): fire "at the beginning of combat" triggers
   if (state.step === 'begin-combat' && !state.mulliganPhase) {
     state = checkBeginCombatTriggers(state);
@@ -706,6 +750,9 @@ export function applyStepEffects(state: GameState): GameState {
     if (cleanupState.firstDrawThisTurn) {
       cleanupState = { ...cleanupState, firstDrawThisTurn: false };
     }
+
+    // Reset spells-cast counter for Day/Night tracking (CR 722.3)
+    cleanupState = { ...cleanupState, spellsCastThisTurn: 0 };
 
     return cleanupState;
   }

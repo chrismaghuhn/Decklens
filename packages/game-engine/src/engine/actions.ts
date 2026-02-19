@@ -3,6 +3,7 @@ import type { GameAction } from '../types/action.ts';
 import type { PlayerState } from '../types/player.ts';
 import type { ManaPayment } from '../types/mana.ts';
 import { cardToPermanent } from '../types/permanent.ts';
+import { isLand } from '../types/card.ts';
 import { validateAction } from './validation.ts';
 import { retainPriorityAfterAction } from '../rules/priority.ts';
 import { addSpellToStack, addAbilityToStack } from '../rules/stack.ts';
@@ -513,6 +514,11 @@ function executeCastSpell(
 
   // Check for cast triggers ("whenever you cast a spell", "whenever you cast a creature spell")
   newState = checkCastTriggers(newState, card, action.player);
+
+  // Track spells cast for Day/Night flip condition (CR 722.3)
+  if (!isLand(card)) {
+    newState = { ...newState, spellsCastThisTurn: (newState.spellsCastThisTurn || 0) + 1 };
+  }
 
   return newState;
 }

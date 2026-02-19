@@ -939,12 +939,22 @@ export function checkTriggers(
  * Check for ETB triggers when a permanent enters the battlefield.
  */
 export function checkETBTriggers(state: GameState, permanent: Permanent, meta?: Record<string, any>): GameState {
-  return checkTriggers(state, {
+  let newState = checkTriggers(state, {
     type: 'etb',
     source: permanent,
     controller: permanent.controller,
     meta,
   });
+
+  // Initialize day/night if a daybound or nightbound card enters (CR 722.1)
+  if (newState.dayNight == null) {
+    const oracleText = (permanent.oracleText || '').toLowerCase();
+    if (oracleText.includes('daybound') || oracleText.includes('nightbound')) {
+      newState = { ...newState, dayNight: 'day' };
+    }
+  }
+
+  return newState;
 }
 
 /**

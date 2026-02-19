@@ -12212,6 +12212,112 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       return { state, resolved: true, description: `proliferate (${count})` };
     },
   },
+
+  // Ring-1: "The Ring tempts you" — core ring temptation effect (CR 701.52)
+  {
+    name: 'the-ring-tempts-you',
+    match: /the\s+ring\s+tempts\s+you/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const current = state.theRing;
+      // If no ring yet, initialize it; cap visible level at 4
+      const newCount = Math.min(4, (current?.ringTemptedCount ?? 0) + 1);
+
+      // Find ring bearer — if existing one still on battlefield, keep it
+      // Bot auto-selects largest creature; for human we log and let them keep current
+      const player = state.players[controller];
+      const creatures = player.battlefield.filter(p => p.basePower !== undefined && !p.tapped);
+
+      let ringBearerId = current?.ringBearerId ?? null;
+
+      // If no current ring bearer or current bearer is gone, pick best creature
+      const bearerExists = ringBearerId !== null && player.battlefield.some(p => p.id === ringBearerId);
+      if (!bearerExists && creatures.length > 0) {
+        // Pick creature with highest power as ring bearer
+        const best = [...creatures].sort((a, b) => (b.currentPower ?? 0) - (a.currentPower ?? 0))[0];
+        ringBearerId = best.id;
+        state = addLog(state, controller, `${best.name} becomes the Ring-bearer.`);
+      }
+
+      state = {
+        ...state,
+        theRing: { ringBearerId, ringTemptedCount: newCount, player: controller },
+      };
+
+      const effects = ['', 'Ring-bearer gets menace', 'Ring-bearer also has lifelink', 'Ring-bearer can only be blocked by legendary creatures', 'Whenever Ring-bearer attacks, defending player loses 3 life'];
+      state = addLog(state, controller, `The Ring tempts you (level ${newCount}): ${effects[newCount] || 'Ring-bearer gains abilities'}.`);
+      return { state, resolved: true, description: `ring tempts (level ${newCount})` };
+    },
+  },
+
+  // Meld-1: "Exile ~ and [partner]. If you do, meld them into [result]." (CR 701.36)
+  {
+    name: 'meld',
+    match: /exile\s+\S+\s+and\s+(?:the\s+)?[\w\s]+\.\s*if\s+you\s+do,?\s*meld\s+them/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source?.meldPair || !source?.meldResult) {
+        return { state, resolved: false };
+      }
+      // Find both meld components on the battlefield
+      const player = state.players[controller];
+      const component1 = player.battlefield.find(p => p.name === source.name);
+      const component2 = player.battlefield.find(p => p.name === source.meldPair);
+
+      if (!component1 || !component2) {
+        state = addLog(state, controller, `Meld failed: both ${source.name} and ${source.meldPair} must be on the battlefield.`);
+        return { state, resolved: true, description: 'meld (components missing)' };
+      }
+
+      const result = source.meldResult!;
+      const bp = result.power ? parseInt(result.power, 10) || 0 : 0;
+      const bt = result.toughness ? parseInt(result.toughness, 10) || 0 : 0;
+
+      // Create the melded card definition
+      const meldedCard: Card = {
+        id: generateCardId(),
+        oracleId: `meld_${source.name}_${source.meldPair}`,
+        name: result.name,
+        manaCost: '',
+        cmc: 0,
+        typeLine: result.typeLine,
+        oracleText: result.oracleText,
+        power: result.power,
+        toughness: result.toughness,
+        colors: [...(component1.colors || []), ...(component2.colors || [])].filter((c, i, arr) => arr.indexOf(c) === i),
+        colorIdentity: [...(component1.colorIdentity || []), ...(component2.colorIdentity || [])].filter((c, i, arr) => arr.indexOf(c) === i),
+        rarity: 'mythic',
+        tags: [],
+        imageUrl: result.imageUrl || component1.imageUrl || '',
+        owner: controller,
+      };
+
+      // Create the melded permanent from the card
+      const basePerm = cardToPermanent(meldedCard, controller, state.turn);
+      const meldedPerm = {
+        ...basePerm,
+        basePower: bp,
+        baseToughness: bt,
+        currentPower: bp,
+        currentToughness: bt,
+        isMelded: true,
+        meldComponents: [component1.id, component2.id] as [string, string],
+      };
+
+      // Remove both components (exile them), add melded permanent
+      let stateAfter = removePermanentFromBattlefield(state, component1.id, 'exile');
+      stateAfter = removePermanentFromBattlefield(stateAfter, component2.id, 'exile');
+
+      const players = [...stateAfter.players] as [PlayerState, PlayerState];
+      players[controller] = {
+        ...players[controller],
+        battlefield: [...players[controller].battlefield, meldedPerm],
+      };
+      stateAfter = { ...stateAfter, players };
+      stateAfter = addLog(stateAfter, controller, `${component1.name} and ${component2.name} meld into ${result.name}!`);
+      return { state: stateAfter, resolved: true, description: `meld: ${result.name}` };
+    },
+  },
 ];
 
 // ─── Fallback Generic Resolver ───

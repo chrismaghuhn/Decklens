@@ -97,6 +97,10 @@ export function giveActivePlayerPriority(state: GameState): GameState {
 export function canPlayerAct(state: GameState, player: 0 | 1): boolean {
   if (state.gameOver) return false;
   if (state.priorityPlayer !== player) return false;
-  if (state.step === 'untap' || state.step === 'cleanup') return false;
+  if (state.step === 'untap') return false;
+  if (state.step === 'cleanup') {
+    // Exception: Player must be able to discard to hand size
+    return state.pendingDiscard === player;
+  }
   return true;
 }

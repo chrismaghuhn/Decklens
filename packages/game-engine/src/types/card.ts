@@ -77,6 +77,17 @@ export interface Card {
 
   /** True when this card was exiled via rebound (cast again at next upkeep for free) */
   reboundExile?: boolean;
+
+  /** Meld pair data — present on cards that can meld (CR 701.36) */
+  meldPair?: string;    // Name of the other card in the meld pair
+  meldResult?: {        // The melded creature's characteristics
+    name: string;
+    typeLine: string;
+    oracleText: string;
+    power: string;
+    toughness: string;
+    imageUrl?: string;
+  };
 }
 
 /** Card type line helpers */

@@ -195,11 +195,29 @@ export interface GameState {
   /** Whether a card has been drawn this turn (for Miracle — first draw is special) */
   firstDrawThisTurn?: boolean;
 
+  /** Day/Night state (CR 722). null = not yet entered day/night. */
+  dayNight?: 'day' | 'night' | null;
+
+  /** Number of spells cast by the active player during their last turn (for day/night flipping) */
+  spellsCastThisTurn?: number;
+
   /** Cards exiled with time counters for Suspend mechanic */
   suspendedCards?: Array<{ cardId: string; ownerId: 0 | 1; counters: number }>;
 
   /** Card IDs that were foretold (exiled face-down, can be cast for foretell cost) */
   foretoldCards?: string[];
+
+  /**
+   * The Ring tempts you state (CR 701.52, LTR set).
+   * ringBearerId: permanent ID of the current ring-bearer (null if none chosen yet).
+   * ringTemptedCount: number of times the ring has tempted this player (0-4).
+   * Once at 4, further temptations still let you choose a new ring-bearer.
+   */
+  theRing?: {
+    ringBearerId: string | null;  // Permanent ID of ring-bearer on battlefield
+    ringTemptedCount: number;     // 0=none, 1=menace added, 2=+lifelink, 3=unblockable except by legends, 4=drain on attack
+    player: 0 | 1;                // Which player the ring has tempted
+  } | null;
 
   /** Companion card revealed at game start (CR 702.138). One per player; null if no companion. */
   companion?: [Card | null, Card | null];

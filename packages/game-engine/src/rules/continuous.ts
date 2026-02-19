@@ -1048,10 +1048,68 @@ export function applyContinuousEffects(state: GameState): GameState {
   // If nothing changed, return original state reference (allows === equality checks)
   if (!stateChanged) return state;
 
-  return {
-    ...state,
-    players: newPlayers,
+  // Apply ring-bearer continuous effects (The Ring Tempts You, CR 701.52)
+  const stateWithNewPlayers = { ...state, players: newPlayers };
+  return applyRingBearerEffects(stateWithNewPlayers);
+}
+
+/**
+ * Apply The Ring's passive bonuses to the ring-bearer (CR 701.52).
+ * Level 1: menace
+ * Level 2: menace, lifelink
+ * Level 3: menace, lifelink, can only be blocked by legendary creatures
+ * Level 4: menace, lifelink, legendary-blocker-only, drain 3 on attack (tracked via keyword)
+ */
+function applyRingBearerEffects(state: GameState): GameState {
+  if (!state.theRing?.ringBearerId) return state;
+  const { ringBearerId, ringTemptedCount, player } = state.theRing;
+  if (ringTemptedCount === 0) return state;
+
+  const playerState = state.players[player];
+  const bearerIdx = playerState.battlefield.findIndex(p => p.id === ringBearerId);
+  if (bearerIdx === -1) return state; // Bearer left battlefield
+
+  const bearer = playerState.battlefield[bearerIdx];
+  const keywords: string[] = [];
+
+  // Level 1+: menace
+  if (ringTemptedCount >= 1) keywords.push('menace');
+  // Level 2+: lifelink
+  if (ringTemptedCount >= 2) keywords.push('lifelink');
+  // Level 3+: can only be blocked by legendary (tracked as a special keyword)
+  if (ringTemptedCount >= 3) keywords.push('ring-bearer-level-3');
+  // Level 4+: drain on attack (tracked as special keyword for combat system)
+  if (ringTemptedCount >= 4) keywords.push('ring-bearer-level-4');
+
+  // Strip any existing ring-bearer keywords, then add fresh ones
+  const existingRingKeywords = (bearer.temporaryKeywords || []).filter(
+    tk => !tk.source.startsWith('ring-bearer'),
+  );
+  const newRingKeywords = keywords.map(kw => ({
+    keyword: kw,
+    source: 'ring-bearer',
+    turn: state.turn,
+  }));
+
+  const updatedBearer = {
+    ...bearer,
+    temporaryKeywords: [...existingRingKeywords, ...newRingKeywords],
   };
+
+  // Only create new objects if something actually changed
+  const existingRingKws = (bearer.temporaryKeywords || []).filter(
+    tk => tk.source.startsWith('ring-bearer'),
+  ).map(tk => tk.keyword);
+  const same =
+    existingRingKws.length === keywords.length &&
+    keywords.every(kw => existingRingKws.includes(kw));
+  if (same) return state; // No change needed
+
+  const updatedBf = [...playerState.battlefield];
+  updatedBf[bearerIdx] = updatedBearer;
+  const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+  players[player] = { ...playerState, battlefield: updatedBf };
+  return { ...state, players };
 }
 
 /**
