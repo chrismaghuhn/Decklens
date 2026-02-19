@@ -298,6 +298,41 @@ const TRIGGER_PATTERNS: TriggerPattern[] = [
     eventType: 'leaves',
     selfOnly: false,
   },
+  // LTB — whenever a permanent you control leaves the battlefield
+  {
+    name: 'ltb-permanent-you-control',
+    match: /whenever\s+a\s+(?:nonland\s+)?permanent\s+you\s+control\s+leaves\s+the\s+battlefield/i,
+    eventType: 'leaves',
+    selfOnly: false,
+  },
+  // LTB — whenever an artifact you control leaves the battlefield
+  {
+    name: 'ltb-artifact-you-control',
+    match: /whenever\s+an?\s+artifact\s+you\s+control\s+(?:leaves\s+the\s+battlefield|is\s+put\s+into\s+a\s+graveyard)/i,
+    eventType: 'leaves',
+    selfOnly: false,
+  },
+  // LTB — whenever an enchantment you control leaves the battlefield
+  {
+    name: 'ltb-enchantment-you-control',
+    match: /whenever\s+an?\s+enchantment\s+you\s+control\s+(?:leaves\s+the\s+battlefield|is\s+put\s+into\s+a\s+graveyard)/i,
+    eventType: 'leaves',
+    selfOnly: false,
+  },
+  // LTB — whenever another creature you control leaves the battlefield
+  {
+    name: 'ltb-another-creature-you-control',
+    match: /whenever\s+another\s+creature\s+you\s+control\s+leaves\s+the\s+battlefield/i,
+    eventType: 'leaves',
+    selfOnly: false,
+  },
+  // LTB — whenever a token you control leaves the battlefield
+  {
+    name: 'ltb-token-you-control',
+    match: /whenever\s+a\s+token\s+you\s+control\s+leaves\s+the\s+battlefield/i,
+    eventType: 'leaves',
+    selfOnly: false,
+  },
   // Artifact ETB — whenever an artifact enters the battlefield under your control
   {
     name: 'artifact-etb',

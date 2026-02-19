@@ -167,22 +167,59 @@ export function makeDecision(state: GameState, botPlayer: 0 | 1): Decision {
 
     if (abilityCandidates.length > 0) {
       const best = abilityCandidates[0];
-      const targets = chooseAbilityTargets(state, botPlayer, best);
       const abilityScore = Math.min(0.85, 0.4 + best.priority * 0.06);
-      options.push({
-        decision: {
-          action: {
-            type: 'activate-ability' as const,
-            player: botPlayer,
-            sourceId: best.permanentId,
-            abilityIndex: best.abilityIndex,
-            targets,
+
+      // Different action types based on candidate type
+      if (best.isLoyalty) {
+        // Planeswalker loyalty ability
+        const targets = chooseAbilityTargets(state, botPlayer, best);
+        options.push({
+          decision: {
+            action: {
+              type: 'activate-loyalty' as const,
+              player: botPlayer,
+              permanentId: best.permanentId,
+              abilityIndex: best.abilityIndex,
+              targets,
+            },
+            reason: `Activate ${best.name} loyalty ability (${best.loyaltyCost! > 0 ? '+' : ''}${best.loyaltyCost})`,
+            confidence: abilityScore,
           },
-          reason: `Activate ability on ${best.name} (priority ${best.priority})`,
-          confidence: abilityScore,
-        },
-        score: abilityScore,
-      });
+          score: abilityScore,
+        });
+      } else if (best.isEquip) {
+        // Equipment equip ability
+        options.push({
+          decision: {
+            action: {
+              type: 'equip' as const,
+              player: botPlayer,
+              equipmentId: best.permanentId,
+              targetCreatureId: best.equipTargetId!,
+            },
+            reason: `Equip ${best.name} to creature`,
+            confidence: abilityScore,
+          },
+          score: abilityScore,
+        });
+      } else {
+        // Regular activated ability
+        const targets = chooseAbilityTargets(state, botPlayer, best);
+        options.push({
+          decision: {
+            action: {
+              type: 'activate-ability' as const,
+              player: botPlayer,
+              sourceId: best.permanentId,
+              abilityIndex: best.abilityIndex,
+              targets,
+            },
+            reason: `Activate ability on ${best.name} (priority ${best.priority})`,
+            confidence: abilityScore,
+          },
+          score: abilityScore,
+        });
+      }
     }
 
     if (cyclingCandidates.length > 0) {

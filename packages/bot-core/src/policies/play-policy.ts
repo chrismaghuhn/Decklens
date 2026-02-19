@@ -364,6 +364,14 @@ export interface AbilityCandidate {
   abilityIndex: number;
   priority: number;
   name: string;
+  /** Whether this is a loyalty ability (use activate-loyalty action) */
+  isLoyalty?: boolean;
+  /** Loyalty cost (positive = +N, negative = -N) */
+  loyaltyCost?: number;
+  /** Whether this is an equip ability (use equip action) */
+  isEquip?: boolean;
+  /** Equip target creature ID */
+  equipTargetId?: string;
 }
 
 /**
@@ -372,6 +380,8 @@ export interface AbilityCandidate {
  * Evaluates each non-mana, non-static ability on every permanent the player
  * controls, checking cost affordability and timing restrictions, then scores
  * the ability by its effect text so the bot can pick the best one.
+ *
+ * Also detects planeswalker loyalty abilities and equipment equip abilities.
  */
 export function getAbilityActivationCandidates(
   state: GameState,
@@ -379,8 +389,105 @@ export function getAbilityActivationCandidates(
 ): AbilityCandidate[] {
   const candidates: AbilityCandidate[] = [];
   const ps = state.players[player];
+  const opponent = (player === 0 ? 1 : 0) as 0 | 1;
 
   for (const perm of ps.battlefield) {
+    // ── Planeswalker Loyalty Abilities ──
+    if (perm.typeLine?.toLowerCase().includes('planeswalker') && perm.oracleText) {
+      const loyaltyAbilities = parseLoyaltyAbilities(perm.oracleText);
+      const currentLoyalty = perm.currentLoyalty ?? perm.loyalty ?? 0;
+
+      // Only during main phase with empty stack (sorcery speed)
+      if (state.step === 'main' && state.activePlayer === player && (!state.stack || state.stack.length === 0)) {
+        for (let i = 0; i < loyaltyAbilities.length; i++) {
+          const la = loyaltyAbilities[i];
+          // Can we pay the loyalty cost?
+          if (la.cost < 0 && currentLoyalty + la.cost < 0) continue;
+
+          let priority = 0;
+          const text = la.text.toLowerCase();
+
+          // Score loyalty abilities
+          if (text.includes('draw') || text.includes('card')) priority += 5;
+          if (text.includes('destroy') || text.includes('exile')) priority += 6;
+          if (text.includes('token') || text.includes('create')) priority += 4;
+          if (text.includes('damage')) priority += 4;
+          if (text.includes('return') && text.includes('graveyard')) priority += 4;
+          if (text.includes('counter')) priority += 5;
+          if (text.includes('emblem') || text.includes('ultimate')) priority += 8;
+          if (text.includes('search')) priority += 5;
+
+          // +N abilities: usually card advantage — prefer if loyalty is low
+          if (la.cost > 0) {
+            priority += 2; // Safe option (builds loyalty)
+            if (currentLoyalty <= 3) priority += 2; // Protect walker
+          }
+          // -N abilities: powerful but expensive
+          if (la.cost < 0) {
+            // Don't use ultimate if it kills walker (unless very valuable)
+            if (currentLoyalty + la.cost <= 0 && priority < 6) priority -= 3;
+          }
+
+          if (priority > 0) {
+            candidates.push({
+              permanentId: perm.id,
+              abilityIndex: i,
+              priority,
+              name: perm.name,
+              isLoyalty: true,
+              loyaltyCost: la.cost,
+            });
+          }
+        }
+      }
+    }
+
+    // ── Equipment Equip Abilities ──
+    const typeLine = (perm.typeLine ?? '').toLowerCase();
+    if (typeLine.includes('equipment') && !perm.attachedTo && perm.oracleText) {
+      const equipMatch = perm.oracleText.match(/equip\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+      if (equipMatch && state.step === 'main' && state.activePlayer === player && (!state.stack || state.stack.length === 0)) {
+        const equipCostStr = equipMatch[1];
+        const equipCost = parseManaCost(equipCostStr);
+        const payment = autoPayCost(ps.manaPool, equipCost, ps.life);
+        if (payment) {
+          // Find best creature to equip (biggest non-equipped creature)
+          const creatures = ps.battlefield.filter(p =>
+            p.typeLine?.toLowerCase().includes('creature') && p.id !== perm.id
+          );
+          // Skip if already attached to best creature
+          const attachedTo = perm.attachments ? null : null; // equipment doesn't have attachments, it IS attachment
+          if (creatures.length > 0) {
+            const best = creatures.sort((a, b) =>
+              ((b.currentPower || 0) + (b.currentToughness || 0)) - ((a.currentPower || 0) + (a.currentToughness || 0))
+            )[0];
+
+            let priority = 3; // Base equip value
+            const eqText = (perm.oracleText ?? '').toLowerCase();
+            if (eqText.includes('+2/+2') || eqText.includes('+3/')) priority += 3;
+            else if (eqText.includes('+1/+1')) priority += 2;
+            if (eqText.includes('flying') || eqText.includes('trample') || eqText.includes('double strike')) priority += 3;
+            if (eqText.includes('hexproof') || eqText.includes('indestructible') || eqText.includes('shroud')) priority += 4;
+            if (eqText.includes('draw') || eqText.includes('card')) priority += 3;
+            // Skullclamp special: equip to small creature for card draw
+            if (perm.name === 'Skullclamp') priority += 5;
+            // Lightning Greaves/Swiftfoot Boots: protection
+            if (eqText.includes('haste') && (eqText.includes('hexproof') || eqText.includes('shroud'))) priority += 4;
+
+            candidates.push({
+              permanentId: perm.id,
+              abilityIndex: -1, // Special marker for equip
+              priority,
+              name: perm.name,
+              isEquip: true,
+              equipTargetId: best.id,
+            });
+          }
+        }
+      }
+    }
+
+    // ── Regular Activated Abilities ──
     for (let i = 0; i < perm.abilities.length; i++) {
       const ability = perm.abilities[i];
 
@@ -438,4 +545,20 @@ export function getAbilityActivationCandidates(
   }
 
   return candidates.sort((a, b) => b.priority - a.priority);
+}
+
+/** Parse loyalty abilities from planeswalker oracle text */
+function parseLoyaltyAbilities(oracleText: string): { cost: number; text: string }[] {
+  const abilities: { cost: number; text: string }[] = [];
+  // Match patterns like "+1: Draw a card" or "−2: Destroy target creature" or "0: Create a token"
+  const regex = /([+\-−]?\d+):\s*([^\n]+)/g;
+  let m;
+  while ((m = regex.exec(oracleText)) !== null) {
+    const costStr = m[1].replace('−', '-');
+    const cost = parseInt(costStr, 10);
+    if (!isNaN(cost)) {
+      abilities.push({ cost, text: m[2].trim() });
+    }
+  }
+  return abilities;
 }
