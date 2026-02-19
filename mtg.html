@@ -2860,6 +2860,7 @@ body { font-size: 15px; line-height: 1.65; }
   <symbol id="i-printer" viewBox="0 0 24 24"><path d="M7 8V3h10v5"></path><path d="M6 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"></path><path d="M7 14h10v7H7z"></path></symbol>
   <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></symbol>
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12"></path><path d="M7.5 11.5L12 16l4.5-4.5"></path><path d="M4 20h16"></path></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"></path></symbol>
 </svg>
 <div class="container">
  <header class="app-header">
@@ -2894,7 +2895,7 @@ body { font-size: 15px; line-height: 1.65; }
  
  <!-- More Menu -->
  <div class="header-more" id="headerMore">
-   <button class="icon-btn" id="btnMore" title="More">⋯</button>
+   <button class="icon-btn" id="btnMore" title="More options" aria-label="More options">⋯</button>
    <div class="header-more-menu" id="moreMenu">
       <button data-panel="collectionPanel" data-close-menu><svg class="ui-icon"><use href="#i-box"></use></svg>Collection</button>
       <button data-panel="buyPanel" data-close-menu><svg class="ui-icon"><use href="#i-cart"></use></svg>Buy Cards</button>
@@ -2907,7 +2908,7 @@ body { font-size: 15px; line-height: 1.65; }
    </div>
  </div>
  
- <button class="icon-btn" id="btnTheme" data-action="toggle-theme" title="Toggle Theme">☀</button>
+ <button class="icon-btn" id="btnTheme" data-action="toggle-theme" title="Toggle light/dark theme" aria-label="Toggle light/dark theme">☀</button>
  <button class="icon-btn" id="btnPrint" title="Print Deck"><svg class="ui-icon"><use href="#i-printer"></use></svg></button>
  </div>
  </header>
@@ -2950,7 +2951,7 @@ Sideboard:
   <button class="flow-step active" id="flowStepImport" type="button"><span class="flow-step-index">1</span><svg class="ui-icon"><use href="#i-upload"></use></svg>Import</button>
   <button class="flow-step" id="flowStepAnalyze" type="button"><span class="flow-step-index">2</span><svg class="ui-icon"><use href="#i-chart"></use></svg>Analyze</button>
   <button class="flow-step" id="flowStepRecommend" type="button"><span class="flow-step-index">3</span><svg class="ui-icon"><use href="#i-spark"></use></svg>Top 3</button>
-  <button class="flow-step" id="flowStepApply" type="button"><span class="flow-step-index">4</span><svg class="ui-icon"><use href="#i-spark"></use></svg>Apply</button>
+  <button class="flow-step" id="flowStepApply" type="button"><span class="flow-step-index">4</span><svg class="ui-icon"><use href="#i-check"></use></svg>Apply</button>
   <button class="flow-step" id="flowStepExport" type="button"><span class="flow-step-index">5</span><svg class="ui-icon"><use href="#i-export"></use></svg>Export</button>
   </div>
   <div class="flow-status-row">
