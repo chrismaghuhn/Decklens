@@ -2898,6 +2898,21 @@ body { font-size: 15px; line-height: 1.65; }
   margin-bottom: 1rem;
 }
 
+/* ── FORMAT SELECTOR ─────────────────────────────── */
+.toolbar-format-select {
+  background: var(--bg-2);
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  color: var(--gold);
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+}
+.toolbar-format-select:focus { outline: none; box-shadow: 0 0 0 2px rgba(201,168,76,0.2); }
+
 /* ── IMPORT TABS ─────────────────────────────────── */
 /* Override the old 2-col grid layout for tabbed import */
 #importPanel {
@@ -3122,6 +3137,18 @@ Sideboard:
  </div>
  <div class="toolbar-group"><span class="toolbar-label">Sort</span>
  <select class="toolbar-select" id="sortSelect" ><option value="name">Name</option><option value="cmc">Mana Value</option><option value="type">Type</option><option value="price">Price</option><option value="color">Color</option></select>
+ </div>
+ <div class="toolbar-group"><span class="toolbar-label">Format</span>
+   <select class="toolbar-format-select" id="formatSelect">
+     <option value="commander">Commander</option>
+     <option value="standard">Standard</option>
+     <option value="modern">Modern</option>
+     <option value="pioneer">Pioneer</option>
+     <option value="legacy">Legacy</option>
+     <option value="vintage">Vintage</option>
+     <option value="pauper">Pauper</option>
+     <option value="any">Any</option>
+   </select>
  </div>
  </div>
 

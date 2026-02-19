@@ -996,6 +996,16 @@ function deckTotalCards(deck: Deck): number {
     + deck.commander.reduce((sum, entry) => sum + entry.qty, 0);
 }
 
+function autoDetectFormat(deck: Deck): void {
+  const sel = document.getElementById('formatSelect') as HTMLSelectElement | null;
+  if (!sel) return;
+  const hasCommander = deck.commander.length > 0;
+  const total = deck.main.reduce((s, e) => s + e.qty, 0) + deck.commander.reduce((s, e) => s + e.qty, 0);
+  if (hasCommander || total === 100) sel.value = 'commander';
+  else if (total === 60) sel.value = 'modern';
+  else if (total === 40) sel.value = 'standard';
+}
+
 function deckUniqueCards(deck: Deck): number {
   const all = new Set<string>();
   for (const entry of [...deck.main, ...deck.sideboard, ...deck.commander]) {
@@ -2074,6 +2084,7 @@ async function processDeck(deck: Deck): Promise<void> {
 
   buildCardNameIndex(); // Build search index after loading cards
   clearSearch(); // Clear any existing search when loading new deck
+  autoDetectFormat(deck);
   renderDeck();
   refreshExportOutputForCurrentState();
   updateToolsState(); // Update all tools when deck is loaded
