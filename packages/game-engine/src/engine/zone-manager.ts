@@ -201,6 +201,11 @@ export function moveCard(
  * (state-based actions will handle the loss condition).
  */
 export function drawCard(state: GameState, player: 0 | 1): GameState {
+  // Track first draw this turn for Miracle
+  if (!state.firstDrawThisTurn) {
+    state = { ...state, firstDrawThisTurn: true };
+  }
+
   const playerState = state.players[player];
   if (playerState.library.length === 0) return state;
 

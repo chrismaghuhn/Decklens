@@ -39,6 +39,7 @@ const BASIC_LAND_MANA: Record<string, Color> = {
 interface ManaAbilityMatch {
   produces: string; // e.g. "G", "CC", "any", "WU" (choice)
   text: string;     // original oracle text segment
+  requiresSacrifice?: boolean; // true for Treasure tokens, Lotus Petal, etc.
 }
 
 /**
@@ -115,6 +116,26 @@ function detectManaAbilities(oracleText: string, typeLine: string): ManaAbilityM
   if (/add\s+one\s+mana\s+of\s+any\s+(color|type)/i.test(oracleText) && !seen.has('any')) {
     seen.add('any');
     results.push({ produces: 'any', text: 'Add one mana of any color' });
+  }
+
+  // Pattern 7: "{T}, Sacrifice this/~: Add [mana]" (Treasure tokens, Lotus Petal, Chromatic Sphere)
+  const tapSacManaPattern = /\{t\},?\s*sacrifice\s+(?:this\s+(?:artifact|creature|permanent)|~)[^:]*:\s*add\s+(one\s+mana\s+of\s+any\s+(?:color|type)|(?:\{[wubrgc]\}\s*)+)/gi;
+  let tapSacMatch: RegExpExecArray | null;
+  while ((tapSacMatch = tapSacManaPattern.exec(oracleText)) !== null) {
+    const manaText = tapSacMatch[1].toLowerCase();
+    if (/any\s+(?:color|type)/i.test(manaText)) {
+      if (!seen.has('any-sac')) {
+        seen.add('any-sac');
+        results.push({ produces: 'any', text: tapSacMatch[0], requiresSacrifice: true });
+      }
+    } else {
+      const colors = (manaText.match(/\{([wubrgc])\}/gi) || []).map(s => s.replace(/[{}]/g, '').toUpperCase());
+      const key = colors.join('') + '-sac';
+      if (!seen.has(key)) {
+        seen.add(key);
+        results.push({ produces: colors.join(''), text: tapSacMatch[0], requiresSacrifice: true });
+      }
+    }
   }
 
   return results;
@@ -258,7 +279,7 @@ export function parseAbilities(card: Card): Ability[] {
     abilities.push({
       id: nextAbilityId(),
       type: 'mana',
-      cost: '{T}',
+      cost: ma.requiresSacrifice ? '{T}, Sacrifice ~' : '{T}',
       text: ma.text,
       instantSpeed: true, // Mana abilities don't use the stack
     });

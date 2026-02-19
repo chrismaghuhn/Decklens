@@ -314,6 +314,24 @@ function renderStack(stack: StackObject[], humanPlayer: 0 | 1): void {
     controllerSpan.textContent = item.controller === humanPlayer ? 'You' : 'Bot';
     nameDiv.appendChild(controllerSpan);
 
+    // Oracle text preview
+    const card = item.card;
+    if (card?.oracleText) {
+      const oraclePreview = document.createElement('div');
+      oraclePreview.className = 'stack-oracle-preview';
+      const text = card.oracleText.length > 60 ? card.oracleText.substring(0, 57) + '...' : card.oracleText;
+      oraclePreview.textContent = text;
+      nameDiv.appendChild(oraclePreview);
+    }
+
+    // Type line
+    if (card?.typeLine) {
+      const typeLabel = document.createElement('div');
+      typeLabel.className = 'stack-type-label';
+      typeLabel.textContent = card.typeLine;
+      nameDiv.appendChild(typeLabel);
+    }
+
     row.appendChild(nameDiv);
     container.appendChild(row);
   }

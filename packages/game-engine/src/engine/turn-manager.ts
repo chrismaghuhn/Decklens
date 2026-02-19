@@ -617,6 +617,11 @@ export function applyStepEffects(state: GameState): GameState {
       };
     }
 
+    // Clear first draw flag for Miracle tracking
+    if (cleanupState.firstDrawThisTurn) {
+      cleanupState = { ...cleanupState, firstDrawThisTurn: false };
+    }
+
     return cleanupState;
   }
 

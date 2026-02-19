@@ -590,12 +590,35 @@ function executeTapForMana(
 
   // Tap the permanent
   const tappedPerm = { ...perm, tapped: true };
-  const updatedBattlefield = [...player.battlefield];
+  let updatedBattlefield = [...player.battlefield];
   updatedBattlefield[permIndex] = tappedPerm;
+
+  // Check if ability cost includes sacrifice (e.g., Treasure tokens, Lotus Petal)
+  const abilityText = (ability.cost || ability.text || '').toLowerCase();
+  const requiresSacrifice = abilityText.includes('sacrifice');
+
+  let updatedPlayer: PlayerState = { ...player, battlefield: updatedBattlefield };
+
+  if (requiresSacrifice) {
+    // Remove permanent from battlefield and add to graveyard
+    const updatedBf = updatedPlayer.battlefield.filter(p => p.id !== perm.id);
+    const cardForGy: import('../types/card.ts').Card = {
+      id: perm.id, oracleId: perm.oracleId, name: perm.name, manaCost: perm.manaCost,
+      cmc: perm.cmc, typeLine: perm.typeLine, oracleText: perm.oracleText,
+      power: perm.power, toughness: perm.toughness, loyalty: perm.loyalty,
+      colors: perm.colors, colorIdentity: perm.colorIdentity, rarity: perm.rarity,
+      tags: perm.tags, imageUrl: perm.imageUrl, owner: perm.owner,
+    };
+    updatedPlayer = {
+      ...updatedPlayer,
+      battlefield: updatedBf,
+      graveyard: [...updatedPlayer.graveyard, cardForGy],
+    };
+  }
 
   // Determine mana produced
   const manaColors = getManaProduction({ ...perm });
-  let updatedPool = { ...player.manaPool };
+  let updatedPool = { ...updatedPlayer.manaPool };
 
   if (manaColors.length === 0) {
     // Fallback: try to parse from ability text
@@ -622,7 +645,7 @@ function executeTapForMana(
   const multiMatch = ability.text.match(/add\s+((?:\{[wubrgc]\}){2,})/i);
   if (multiMatch) {
     // Reset pool change — recalculate from the full match
-    updatedPool = { ...player.manaPool };
+    updatedPool = { ...updatedPlayer.manaPool };
     const symbols = multiMatch[1].match(/\{([wubrgc])\}/gi) || [];
     for (const sym of symbols) {
       const c = sym.replace(/[{}]/g, '').toUpperCase() as keyof typeof updatedPool;
@@ -630,9 +653,8 @@ function executeTapForMana(
     }
   }
 
-  const updatedPlayer: PlayerState = {
-    ...player,
-    battlefield: updatedBattlefield,
+  updatedPlayer = {
+    ...updatedPlayer,
     manaPool: updatedPool,
   };
 
@@ -644,7 +666,10 @@ function executeTapForMana(
     players,
     log: [...state.log, {
       timestamp: Date.now(), turn: state.turn, phase: state.phase, step: state.step,
-      player: action.player, message: `${player.name} taps ${perm.name} for mana.`,
+      player: action.player,
+      message: requiresSacrifice
+        ? `${player.name} sacrifices ${perm.name} for mana.`
+        : `${player.name} taps ${perm.name} for mana.`,
       cardName: perm.name, actionType: 'tap-for-mana',
     }],
   };

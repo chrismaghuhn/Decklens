@@ -562,6 +562,30 @@ const TRIGGER_PATTERNS: TriggerPattern[] = [
     selfOnly: false,
   },
 
+  // Suspend — remove time counter at upkeep
+  {
+    name: 'suspend-upkeep',
+    match: /suspend\s+\d+/i,
+    eventType: 'upkeep',
+    selfOnly: false,
+  },
+
+  // When a face-down creature is turned face up
+  {
+    name: 'morph-turned-face-up',
+    match: /when(?:ever)?\s+(?:~|this creature|this permanent)\s+(?:is\s+)?turned\s+face\s+up/i,
+    eventType: 'etb',
+    selfOnly: true,
+  },
+
+  // Megamorph — turn face up with +1/+1 counter
+  {
+    name: 'megamorph',
+    match: /megamorph\s+(\{[^}]+\}(?:\{[^}]+\})*)/i,
+    eventType: 'etb',
+    selfOnly: true,
+  },
+
 ];
 
 // ─── Stack ID counter ───

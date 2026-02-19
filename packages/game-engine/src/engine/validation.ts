@@ -814,16 +814,26 @@ function validateTapForMana(
   const player = state.players[action.player];
   const perm = player.battlefield.find((p) => p.id === action.permanentId);
   if (!perm) return 'Permanent not on battlefield.';
-  if (perm.tapped) return 'Permanent is already tapped.';
 
   const ability = perm.abilities[action.abilityIndex];
   if (!ability) return 'Ability not found on permanent.';
   if (ability.type !== 'mana') return 'Not a mana ability.';
 
-  // Mana abilities from creatures require no summoning sickness
-  // (only tap abilities on creatures are affected)
+  // Check if this is a sacrifice-cost mana ability (e.g., Treasure tokens)
+  const abilityText = (ability.cost || ability.text || '').toLowerCase();
+  const requiresSacrifice = abilityText.includes('sacrifice');
+
+  // Tapped check: still required even for sacrifice abilities (they tap AND sacrifice)
+  if (perm.tapped) return 'Permanent is already tapped.';
+
+  // Summoning sickness: only blocks creature tap abilities, not artifact sacrifice abilities
+  // Artifacts like Treasure tokens can be sacrificed even with summoning sickness
   if (perm.summoningSick && perm.currentPower !== undefined) {
-    return 'Cannot activate tap abilities of a creature with summoning sickness.';
+    // If it's an artifact with a sacrifice-cost mana ability, allow it
+    const isArtifact = perm.typeLine.toLowerCase().includes('artifact');
+    if (!(requiresSacrifice && isArtifact)) {
+      return 'Cannot activate tap abilities of a creature with summoning sickness.';
+    }
   }
 
   return null;
@@ -833,9 +843,16 @@ function canTapAnyForMana(state: GameState, player: 0 | 1): boolean {
   const ps = state.players[player];
   for (const perm of ps.battlefield) {
     if (perm.tapped) continue;
-    if (perm.summoningSick && perm.currentPower !== undefined) continue;
     for (const ability of perm.abilities) {
-      if (ability.type === 'mana') return true;
+      if (ability.type !== 'mana') continue;
+      // Summoning sickness check: only blocks creatures, not artifact sacrifice abilities
+      if (perm.summoningSick && perm.currentPower !== undefined) {
+        const abilityText = (ability.cost || ability.text || '').toLowerCase();
+        const requiresSacrifice = abilityText.includes('sacrifice');
+        const isArtifact = perm.typeLine.toLowerCase().includes('artifact');
+        if (!(requiresSacrifice && isArtifact)) continue;
+      }
+      return true;
     }
   }
   return false;

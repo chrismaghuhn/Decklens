@@ -9032,6 +9032,102 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       return { state, resolved: true, description: `transform ${perm.name}` };
     },
   },
+
+  // ── Miracle — reduced cost if first draw this turn ──
+  {
+    name: 'miracle',
+    match: /miracle\s+(\{[^}]+\}(?:\{[^}]+\})*)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const miracleCost = m[1];
+      state = addLog(state, controller, `Miracle available: can be cast for ${miracleCost}.`);
+      return { state, resolved: true, description: `miracle: ${miracleCost}` };
+    },
+  },
+
+  // ── Dredge N — replace draw with mill N + return from GY to hand ──
+  {
+    name: 'dredge',
+    match: /dredge\s+(\d+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const n = parseInt(m[1]);
+      if (!source) return { state, resolved: true, description: 'dredge (no source)' };
+
+      // Check if source is in graveyard
+      const player = state.players[controller];
+      const gyIdx = player.graveyard.findIndex(c => c.name === source.name);
+      if (gyIdx === -1) {
+        return { state, resolved: true, description: 'dredge (not in graveyard)' };
+      }
+
+      // Mill N cards
+      state = millCards(state, controller, n);
+
+      // Return from graveyard to hand
+      const updatedPlayer = state.players[controller];
+      const card = updatedPlayer.graveyard[gyIdx];
+      if (card) {
+        const newGy = [...updatedPlayer.graveyard];
+        newGy.splice(gyIdx, 1);
+        const newHand = [...updatedPlayer.hand, card];
+        const players = [...state.players] as [PlayerState, PlayerState];
+        players[controller] = { ...updatedPlayer, graveyard: newGy, hand: newHand };
+        state = { ...state, players };
+      }
+
+      state = addLog(state, controller, `Dredge ${n}: milled ${n} cards, returned ${source.name} to hand.`);
+      return { state, resolved: true, description: `dredge ${n}` };
+    },
+  },
+
+  // ── Suspend N — exile with time counters ──
+  {
+    name: 'suspend',
+    match: /suspend\s+(\d+)\s*[—\-]\s*(\{[^}]+\}(?:\{[^}]+\})*)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const counters = parseInt(m[1]);
+      const cost = m[2];
+      if (!source) return { state, resolved: true, description: 'suspend (no source)' };
+
+      // Move card to exile with time counters
+      const player = state.players[controller];
+      const handIdx = player.hand.findIndex(c => c.name === source.name);
+      if (handIdx !== -1) {
+        const card = player.hand[handIdx];
+        const newHand = [...player.hand];
+        newHand.splice(handIdx, 1);
+        const newExile = [...player.exile, card];
+        const players = [...state.players] as [PlayerState, PlayerState];
+        players[controller] = { ...player, hand: newHand, exile: newExile };
+
+        // Track suspended card
+        const suspended = [...(state.suspendedCards || []), { cardId: card.id, ownerId: controller, counters }];
+        state = { ...state, players, suspendedCards: suspended };
+      }
+
+      state = addLog(state, controller, `Suspend ${counters}: ${source.name} exiled with ${counters} time counters (cost: ${cost}).`);
+      return { state, resolved: true, description: `suspend ${counters}` };
+    },
+  },
+
+  // ── Madness — cast from exile for reduced cost when discarded ──
+  {
+    name: 'madness',
+    match: /madness\s+(\{[^}]+\}(?:\{[^}]+\})*)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const madnessCost = m[1];
+      if (!source) return { state, resolved: true, description: 'madness (no source)' };
+
+      // When a card with madness is discarded, it goes to exile instead of graveyard
+      // Then the controller may cast it for the madness cost
+      // Simplified: log the madness option, auto-resolve as "madness available"
+      state = addLog(state, controller, `Madness triggered: ${source.name} can be cast for ${madnessCost}.`);
+      return { state, resolved: true, description: `madness: ${madnessCost}` };
+    },
+  },
 ];
 
 // ─── Fallback Generic Resolver ───

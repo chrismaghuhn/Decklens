@@ -191,4 +191,10 @@ export interface GameState {
     count: number;
     cards: string[]; // card IDs of the top N cards
   } | null;
+
+  /** Whether a card has been drawn this turn (for Miracle — first draw is special) */
+  firstDrawThisTurn?: boolean;
+
+  /** Cards exiled with time counters for Suspend mechanic */
+  suspendedCards?: Array<{ cardId: string; ownerId: 0 | 1; counters: number }>;
 }

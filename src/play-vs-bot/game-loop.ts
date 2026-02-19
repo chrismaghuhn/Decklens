@@ -79,6 +79,7 @@ export class GameLoop {
   private manualManaPool: ManaPool = emptyPool();
   private manuallyTappedIds: Set<string> = new Set();
   private manaTappingMode = false;
+  private inManualResolution = false;
 
   // ─── AI Coach State ───
   private coachEnabled = false;
@@ -525,6 +526,28 @@ export class GameLoop {
           logMessage(`<span style="color:var(--gold)">${state.pendingModalChoice!.cardName}: ${modeTexts.join(', ')}</span>`);
         }
         continue;
+      }
+
+      // ─── Manual Resolution (Smart Parser fallback) ───
+      if (state.needsManualResolution) {
+        if (state.manualResolutionController === this.humanPlayer) {
+          // Human player: show manual resolution panel
+          if (!this.inManualResolution) {
+            this.inManualResolution = true;
+            this.showManualResolutionPanel(state);
+          }
+          await sleep(100);
+          continue;
+        } else {
+          // Bot: auto-pass (can't resolve manually, just clear the flag)
+          this.game.setState({
+            ...state,
+            needsManualResolution: false,
+            manualResolutionCard: undefined,
+            manualResolutionController: undefined,
+          });
+          continue;
+        }
       }
 
       // ─── Fix 5: Combat Damage Assignment Pending ───
@@ -3708,6 +3731,223 @@ export class GameLoop {
     });
   }
 
+  // ==================== Manual Resolution Panel ====================
+
+  /**
+   * Show a panel for manually resolving a card effect that the engine
+   * couldn't auto-resolve (Smart Parser fallback).
+   */
+  private showManualResolutionPanel(state: GameState): void {
+    const card = state.manualResolutionCard;
+    const controller = state.manualResolutionController!;
+    if (!card) return;
+
+    // Remove any existing panel
+    document.querySelector('.manual-resolution-overlay')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'manual-resolution-overlay';
+
+    overlay.innerHTML = `
+      <div class="manual-resolution-panel">
+        <h3 class="manual-res-title">\u26A0\uFE0F Manual Resolution</h3>
+        <div class="manual-res-card-name">${card.name}</div>
+        <div class="manual-res-type">${card.typeLine}</div>
+        <div class="manual-res-oracle">${card.oracleText || 'No oracle text'}</div>
+        <p class="manual-res-hint">This effect couldn't be auto-resolved. Use the buttons below to apply the effect manually, then click Done.</p>
+        <div class="manual-res-actions">
+          <button class="manual-res-btn" data-action="draw">\uD83C\uDCCF Draw Cards</button>
+          <button class="manual-res-btn" data-action="damage">\u26A1 Deal Damage</button>
+          <button class="manual-res-btn" data-action="life">\uD83D\uDC9A Gain Life</button>
+          <button class="manual-res-btn" data-action="loselife">\uD83D\uDC80 Lose Life (Opponent)</button>
+          <button class="manual-res-btn" data-action="token">\u2728 Create Token</button>
+          <button class="manual-res-btn" data-action="counter">\uD83D\uDD22 Add Counter</button>
+          <button class="manual-res-btn" data-action="destroy">\uD83D\uDDD1\uFE0F Destroy Permanent</button>
+        </div>
+        <div class="manual-res-log"></div>
+        <button class="manual-res-done">\u2705 Done \u2014 Continue Game</button>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const logEl = overlay.querySelector('.manual-res-log') as HTMLElement;
+    const addLogMsg = (msg: string) => {
+      const p = document.createElement('div');
+      p.className = 'manual-res-log-entry';
+      p.textContent = `\u2713 ${msg}`;
+      logEl.appendChild(p);
+      logEl.scrollTop = logEl.scrollHeight;
+    };
+
+    const getState = () => this.game.getState();
+    const setState = (s: GameState) => this.game.setState(s);
+
+    // Draw Cards
+    overlay.querySelector('[data-action="draw"]')!.addEventListener('click', () => {
+      const n = prompt('How many cards to draw?', '1');
+      if (n) {
+        const count = parseInt(n) || 1;
+        const st = getState();
+        const player = st.players[controller];
+        const drawn = player.library.slice(0, count);
+        const newLib = player.library.slice(count);
+        const newHand = [...player.hand, ...drawn];
+        const players = [...st.players] as [typeof st.players[0], typeof st.players[1]];
+        players[controller] = { ...player, library: newLib, hand: newHand };
+        setState({ ...st, players });
+        addLogMsg(`Drew ${count} card(s)`);
+      }
+    });
+
+    // Deal Damage
+    overlay.querySelector('[data-action="damage"]')!.addEventListener('click', () => {
+      const n = prompt('How much damage?', '3');
+      const target = prompt('Target? (opponent / self)', 'opponent');
+      if (n) {
+        const amount = parseInt(n) || 0;
+        const st = getState();
+        const targetPlayer = target === 'self' ? controller : ((controller === 0 ? 1 : 0) as 0 | 1);
+        const players = [...st.players] as [typeof st.players[0], typeof st.players[1]];
+        players[targetPlayer] = { ...players[targetPlayer], life: players[targetPlayer].life - amount };
+        setState({ ...st, players });
+        addLogMsg(`Dealt ${amount} damage to ${st.players[targetPlayer].name}`);
+      }
+    });
+
+    // Gain Life
+    overlay.querySelector('[data-action="life"]')!.addEventListener('click', () => {
+      const n = prompt('How much life to gain?', '3');
+      if (n) {
+        const amount = parseInt(n) || 0;
+        const st = getState();
+        const players = [...st.players] as [typeof st.players[0], typeof st.players[1]];
+        players[controller] = { ...players[controller], life: players[controller].life + amount };
+        setState({ ...st, players });
+        addLogMsg(`Gained ${amount} life`);
+      }
+    });
+
+    // Lose Life (Opponent)
+    overlay.querySelector('[data-action="loselife"]')!.addEventListener('click', () => {
+      const n = prompt('How much life does opponent lose?', '3');
+      if (n) {
+        const amount = parseInt(n) || 0;
+        const st = getState();
+        const opp = (controller === 0 ? 1 : 0) as 0 | 1;
+        const players = [...st.players] as [typeof st.players[0], typeof st.players[1]];
+        players[opp] = { ...players[opp], life: players[opp].life - amount };
+        setState({ ...st, players });
+        addLogMsg(`Opponent loses ${amount} life`);
+      }
+    });
+
+    // Create Token
+    overlay.querySelector('[data-action="token"]')!.addEventListener('click', () => {
+      const name = prompt('Token name?', 'Soldier');
+      const pt = prompt('Power/Toughness? (e.g. 1/1)', '1/1');
+      if (name && pt) {
+        const [pw, th] = pt.split('/').map(Number);
+        const st = getState();
+        const tokenId = `manual-token-${Date.now()}`;
+        const tokenCard = {
+          id: tokenId, oracleId: `token_${name.toLowerCase()}`, name,
+          manaCost: '', cmc: 0, typeLine: `Token Creature \u2014 ${name}`,
+          oracleText: '', power: String(pw || 0), toughness: String(th || 0),
+          colors: [] as string[], colorIdentity: [] as string[], rarity: 'common' as const,
+          tags: [] as string[], imageUrl: '', owner: controller as 0 | 1,
+        };
+        const perm = {
+          ...tokenCard, card: tokenCard, controller, tapped: false, flipped: false, faceDown: false,
+          currentPower: pw || 0, currentToughness: th || 0, basePower: pw || 0, baseToughness: th || 0,
+          damage: 0, summoningSick: true, attacking: false, blocking: null,
+          abilities: [], counters: {} as Record<string, number>, temporaryPtMods: [],
+          temporaryKeywords: [], attachments: [] as string[], x: 0, y: 0,
+          enteredBattlefieldTurn: st.turn,
+        };
+        const players = [...st.players] as [typeof st.players[0], typeof st.players[1]];
+        players[controller] = { ...players[controller], battlefield: [...players[controller].battlefield, perm as any] };
+        setState({ ...st, players });
+        addLogMsg(`Created ${pw}/${th} ${name} token`);
+      }
+    });
+
+    // Add Counter
+    overlay.querySelector('[data-action="counter"]')!.addEventListener('click', () => {
+      const type = prompt('Counter type? (+1/+1, -1/-1, loyalty)', '+1/+1');
+      const n = prompt('How many?', '1');
+      if (type && n) {
+        const count = parseInt(n) || 1;
+        const st = getState();
+        const player = st.players[controller];
+        const creature = player.battlefield.find(p => p.typeLine?.toLowerCase().includes('creature'));
+        if (creature) {
+          const updatedBf = player.battlefield.map(p => {
+            if (p.id !== creature.id) return p;
+            const counters = { ...p.counters, [type]: (p.counters[type] || 0) + count };
+            const powerMod = type === '+1/+1' ? count : type === '-1/-1' ? -count : 0;
+            return {
+              ...p, counters,
+              currentPower: (p.currentPower ?? 0) + powerMod,
+              currentToughness: (p.currentToughness ?? 0) + powerMod,
+            };
+          });
+          const players = [...st.players] as [typeof st.players[0], typeof st.players[1]];
+          players[controller] = { ...player, battlefield: updatedBf };
+          setState({ ...st, players });
+          addLogMsg(`Put ${count} ${type} counter(s) on ${creature.name}`);
+        } else {
+          addLogMsg('No creature to put counters on');
+        }
+      }
+    });
+
+    // Destroy Permanent
+    overlay.querySelector('[data-action="destroy"]')!.addEventListener('click', () => {
+      const st = getState();
+      const opp = (controller === 0 ? 1 : 0) as 0 | 1;
+      const oppPerms = st.players[opp].battlefield;
+      if (oppPerms.length === 0) {
+        addLogMsg('No opponent permanents to destroy');
+        return;
+      }
+      const names = oppPerms.map((p, i) => `${i}: ${p.name}`).join('\n');
+      const choice = prompt(`Choose permanent to destroy:\n${names}`, '0');
+      if (choice !== null) {
+        const idx = parseInt(choice);
+        if (idx >= 0 && idx < oppPerms.length) {
+          const perm = oppPerms[idx];
+          const updatedBf = oppPerms.filter((_, i) => i !== idx);
+          const cardForGy = {
+            id: perm.id, oracleId: perm.oracleId, name: perm.name, manaCost: perm.manaCost,
+            cmc: perm.cmc, typeLine: perm.typeLine, oracleText: perm.oracleText,
+            power: perm.power, toughness: perm.toughness, colors: perm.colors,
+            colorIdentity: perm.colorIdentity, rarity: perm.rarity, tags: perm.tags,
+            imageUrl: perm.imageUrl, owner: perm.owner,
+          };
+          const players = [...st.players] as [typeof st.players[0], typeof st.players[1]];
+          players[opp] = { ...players[opp], battlefield: updatedBf, graveyard: [...players[opp].graveyard, cardForGy as any] };
+          setState({ ...st, players });
+          addLogMsg(`Destroyed ${perm.name}`);
+        }
+      }
+    });
+
+    // Done button
+    overlay.querySelector('.manual-res-done')!.addEventListener('click', () => {
+      overlay.remove();
+      this.inManualResolution = false;
+      const currentState = getState();
+      this.game.setState({
+        ...currentState,
+        needsManualResolution: false,
+        manualResolutionCard: undefined,
+        manualResolutionController: undefined,
+      });
+      this.render();
+    });
+  }
+
   // ==================== Fix 5: Combat Damage Assignment UI ====================
 
   /**
@@ -4939,6 +5179,47 @@ export class GameLoop {
         text-align: center;
         margin-top: 20px;
       }
+
+      /* ─── Manual Resolution Panel ─── */
+      .manual-resolution-overlay {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+        display: flex; align-items: center; justify-content: center; z-index: 9999;
+      }
+      .manual-resolution-panel {
+        background: #0a0e17; border: 2px solid #c9a84c; border-radius: 16px;
+        padding: 24px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;
+      }
+      .manual-res-title {
+        font-family: 'Cinzel', serif; color: #c9a84c; margin: 0 0 16px 0; font-size: 20px;
+      }
+      .manual-res-card-name {
+        font-family: 'Cinzel', serif; color: #c9a84c; font-size: 18px; margin-bottom: 4px;
+      }
+      .manual-res-type { color: #9ca3af; font-size: 13px; margin-bottom: 8px; }
+      .manual-res-oracle {
+        color: #e5e7eb; font-size: 14px; line-height: 1.5; padding: 12px;
+        background: #1a1f2e; border-radius: 8px; margin-bottom: 12px;
+        white-space: pre-wrap;
+      }
+      .manual-res-hint { color: #9ca3af; font-size: 12px; margin-bottom: 16px; }
+      .manual-res-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+      .manual-res-btn {
+        background: #1a1f2e; border: 1px solid #c9a84c; color: #c9a84c;
+        padding: 10px 16px; border-radius: 50px; cursor: pointer; font-size: 13px;
+        transition: all 0.2s; font-family: 'Outfit', sans-serif;
+      }
+      .manual-res-btn:hover { background: #c9a84c; color: #0a0e17; }
+      .manual-res-log {
+        max-height: 120px; overflow-y: auto; margin-bottom: 16px; padding: 8px;
+        background: #0f1623; border-radius: 8px;
+      }
+      .manual-res-log-entry { color: #34d399; font-size: 12px; padding: 2px 0; }
+      .manual-res-done {
+        width: 100%; padding: 14px; background: #c9a84c; color: #0a0e17;
+        border: none; border-radius: 50px; font-size: 16px; font-weight: 600;
+        cursor: pointer; font-family: 'Cinzel', serif; transition: all 0.2s;
+      }
+      .manual-res-done:hover { background: #d4b55a; }
     `;
     document.head.appendChild(style);
   }
