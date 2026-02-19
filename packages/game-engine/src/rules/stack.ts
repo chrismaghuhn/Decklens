@@ -35,7 +35,7 @@ export function addSpellToStack(
   targets: Target[],
   _manaPayment: ManaPayment,
   xValue?: number,
-  opts?: { isFlashback?: boolean; isKicked?: boolean; isAdventure?: boolean; isFaceDown?: boolean; isEvoked?: boolean; isDashed?: boolean; oracleTextOverride?: string }
+  opts?: { isFlashback?: boolean; isKicked?: boolean; isAdventure?: boolean; isFaceDown?: boolean; isEvoked?: boolean; isDashed?: boolean; isOverloaded?: boolean; oracleTextOverride?: string }
 ): GameState {
   const playerState = state.players[player];
 
@@ -97,6 +97,7 @@ export function addSpellToStack(
     isFaceDown: opts?.isFaceDown,
     isEvoked: opts?.isEvoked,
     isDashed: opts?.isDashed,
+    isOverloaded: opts?.isOverloaded,
   };
 
   const players = [...state.players] as [PlayerState, PlayerState];
@@ -108,6 +109,7 @@ export function addSpellToStack(
   if (opts?.isAdventure) castMessage += ` (adventure: ${card.adventureName || card.name})`;
   if (opts?.isEvoked) castMessage += ' (evoked)';
   if (opts?.isDashed) castMessage += ' (dashed)';
+  if (opts?.isOverloaded) castMessage += ' (overloaded)';
   if (xValue !== undefined && xValue > 0) castMessage += ` (X=${xValue})`;
   castMessage += '.';
 
@@ -335,6 +337,10 @@ export function resolveTopOfStack(state: GameState): GameState {
           dashedThisTurn: true,
           temporaryKeywords: [...(permanent.temporaryKeywords || []), { keyword: 'haste', until: 'end-of-turn' }],
         };
+      }
+      // Check if permanent enters the battlefield tapped (e.g., tap-lands, "enters tapped" creatures)
+      if ((card.oracleText || '').match(/enters the battlefield tapped/i)) {
+        permanent = { ...permanent, tapped: true };
       }
       const players = [...newState.players] as [PlayerState, PlayerState];
       players[controller] = {

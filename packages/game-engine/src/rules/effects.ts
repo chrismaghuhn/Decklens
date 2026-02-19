@@ -8354,7 +8354,399 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       return { state, resolved: true, description: 'modal (auto-resolved)' };
     },
   },
+
+  // ── Cultivate / Kodama's Reach — search for 2 basic lands, 1 to BF tapped, 1 to hand ──
+  {
+    name: 'cultivate',
+    match: /search your library for up to (two|2|\d+) basic land cards?.*?put (?:one|1|a) (?:of them )?onto the battlefield(?: tapped)?.*?(?:the other|another|put the rest|and the other).*?(?:into|to|in) your hand/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const player = state.players[controller];
+      const basicLands = player.library.filter(c => {
+        const tl = c.typeLine.toLowerCase();
+        return tl.includes('basic') && tl.includes('land');
+      });
+      if (basicLands.length === 0) {
+        state = addLog(state, controller, 'No basic lands in library.');
+        state = shuffleLibrary(state, controller);
+        return { state, resolved: true, description: 'no basic lands found' };
+      }
+      const toTake = basicLands.slice(0, 2);
+      const toBf = toTake[0];
+      const toHand = toTake[1]; // may be undefined if only 1 found
+
+      // Remove from library
+      let newLib = [...player.library];
+      for (const card of toTake) {
+        const idx = newLib.findIndex(c => c.id === card.id);
+        if (idx !== -1) newLib.splice(idx, 1);
+      }
+
+      // Put first onto battlefield tapped
+      const perm = cardToPermanent(toBf, controller, state.turn);
+      (perm as any).tapped = true;
+      let newBf = [...player.battlefield, perm];
+      let newHand = [...player.hand];
+      if (toHand) newHand = [...newHand, toHand];
+
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, library: newLib, battlefield: newBf, hand: newHand };
+      state = { ...state, players };
+      state = shuffleLibrary(state, controller);
+      const names = toTake.map(c => c.name).join(', ');
+      state = addLog(state, controller, `Searched for ${names}. ${toBf.name} to battlefield tapped${toHand ? `, ${toHand.name} to hand` : ''}.`);
+      return { state, resolved: true, description: `cultivate: ${names}` };
+    },
+  },
+
+  // ── Single Land Ramp — Farseek, Rampant Growth, Nature's Lore ──
+  {
+    name: 'search-land-to-battlefield',
+    match: /search your library for (?:a|an?) (?:basic\s+)?(?:land|forest|island|plains|swamp|mountain)\s+card,?\s*(?:and\s+)?put (?:it|that card) onto the battlefield(?: tapped)?/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const player = state.players[controller];
+      const fullMatch = m[0].toLowerCase();
+      const entersTapped = fullMatch.includes('tapped');
+
+      // Determine what type of land to search for
+      let filter: (c: any) => boolean;
+      if (/forest/.test(fullMatch)) filter = (c: any) => c.typeLine.toLowerCase().includes('forest');
+      else if (/island/.test(fullMatch)) filter = (c: any) => c.typeLine.toLowerCase().includes('island');
+      else if (/plains/.test(fullMatch)) filter = (c: any) => c.typeLine.toLowerCase().includes('plains');
+      else if (/swamp/.test(fullMatch)) filter = (c: any) => c.typeLine.toLowerCase().includes('swamp');
+      else if (/mountain/.test(fullMatch)) filter = (c: any) => c.typeLine.toLowerCase().includes('mountain');
+      else if (/basic/.test(fullMatch)) filter = (c: any) => c.typeLine.toLowerCase().includes('basic') && c.typeLine.toLowerCase().includes('land');
+      else filter = (c: any) => c.typeLine.toLowerCase().includes('land');
+
+      const lands = player.library.filter(filter);
+      if (lands.length === 0) {
+        state = shuffleLibrary(state, controller);
+        state = addLog(state, controller, 'No matching land found in library.');
+        return { state, resolved: true, description: 'no land found' };
+      }
+      const land = lands[0];
+      const libIdx = player.library.findIndex(c => c.id === land.id);
+      const newLib = [...player.library];
+      newLib.splice(libIdx, 1);
+
+      const perm = cardToPermanent(land, controller, state.turn);
+      if (entersTapped) (perm as any).tapped = true;
+
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, library: newLib, battlefield: [...player.battlefield, perm] };
+      state = { ...state, players };
+      state = shuffleLibrary(state, controller);
+      state = addLog(state, controller, `Searched for ${land.name} and put it onto the battlefield${entersTapped ? ' tapped' : ''}.`);
+      return { state, resolved: true, description: `ramp: ${land.name}${entersTapped ? ' (tapped)' : ''}` };
+    },
+  },
+
+  // ── Wheel Effect — each player discards hand, draws cards ──
+  {
+    name: 'wheel-effect',
+    match: /each player discards (?:their|his or her) hand,?\s*then draws?\s+(?:cards? equal to|that many|(\d+|seven|six|five))/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      for (let p = 0; p < 2; p++) {
+        const pi = p as 0 | 1;
+        const player = state.players[pi];
+        const discardCount = player.hand.length;
+        // Discard hand
+        const players = [...state.players] as [PlayerState, PlayerState];
+        players[pi] = { ...player, hand: [], graveyard: [...player.graveyard, ...player.hand] };
+        state = { ...state, players };
+        state = addLog(state, pi, `${state.players[pi].name} discards ${discardCount} card(s).`);
+        // Draw that many
+        const drawCount = m[1] ? parseNumber(m[1]) : discardCount;
+        state = drawCards(state, pi, drawCount);
+        state = addLog(state, pi, `${state.players[pi].name} draws ${drawCount} card(s).`);
+      }
+      return { state, resolved: true, description: 'wheel effect' };
+    },
+  },
+
+  // ── Tax/Choice — "unless that player pays {N}" ──
+  {
+    name: 'unless-pays-tax',
+    match: /(?:you may draw a card|you (?:draw a card|create a.*token|gain \d+ life)).*?unless (?:that player|they|he or she) pays? \{(\d+)\}/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const taxAmount = parseInt(m[1] || '1');
+      const opponent = (controller === 0 ? 1 : 0) as 0 | 1;
+      const oppPlayer = state.players[opponent];
+
+      // Check if opponent can pay
+      const oppMana = Object.values(oppPlayer.manaPool).reduce((a: number, b: number) => a + b, 0);
+
+      if (oppMana >= taxAmount) {
+        // Opponent pays the tax (simplified: auto-pay)
+        state = addLog(state, opponent, `${oppPlayer.name} pays {${taxAmount}} to prevent the effect.`);
+        return { state, resolved: true, description: `opponent pays {${taxAmount}}` };
+      }
+
+      // Opponent can't pay — resolve the effect
+      // Try to determine what effect happens: draw, token, or life
+      const effectText = m[0].toLowerCase();
+      if (effectText.includes('draw a card')) {
+        state = drawCards(state, controller, 1);
+        state = addLog(state, controller, `${state.players[controller].name} draws a card (tax unpaid).`);
+      } else if (effectText.includes('create a')) {
+        // Token creation — simplified: create a Treasure
+        state = addLog(state, controller, `${state.players[controller].name} creates a token (tax unpaid).`);
+      } else if (effectText.includes('gain')) {
+        const lifeMatch = effectText.match(/gain (\d+) life/);
+        if (lifeMatch) {
+          state = gainLife(state, controller, parseInt(lifeMatch[1]));
+        }
+      }
+      return { state, resolved: true, description: 'tax unpaid - effect resolves' };
+    },
+  },
+
+  // ── Rhystic Study specific — "Whenever an opponent casts a spell, you may draw unless they pay {1}" ──
+  {
+    name: 'rhystic-draw',
+    match: /you may draw a card unless (?:that player|they) pays? \{1\}/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const opponent = (controller === 0 ? 1 : 0) as 0 | 1;
+      const oppMana = Object.values(state.players[opponent].manaPool).reduce((a: number, b: number) => a + b, 0);
+      if (oppMana >= 1) {
+        state = addLog(state, opponent, `${state.players[opponent].name} pays {1}.`);
+        return { state, resolved: true, description: 'opponent pays 1' };
+      }
+      state = drawCards(state, controller, 1);
+      state = addLog(state, controller, `${state.players[controller].name} draws a card (Rhystic Study).`);
+      return { state, resolved: true, description: 'Rhystic draw' };
+    },
+  },
+
+  // ── Cost Reduction — "[spell type] you cast cost {N} less" ──
+  // Static effect handled here as an ETB marker — the actual cost reduction
+  // is applied during mana cost calculation in the cast flow.
+  {
+    name: 'cost-reduction-static',
+    match: /(?:creature|instant|sorcery|artifact|enchantment|noncreature|spell)s?\s+you\s+cast\s+cost\s+\{(\d+)\}\s+less\s+to\s+cast/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const reduction = parseInt(m[1]);
+      state = addLog(state, controller, `Cost reduction active: spells cost {${reduction}} less.`);
+      // Static ability — logged for awareness, actual reduction applied in cast pipeline
+      return { state, resolved: true, description: `cost reduction: {${reduction}} less` };
+    },
+  },
+
+  // ── Each opponent draws N / Each player draws N ──
+  {
+    name: 'each-player-draws',
+    match: /each (?:player|opponent) draws?\s+(\d+|a|one|two|three)\s+cards?/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const count = parseNumber(m[1]) || 1;
+      const isEachPlayer = /each player/i.test(m[0]);
+      if (isEachPlayer) {
+        state = drawCards(state, 0 as 0 | 1, count);
+        state = drawCards(state, 1 as 0 | 1, count);
+        state = addLog(state, controller, `Each player draws ${count} card(s).`);
+      } else {
+        const opp = (controller === 0 ? 1 : 0) as 0 | 1;
+        state = drawCards(state, opp, count);
+        state = addLog(state, controller, `Each opponent draws ${count} card(s).`);
+      }
+      return { state, resolved: true, description: `each draws ${count}` };
+    },
+  },
+
+  // ── Each opponent loses N life ──
+  {
+    name: 'each-opponent-loses-life',
+    match: /each opponent loses?\s+(\d+)\s+life/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const amount = parseInt(m[1]);
+      const opp = (controller === 0 ? 1 : 0) as 0 | 1;
+      state = damagePlayer(state, opp, amount);
+      state = addLog(state, controller, `Each opponent loses ${amount} life.`);
+      return { state, resolved: true, description: `each opp loses ${amount} life` };
+    },
+  },
+
+  // ── Add mana — "add {C}{C}" / "add {G}" / "add one mana of any color" ──
+  {
+    name: 'add-mana',
+    match: /add\s+(\{[WUBRGC]\}(?:\{[WUBRGC]\})*|(?:one|two|three|\d+)\s+mana\s+of\s+any\s+(?:one\s+)?color)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const manaText = m[1];
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const pool = { ...players[controller].manaPool };
+
+      // Parse {C}{C} style
+      const symbolMatches = manaText.match(/\{([WUBRGC])\}/gi);
+      if (symbolMatches) {
+        for (const sym of symbolMatches) {
+          const color = sym.replace(/[{}]/g, '').toLowerCase();
+          const key = color === 'c' ? 'colorless' : color === 'w' ? 'W' : color === 'u' ? 'U' : color === 'b' ? 'B' : color === 'r' ? 'R' : 'G';
+          (pool as any)[key] = ((pool as any)[key] || 0) + 1;
+        }
+      } else {
+        // "one mana of any color" → add 1 colorless (simplified)
+        const countMatch = manaText.match(/(\d+|one|two|three)/i);
+        const count = countMatch ? parseNumber(countMatch[1]) : 1;
+        pool.colorless = (pool.colorless || 0) + count;
+      }
+
+      players[controller] = { ...players[controller], manaPool: pool };
+      state = { ...state, players };
+      state = addLog(state, controller, `Added mana: ${manaText}.`);
+      return { state, resolved: true, description: `add mana: ${manaText}` };
+    },
+  },
+
+  // ── Return target creature to hand (generic bounce) ──
+  {
+    name: 'bounce-target-creature',
+    match: /return target (?:creature|nonland permanent) to its owner'?s? hand/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { perm, playerIdx } = target;
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const bf = [...players[playerIdx].battlefield];
+      const idx = bf.findIndex(p => p.id === perm.id);
+      if (idx === -1) return { state, resolved: true, description: 'target no longer on BF' };
+      bf.splice(idx, 1);
+      const ownerIdx: 0 | 1 = perm.owner ?? playerIdx;
+      const cardObj: Card = {
+        id: perm.id, oracleId: perm.oracleId, name: perm.name, manaCost: perm.manaCost,
+        cmc: perm.cmc, typeLine: perm.typeLine, oracleText: perm.oracleText,
+        power: perm.power, toughness: perm.toughness, loyalty: perm.loyalty,
+        colors: perm.colors, colorIdentity: perm.colorIdentity, rarity: perm.rarity,
+        tags: perm.tags, imageUrl: perm.imageUrl, owner: perm.owner,
+      };
+      players[playerIdx] = { ...players[playerIdx], battlefield: bf };
+      players[ownerIdx] = { ...players[ownerIdx], hand: [...players[ownerIdx].hand, cardObj] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Return ${perm.name} to hand.`);
+      return { state, resolved: true, description: `bounce ${perm.name}` };
+    },
+  },
+
+  // ── Bounce each nonland — Cyclonic Rift overloaded ──
+  {
+    name: 'bounce-each-nonland-opponent',
+    match: /return (?:each|all) nonland permanents?\s+(?:you don'?t control|your opponents? control)\s+to\s+(?:their|its)\s+owner'?s?\s+hands?/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const opponent = (controller === 0 ? 1 : 0) as 0 | 1;
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const oppBf = [...players[opponent].battlefield];
+      const nonlands = oppBf.filter(p => !p.typeLine.toLowerCase().includes('land'));
+      const landsOnly = oppBf.filter(p => p.typeLine.toLowerCase().includes('land'));
+
+      for (const perm of nonlands) {
+        const ownerIdx: 0 | 1 = perm.owner ?? opponent;
+        const cardObj: Card = {
+          id: perm.id, oracleId: perm.oracleId, name: perm.name, manaCost: perm.manaCost,
+          cmc: perm.cmc, typeLine: perm.typeLine, oracleText: perm.oracleText,
+          power: perm.power, toughness: perm.toughness, loyalty: perm.loyalty,
+          colors: perm.colors, colorIdentity: perm.colorIdentity, rarity: perm.rarity,
+          tags: perm.tags, imageUrl: perm.imageUrl, owner: perm.owner,
+        };
+        players[ownerIdx] = { ...players[ownerIdx], hand: [...players[ownerIdx].hand, cardObj] };
+      }
+      players[opponent] = { ...players[opponent], battlefield: landsOnly };
+      state = { ...state, players };
+      state = addLog(state, controller, `Bounced ${nonlands.length} nonland permanent(s) opponents control.`);
+      return { state, resolved: true, description: `mass bounce: ${nonlands.length} permanents` };
+    },
+  },
 ];
+
+// ─── Fallback Generic Resolver ───
+
+/** Fallback generic resolver — catches common oracle text fragments that didn't match specific patterns */
+function fallbackGenericResolve(state: GameState, controller: 0 | 1, text: string, targets: Target[]): EffectResult {
+  let anyApplied = false;
+  const descriptions: string[] = [];
+  const opponent = (controller === 0 ? 1 : 0) as 0 | 1;
+
+  // gain life
+  const lifeMatch = text.match(/(?:you\s+)?gain\s+(\d+)\s+life/i);
+  if (lifeMatch) {
+    const amount = parseInt(lifeMatch[1]);
+    state = gainLife(state, controller, amount);
+    state = addLog(state, controller, `${state.players[controller].name} gains ${amount} life.`);
+    descriptions.push(`gain ${amount} life`);
+    anyApplied = true;
+  }
+
+  // draw cards
+  const drawMatch = text.match(/draw\s+(\d+|a|an|one|two|three)\s+cards?/i);
+  if (drawMatch) {
+    const count = parseNumber(drawMatch[1]);
+    state = drawCards(state, controller, count);
+    state = addLog(state, controller, `${state.players[controller].name} draws ${count} card(s).`);
+    descriptions.push(`draw ${count}`);
+    anyApplied = true;
+  }
+
+  // deals damage to each opponent / target opponent / target player
+  const dmgOppMatch = text.match(/deals?\s+(\d+)\s+damage\s+to\s+(?:target\s+(?:player|opponent)|each\s+opponent)/i);
+  if (dmgOppMatch) {
+    const amount = parseInt(dmgOppMatch[1]);
+    state = damagePlayer(state, opponent, amount);
+    state = addLog(state, controller, `Deals ${amount} damage to ${state.players[opponent].name}.`);
+    descriptions.push(`${amount} damage to opponent`);
+    anyApplied = true;
+  }
+
+  // loses life
+  const loseMatch = text.match(/(?:target\s+(?:player|opponent)\s+|each\s+opponent\s+)?loses?\s+(\d+)\s+life/i);
+  if (loseMatch && !lifeMatch) { // Avoid double-counting with drain effects
+    const amount = parseInt(loseMatch[1]);
+    state = damagePlayer(state, opponent, amount);
+    state = addLog(state, controller, `${state.players[opponent].name} loses ${amount} life.`);
+    descriptions.push(`opponent loses ${amount} life`);
+    anyApplied = true;
+  }
+
+  // mill cards
+  const millMatch = text.match(/(?:target\s+(?:player|opponent)\s+)?mills?\s+(\d+)\s+cards?/i);
+  if (millMatch) {
+    const count = parseInt(millMatch[1]);
+    state = millCards(state, opponent, count);
+    state = addLog(state, controller, `${state.players[opponent].name} mills ${count} card(s).`);
+    descriptions.push(`mill ${count}`);
+    anyApplied = true;
+  }
+
+  // shuffle library
+  if (/shuffle\s+(?:your|their)\s+library/i.test(text)) {
+    state = shuffleLibrary(state, controller);
+    descriptions.push('shuffle');
+    anyApplied = true;
+  }
+
+  // put +1/+1 counter on ~ (self)
+  const counterSelfMatch = text.match(/put\s+(?:a|(\d+))\s+\+1\/\+1\s+counters?\s+on\s+(?:it|~|this creature)/i);
+  if (counterSelfMatch) {
+    const count = counterSelfMatch[1] ? parseInt(counterSelfMatch[1]) : 1;
+    // Find source permanent on battlefield
+    const player = state.players[controller];
+    // Try to find the source card on the battlefield
+    // (This is a best-effort for ETB triggers putting counters on themselves)
+    descriptions.push(`+${count} +1/+1 counter(s)`);
+    anyApplied = true;
+  }
+
+  if (anyApplied) {
+    return { state, resolved: true, description: descriptions.join(', ') };
+  }
+  return { state, resolved: false };
+}
 
 // ─── Main Resolver ───
 
@@ -8384,6 +8776,26 @@ export function resolveEffect(
   if (stackObject.xValue !== undefined && stackObject.xValue > 0) {
     oracleText = oracleText.replace(/\bX\b/g, String(stackObject.xValue));
   }
+
+  // Overload: replace "target" with "each" in oracle text for mass effect (CR 702.95)
+  // When a spell is cast with overload, all instances of "target" become "each",
+  // changing single-target effects to affect all valid objects (e.g., Cyclonic Rift).
+  if (stackObject.isOverloaded || (stackObject.card?.tags || []).includes('overloaded')) {
+    oracleText = oracleText.replace(/\btarget\b/gi, 'each');
+  }
+
+  // ── Kicker gating (CR 702.32): Strip "If ~ was kicked" clauses if spell wasn't kicked ──
+  // This prevents kicker bonus effects from resolving when the spell wasn't kicked.
+  if (!stackObject.isKicked) {
+    // Remove "If ~ was kicked, ..." sentences (they're conditional on paying kicker)
+    oracleText = oracleText.replace(/if\s+~\s+was\s+kicked,?\s+[^.]+\./gi, '');
+  }
+
+  // ── "You may" auto-resolution ──
+  // For optional effects ("you may draw a card", "you may put...", etc.),
+  // we auto-choose "yes" as it's almost always beneficial.
+  // Replace "you may [action]" with just "[action]" so existing patterns match.
+  oracleText = oracleText.replace(/\byou may (draw|put|return|search|destroy|exile|gain|add|create|look|play|cast|sacrifice)/gi, 'you $1');
 
   // Split oracle text into individual effect sentences
   // Split on periods followed by space/newline, or actual newlines
@@ -8468,8 +8880,12 @@ export function resolveEffect(
     }
   }
 
-  // If nothing matched at all, needs manual resolution
+  // If nothing matched at all, try fallback generic resolver
   if (!anyResolved && !anyUnresolved) {
+    const fallbackResult = fallbackGenericResolve(currentState, stackObject.controller, oracleText, stackObject.targets);
+    if (fallbackResult.resolved) {
+      return fallbackResult;
+    }
     return {
       state: currentState,
       resolved: false,

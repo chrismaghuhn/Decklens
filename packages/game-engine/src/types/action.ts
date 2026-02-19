@@ -37,6 +37,8 @@ export interface StackObject {
   isEvoked?: boolean;
   /** Whether this creature was dashed (haste, return to hand at end step) */
   isDashed?: boolean;
+  /** Whether this spell was cast with overload (replace "target" with "each") */
+  isOverloaded?: boolean;
 }
 
 /** All possible game actions a player can take */
@@ -74,6 +76,8 @@ export type GameAction =
       evokePaid?: boolean;
       /** Dash — pay alt cost, gains haste, returns to hand at end step (CR 702.108) */
       dashPaid?: boolean;
+      /** Overload — pay alt cost, replace "target" with "each" for mass effect (CR 702.95) */
+      overloadPaid?: boolean;
     }
   | {
       type: 'activate-ability';

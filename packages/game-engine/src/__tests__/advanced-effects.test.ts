@@ -59,7 +59,7 @@ describe('Phase 6.1: Advanced Effect Patterns', () => {
       card.oracleText = 'Deal 2 damage to any target. If ~ was kicked, it deals 3 additional damage.';
 
       const target: Target = { type: 'player', id: '1' };
-      const stack = createStackObject(card, 0, [target]);
+      const stack = { ...createStackObject(card, 0, [target]), isKicked: true };
 
       const result = resolveEffect(state, stack);
       expect(result.resolved).toBe(true);
@@ -72,7 +72,7 @@ describe('Phase 6.1: Advanced Effect Patterns', () => {
       const card = createSimpleCard('Kicker Think', 'Sorcery', '{U}', 0);
       card.oracleText = 'Draw a card. If ~ was kicked, draw 2 cards.';
 
-      const stack = createStackObject(card, 0);
+      const stack = { ...createStackObject(card, 0), isKicked: true };
 
       const handBefore = state.players[0].hand.length;
       const result = resolveEffect(state, stack);
@@ -98,7 +98,7 @@ describe('Phase 6.1: Advanced Effect Patterns', () => {
         ] as [PlayerState, PlayerState],
       };
 
-      const stack = createStackObject(card, 0);
+      const stack = { ...createStackObject(card, 0), isKicked: true };
       const result = resolveEffect(stateWithCreature, stack);
       expect(result.resolved).toBe(true);
       expect(result.description).toContain('kicked');
@@ -109,7 +109,7 @@ describe('Phase 6.1: Advanced Effect Patterns', () => {
       const card = createSimpleCard('Kicker Heal', 'Instant', '{W}', 0);
       card.oracleText = 'Gain 2 life. If ~ was kicked, gain 4 life.';
 
-      const stack = createStackObject(card, 0);
+      const stack = { ...createStackObject(card, 0), isKicked: true };
 
       const result = resolveEffect(state, stack);
       expect(result.resolved).toBe(true);

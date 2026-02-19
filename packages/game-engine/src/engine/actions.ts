@@ -406,6 +406,7 @@ function executeCastSpell(
       isFaceDown: action.castFaceDown,
       isEvoked: action.evokePaid,
       isDashed: action.dashPaid,
+      isOverloaded: action.overloadPaid,
       // MDFC: pass back face oracle text so effects resolve from back face
       oracleTextOverride: action.castBackFace && card.backFace ? card.backFace.oracleText : undefined,
     }

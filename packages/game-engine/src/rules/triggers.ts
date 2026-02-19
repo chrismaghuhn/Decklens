@@ -19,7 +19,7 @@ import type { StackObject } from '../types/action.ts';
 // ─── Trigger Types ───
 
 export interface TriggerEvent {
-  type: 'etb' | 'death' | 'upkeep' | 'draw' | 'damage' | 'cast' | 'attack' | 'leaves' | 'endstep' | 'lifegain' | 'sacrifice' | 'blocked' | 'discard' | 'cycle' | 'monarch' | 'gain-energy' | 'token-created' | 'noncombat-damage' | 'begin-combat';
+  type: 'etb' | 'death' | 'upkeep' | 'draw' | 'damage' | 'cast' | 'attack' | 'leaves' | 'endstep' | 'lifegain' | 'sacrifice' | 'blocked' | 'discard' | 'cycle' | 'monarch' | 'gain-energy' | 'token-created' | 'noncombat-damage' | 'begin-combat' | 'mana' | 'gain-counter';
   /** The permanent/card that triggered the event */
   source?: Permanent | Card;
   /** Which player controls the source */
@@ -36,6 +36,8 @@ interface TriggerPattern {
   eventType: TriggerEvent['type'];
   /** Whether the trigger refers to "self" (~) or other permanents */
   selfOnly: boolean;
+  /** Whether the trigger only fires for the controller's own events (not opponents') */
+  controllerOnly?: boolean;
 }
 
 // ─── Trigger Patterns ───
@@ -398,6 +400,133 @@ const TRIGGER_PATTERNS: TriggerPattern[] = [
   { name: 'etb-from-exile', match: /when\s+~\s+enters\s+(?:the\s+battlefield\s+)?from\s+exile/i, eventType: 'etb', selfOnly: true },
   // Conditional ETB - if you control N or more (threshold ETB)
   { name: 'etb-if-you-control', match: /when\s+~\s+enters\s+(?:the\s+battlefield)?.*if\s+you\s+control\s+(\d+)\s+or\s+more/i, eventType: 'etb', selfOnly: true },
+
+  // ── Additional Trigger Patterns (Card Playability Upgrade) ──
+
+  // Opponent casts noncreature spell (Mystic Remora)
+  {
+    name: 'opponent-casts-noncreature',
+    match: /whenever an opponent casts a noncreature spell/i,
+    eventType: 'cast',
+    selfOnly: false,
+  },
+
+  // Tap a land for mana (Mirari's Wake)
+  {
+    name: 'tap-land-for-mana',
+    match: /whenever you tap a land for mana/i,
+    eventType: 'mana',
+    selfOnly: false,
+  },
+
+  // At the beginning of each end step
+  {
+    name: 'each-end-step',
+    match: /at the beginning of each (?:player's )?end step/i,
+    eventType: 'endstep',
+    selfOnly: false,
+  },
+
+  // Equipped creature dies (Skullclamp)
+  {
+    name: 'equipped-creature-dies',
+    match: /when(?:ever)? equipped creature dies/i,
+    eventType: 'death',
+    selfOnly: false,
+  },
+
+  // Enchanted creature dies
+  {
+    name: 'enchanted-creature-dies',
+    match: /when(?:ever)? enchanted creature dies/i,
+    eventType: 'death',
+    selfOnly: false,
+  },
+
+  // A creature you control deals combat damage to a player
+  {
+    name: 'your-creature-combat-damage-player',
+    match: /whenever (?:a|another) creature you control deals combat damage to a player/i,
+    eventType: 'damage',
+    selfOnly: false,
+    controllerOnly: true,
+  },
+
+  // At the beginning of your end step
+  {
+    name: 'your-end-step',
+    match: /at the beginning of your end step/i,
+    eventType: 'endstep',
+    selfOnly: false,
+    controllerOnly: true,
+  },
+
+  // Whenever you create a token
+  {
+    name: 'you-create-token',
+    match: /whenever you create (?:a|one or more) tokens?/i,
+    eventType: 'token-created',
+    selfOnly: false,
+    controllerOnly: true,
+  },
+
+  // Whenever +1/+1 counters are placed
+  {
+    name: 'counter-placed-on-creature',
+    match: /whenever (?:a|one or more) \+1\/\+1 counters? (?:is|are) (?:placed|put) on/i,
+    eventType: 'gain-counter',
+    selfOnly: false,
+  },
+
+  // Whenever an opponent loses life (Aristocrats)
+  {
+    name: 'opponent-loses-life',
+    match: /whenever an opponent loses life/i,
+    eventType: 'damage',
+    selfOnly: false,
+  },
+
+  // Whenever a permanent you control dies
+  {
+    name: 'your-permanent-dies',
+    match: /whenever (?:a|another) permanent you control (?:dies|is put into a graveyard)/i,
+    eventType: 'death',
+    selfOnly: false,
+    controllerOnly: true,
+  },
+
+  // Whenever a land enters under an opponent's control
+  {
+    name: 'opponent-landfall',
+    match: /whenever a land enters the battlefield under an opponent's control/i,
+    eventType: 'etb',
+    selfOnly: false,
+  },
+
+  // Whenever you cycle a card
+  {
+    name: 'you-cycle-card',
+    match: /whenever you cycle (?:a|an?) card/i,
+    eventType: 'cycle',
+    selfOnly: false,
+    controllerOnly: true,
+  },
+
+  // Whenever a creature enters from graveyard
+  {
+    name: 'creature-enters-from-gy',
+    match: /whenever a creature enters the battlefield from (?:a|your) graveyard/i,
+    eventType: 'etb',
+    selfOnly: false,
+  },
+
+  // At the beginning of each combat
+  {
+    name: 'each-combat-begin',
+    match: /at the beginning of (?:each|every) combat/i,
+    eventType: 'begin-combat',
+    selfOnly: false,
+  },
 ];
 
 // ─── Stack ID counter ───
@@ -761,7 +890,16 @@ function findMatchingTriggers(
     // Cast triggers: "whenever you cast" only triggers for the controller
     if (tp.eventType === 'cast') {
       // 'any-player-casts' triggers for any player, no controller check
-      if (tp.name !== 'any-player-casts') {
+      // 'opponent-casts-noncreature' triggers for opponent casts only
+      if (tp.name === 'opponent-casts-noncreature') {
+        // Must be an opponent's spell
+        if (event.controller === controller) return false;
+        // Must be a noncreature spell
+        if (event.meta?.spellType) {
+          const spellType = event.meta.spellType.toLowerCase();
+          if (spellType.includes('creature') && !spellType.includes('instant') && !spellType.includes('sorcery')) return false;
+        }
+      } else if (tp.name !== 'any-player-casts') {
         if (controller !== event.controller) return false;
       }
 
@@ -860,6 +998,36 @@ function findMatchingTriggers(
       if (!event.source) return false;
       if (event.controller !== controller) return false;
       if (!(event.source as any).typeLine?.toLowerCase().includes('planeswalker')) return false;
+    }
+
+    // Generic controllerOnly check: trigger only fires when the event's controller matches the permanent's controller
+    if (tp.controllerOnly && event.controller !== controller) return false;
+
+    // Opponent landfall: land entering under an opponent's control (NOT the trigger controller's)
+    if (tp.name === 'opponent-landfall') {
+      if (!event.source) return false;
+      const sourceTypeLine = (event.source as any).typeLine?.toLowerCase() || '';
+      if (!sourceTypeLine.includes('land')) return false;
+      // The entering land must be under an OPPONENT's control (event.controller !== trigger controller)
+      if (event.controller === controller) return false;
+    }
+
+    // Opponent loses life: the losing player must be an opponent
+    if (tp.name === 'opponent-loses-life') {
+      if (event.controller === controller) return false; // must be opponent's life loss
+    }
+
+    // Creature enters from graveyard: check fromZone meta
+    if (tp.name === 'creature-enters-from-gy') {
+      if (!event.source) return false;
+      const sourceTypeLine = (event.source as any).typeLine?.toLowerCase() || '';
+      if (!sourceTypeLine.includes('creature')) return false;
+      if (event.meta?.fromZone !== 'graveyard') return false;
+    }
+
+    // Your permanent dies: must be a permanent the controller owns
+    if (tp.name === 'your-permanent-dies') {
+      if (event.controller !== controller) return false;
     }
 
     // Landfall triggers: only fire for land permanents entering

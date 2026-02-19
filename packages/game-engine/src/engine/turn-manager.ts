@@ -569,6 +569,18 @@ export function applyStepEffects(state: GameState): GameState {
             updated = { ...updated, dashedThisTurn: false };
           }
 
+          // ─── Clear temporary protection/indestructible until EOT ───
+          if ((updated as any).temporaryIndestructible) {
+            logs.push(`${p.name} is no longer indestructible.`);
+            updated = { ...updated };
+            delete (updated as any).temporaryIndestructible;
+          }
+          if ((updated as any).temporaryHexproof) {
+            logs.push(`${p.name} no longer has hexproof.`);
+            updated = { ...updated };
+            delete (updated as any).temporaryHexproof;
+          }
+
           return updated;
         }),
       };
