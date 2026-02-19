@@ -704,6 +704,14 @@ const TRIGGER_PATTERNS: TriggerPattern[] = [
     selfOnly: true,
   },
 
+  // Blitz — when this creature dies (draw a card) (CR 702.152)
+  {
+    name: 'blitz-death-draw',
+    match: /\bblitz\b/i,
+    eventType: 'death',
+    selfOnly: true,
+  },
+
   // Living weapon — when this equipment enters the battlefield (CR 702.91)
   {
     name: 'living-weapon-etb',
@@ -781,6 +789,22 @@ const TRIGGER_PATTERNS: TriggerPattern[] = [
     name: 'ninjutsu-activated',
     match: /ninjutsu\s+\{[^}]+\}/i,
     eventType: 'activated',
+    selfOnly: true,
+  },
+
+  // Mutate — whenever this creature mutates (CR 702.139)
+  {
+    name: 'mutate-trigger',
+    match: /whenever\s+(?:this creature|~)\s+mutates/i,
+    eventType: 'etb',
+    selfOnly: true,
+  },
+
+  // Mutate — generic mutate keyword detection
+  {
+    name: 'mutate-cast',
+    match: /mutate\s+\{[^}]+\}/i,
+    eventType: 'cast',
     selfOnly: true,
   },
 

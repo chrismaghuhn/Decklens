@@ -35,7 +35,7 @@ export function addSpellToStack(
   targets: Target[],
   _manaPayment: ManaPayment,
   xValue?: number,
-  opts?: { isFlashback?: boolean; isKicked?: boolean; isAdventure?: boolean; isFaceDown?: boolean; isEvoked?: boolean; isDashed?: boolean; isOverloaded?: boolean; isBuyback?: boolean; isEscape?: boolean; isJumpStart?: boolean; isForetold?: boolean; oracleTextOverride?: string }
+  opts?: { isFlashback?: boolean; isKicked?: boolean; isAdventure?: boolean; isFaceDown?: boolean; isEvoked?: boolean; isDashed?: boolean; isBlitzed?: boolean; isOverloaded?: boolean; isBuyback?: boolean; isEscape?: boolean; isJumpStart?: boolean; isForetold?: boolean; isMutate?: boolean; mutateTargetId?: string; mutateOnTop?: boolean; oracleTextOverride?: string }
 ): GameState {
   const playerState = state.players[player];
 
@@ -97,11 +97,15 @@ export function addSpellToStack(
     isFaceDown: opts?.isFaceDown,
     isEvoked: opts?.isEvoked,
     isDashed: opts?.isDashed,
+    isBlitzed: opts?.isBlitzed,
     isOverloaded: opts?.isOverloaded,
     isBuyback: opts?.isBuyback,
     isEscape: opts?.isEscape,
     isJumpStart: opts?.isJumpStart,
     isForetold: opts?.isForetold,
+    isMutate: opts?.isMutate,
+    mutateTargetId: opts?.mutateTargetId,
+    mutateOnTop: opts?.mutateOnTop,
   };
 
   const players = [...state.players] as [PlayerState, PlayerState];
@@ -113,11 +117,13 @@ export function addSpellToStack(
   if (opts?.isAdventure) castMessage += ` (adventure: ${card.adventureName || card.name})`;
   if (opts?.isEvoked) castMessage += ' (evoked)';
   if (opts?.isDashed) castMessage += ' (dashed)';
+  if (opts?.isBlitzed) castMessage += ' (blitz)';
   if (opts?.isOverloaded) castMessage += ' (overloaded)';
   if (opts?.isBuyback) castMessage += ' (buyback)';
   if (opts?.isEscape) castMessage += ' (escape)';
   if (opts?.isJumpStart) castMessage += ' (jump-start)';
   if (opts?.isForetold) castMessage += ' (foretold)';
+  if (opts?.isMutate) castMessage += ' (mutate)';
   if (xValue !== undefined && xValue > 0) castMessage += ` (X=${xValue})`;
   castMessage += '.';
 
@@ -206,6 +212,16 @@ export function addAbilityToStack(
  *
  * After resolution, active player gets priority.
  */
+/** Find a permanent by ID for mutate targeting (CR 702.139) */
+function findPermanentForMutate(state: GameState, id: string): { perm: Permanent; playerIdx: 0 | 1; permIdx: number } | null {
+  for (let pi = 0; pi < 2; pi++) {
+    const player = state.players[pi as 0 | 1];
+    const idx = player.battlefield.findIndex(p => p.id === id);
+    if (idx !== -1) return { perm: player.battlefield[idx], playerIdx: pi as 0 | 1, permIdx: idx };
+  }
+  return null;
+}
+
 export function resolveTopOfStack(state: GameState): GameState {
   if (state.stack.length === 0) return state;
 
@@ -348,6 +364,77 @@ export function resolveTopOfStack(state: GameState): GameState {
           temporaryKeywords: [...(permanent.temporaryKeywords || []), { keyword: 'haste', until: 'end-of-turn' }],
         };
       }
+      // Blitz: gains haste, sacrifice at end step, draw on death (CR 702.152)
+      if (resolving.isBlitzed) {
+        permanent = {
+          ...permanent,
+          blitzed: true,
+          temporaryKeywords: [...(permanent.temporaryKeywords || []), { keyword: 'haste', until: 'end-of-turn' }],
+        };
+      }
+      // ─── Mutate: merge with target creature instead of entering separately (CR 702.139) ───
+      if (resolving.isMutate && resolving.mutateTargetId) {
+        const targetIdx = findPermanentForMutate(newState, resolving.mutateTargetId);
+        if (targetIdx && !targetIdx.perm.typeLine?.toLowerCase().includes('human')) {
+          const players = [...newState.players] as [PlayerState, PlayerState];
+          const tgtPlayer = { ...players[targetIdx.playerIdx] };
+          const updatedBf = [...tgtPlayer.battlefield];
+
+          const existingStack = targetIdx.perm.mutateStack || [];
+          const newStackEntry = {
+            id: permanent.id,
+            name: permanent.name,
+            oracleText: permanent.oracleText || '',
+            power: permanent.power,
+            toughness: permanent.toughness,
+          };
+
+          const onTop = resolving.mutateOnTop !== false; // default: on top
+
+          if (onTop) {
+            // Source on top: name, P/T, types come from source
+            updatedBf[targetIdx.permIdx] = {
+              ...targetIdx.perm,
+              name: permanent.name,
+              oracleText: (permanent.oracleText || '') + '\n' + (targetIdx.perm.oracleText || ''),
+              currentPower: permanent.currentPower ?? targetIdx.perm.currentPower,
+              currentToughness: permanent.currentToughness ?? targetIdx.perm.currentToughness,
+              basePower: permanent.basePower ?? targetIdx.perm.basePower,
+              baseToughness: permanent.baseToughness ?? targetIdx.perm.baseToughness,
+              mutateStack: [...existingStack, newStackEntry],
+            };
+          } else {
+            // Source under: target keeps its characteristics, gains source's abilities
+            updatedBf[targetIdx.permIdx] = {
+              ...targetIdx.perm,
+              oracleText: (targetIdx.perm.oracleText || '') + '\n' + (permanent.oracleText || ''),
+              mutateStack: [...existingStack, newStackEntry],
+            };
+          }
+
+          tgtPlayer.battlefield = updatedBf;
+          players[targetIdx.playerIdx] = tgtPlayer;
+          newState = { ...newState, players };
+
+          // "Whenever this creature mutates" triggers fire (use ETB trigger system)
+          const mergedPerm = updatedBf[targetIdx.permIdx];
+          newState = checkETBTriggers(newState, mergedPerm, { fromZone: 'hand' });
+
+          newState = {
+            ...newState,
+            log: [...newState.log, {
+              timestamp: Date.now(), turn: newState.turn, phase: newState.phase,
+              step: newState.step, player: controller,
+              message: `${permanent.name} mutates ${onTop ? 'on top of' : 'under'} ${targetIdx.perm.name}.`,
+              cardName: permanent.name, actionType: 'effect',
+            }],
+          };
+
+          return giveActivePlayerPriority(newState);
+        }
+        // If target is invalid, fall through to enter the battlefield normally
+      }
+
       // Check if permanent enters the battlefield tapped (e.g., tap-lands, "enters tapped" creatures)
       if ((card.oracleText || '').match(/enters the battlefield tapped/i)) {
         permanent = { ...permanent, tapped: true };

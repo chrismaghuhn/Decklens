@@ -37,6 +37,8 @@ export interface StackObject {
   isEvoked?: boolean;
   /** Whether this creature was dashed (haste, return to hand at end step) */
   isDashed?: boolean;
+  /** Whether this creature was cast for its blitz cost (haste, sacrifice at end step, draw on death) */
+  isBlitzed?: boolean;
   /** Whether this spell was cast with overload (replace "target" with "each") */
   isOverloaded?: boolean;
   /** Whether buyback was paid (return to hand instead of GY on resolution) */
@@ -47,6 +49,12 @@ export interface StackObject {
   isJumpStart?: boolean;
   /** Whether this was cast via foretell cost */
   isForetold?: boolean;
+  /** Whether this creature was cast with mutate (merge with target non-Human creature, CR 702.139) */
+  isMutate?: boolean;
+  /** ID of the creature to mutate onto */
+  mutateTargetId?: string;
+  /** Whether to place on top (true) or under (false) the target */
+  mutateOnTop?: boolean;
 }
 
 /** All possible game actions a player can take */
@@ -92,12 +100,20 @@ export type GameAction =
       overloadPaid?: boolean;
       /** Buyback — pay extra cost, return to hand after resolution (CR 702.26) */
       buybackPaid?: boolean;
+      /** Blitz — pay alt cost, gains haste, sacrifice at end step, draw on death (CR 702.152) */
+      blitzPaid?: boolean;
       /** Escape — cast from graveyard, exiling N other GY cards (CR 702.137) */
       escapePaid?: boolean;
       /** Jump-start — cast from graveyard by discarding a card, exile after (CR 702.132) */
       jumpStartPaid?: boolean;
       /** Foretell — cast from exile for foretell cost (CR 702.142) */
       foretellCast?: boolean;
+      /** Mutate — pay mutate cost, merge with target non-Human creature (CR 702.139) */
+      mutatePaid?: boolean;
+      /** ID of the creature to mutate onto */
+      mutateTargetId?: string;
+      /** Whether to place on top (true) or under (false) the target */
+      mutateOnTop?: boolean;
     }
   | {
       type: 'activate-ability';

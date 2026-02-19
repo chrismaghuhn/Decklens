@@ -19,7 +19,7 @@ import { cardToPermanent, transformPermanent } from '../types/permanent.ts';
 import { generateCardId } from '../engine/factory.ts';
 import { hasProtectionFrom } from './combat.ts';
 import { copyStackObject } from './stack.ts';
-import { checkLeavesBattlefieldTriggers, checkSacrificeTriggers, checkLifegainTriggers } from './triggers.ts';
+import { checkLeavesBattlefieldTriggers, checkSacrificeTriggers, checkLifegainTriggers, checkETBTriggers } from './triggers.ts';
 import { smartParserResolve } from './smart-parser.ts';
 
 // ─── Types ───
@@ -6750,6 +6750,78 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
         return { state, resolved: true, description: `storm: ${stormCount} copies, opponent loses ${totalDrain} life` };
       }
 
+      // Token creation storms (e.g., Empty the Warrens creates Goblin tokens)
+      const tokenMatch = oracleText.match(/create\s+(?:a|(\d+))\s+([\d/]+)\s+([\w\s]+)\s+(?:creature\s+)?tokens?/i);
+      if (tokenMatch) {
+        const baseCount = tokenMatch[1] ? parseInt(tokenMatch[1]) : 1;
+        const totalTokens = baseCount * (stormCount + 1); // Including original
+        const ptMatch = tokenMatch[2].match(/(\d+)\/(\d+)/);
+        const power = ptMatch ? parseInt(ptMatch[1]) : 1;
+        const toughness = ptMatch ? parseInt(ptMatch[2]) : 1;
+        const tokenName = tokenMatch[3].trim();
+
+        const players = [...state.players] as [PlayerState, PlayerState];
+        const player = { ...players[controller] };
+        const newTokens: Permanent[] = [];
+        for (let i = 0; i < totalTokens; i++) {
+          const tokenCard: Card = {
+            id: generateCardId(),
+            oracleId: `storm_token_${tokenName}`,
+            name: tokenName,
+            manaCost: '',
+            cmc: 0,
+            typeLine: `Token Creature — ${tokenName}`,
+            oracleText: '',
+            power: String(power),
+            toughness: String(toughness),
+            colors: [],
+            colorIdentity: [],
+            rarity: 'common',
+            tags: [],
+            imageUrl: '',
+            owner: controller,
+          };
+          newTokens.push(cardToPermanent(tokenCard, controller, state.turn));
+        }
+        player.battlefield = [...player.battlefield, ...newTokens];
+        players[controller] = player;
+        state = { ...state, players };
+        state = addLog(state, controller, `Storm: created ${totalTokens} ${power}/${toughness} ${tokenName} tokens total.`);
+        return { state, resolved: true, description: `storm: ${stormCount} copies, created ${totalTokens} ${tokenName} tokens total` };
+      }
+
+      // Discard storms (e.g., Mind's Desire style effects)
+      const discardMatch = oracleText.match(/(?:target\s+(?:player|opponent)\s+)?discards?\s+(\d+|a|an)\s+cards?/i);
+      if (discardMatch) {
+        const baseDiscard = parseNumber(discardMatch[1]) || 1;
+        const totalDiscard = baseDiscard * stormCount;
+        const opp: 0 | 1 = controller === 0 ? 1 : 0;
+        const oppPlayer = state.players[opp];
+        const discarded = oppPlayer.hand.slice(0, totalDiscard);
+        if (discarded.length > 0) {
+          const players = [...state.players] as [PlayerState, PlayerState];
+          players[opp] = {
+            ...oppPlayer,
+            hand: oppPlayer.hand.slice(totalDiscard),
+            graveyard: [...oppPlayer.graveyard, ...discarded],
+          };
+          state = { ...state, players };
+        }
+        state = addLog(state, controller, `Storm: opponent discards ${discarded.length} card(s).`);
+        return { state, resolved: true, description: `storm: ${stormCount} copies, opponent discards ${discarded.length}` };
+      }
+
+      // Mill storms
+      const millMatch = oracleText.match(/mills?\s+(\d+)\s+cards?/i);
+      if (millMatch) {
+        const baseMill = parseInt(millMatch[1]);
+        const totalMill = baseMill * stormCount;
+        const opp: 0 | 1 = controller === 0 ? 1 : 0;
+        state = millCards(state, opp, totalMill);
+        state = addLog(state, controller, `Storm: opponent mills ${totalMill} cards.`);
+        return { state, resolved: true, description: `storm: ${stormCount} copies, mill ${totalMill}` };
+      }
+
       // Fallback: just log the copies, manual resolution
       return { state, resolved: true, description: `storm: ${stormCount} copies (manual resolution needed for complex effects)` };
     },
@@ -6767,40 +6839,58 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const exiled: Card[] = [];
       let found: Card | null = null;
 
+      // Exile from top until we find a nonland card with lesser MV
       for (let i = 0; i < player.library.length; i++) {
         const card = player.library[i];
         exiled.push(card);
-        // Cascade finds first nonland card with mana value less than cascading spell
         if (!card.typeLine?.toLowerCase().includes('land') && (card.cmc ?? 0) < sourceCMC) {
           found = card;
           break;
         }
       }
 
+      const restExiled = found ? exiled.filter(c => c.id !== found!.id) : [...exiled];
+      // Fisher-Yates shuffle for rest
+      for (let i = restExiled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [restExiled[i], restExiled[j]] = [restExiled[j], restExiled[i]];
+      }
+      const newLib = [...player.library.slice(exiled.length), ...restExiled];
+      const players = [...state.players] as [PlayerState, PlayerState];
+
       if (!found) {
-        // Put all exiled cards on bottom in random order
-        const shuffled = [...exiled].sort(() => Math.random() - 0.5);
-        const newLib = [...player.library.slice(exiled.length), ...shuffled];
-        const players = [...state.players] as [PlayerState, PlayerState];
         players[controller] = { ...player, library: newLib };
         state = { ...state, players };
         state = addLog(state, controller, `Cascade: no eligible spell found (exiled ${exiled.length} cards).`);
         return { state, resolved: true, description: 'cascade whiffed' };
       }
 
-      // "Cast" the found card: put it in hand (simplified — real cascade puts on stack)
-      const restExiled = exiled.filter(c => c.id !== found!.id);
-      const shuffledRest = [...restExiled].sort(() => Math.random() - 0.5);
-      const newLib = [...player.library.slice(exiled.length), ...shuffledRest];
-      const players = [...state.players] as [PlayerState, PlayerState];
-      players[controller] = {
-        ...player,
-        library: newLib,
-        hand: [...player.hand, found],
-      };
-      state = { ...state, players };
-      state = addLog(state, controller, `Cascade: found ${found.name} (MV ${found.cmc ?? 0}), put ${restExiled.length} cards on bottom.`);
-      return { state, resolved: true, description: `cascade: ${found.name}` };
+      // Cast the found card for free
+      const typeLine = (found.typeLine || '').toLowerCase();
+      if (typeLine.includes('creature') || typeLine.includes('artifact') || typeLine.includes('enchantment') || typeLine.includes('planeswalker')) {
+        // Permanent: put directly onto battlefield (cast for free)
+        const perm = cardToPermanent(found, controller, state.turn);
+        players[controller] = {
+          ...player,
+          library: newLib,
+          battlefield: [...player.battlefield, perm],
+        };
+        state = { ...state, players };
+        // Fire ETB triggers
+        state = checkETBTriggers(state, perm, { fromZone: 'library' });
+        state = addLog(state, controller, `Cascade: cast ${found.name} for free (MV ${found.cmc ?? 0}) — enters battlefield.`);
+      } else {
+        // Instant/Sorcery: put on stack for resolution (simplified: put in hand for casting)
+        players[controller] = {
+          ...player,
+          library: newLib,
+          hand: [...player.hand, found],
+        };
+        state = { ...state, players };
+        state = addLog(state, controller, `Cascade: found ${found.name} (MV ${found.cmc ?? 0}) — added to hand to cast for free.`);
+      }
+
+      return { state, resolved: true, description: `cascade: cast ${found.name}` };
     },
   },
 
@@ -10275,6 +10365,67 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
         state = addLog(state, controller, `Blitz: ${source.name} gains haste, will be sacrificed at end of turn (draw a card when it dies).`);
       }
       return { state, resolved: true, description: `blitz: ${blitzCost}` };
+    },
+  },
+
+  // ── Mutate — merge creature with target non-Human creature (CR 702.139) ──
+  {
+    name: 'mutate',
+    match: /mutate\s+(\{[^}]+\}(?:\{[^}]+\})*)/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m, source) => {
+      const mutateCost = m[1];
+      if (!source) return { state, resolved: true, description: 'mutate (no source)' };
+
+      // Find target creature to merge with
+      const target = getTargetPermanent(state, targets);
+      if (!target || target.perm.typeLine?.toLowerCase().includes('human')) {
+        state = addLog(state, controller, `Mutate: No valid non-Human creature target — ${source.name} enters normally.`);
+        return { state, resolved: true, description: 'mutate: no valid target' };
+      }
+
+      // Merge: add source's abilities to target creature's mutate stack
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const player = { ...players[target.playerIdx] };
+      const updatedBf = [...player.battlefield];
+
+      const existingStack = target.perm.mutateStack || [];
+      const newStackEntry = {
+        id: source.id,
+        name: source.name,
+        oracleText: source.oracleText || '',
+        power: source.power,
+        toughness: source.toughness,
+      };
+
+      // Default: put on top (source becomes the "face" creature)
+      const onTop = true; // AI default: put on top for better P/T
+
+      if (onTop) {
+        // Source on top: name, P/T, types come from source
+        updatedBf[target.permIdx] = {
+          ...target.perm,
+          name: source.name,
+          oracleText: (source.oracleText || '') + '\n' + (target.perm.oracleText || ''),
+          currentPower: source.power ? parseInt(String(source.power)) : target.perm.currentPower,
+          currentToughness: source.toughness ? parseInt(String(source.toughness)) : target.perm.currentToughness,
+          mutateStack: [...existingStack, newStackEntry],
+        };
+      } else {
+        // Source under: target keeps its characteristics, but gains source's abilities
+        updatedBf[target.permIdx] = {
+          ...target.perm,
+          oracleText: (target.perm.oracleText || '') + '\n' + (source.oracleText || ''),
+          mutateStack: [...existingStack, newStackEntry],
+        };
+      }
+
+      player.battlefield = updatedBf;
+      players[target.playerIdx] = player;
+      state = { ...state, players };
+
+      state = addLog(state, controller, `Mutate: ${source.name} merged ${onTop ? 'on top of' : 'under'} ${target.perm.name} (cost: ${mutateCost}).`);
+      return { state, resolved: true, description: `mutate: merged with ${target.perm.name}` };
     },
   },
 ];

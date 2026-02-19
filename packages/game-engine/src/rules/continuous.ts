@@ -110,7 +110,7 @@ const RECOGNIZED_KEYWORDS = new Set([
   'exalted', 'encore', 'reconfigure',
   'ninjutsu', 'exploit', 'modular', 'devour', 'bloodthirst', 'blitz', 'emerge',
   'spectacle', 'aftermath', 'cipher', 'champion', 'hideaway', 'casualty',
-  'daybound', 'nightbound', 'living weapon', 'amass',
+  'daybound', 'nightbound', 'living weapon', 'amass', 'mutate',
 ]);
 
 // ─── Oracle Text Parsing ───

@@ -389,6 +389,51 @@ function validateCastSpell(
     return null;
   }
 
+  // ─── Blitz: alternative cost (CR 702.152) ───
+  if (action.blitzPaid) {
+    const blitzCard = player.hand.find((c) => c.id === action.cardId);
+    if (!blitzCard) return 'Card not in hand.';
+    if (!blitzCard.oracleText?.toLowerCase().includes('blitz')) return 'Card does not have blitz.';
+    const blitzMatch = blitzCard.oracleText?.match(/blitz\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    if (!blitzMatch) return 'Card does not have a blitz cost.';
+    const cost = parseManaCost(blitzMatch[1]);
+    if (!canPayCost(player.manaPool, cost, player.life)) {
+      const tapResult = autoTapLandsForCost(player, cost);
+      if (!tapResult) return 'Not enough mana to pay blitz cost.';
+    }
+    // Blitz is sorcery speed (creature)
+    if (state.step !== 'main') return 'Can only cast with blitz during main phase.';
+    if (state.activePlayer !== action.player) return 'Can only cast with blitz on your turn.';
+    if (state.stack.length > 0) return 'Cannot cast with blitz while stack is not empty.';
+    return null;
+  }
+
+  // ─── Mutate: alternative cost, merge with non-Human creature you control (CR 702.139) ───
+  if (action.mutatePaid) {
+    const mutateCard = player.hand.find((c) => c.id === action.cardId);
+    if (!mutateCard) return 'Card not in hand.';
+    if (!mutateCard.oracleText?.toLowerCase().includes('mutate')) return 'Card does not have mutate.';
+    const mutateMatch = mutateCard.oracleText?.match(/mutate\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    if (!mutateMatch) return 'Card does not have a mutate cost.';
+    const cost = parseManaCost(mutateMatch[1]);
+    if (!canPayCost(player.manaPool, cost, player.life)) {
+      const tapResult = autoTapLandsForCost(player, cost);
+      if (!tapResult) return 'Not enough mana to pay mutate cost.';
+    }
+    // Mutate target must be a non-Human creature you control
+    if (action.mutateTargetId) {
+      const targetPerm = player.battlefield.find(p => p.id === action.mutateTargetId);
+      if (!targetPerm) return 'Mutate target must be a creature you control.';
+      if (!targetPerm.typeLine?.toLowerCase().includes('creature')) return 'Mutate target must be a creature.';
+      if (targetPerm.typeLine?.toLowerCase().includes('human')) return 'Cannot mutate onto a Human creature.';
+    }
+    // Mutate is sorcery speed (creature)
+    if (state.step !== 'main') return 'Can only cast with mutate during main phase.';
+    if (state.activePlayer !== action.player) return 'Can only cast with mutate on your turn.';
+    if (state.stack.length > 0) return 'Cannot cast with mutate while stack is not empty.';
+    return null;
+  }
+
   // ─── Buyback: adds extra cost, returns to hand on resolution (CR 702.26) ───
   // Buyback is validated as a normal cast (from hand) with extra mana cost checked in mana payment
 
@@ -546,22 +591,45 @@ function validateCastSpell(
   if (targetError) return targetError;
 
   // CR 702.21: Ward — targeting a permanent with ward requires paying an additional cost.
-  // Ward cost is added to the total spell cost. If unpayable, casting is blocked.
+  // Supports: generic mana {N}, colored mana, pay life, discard
   let totalWardCost = 0;
+  let wardLifeCost = 0;
+  let wardDiscardCost = 0;
   for (const target of action.targets) {
     if (target.type !== 'permanent') continue;
     for (let pi = 0; pi < 2; pi++) {
       const targetPerm = state.players[pi as 0 | 1].battlefield.find(p => p.id === target.id);
       if (!targetPerm) continue;
       if (targetPerm.controller === action.player) continue;
-      const wardMatch = (targetPerm.oracleText || '').toLowerCase().match(/ward[\s—]+\{(\d+)\}/);
-      if (wardMatch) {
-        totalWardCost += parseInt(wardMatch[1], 10);
+      const oText = (targetPerm.oracleText || '').toLowerCase();
+
+      // Ward {N} — generic mana
+      const wardGeneric = oText.match(/ward[\s—\-]+\{(\d+)\}/);
+      if (wardGeneric) {
+        totalWardCost += parseInt(wardGeneric[1], 10);
+      }
+
+      // Ward {W}{U} etc — colored mana (count colored symbols as generic for affordability)
+      const wardColored = oText.match(/ward[\s—\-]+(\{[wubrg]\}(?:\{[wubrg]\})*)/i);
+      if (wardColored && !wardGeneric) {
+        const symbols = wardColored[1].match(/\{[wubrg]\}/gi) || [];
+        totalWardCost += symbols.length;
+      }
+
+      // Ward—Pay N life
+      const wardLife = oText.match(/ward[\s—\-]+pay\s+(\d+)\s+life/i);
+      if (wardLife) {
+        wardLifeCost += parseInt(wardLife[1], 10);
+      }
+
+      // Ward—Discard a card
+      if (/ward[\s—\-]+discard\s+(?:a|one)\s+card/i.test(oText)) {
+        wardDiscardCost += 1;
       }
     }
   }
+  // Check mana ward affordability
   if (totalWardCost > 0) {
-    // Re-check affordability with ward added to generic cost
     const wardAugmented = { ...cost, generic: cost.generic + totalWardCost };
     if (!canPayCost(player.manaPool, wardAugmented, player.life)) {
       const tapResult = autoTapLandsForCost(player, wardAugmented);
@@ -569,6 +637,14 @@ function validateCastSpell(
         return `Not enough mana to pay ward cost ({${totalWardCost}} additional).`;
       }
     }
+  }
+  // Check life ward affordability
+  if (wardLifeCost > 0 && player.life <= wardLifeCost) {
+    return `Cannot pay ward cost: would need to pay ${wardLifeCost} life but only at ${player.life}.`;
+  }
+  // Check discard ward affordability
+  if (wardDiscardCost > 0 && player.hand.length < wardDiscardCost + 1) {
+    return `Cannot pay ward cost: need to discard ${wardDiscardCost} card(s) but only ${player.hand.length - 1} extra cards in hand.`;
   }
 
   return null;
@@ -604,12 +680,12 @@ function validateTargetLegality(
       }
 
       // Ward: opponent targeting this permanent must pay an additional cost.
-      // Check for ward keyword in oracle text
-      const wardMatch = (perm.oracleText || '').toLowerCase().match(/ward[\s—]+\{(\d+)\}/);
-      if (wardMatch && perm.controller !== caster) {
-        // Ward detected — in a full implementation this would require payment.
-        // For now we allow targeting but log a warning.
-        // The UI can use this info to prompt the player.
+      const wardText = (perm.oracleText || '').toLowerCase();
+      const wardCheck = wardText.match(/ward[\s—\-]+(?:\{(\d+)\}|pay\s+(\d+)\s+life|discard)/i);
+      if (wardCheck && perm.controller !== caster) {
+        // Ward blocks targeting if opponent can't pay (simplified: block for non-spells)
+        // Spells handle ward cost in validateCastSpell; this blocks abilities
+        return `${perm.name} has ward — targeting requires paying an additional cost.`;
       }
 
       // Protection from [color]: can't be targeted by spells/abilities of that color (DEBT: Targeting)

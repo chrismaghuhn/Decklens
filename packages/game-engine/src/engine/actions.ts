@@ -336,6 +336,10 @@ function executeCastSpell(
     // Dash: use dash cost (CR 702.108)
     const dashMatch = card.oracleText?.match(/dash\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
     manaCostStr = dashMatch ? dashMatch[1] : card.manaCost;
+  } else if (action.blitzPaid) {
+    // Blitz: use blitz cost instead of normal mana cost (CR 702.152)
+    const blitzMatch = card.oracleText?.match(/blitz\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    manaCostStr = blitzMatch ? blitzMatch[1] : card.manaCost;
   } else if (action.escapePaid) {
     // Escape: use escape mana cost (CR 702.137)
     const escapeMatch = card.oracleText?.match(/escape[—\-]\s*(\{[^}]+\}(?:\{[^}]+\})*)/i);
@@ -470,11 +474,15 @@ function executeCastSpell(
       isFaceDown: action.castFaceDown,
       isEvoked: action.evokePaid,
       isDashed: action.dashPaid,
+      isBlitzed: action.blitzPaid,
       isOverloaded: action.overloadPaid,
       isBuyback: action.buybackPaid,
       isEscape: action.escapePaid,
       isJumpStart: action.jumpStartPaid,
       isForetold: action.foretellCast,
+      isMutate: action.mutatePaid,
+      mutateTargetId: action.mutateTargetId,
+      mutateOnTop: action.mutateOnTop,
       // MDFC: pass back face oracle text so effects resolve from back face
       oracleTextOverride: action.castBackFace && card.backFace ? card.backFace.oracleText : undefined,
     }

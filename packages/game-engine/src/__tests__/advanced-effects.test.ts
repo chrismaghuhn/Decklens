@@ -293,9 +293,11 @@ describe('Phase 6.1: Advanced Effect Patterns', () => {
 
       const result = resolveEffect(state, stack);
       expect(result.resolved).toBe(true);
-      // Should find a card from library
+      // Should find a card from library — permanents go to battlefield, instants/sorceries to hand
       if (result.description?.includes('cascade:')) {
-        expect(result.state.players[0].hand.length).toBeGreaterThan(state.players[0].hand.length);
+        const handGrew = result.state.players[0].hand.length > state.players[0].hand.length;
+        const bfGrew = result.state.players[0].battlefield.length > state.players[0].battlefield.length;
+        expect(handGrew || bfGrew).toBe(true);
       }
     });
   });

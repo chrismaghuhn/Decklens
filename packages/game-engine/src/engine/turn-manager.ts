@@ -452,6 +452,39 @@ export function applyStepEffects(state: GameState): GameState {
       }
     }
 
+    // ─── Blitz (CR 702.152): Sacrifice blitzed creatures at end step, draw for each ───
+    const blitzedPerms = players[ap].battlefield.filter(p => p.blitzed);
+    if (blitzedPerms.length > 0) {
+      const remainingBf = players[ap].battlefield.filter(p => !p.blitzed);
+      // Move blitzed creatures to graveyard
+      const blitzCards = blitzedPerms.map(p => ({
+        id: p.id, oracleId: p.oracleId, name: p.name, manaCost: p.manaCost,
+        cmc: p.cmc, typeLine: p.typeLine, oracleText: p.oracleText,
+        power: p.power, toughness: p.toughness, loyalty: p.loyalty,
+        colors: p.colors, colorIdentity: p.colorIdentity, rarity: p.rarity,
+        tags: p.tags, imageUrl: p.imageUrl, owner: p.owner,
+      }));
+      players[ap] = {
+        ...players[ap],
+        battlefield: remainingBf,
+        graveyard: [...players[ap].graveyard, ...blitzCards],
+      };
+      // Draw a card for each blitzed creature that dies
+      const drawCount = blitzedPerms.length;
+      const blitzLib = players[ap].library;
+      const drawnCards = blitzLib.slice(0, drawCount);
+      if (drawnCards.length > 0) {
+        players[ap] = {
+          ...players[ap],
+          library: blitzLib.slice(drawCount),
+          hand: [...players[ap].hand, ...drawnCards],
+        };
+      }
+      for (const p of blitzedPerms) {
+        endLogs.push(`${p.name} is sacrificed (blitz) — draw a card.`);
+      }
+    }
+
     if (endLogs.length > 0) {
       const logEntries = endLogs.map(message => ({
         timestamp: Date.now(),

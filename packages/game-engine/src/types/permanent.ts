@@ -108,6 +108,8 @@ export interface Permanent extends Card {
   goaded?: boolean;
   /** Whether this creature was cast for its blitz cost (haste, sacrifice at end step, draw on death, CR 702.152) */
   blitzed?: boolean;
+  /** Mutate stack — cards merged under/over this creature (CR 702.139) */
+  mutateStack?: { id: string; name: string; oracleText: string; power?: string | number; toughness?: string | number }[];
   /** Whether this permanent should skip untapping during its controller's next untap step */
   skipNextUntap?: boolean;
 }
