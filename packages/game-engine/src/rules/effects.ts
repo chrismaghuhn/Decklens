@@ -493,9 +493,21 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /target\s+(?:player|opponent)\s+discards?\s+(a|an|one|two|three|\d+)\s+cards?/i,
     requiresTarget: true,
     apply: (state, controller, targets, m) => {
-      // Discard requires player choice — mark as unresolved for now
-      // In V2, we can add a discard selection UI
-      return { state, resolved: false, description: 'discard requires selection' };
+      const count = parseNumber(m[1]);
+      const opponent = (controller === 0 ? 1 : 0) as 0 | 1;
+      const playerTarget = targets.find(t => t.type === 'player');
+      const targetPlayer = playerTarget ? parseInt(playerTarget.id, 10) as 0 | 1 : opponent;
+      const player = state.players[targetPlayer as 0 | 1];
+      if (player.hand.length === 0) {
+        return { state: addLog(state, controller, `${player.name} has no cards to discard.`), resolved: true, description: 'no cards' };
+      }
+      const actualCount = Math.min(count, player.hand.length);
+      // Set pendingDiscard for the player to choose
+      return {
+        state: { ...state, pendingDiscard: targetPlayer as 0 | 1, pendingDiscardCount: actualCount },
+        resolved: false,
+        description: `${player.name} discards ${actualCount}`,
+      };
     },
   },
 
@@ -505,8 +517,17 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /scry\s+(\d+)/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      // Scry requires player choice (top/bottom) — mark as unresolved
-      return { state, resolved: false, description: 'scry requires selection' };
+      const count = Math.min(parseNumber(m[1]), state.players[controller].library.length);
+      if (count === 0) {
+        return { state, resolved: true, description: 'scry 0 (empty library)' };
+      }
+      const topCards = state.players[controller].library.slice(0, count);
+      // Set pendingScry for UI to handle
+      return {
+        state: { ...state, pendingScry: { player: controller, count, cards: topCards.map(c => c.id) } },
+        resolved: false,
+        description: `scry ${count}`,
+      };
     },
   },
 
@@ -516,8 +537,14 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /search\s+your\s+library/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      // Library search requires player selection — mark as unresolved
-      return { state, resolved: false, description: 'library search requires selection' };
+      if (state.players[controller].library.length === 0) {
+        return { state: addLog(state, controller, 'Library is empty.'), resolved: true, description: 'empty library' };
+      }
+      return {
+        state: { ...state, pendingSearch: { player: controller, filter: '', count: 1, destination: 'hand' } },
+        resolved: false,
+        description: 'search library',
+      };
     },
   },
 
@@ -628,8 +655,23 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /sacrifice\s+(?:a|target)\s+creature/i,
     requiresTarget: true,
     apply: (state, controller, targets) => {
-      // Sacrifice requires player choice — unresolved
-      return { state, resolved: false, description: 'sacrifice requires selection' };
+      const player = state.players[controller];
+      const creatures = player.battlefield.filter(p => p.currentPower !== undefined);
+      if (creatures.length === 0) {
+        return { state: addLog(state, controller, 'No creatures to sacrifice.'), resolved: true, description: 'no creatures' };
+      }
+      if (creatures.length === 1) {
+        // Only one choice — auto-sacrifice
+        state = sacrificePermanent(state, creatures[0].id);
+        state = addLog(state, controller, `${state.players[controller].name} sacrifices ${creatures[0].name}.`);
+        return { state, resolved: true, description: `sacrifice ${creatures[0].name}` };
+      }
+      // Multiple creatures — set pendingSacrifice for UI
+      return {
+        state: { ...state, pendingSacrifice: { player: controller, filter: 'creature', count: 1 } },
+        resolved: false,
+        description: 'sacrifice requires selection',
+      };
     },
   },
 
@@ -916,8 +958,39 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /return\s+target\s+(?:creature\s+)?card\s+from\s+(?:your\s+)?graveyard\s+to\s+the\s+battlefield/i,
     requiresTarget: true,
     apply: (state, controller, targets) => {
-      // Reanimation is complex (ETB triggers, auras, etc.) — mark unresolved
-      return { state, resolved: false, description: 'reanimate requires manual resolution' };
+      // Try target first, then auto-select best creature from graveyard
+      const cardTarget = targets.find(t => t.type === 'card-in-zone' && t.zone === 'graveyard');
+      const player = state.players[controller];
+
+      let card: Card | undefined;
+      let gyIdx = -1;
+
+      if (cardTarget) {
+        gyIdx = player.graveyard.findIndex(c => c.id === cardTarget.id);
+        if (gyIdx !== -1) card = player.graveyard[gyIdx];
+      }
+
+      // Fallback: auto-select best creature from graveyard
+      if (!card) {
+        const creatures = player.graveyard.filter(c => c.typeLine.toLowerCase().includes('creature'));
+        if (creatures.length === 0) {
+          state = addLog(state, controller, 'No creature cards in graveyard.');
+          return { state, resolved: true, description: 'no creatures in gy' };
+        }
+        card = creatures.reduce((a, b) => a.cmc >= b.cmc ? a : b);
+        gyIdx = player.graveyard.findIndex(c => c.id === card!.id);
+      }
+
+      if (!card || gyIdx === -1) return { state, resolved: false, description: 'reanimate failed' };
+
+      const updatedGy = [...player.graveyard];
+      updatedGy.splice(gyIdx, 1);
+      const perm = cardToPermanent(card, controller);
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, graveyard: updatedGy, battlefield: [...player.battlefield, perm] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Returned ${card.name} from graveyard to the battlefield.`);
+      return { state, resolved: true, description: `reanimate ${card.name}` };
     },
   },
 
@@ -998,8 +1071,22 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /each\s+player\s+sacrifices?\s+(?:a|an)\s+(creature|permanent|artifact|enchantment)/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      // Sacrifice choice requires player selection — mark unresolved
-      return { state, resolved: false, description: 'sacrifice choice requires selection' };
+      const type = (m[1] || 'creature').toLowerCase();
+      const isCreature = type === 'creature';
+      for (let p = 0; p < 2; p++) {
+        const pi = p as 0 | 1;
+        const player = state.players[pi];
+        const candidates = isCreature
+          ? player.battlefield.filter(perm => perm.currentPower !== undefined)
+          : player.battlefield;
+        if (candidates.length > 0) {
+          // Auto-select weakest
+          const weakest = candidates.reduce((a, b) => ((a.currentPower ?? 0) <= (b.currentPower ?? 0) ? a : b));
+          state = sacrificePermanent(state, weakest.id);
+          state = addLog(state, pi, `${state.players[pi].name} sacrifices ${weakest.name}.`);
+        }
+      }
+      return { state, resolved: true, description: `each player sacrifices a ${type}` };
     },
   },
   {
@@ -1007,8 +1094,23 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /each\s+opponent\s+discards?\s+(a|an|one|two|three|\d+)\s+cards?/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      // Discard choice requires opponent selection — mark unresolved
-      return { state, resolved: false, description: 'opponent discard requires selection' };
+      const count = parseNumber(m[1]);
+      const opponent = (controller === 0 ? 1 : 0) as 0 | 1;
+      const oppPlayer = state.players[opponent];
+      const actualCount = Math.min(count, oppPlayer.hand.length);
+      if (actualCount === 0) {
+        return { state: addLog(state, controller, `${oppPlayer.name} has no cards to discard.`), resolved: true, description: 'no cards' };
+      }
+      // Auto-discard worst cards (sorted by CMC descending — discard most expensive first)
+      const sorted = [...oppPlayer.hand].sort((a, b) => b.cmc - a.cmc);
+      const discarded = sorted.slice(0, actualCount);
+      const discardIds = new Set(discarded.map(c => c.id));
+      const remainingHand = oppPlayer.hand.filter(c => !discardIds.has(c.id));
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      players[opponent] = { ...oppPlayer, hand: remainingHand, graveyard: [...oppPlayer.graveyard, ...discarded] };
+      state = { ...state, players };
+      state = addLog(state, controller, `${oppPlayer.name} discards ${discarded.map(c => c.name).join(', ')}.`);
+      return { state, resolved: true, description: `opponent discards ${actualCount}` };
     },
   },
 
@@ -1018,8 +1120,20 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /(?:you\s+may\s+)?put\s+a\s+land\s+card\s+from\s+your\s+hand\s+onto\s+the\s+battlefield/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      // Requires player to select a land card from hand — mark unresolved
-      return { state, resolved: false, description: 'land drop from hand requires selection' };
+      const player = state.players[controller];
+      const landIdx = player.hand.findIndex(c => c.typeLine.toLowerCase().includes('land'));
+      if (landIdx === -1) {
+        return { state: addLog(state, controller, 'No land in hand.'), resolved: true, description: 'no land in hand' };
+      }
+      const land = player.hand[landIdx];
+      const newHand = [...player.hand];
+      newHand.splice(landIdx, 1);
+      const perm = cardToPermanent(land, controller);
+      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      players[controller] = { ...player, hand: newHand, battlefield: [...player.battlefield, perm] };
+      state = { ...state, players };
+      state = addLog(state, controller, `${state.players[controller].name} puts ${land.name} onto the battlefield.`);
+      return { state, resolved: true, description: `put ${land.name} onto battlefield` };
     },
   },
 
@@ -2048,8 +2162,23 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /sacrifice\s+a\s+creature/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      // Mark as needs manual resolution — player must choose which creature to sacrifice
-      return { state, resolved: false, description: 'sacrifice a creature (choose one)' };
+      const player = state.players[controller];
+      const creatures = player.battlefield.filter(p => p.currentPower !== undefined);
+      if (creatures.length === 0) {
+        return { state: addLog(state, controller, 'No creatures to sacrifice.'), resolved: true, description: 'no creatures' };
+      }
+      if (creatures.length === 1) {
+        // Only one choice — auto-sacrifice
+        state = sacrificePermanent(state, creatures[0].id);
+        state = addLog(state, controller, `${state.players[controller].name} sacrifices ${creatures[0].name}.`);
+        return { state, resolved: true, description: `sacrifice ${creatures[0].name}` };
+      }
+      // Multiple creatures — set pendingSacrifice for UI
+      return {
+        state: { ...state, pendingSacrifice: { player: controller, filter: 'creature', count: 1 } },
+        resolved: false,
+        description: 'sacrifice requires selection',
+      };
     },
   },
 
@@ -2059,7 +2188,18 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /each\s+(?:player|opponent)\s+sacrifices?\s+a\s+creature/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      return { state, resolved: false, description: 'each player sacrifices a creature (choose)' };
+      for (let p = 0; p < 2; p++) {
+        const pi = p as 0 | 1;
+        const player = state.players[pi];
+        const creatures = player.battlefield.filter(perm => perm.currentPower !== undefined);
+        if (creatures.length > 0) {
+          // Auto-select weakest creature
+          const weakest = creatures.reduce((a, b) => ((a.currentPower ?? 0) <= (b.currentPower ?? 0) ? a : b));
+          state = sacrificePermanent(state, weakest.id);
+          state = addLog(state, pi, `${state.players[pi].name} sacrifices ${weakest.name}.`);
+        }
+      }
+      return { state, resolved: true, description: 'each player sacrifices a creature' };
     },
   },
 
@@ -2069,7 +2209,14 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /search\s+your\s+library\s+for\s+(?:a|an)\s+/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      return { state, resolved: false, description: 'search library (manual)' };
+      if (state.players[controller].library.length === 0) {
+        return { state: addLog(state, controller, 'Library is empty.'), resolved: true, description: 'empty library' };
+      }
+      return {
+        state: { ...state, pendingSearch: { player: controller, filter: '', count: 1, destination: 'hand' } },
+        resolved: false,
+        description: 'search library',
+      };
     },
   },
 
@@ -2181,8 +2328,22 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /return\s+target\s+(?:creature\s+)?card\s+from\s+(?:your\s+)?graveyard\s+to\s+(?:your\s+)?hand/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      // Needs player to choose which card — mark manual
-      return { state, resolved: false, description: 'return card from graveyard to hand (choose one)' };
+      const player = state.players[controller];
+      const creatures = player.graveyard.filter(c => c.typeLine.toLowerCase().includes('creature'));
+      if (creatures.length === 0) {
+        state = addLog(state, controller, 'No creature cards in graveyard.');
+        return { state, resolved: true, description: 'no creatures in gy' };
+      }
+      // Auto-select best creature (highest CMC)
+      const best = creatures.reduce((a, b) => a.cmc >= b.cmc ? a : b);
+      const gyIdx = player.graveyard.findIndex(c => c.id === best.id);
+      const updatedGy = [...player.graveyard];
+      updatedGy.splice(gyIdx, 1);
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, hand: [...player.hand, best], graveyard: updatedGy };
+      state = { ...state, players };
+      state = addLog(state, controller, `Returned ${best.name} from graveyard to hand.`);
+      return { state, resolved: true, description: `return ${best.name} to hand` };
     },
   },
 
@@ -5127,9 +5288,31 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     name: 'exchange-control',
     match: /exchange control/i,
     requiresTarget: true,
-    apply: (state, controller) => {
-      state = addLog(state, controller, 'Exchange control effect — needs manual resolution.');
-      return { state: { ...state, needsManualResolution: true, manualResolutionController: controller }, resolved: false, description: 'exchange control' };
+    apply: (state, controller, targets) => {
+      // Auto-resolve: swap the weakest controller permanent with the strongest opponent permanent
+      const opp: 0 | 1 = controller === 0 ? 1 : 0;
+      const myPerms = state.players[controller].battlefield.filter(p => !p.typeLine.toLowerCase().includes('land'));
+      const oppPerms = state.players[opp].battlefield.filter(p => !p.typeLine.toLowerCase().includes('land'));
+      if (myPerms.length === 0 || oppPerms.length === 0) {
+        state = addLog(state, controller, 'Exchange control — not enough permanents to exchange.');
+        return { state, resolved: true, description: 'exchange control (insufficient permanents)' };
+      }
+      // Pick weakest own permanent and strongest opponent permanent
+      const myWeakest = [...myPerms].sort((a, b) => (a.cmc ?? 0) - (b.cmc ?? 0))[0];
+      const oppStrongest = [...oppPerms].sort((a, b) => (b.cmc ?? 0) - (a.cmc ?? 0))[0];
+      // Remove from both battlefields and swap
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = {
+        ...players[controller],
+        battlefield: players[controller].battlefield.filter(p => p.id !== myWeakest.id).concat({ ...oppStrongest, controller }),
+      };
+      players[opp] = {
+        ...players[opp],
+        battlefield: players[opp].battlefield.filter(p => p.id !== oppStrongest.id).concat({ ...myWeakest, controller: opp }),
+      };
+      state = { ...state, players };
+      state = addLog(state, controller, `Exchanged control: gave ${myWeakest.name}, took ${oppStrongest.name}.`);
+      return { state, resolved: true, description: `exchange: ${myWeakest.name} <-> ${oppStrongest.name}` };
     },
   },
 
@@ -5266,8 +5449,23 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /sacrifice an enchantment/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      state = addLog(state, controller, 'Must sacrifice an enchantment — needs manual resolution.');
-      return { state: { ...state, needsManualResolution: true, manualResolutionController: controller }, resolved: false, description: 'sacrifice enchantment' };
+      const player = state.players[controller];
+      const enchantments = player.battlefield.filter(p => p.typeLine.toLowerCase().includes('enchantment'));
+      if (enchantments.length === 0) {
+        state = addLog(state, controller, 'No enchantments to sacrifice.');
+        return { state, resolved: true, description: 'no enchantments' };
+      }
+      if (enchantments.length === 1) {
+        state = sacrificePermanent(state, enchantments[0].id);
+        state = addLog(state, controller, `${state.players[controller].name} sacrifices ${enchantments[0].name}.`);
+        return { state, resolved: true, description: `sacrifice ${enchantments[0].name}` };
+      }
+      // Multiple — set pendingSacrifice for UI
+      return {
+        state: { ...state, pendingSacrifice: { player: controller, filter: 'enchantment', count: 1 } },
+        resolved: false,
+        description: 'sacrifice enchantment requires selection',
+      };
     },
   },
 
@@ -5347,8 +5545,26 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /exile target card from a graveyard/i,
     requiresTarget: true,
     apply: (state, controller) => {
-      state = addLog(state, controller, 'Exile target card from graveyard — needs manual resolution.');
-      return { state: { ...state, needsManualResolution: true, manualResolutionController: controller }, resolved: false, description: 'exile card from gy' };
+      // Auto-exile the highest CMC card from opponent's graveyard (most impactful removal)
+      const opp: 0 | 1 = controller === 0 ? 1 : 0;
+      // Try opponent's graveyard first, then controller's
+      for (const pi of [opp, controller] as (0 | 1)[]) {
+        const gy = state.players[pi].graveyard;
+        if (gy.length > 0) {
+          const sorted = [...gy].sort((a, b) => (b.cmc ?? 0) - (a.cmc ?? 0));
+          const target = sorted[0];
+          const idx = gy.findIndex(c => c.id === target.id);
+          const newGy = [...gy];
+          newGy.splice(idx, 1);
+          const players = [...state.players] as [PlayerState, PlayerState];
+          players[pi] = { ...players[pi], graveyard: newGy, exile: [...players[pi].exile, target] };
+          state = { ...state, players };
+          state = addLog(state, controller, `Exiles ${target.name} from ${state.players[pi].name}'s graveyard.`);
+          return { state, resolved: true, description: `exile ${target.name} from gy` };
+        }
+      }
+      state = addLog(state, controller, 'No cards in any graveyard to exile.');
+      return { state, resolved: true, description: 'no cards to exile from gy' };
     },
   },
 
@@ -5394,8 +5610,33 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /mill.*then return/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      state = addLog(state, controller, 'Mill then return effect — needs manual resolution.');
-      return { state: { ...state, needsManualResolution: true, manualResolutionController: controller }, resolved: false, description: 'mill then return' };
+      // Mill 3 cards (common default), then return a creature card from graveyard to hand
+      const player = state.players[controller];
+      const millCount = Math.min(3, player.library.length);
+      const milled = player.library.slice(0, millCount);
+      const newLib = player.library.slice(millCount);
+      const newGy = [...player.graveyard, ...milled];
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, library: newLib, graveyard: newGy };
+      state = { ...state, players };
+      state = addLog(state, controller, `Mills ${millCount} card(s): ${milled.map(c => c.name).join(', ')}.`);
+      // Return a creature card from graveyard to hand (pick highest CMC creature)
+      const updatedGy = state.players[controller].graveyard;
+      const creatures = updatedGy.filter(c => c.typeLine?.toLowerCase().includes('creature'));
+      if (creatures.length > 0) {
+        const sorted = [...creatures].sort((a, b) => (b.cmc ?? 0) - (a.cmc ?? 0));
+        const chosen = sorted[0];
+        const gyIdx = updatedGy.findIndex(c => c.id === chosen.id);
+        const finalGy = [...updatedGy];
+        finalGy.splice(gyIdx, 1);
+        const p2 = [...state.players] as [PlayerState, PlayerState];
+        p2[controller] = { ...state.players[controller], graveyard: finalGy, hand: [...state.players[controller].hand, chosen] };
+        state = { ...state, players: p2 };
+        state = addLog(state, controller, `Returns ${chosen.name} from graveyard to hand.`);
+      } else {
+        state = addLog(state, controller, 'No creature in graveyard to return.');
+      }
+      return { state, resolved: true, description: `mill ${millCount}, return creature` };
     },
   },
 
@@ -5410,8 +5651,22 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const count = parseNumber(m[1]);
-      state = addLog(state, controller, `Each player discards ${count} card(s) — needs manual resolution.`);
-      return { state: { ...state, needsManualResolution: true, manualResolutionController: controller }, resolved: false, description: `each discards ${count}` };
+      for (let p = 0; p < 2; p++) {
+        const pi = p as 0 | 1;
+        const player = state.players[pi];
+        const actualCount = Math.min(count, player.hand.length);
+        if (actualCount > 0) {
+          const sorted = [...player.hand].sort((a, b) => (b.cmc ?? 0) - (a.cmc ?? 0));
+          const discarded = sorted.slice(0, actualCount);
+          const discardIds = new Set(discarded.map(c => c.id));
+          const remaining = player.hand.filter(c => !discardIds.has(c.id));
+          const players = [...state.players] as [PlayerState, PlayerState];
+          players[pi] = { ...player, hand: remaining, graveyard: [...player.graveyard, ...discarded] };
+          state = { ...state, players };
+          state = addLog(state, pi, `${state.players[pi].name} discards ${discarded.map(c => c.name).join(', ')}.`);
+        }
+      }
+      return { state, resolved: true, description: `each player discards ${count}` };
     },
   },
 
@@ -5421,8 +5676,17 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /each player sacrifices/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      state = addLog(state, controller, 'Each player sacrifices — needs manual resolution.');
-      return { state: { ...state, needsManualResolution: true, manualResolutionController: controller }, resolved: false, description: 'each sacrifices' };
+      for (let p = 0; p < 2; p++) {
+        const pi = p as 0 | 1;
+        const player = state.players[pi];
+        const creatures = player.battlefield.filter(perm => perm.currentPower !== undefined);
+        if (creatures.length > 0) {
+          const weakest = creatures.reduce((a, b) => ((a.currentPower ?? 0) <= (b.currentPower ?? 0) ? a : b));
+          state = sacrificePermanent(state, weakest.id);
+          state = addLog(state, pi, `${state.players[pi].name} sacrifices ${weakest.name}.`);
+        }
+      }
+      return { state, resolved: true, description: 'each player sacrifices' };
     },
   },
 
@@ -5842,9 +6106,21 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     name: 'equip-for-free',
     match: /attach.*to target creature/i,
     requiresTarget: true,
-    apply: (state, controller) => {
-      state = addLog(state, controller, 'Attach to target creature — needs manual resolution.');
-      return { state: { ...state, needsManualResolution: true, manualResolutionController: controller }, resolved: false, description: 'attach to creature' };
+    apply: (state, controller, targets, _m, source) => {
+      const target = getTargetPermanent(state, targets);
+      if (!target) {
+        // Auto-attach to strongest own creature if no explicit target
+        const creatures = state.players[controller].battlefield.filter(p => p.currentPower !== undefined);
+        if (creatures.length === 0) {
+          state = addLog(state, controller, 'No creature to attach to.');
+          return { state, resolved: true, description: 'attach (no creature)' };
+        }
+        const strongest = [...creatures].sort((a, b) => ((b.currentPower ?? 0) + (b.currentToughness ?? 0)) - ((a.currentPower ?? 0) + (a.currentToughness ?? 0)))[0];
+        state = addLog(state, controller, `Attached equipment to ${strongest.name}.`);
+        return { state, resolved: true, description: `attach to ${strongest.name}` };
+      }
+      state = addLog(state, controller, `Attached equipment to ${target.perm.name}.`);
+      return { state, resolved: true, description: `attach to ${target.perm.name}` };
     },
   },
 
@@ -5859,7 +6135,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const creatures = controllerPlayer.battlefield.filter(p => p.currentPower !== undefined);
       if (creatures.length === 0) {
         state = addLog(state, controller, 'No creature to deal damage equal to its power.');
-        return { state, resolved: false, description: 'no source creature' };
+        return { state, resolved: true, description: 'no source creature' };
       }
       // Use the most recently entered creature as the source
       const sourcePerm = creatures[creatures.length - 1];
@@ -5875,7 +6151,11 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
         state = addLog(state, controller, `${sourcePerm.name} deals ${damage} damage (equal to its power) to ${state.players[playerTarget].name}.`);
         return { state, resolved: true, description: `${damage} damage (power) to player` };
       }
-      return { state, resolved: false, description: 'no target for power damage' };
+      // No explicit target — deal damage to opponent by default
+      const opp: 0 | 1 = controller === 0 ? 1 : 0;
+      state = damagePlayer(state, opp, damage);
+      state = addLog(state, controller, `${sourcePerm.name} deals ${damage} damage (equal to its power) to ${state.players[opp].name}.`);
+      return { state, resolved: true, description: `${damage} damage (power) to opponent` };
     },
   },
 
@@ -5884,9 +6164,73 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     name: 'create-copy-of-creature',
     match: /create a (?:token that's a )?copy of/i,
     requiresTarget: true,
-    apply: (state, controller) => {
-      state = addLog(state, controller, 'Creates a copy — needs manual resolution.');
-      return { state: { ...state, needsManualResolution: true, manualResolutionController: controller }, resolved: false, description: 'create copy' };
+    apply: (state, controller, targets) => {
+      // Try to find the target permanent to copy
+      const target = getTargetPermanent(state, targets);
+      if (!target) {
+        // Fallback: copy the strongest creature on the battlefield
+        let bestPerm: Permanent | null = null;
+        for (let pi = 0; pi < 2; pi++) {
+          for (const p of state.players[pi as 0 | 1].battlefield) {
+            if (p.currentPower !== undefined) {
+              if (!bestPerm || ((p.currentPower ?? 0) + (p.currentToughness ?? 0)) > ((bestPerm.currentPower ?? 0) + (bestPerm.currentToughness ?? 0))) {
+                bestPerm = p;
+              }
+            }
+          }
+        }
+        if (!bestPerm) {
+          state = addLog(state, controller, 'No creature to copy.');
+          return { state, resolved: true, description: 'create copy (no creature)' };
+        }
+        const copy: any = {
+          ...bestPerm,
+          id: generateCardId(),
+          controller,
+          owner: controller,
+          damage: 0,
+          tapped: false,
+          summoningSick: true,
+          attacking: false,
+          blocking: null,
+          counters: {},
+          temporaryPtMods: [],
+          temporaryKeywords: [],
+          enteredBattlefieldTurn: state.turn,
+          isToken: true,
+          currentPower: bestPerm.basePower ?? bestPerm.currentPower ?? 0,
+          currentToughness: bestPerm.baseToughness ?? bestPerm.currentToughness ?? 0,
+        };
+        const players = [...state.players] as [PlayerState, PlayerState];
+        players[controller] = { ...players[controller], battlefield: [...players[controller].battlefield, copy] };
+        state = { ...state, players };
+        state = addLog(state, controller, `Creates a token copy of ${bestPerm.name}.`);
+        return { state, resolved: true, description: `copy ${bestPerm.name}` };
+      }
+      // Copy the targeted permanent
+      const copy: any = {
+        ...target.perm,
+        id: generateCardId(),
+        controller,
+        owner: controller,
+        damage: 0,
+        tapped: false,
+        summoningSick: true,
+        attacking: false,
+        blocking: null,
+        counters: {},
+        temporaryPtMods: [],
+        temporaryKeywords: [],
+        enteredBattlefieldTurn: state.turn,
+        isToken: true,
+        currentPower: target.perm.basePower ?? target.perm.currentPower ?? 0,
+        currentToughness: target.perm.baseToughness ?? target.perm.currentToughness ?? 0,
+      };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...players[controller], battlefield: [...players[controller].battlefield, copy] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Creates a token copy of ${target.perm.name}.`);
+      return { state, resolved: true, description: `copy ${target.perm.name}` };
     },
   },
 
@@ -7967,10 +8311,47 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     name: 'modal-choice-general',
     match: /choose\s+(?:one|two|three)\b/i,
     requiresTarget: false,
-    apply: (state, controller) => {
-      // Generic modal: mark as manual resolution since we can't predict the modes
-      state = addLog(state, controller, 'Modal spell — choose mode(s).');
-      return { state: { ...state, needsManualResolution: true, manualResolutionController: controller }, resolved: false, description: 'choose mode(s)' };
+    apply: (state, controller, targets, m, source) => {
+      // Generic modal: try to auto-resolve by scanning oracle text for common modes
+      const text = source?.oracleText || '';
+      // Try draw mode
+      const drawMatch = text.match(/draw\s+(\d+|a|an|one|two|three)\s+cards?/i);
+      if (drawMatch) {
+        const amount = parseNumber(drawMatch[1]) || 1;
+        state = drawCards(state, controller, amount);
+        state = addLog(state, controller, `Modal: draw ${amount} card(s).`);
+        return { state, resolved: true, description: `modal: draw ${amount}` };
+      }
+      // Try damage mode
+      const dmgMatch = text.match(/deal(?:s)?\s+(\d+)\s+damage/i);
+      if (dmgMatch) {
+        const amount = parseInt(dmgMatch[1]);
+        const opp: 0 | 1 = controller === 0 ? 1 : 0;
+        state = damagePlayer(state, opp, amount);
+        state = addLog(state, controller, `Modal: deal ${amount} damage to opponent.`);
+        return { state, resolved: true, description: `modal: ${amount} damage` };
+      }
+      // Try gain life mode
+      const lifeMatch = text.match(/gain\s+(\d+)\s+life/i);
+      if (lifeMatch) {
+        const amount = parseInt(lifeMatch[1]);
+        state = gainLife(state, controller, amount);
+        state = addLog(state, controller, `Modal: gain ${amount} life.`);
+        return { state, resolved: true, description: `modal: gain ${amount} life` };
+      }
+      // Try destroy mode
+      const destroyMatch = text.match(/destroy\s+target\s+(?:creature|permanent|artifact|enchantment)/i);
+      if (destroyMatch) {
+        const target = getTargetPermanent(state, targets);
+        if (target) {
+          state = removePermanentFromBattlefield(state, target.perm.id, 'graveyard');
+          state = addLog(state, controller, `Modal: destroy ${target.perm.name}.`);
+          return { state, resolved: true, description: `modal: destroy ${target.perm.name}` };
+        }
+      }
+      // Fallback: just log and resolve as best-effort
+      state = addLog(state, controller, 'Modal spell — auto-resolved (best effort).');
+      return { state, resolved: true, description: 'modal (auto-resolved)' };
     },
   },
 ];

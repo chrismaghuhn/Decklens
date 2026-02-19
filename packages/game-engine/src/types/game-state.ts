@@ -166,4 +166,29 @@ export interface GameState {
     maxChoices: number;
     cardName?: string;
   } | null;
+
+  /** Sacrifice choice pending — player must choose permanents to sacrifice */
+  pendingSacrifice?: {
+    player: 0 | 1;
+    filter: string; // 'creature', 'artifact', 'enchantment', 'permanent'
+    count: number;
+    sourceId?: string; // The card that caused the sacrifice
+    sourceName?: string;
+  } | null;
+
+  /** Library search pending — player must choose cards from their library */
+  pendingSearch?: {
+    player: 0 | 1;
+    filter: string; // 'creature', 'land', 'basic land', 'artifact', 'enchantment', 'instant', 'sorcery', '' (any)
+    count: number; // how many cards to choose
+    destination: 'hand' | 'battlefield' | 'top-of-library';
+    sourceName?: string;
+  } | null;
+
+  /** Scry pending — player must arrange top N cards */
+  pendingScry?: {
+    player: 0 | 1;
+    count: number;
+    cards: string[]; // card IDs of the top N cards
+  } | null;
 }

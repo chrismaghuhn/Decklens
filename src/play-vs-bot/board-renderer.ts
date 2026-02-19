@@ -136,6 +136,10 @@ export function renderBoard(
   setCount('bot-gy-count', opp.graveyard.length);
   setCount('bot-exile-count', opp.exile.length);
 
+  // Make exile zone links clickable
+  setupExileClick('your-exile-count', humanPlayer, callbacks);
+  setupExileClick('bot-exile-count', botPlayer, callbacks);
+
   // Undo button
   const undoBtn = el('btn-undo') as HTMLButtonElement | null;
   if (undoBtn) undoBtn.disabled = !callbacks.canUndo?.();
@@ -145,6 +149,7 @@ export function renderBoard(
 export interface BoardCallbacks {
   onHandCardClick?: (card: Card, index: number) => void;
   onBattlefieldCardClick?: (perm: Permanent, controller: 0 | 1) => void;
+  onExileClick?: (player: 0 | 1) => void;
   canUndo?: () => boolean;
   selectedHandCardId?: string | null;
   targetingMode?: boolean;
@@ -218,6 +223,34 @@ function renderBattlefieldZone(
       cardEl.appendChild(badge);
     }
 
+    // Loyalty badge for planeswalkers
+    if (perm.typeLine.toLowerCase().includes('planeswalker') && (perm.currentLoyalty != null || perm.loyalty)) {
+      const loyaltyBadge = document.createElement('span');
+      loyaltyBadge.className = 'loyalty-badge';
+      loyaltyBadge.textContent = String(perm.currentLoyalty ?? perm.loyalty ?? '?');
+      loyaltyBadge.title = `Loyalty: ${perm.currentLoyalty ?? perm.loyalty}`;
+      cardEl.style.position = 'relative';
+      cardEl.appendChild(loyaltyBadge);
+    }
+
+    // Equipment/Aura attachment indicator
+    if (perm.attachedTo) {
+      const attachBadge = document.createElement('span');
+      attachBadge.className = 'attached-badge';
+      attachBadge.textContent = '\u{1F517}'; // link emoji
+      attachBadge.title = 'Attached to another permanent';
+      cardEl.style.position = 'relative';
+      cardEl.appendChild(attachBadge);
+    }
+    if (perm.attachments && perm.attachments.length > 0) {
+      const equipBadge = document.createElement('span');
+      equipBadge.className = 'equipped-badge';
+      equipBadge.textContent = `+${perm.attachments.length}`;
+      equipBadge.title = `${perm.attachments.length} equipment/aura(s) attached`;
+      cardEl.style.position = 'relative';
+      cardEl.appendChild(equipBadge);
+    }
+
     container.appendChild(cardEl);
   }
 }
@@ -284,6 +317,22 @@ function renderStack(stack: StackObject[], humanPlayer: 0 | 1): void {
     row.appendChild(nameDiv);
     container.appendChild(row);
   }
+}
+
+/** Make an exile zone count clickable to open exile browser */
+function setupExileClick(countId: string, player: 0 | 1, callbacks: BoardCallbacks): void {
+  const countEl = el(countId);
+  if (!countEl) return;
+  // Find the parent zone-link div
+  const zoneLink = countEl.closest('.pvb-zone-link');
+  if (!zoneLink) return;
+  // Avoid duplicate listeners by checking data attribute
+  if ((zoneLink as HTMLElement).dataset.exileWired) return;
+  (zoneLink as HTMLElement).dataset.exileWired = '1';
+  (zoneLink as HTMLElement).style.cursor = 'pointer';
+  zoneLink.addEventListener('click', () => {
+    callbacks.onExileClick?.(player);
+  });
 }
 
 /** Update a zone count element */
