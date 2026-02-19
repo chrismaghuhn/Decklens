@@ -2897,6 +2897,48 @@ body { font-size: 15px; line-height: 1.65; }
   color: var(--text-dim);
   margin-bottom: 1rem;
 }
+
+/* ── IMPORT TABS ─────────────────────────────────── */
+/* Override the old 2-col grid layout for tabbed import */
+#importPanel {
+  display: block;
+}
+.import-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+.import-tab-btn {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.4rem 0.5rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  transition: all 0.2s;
+}
+.import-tab-btn:hover {
+  border-color: var(--border-light);
+  color: var(--gold-light);
+  background: rgba(201, 168, 76, 0.06);
+}
+.import-tab-btn.active {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: rgba(201, 168, 76, 0.1);
+}
+.import-pane { display: none; }
+.import-pane.active { display: block; }
 </style>
 </head>
 <body>
@@ -2986,32 +3028,58 @@ body { font-size: 15px; line-height: 1.65; }
     <div class="workspace-block-title">Import & Setup</div>
 
   <div class="import-panel" id="importPanel">
- <div class="dropzone" id="dropzone">
- <div class="dropzone-icon"><svg class="ui-icon"><use href="#i-upload"></use></svg></div><h3>Drop your deck file here</h3><p>.dec .txt .dek .csv .json or click to browse</p>
- <input type="file" accept=".dec,.txt,.dek,.mwDeck,.csv,.json" id="deckFileInput" >
- </div>
- <div class="import-alt">
- <label><svg class="ui-icon"><use href="#i-file"></use></svg>Paste Decklist</label>
- <textarea id="pasteArea" placeholder="4 Lightning Bolt
+  <!-- Tab switcher -->
+  <div class="import-tabs">
+    <button class="import-tab-btn active" data-import-tab="paste" id="importTabPaste">
+      <svg class="ui-icon"><use href="#i-file"></use></svg>Paste
+    </button>
+    <button class="import-tab-btn" data-import-tab="file" id="importTabFile">
+      <svg class="ui-icon"><use href="#i-upload"></use></svg>File
+    </button>
+    <button class="import-tab-btn" data-import-tab="url" id="importTabUrl">
+      <svg class="ui-icon"><use href="#i-globe"></use></svg>URL
+    </button>
+  </div>
+
+  <!-- Paste pane (default) -->
+  <div class="import-pane active" id="importPanePaste">
+    <div class="import-alt">
+      <label><svg class="ui-icon"><use href="#i-file"></use></svg>Paste Decklist</label>
+      <textarea id="pasteArea" placeholder="4 Lightning Bolt
 4 Counterspell
 2x Brainstorm
 
 Sideboard:
 3 Mystical Dispute
 2 Flusterstorm" maxlength="200000"></textarea>
- <div class="format-hint">Formats: <code>4 Card Name</code> • <code>4x Card</code> • <code>*1 Card</code> • Arena • MTGO</div>
- <button class="import-btn" id="btnImportPaste"><svg class="ui-icon"><use href="#i-upload"></use></svg>Load Deck</button>
- </div>
-  <div class="import-alt">
-  <label><svg class="ui-icon"><use href="#i-link"></use></svg>Import from URL</label>
-  <input type="text" id="urlInput" placeholder="https://www.moxfield.com/decks/..." maxlength="2000">
-  <div class="format-hint">Supports: Moxfield, Archidekt</div>
-  <div class="import-url-actions">
-  <button class="import-btn" id="btnImportUrl"><svg class="ui-icon"><use href="#i-globe"></use></svg>Fetch Deck</button>
-  <button class="import-btn subtle" id="btnImportUrlAuto"><svg class="ui-icon"><use href="#i-copy"></use></svg>Fetch + AutoPaste</button>
-  <button class="import-btn subtle" id="btnPasteClipboardNow"><svg class="ui-icon"><use href="#i-download"></use></svg>Paste Clipboard</button>
+      <div class="format-hint">Formats: <code>4 Card Name</code> • <code>4x Card</code> • <code>*1 Card</code> • Arena • MTGO</div>
+      <button class="import-btn" id="btnImportPaste"><svg class="ui-icon"><use href="#i-upload"></use></svg>Load Deck</button>
+    </div>
   </div>
-</div>
+
+  <!-- File pane -->
+  <div class="import-pane" id="importPaneFile">
+    <div class="dropzone" id="dropzone">
+      <div class="dropzone-icon"><svg class="ui-icon"><use href="#i-upload"></use></svg></div>
+      <h3>Drop your deck file here</h3>
+      <p>.dec .txt .dek .csv .json or click to browse</p>
+      <input type="file" accept=".dec,.txt,.dek,.mwDeck,.csv,.json" id="deckFileInput">
+    </div>
+  </div>
+
+  <!-- URL pane -->
+  <div class="import-pane" id="importPaneUrl">
+    <div class="import-alt">
+      <label><svg class="ui-icon"><use href="#i-link"></use></svg>Import from URL</label>
+      <input type="text" id="urlInput" placeholder="https://www.moxfield.com/decks/..." maxlength="2000">
+      <div class="format-hint">Supports: Moxfield, Archidekt</div>
+      <div class="import-url-actions">
+        <button class="import-btn" id="btnImportUrl"><svg class="ui-icon"><use href="#i-globe"></use></svg>Fetch Deck</button>
+        <button class="import-btn subtle" id="btnImportUrlAuto"><svg class="ui-icon"><use href="#i-copy"></use></svg>Fetch + AutoPaste</button>
+        <button class="import-btn subtle" id="btnPasteClipboardNow"><svg class="ui-icon"><use href="#i-download"></use></svg>Paste Clipboard</button>
+      </div>
+    </div>
+  </div>
   </div>
 
   <div class="flow-panel" id="flowPanel" data-status="empty" data-step="import">
@@ -3641,5 +3709,19 @@ Sideboard:
 
 <script type="module" src="/src/mtg/main.ts"></script>
 <script type="module" src="/src/shared/discord-popup.ts"></script>
+<script>
+// Import tab switcher
+(function() {
+  var tabs = document.querySelectorAll('[data-import-tab]');
+  var panes = document.querySelectorAll('.import-pane');
+  tabs.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var target = btn.dataset.importTab;
+      tabs.forEach(function(t) { t.classList.toggle('active', t.dataset.importTab === target); });
+      panes.forEach(function(p) { p.classList.toggle('active', p.id === 'importPane' + target.charAt(0).toUpperCase() + target.slice(1)); });
+    });
+  });
+})();
+</script>
 </body>
 </html>
