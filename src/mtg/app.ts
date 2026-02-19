@@ -2085,6 +2085,7 @@ async function processDeck(deck: Deck): Promise<void> {
   buildCardNameIndex(); // Build search index after loading cards
   clearSearch(); // Clear any existing search when loading new deck
   autoDetectFormat(deck);
+  document.getElementById('onboardState')?.remove();
   renderDeck();
   refreshExportOutputForCurrentState();
   updateToolsState(); // Update all tools when deck is loaded

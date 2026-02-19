@@ -2898,6 +2898,62 @@ body { font-size: 15px; line-height: 1.65; }
   margin-bottom: 1rem;
 }
 
+/* ── ONBOARDING EMPTY STATE ───────────────────────── */
+.onboard-shell {
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+.onboard-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: var(--text-bright);
+  margin-bottom: 0.4rem;
+  letter-spacing: 0.04em;
+}
+.onboard-sub {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+.onboard-methods {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  text-align: left;
+}
+.onboard-method {
+  background: rgba(201, 168, 76, 0.04);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 0.85rem;
+}
+.onboard-method-icon {
+  font-size: 1.3rem;
+  margin-bottom: 0.4rem;
+}
+.onboard-method-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 0.2rem;
+}
+.onboard-method-desc {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+.onboard-tip {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  border: 1px dashed rgba(201, 168, 76, 0.2);
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  display: inline-block;
+}
+.onboard-tip strong { color: var(--gold); }
+
 /* ── FORMAT SELECTOR ─────────────────────────────── */
 .toolbar-format-select {
   background: var(--bg-2);
@@ -3152,7 +3208,32 @@ Sideboard:
  </div>
  </div>
 
-  <div id="deckContent"><p class="tool-empty">Import a deck to populate card sections and live deck details.</p></div>
+  <div id="deckContent">
+    <div class="onboard-shell" id="onboardState">
+      <div class="onboard-title">Ready to analyze your deck</div>
+      <p class="onboard-sub">Import any deck — paste a list, drop a file, or fetch from Moxfield or Archidekt.</p>
+      <div class="onboard-methods">
+        <div class="onboard-method">
+          <div class="onboard-method-icon">📋</div>
+          <div class="onboard-method-title">Paste</div>
+          <div class="onboard-method-desc">Copy your Arena or MTGO export and paste it in the left panel.</div>
+        </div>
+        <div class="onboard-method">
+          <div class="onboard-method-icon">📁</div>
+          <div class="onboard-method-title">File</div>
+          <div class="onboard-method-desc">Drop a .dec, .txt, or .json deck file onto the left panel.</div>
+        </div>
+        <div class="onboard-method">
+          <div class="onboard-method-icon">🔗</div>
+          <div class="onboard-method-title">URL</div>
+          <div class="onboard-method-desc">Paste a Moxfield or Archidekt deck URL to fetch it directly.</div>
+        </div>
+      </div>
+      <div class="onboard-tip">
+        <strong>Tip:</strong> After import, use <strong>Analysis</strong> in the header to see mana curve, color distribution &amp; format legality.
+      </div>
+    </div>
+  </div>
   </section>
   </div>
 
