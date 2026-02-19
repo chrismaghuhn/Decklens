@@ -149,42 +149,24 @@ export class GameLoop {
 
       // ─── Discard Pending (Human) ───
       if (state.pendingDiscard === this.humanPlayer && state.pendingDiscardCount && state.pendingDiscardCount > 0) {
+        logMessage(`You must discard ${state.pendingDiscardCount} card(s).`);
         const cardIds = await this.showDiscardPicker(state.pendingDiscardCount);
+        
         if (cardIds.length > 0) {
-          // Move selected cards from hand to graveyard
-          const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
-          const p = players[this.humanPlayer];
-          const discarded: Card[] = [];
-          const remaining: Card[] = [];
-          for (const c of p.hand) {
-            if (cardIds.includes(c.id) && discarded.length < state.pendingDiscardCount!) {
-              discarded.push(c);
-            } else {
-              remaining.push(c);
-            }
+          // Use the engine's action system instead of manual state mutation!
+          // This ensures validation, SBAs, and correct state transitions occur.
+          const success = this.game.submitAction({ 
+            type: 'discard', 
+            player: this.humanPlayer, 
+            cardIds 
+          });
+
+          if (!success) {
+             console.error('Discard action failed validation!', cardIds);
+             logMessage('Failed to discard. Please try again.');
+             // Prevent infinite loop if validation fails permanently
+             await new Promise(r => setTimeout(r, 1000));
           }
-          players[this.humanPlayer] = {
-            ...p,
-            hand: remaining,
-            graveyard: [...p.graveyard, ...discarded],
-          };
-          const newState: GameState = {
-            ...state,
-            players,
-            pendingDiscard: null,
-            pendingDiscardCount: 0,
-            log: [...state.log, {
-              timestamp: Date.now(),
-              turn: state.turn,
-              phase: state.phase,
-              step: state.step,
-              player: this.humanPlayer,
-              message: `Discarded ${discarded.map(c => c.name).join(', ')}.`,
-              actionType: 'effect',
-            }],
-          };
-          this.game.setState(newState);
-          logMessage(`Discarded: ${discarded.map(c => `<span style="color:var(--gold)">${c.name}</span>`).join(', ')}`);
         }
         continue;
       }
@@ -1096,7 +1078,7 @@ export class GameLoop {
 
     const overlay = document.createElement('div');
     overlay.id = 'cost-modal';
-    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:1000;display:flex;align-items:center;justify-content:center;';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;';
 
     const modal = document.createElement('div');
     modal.style.cssText = 'background:var(--obsidian,#1a1f2e);border:1px solid var(--gold,#c9a84c);border-radius:12px;padding:20px;min-width:280px;text-align:center;';
@@ -1562,7 +1544,7 @@ export class GameLoop {
 
     const overlay = document.createElement('div');
     overlay.id = 'ability-modal';
-    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:1000;display:flex;align-items:center;justify-content:center;';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;';
 
     const panel = document.createElement('div');
     panel.style.cssText = 'background:var(--abyss,#0f1623);border:1px solid var(--gold,#c9a84c);border-radius:16px;padding:24px;max-width:420px;width:90%;';
@@ -1822,7 +1804,7 @@ export class GameLoop {
         position: fixed; top: 0; left: 0; right: 0; bottom: 0;
         background: rgba(10, 14, 23, 0.85);
         display: flex; align-items: center; justify-content: center;
-        z-index: 1000;
+        z-index: 10000; /* Must be above all other overlays (coach=2000, manual-res=9999) */
         animation: p8FadeIn 0.2s ease;
       }
       @keyframes p8FadeIn {
@@ -2201,7 +2183,7 @@ export class GameLoop {
         position: fixed; top: 0; left: 0; right: 0; bottom: 0;
         background: rgba(10, 14, 23, 0.85);
         display: flex; align-items: center; justify-content: center;
-        z-index: 1000;
+        z-index: 10000;
         animation: responsePromptFadeIn 0.2s ease;
       }
       .response-prompt-content {
@@ -2660,7 +2642,7 @@ export class GameLoop {
         position: fixed; top: 0; left: 0; right: 0; bottom: 0;
         background: rgba(10, 14, 23, 0.85);
         display: flex; align-items: center; justify-content: center;
-        z-index: 1000;
+        z-index: 10000;
         animation: modalChoiceFadeIn 0.2s ease;
       }
       .modal-choice-content {
@@ -3346,6 +3328,7 @@ export class GameLoop {
    * Returns Promise resolving with selected card IDs.
    */
   private showDiscardPicker(count: number): Promise<string[]> {
+    console.log(`[UI] Showing discard picker for ${count} cards`);
     this.injectPhase8Styles();
 
     return new Promise<string[]>((resolve) => {
@@ -3424,6 +3407,7 @@ export class GameLoop {
         confirmBtn.textContent = `Confirm Discard (${selected.size}/${count})`;
         confirmBtn.disabled = selected.size !== count;
         confirmBtn.addEventListener('click', () => {
+          console.log(`[UI] Confirm discard clicked with ${selected.size} cards selected`);
           if (selected.size === count) {
             overlay.remove();
             resolve(Array.from(selected));
