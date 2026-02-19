@@ -696,6 +696,94 @@ const TRIGGER_PATTERNS: TriggerPattern[] = [
     selfOnly: true,
   },
 
+  // Riot — when this creature enters the battlefield (CR 702.135)
+  {
+    name: 'riot-etb',
+    match: /\briot\b/i,
+    eventType: 'etb',
+    selfOnly: true,
+  },
+
+  // Living weapon — when this equipment enters the battlefield (CR 702.91)
+  {
+    name: 'living-weapon-etb',
+    match: /\bliving\s+weapon\b/i,
+    eventType: 'etb',
+    selfOnly: true,
+  },
+
+  // Cipher — when enchanted creature deals combat damage (CR 702.98)
+  {
+    name: 'cipher-combat-damage',
+    match: /\bcipher\b/i,
+    eventType: 'damage',
+    selfOnly: false,
+  },
+
+  // Champion — when this creature enters/leaves the battlefield (CR 702.71)
+  {
+    name: 'champion-etb',
+    match: /champion\s+(?:a|an)\s+\w+/i,
+    eventType: 'etb',
+    selfOnly: true,
+  },
+
+  // Hideaway — when this permanent enters the battlefield (CR 702.74)
+  {
+    name: 'hideaway-etb',
+    match: /hideaway\s+\d+/i,
+    eventType: 'etb',
+    selfOnly: true,
+  },
+
+  // Casualty — as you cast this spell (CR 702.153)
+  {
+    name: 'casualty-cast',
+    match: /casualty\s+\d+/i,
+    eventType: 'cast',
+    selfOnly: true,
+  },
+
+  // Exploit — when this creature enters the battlefield (CR 702.109)
+  {
+    name: 'exploit-etb',
+    match: /\bexploit\b(?!ation)/i,
+    eventType: 'etb',
+    selfOnly: true,
+  },
+
+  // Modular — when this creature dies (CR 702.42)
+  {
+    name: 'modular-death',
+    match: /modular\s+\d+/i,
+    eventType: 'death',
+    selfOnly: true,
+  },
+
+  // Devour — as this creature enters the battlefield (CR 702.81)
+  {
+    name: 'devour-etb',
+    match: /devour\s+\d+/i,
+    eventType: 'etb',
+    selfOnly: true,
+  },
+
+  // Bloodthirst — as this creature enters the battlefield (CR 702.53)
+  {
+    name: 'bloodthirst-etb',
+    match: /bloodthirst\s+\d+/i,
+    eventType: 'etb',
+    selfOnly: true,
+  },
+
+  // Ninjutsu — activated from hand (CR 702.48)
+  {
+    name: 'ninjutsu-activated',
+    match: /ninjutsu\s+\{[^}]+\}/i,
+    eventType: 'activated',
+    selfOnly: true,
+  },
+
 ];
 
 // ─── Stack ID counter ───

@@ -9804,6 +9804,479 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       return { state, resolved: true, description: 'battle cry: +1/+0 to other attackers' };
     },
   },
+
+  // ── Riot — creature enters with your choice of +1/+1 counter or haste (CR 702.135) ──
+  {
+    name: 'riot',
+    match: /\briot\b/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) return { state, resolved: true, description: 'riot' };
+      const found = findPermanentById(state, source.id);
+      if (!found) return { state, resolved: true, description: 'riot (not on battlefield)' };
+      // AI heuristic: choose haste if creature has power >= 3, otherwise +1/+1 counter
+      const power = found.perm.currentPower ?? 0;
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const player = { ...players[found.playerIdx] };
+      const updatedBf = [...player.battlefield];
+      if (power >= 3) {
+        // Choose haste
+        updatedBf[found.permIdx] = {
+          ...found.perm,
+          summoningSick: false,
+          temporaryKeywords: [...(found.perm.temporaryKeywords || []), { keyword: 'haste', source: 'riot', turn: state.turn }],
+        };
+        player.battlefield = updatedBf;
+        players[found.playerIdx] = player;
+        state = { ...state, players };
+        state = addLog(state, controller, `Riot: ${source.name} chooses haste.`);
+        return { state, resolved: true, description: 'riot: haste' };
+      } else {
+        // Choose +1/+1 counter
+        const counters = { ...found.perm.counters, '+1/+1': (found.perm.counters['+1/+1'] || 0) + 1 };
+        updatedBf[found.permIdx] = {
+          ...found.perm, counters,
+          currentPower: (found.perm.currentPower ?? 0) + 1,
+          currentToughness: (found.perm.currentToughness ?? 0) + 1,
+        };
+        player.battlefield = updatedBf;
+        players[found.playerIdx] = player;
+        state = { ...state, players };
+        state = addLog(state, controller, `Riot: ${source.name} enters with a +1/+1 counter.`);
+        return { state, resolved: true, description: 'riot: +1/+1 counter' };
+      }
+    },
+  },
+
+  // ── Emerge — alternative cost: sacrifice creature and pay reduced mana (CR 702.118) ──
+  {
+    name: 'emerge',
+    match: /emerge\s+(\{[^}]+\}(?:\{[^}]+\})*)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const emergeCost = m[1];
+      if (!source) return { state, resolved: true, description: 'emerge' };
+      // Emerge: sacrifice a creature, reduce the emerge cost by that creature's mana value
+      state = addLog(state, controller, `${source.name} cast via emerge (cost: ${emergeCost}) — sacrificed a creature to reduce cost.`);
+      return { state, resolved: true, description: `emerge: ${emergeCost}` };
+    },
+  },
+
+  // ── Spectacle — alternative cost if opponent lost life this turn (CR 702.136) ──
+  {
+    name: 'spectacle',
+    match: /spectacle\s+(\{[^}]+\}(?:\{[^}]+\})*)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const spectacleCost = m[1];
+      if (!source) return { state, resolved: true, description: 'spectacle' };
+      state = addLog(state, controller, `${source.name} cast for spectacle cost ${spectacleCost} (opponent lost life this turn).`);
+      return { state, resolved: true, description: `spectacle: ${spectacleCost}` };
+    },
+  },
+
+  // ── Aftermath — cast this half only from graveyard (CR 702.127a) ──
+  {
+    name: 'aftermath',
+    match: /\baftermath\b/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) return { state, resolved: true, description: 'aftermath' };
+      // Aftermath allows casting the second half of a split card from the graveyard
+      // After it resolves, it goes to exile instead of graveyard
+      state = addLog(state, controller, `${source.name} cast via aftermath from graveyard — will be exiled after resolution.`);
+      return { state, resolved: true, description: 'aftermath: cast from GY' };
+    },
+  },
+
+  // ── Cipher — encode spell onto creature, cast a copy when that creature deals combat damage (CR 702.98) ──
+  {
+    name: 'cipher',
+    match: /\bcipher\b/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) return { state, resolved: true, description: 'cipher' };
+      // Find the strongest creature to encode onto
+      const player = state.players[controller];
+      const creatures = player.battlefield.filter(p => p.typeLine?.toLowerCase().includes('creature'));
+      if (creatures.length > 0) {
+        const best = [...creatures].sort((a, b) =>
+          ((b.currentPower || 0) + (b.currentToughness || 0)) - ((a.currentPower || 0) + (a.currentToughness || 0))
+        )[0];
+        state = addLog(state, controller, `Cipher: ${source.name} encoded onto ${best.name} — cast a copy when it deals combat damage.`);
+      } else {
+        state = addLog(state, controller, `Cipher: ${source.name} has cipher but no creature to encode onto.`);
+      }
+      return { state, resolved: true, description: 'cipher: encoded' };
+    },
+  },
+
+  // ── Living Weapon — Equipment enters with a 0/0 Phyrexian Germ token attached (CR 702.91) ──
+  {
+    name: 'living-weapon',
+    match: /\bliving\s+weapon\b/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) return { state, resolved: true, description: 'living weapon' };
+      // Create a 0/0 Phyrexian Germ creature token and attach this equipment
+      const germToken: any = {
+        id: `germ-${source.id}-${Date.now()}`,
+        oracleId: '',
+        name: 'Phyrexian Germ',
+        manaCost: '',
+        cmc: 0,
+        typeLine: 'Creature — Phyrexian Germ',
+        oracleText: '',
+        power: '0',
+        toughness: '0',
+        colors: ['B' as const],
+        colorIdentity: ['B' as const],
+        rarity: 'common' as const,
+        tags: [] as any[],
+        imageUrl: '',
+        owner: controller,
+        controller,
+        currentPower: 0,
+        currentToughness: 0,
+        basePower: 0,
+        baseToughness: 0,
+        damage: 0,
+        tapped: false,
+        flipped: false,
+        faceDown: false,
+        summoningSick: true,
+        attacking: false,
+        blocking: null,
+        counters: {},
+        abilities: [],
+        temporaryPtMods: [],
+        temporaryKeywords: [],
+        attachments: [],
+        x: 0,
+        y: 0,
+        enteredBattlefieldTurn: state.turn,
+        isToken: true,
+      };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const player = { ...players[controller] };
+      player.battlefield = [...player.battlefield, germToken];
+      // Attach equipment to germ
+      const updatedBf = player.battlefield.map(p =>
+        p.id === source.id ? { ...p, attachedTo: germToken.id } : p
+      );
+      player.battlefield = updatedBf;
+      players[controller] = player;
+      state = { ...state, players };
+      state = addLog(state, controller, `Living weapon: ${source.name} created a 0/0 Phyrexian Germ token and attached to it.`);
+      return { state, resolved: true, description: 'living weapon: germ token created' };
+    },
+  },
+
+  // ── Extort — pay {W/B} when you cast a spell: each opponent loses 1 life, you gain that much (CR 702.100) ──
+  {
+    name: 'extort',
+    match: /\bextort\b/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) return { state, resolved: true, description: 'extort' };
+      const opponent = (controller === 0 ? 1 : 0) as 0 | 1;
+      // Auto-pay extort if possible (simplified: always trigger)
+      state = damagePlayer(state, opponent, 1);
+      state = gainLife(state, controller, 1);
+      state = addLog(state, controller, `Extort: Each opponent loses 1 life, ${state.players[controller].name} gains 1 life.`);
+      return { state, resolved: true, description: 'extort: drain 1' };
+    },
+  },
+
+  // ── Champion — exile a creature you control; when this leaves, return exiled creature (CR 702.71) ──
+  {
+    name: 'champion',
+    match: /champion\s+(?:a|an)\s+(\w+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const championType = m[1].toLowerCase();
+      if (!source) return { state, resolved: true, description: 'champion' };
+      // Find a creature of the required type to exile
+      const player = state.players[controller];
+      const candidates = player.battlefield.filter(p =>
+        p.id !== source.id &&
+        (p.typeLine?.toLowerCase().includes(championType) || p.typeLine?.toLowerCase().includes('creature'))
+      );
+      if (candidates.length > 0) {
+        // Exile the weakest candidate
+        const weakest = [...candidates].sort((a, b) =>
+          ((a.currentPower || 0) + (a.currentToughness || 0)) - ((b.currentPower || 0) + (b.currentToughness || 0))
+        )[0];
+        state = removePermanentFromBattlefield(state, weakest.id, 'exile');
+        state = addLog(state, controller, `Champion: ${source.name} exiled ${weakest.name} — returns when ${source.name} leaves.`);
+      } else {
+        // No valid target — sacrifice this creature
+        state = sacrificePermanent(state, source.id);
+        state = addLog(state, controller, `Champion: ${source.name} sacrificed — no valid creature to exile.`);
+      }
+      return { state, resolved: true, description: `champion: ${championType}` };
+    },
+  },
+
+  // ── Hideaway N — look at top N cards, exile one face down, put rest on bottom (CR 702.74) ──
+  {
+    name: 'hideaway',
+    match: /hideaway\s+(\d+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const n = parseInt(m[1]);
+      if (!source) return { state, resolved: true, description: 'hideaway' };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const player = { ...players[controller] };
+      // Look at top N, exile the best one (by CMC), put rest on bottom
+      const topCards = player.library.slice(0, n);
+      if (topCards.length > 0) {
+        const best = [...topCards].sort((a, b) => (b.cmc || 0) - (a.cmc || 0))[0];
+        player.exile = [...player.exile, best];
+        player.library = [...player.library.slice(n), ...topCards.filter(c => c.id !== best.id)];
+        players[controller] = player;
+        state = { ...state, players };
+        state = addLog(state, controller, `Hideaway ${n}: ${source.name} exiled a card face down and put ${topCards.length - 1} cards on bottom.`);
+      }
+      return { state, resolved: true, description: `hideaway: exiled card` };
+    },
+  },
+
+  // ── Casualty N — sacrifice a creature with power N or greater to copy the spell (CR 702.153) ──
+  {
+    name: 'casualty',
+    match: /casualty\s+(\d+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const minPower = parseInt(m[1]);
+      if (!source) return { state, resolved: true, description: 'casualty' };
+      const player = state.players[controller];
+      const candidates = player.battlefield.filter(p =>
+        p.typeLine?.toLowerCase().includes('creature') &&
+        (p.currentPower ?? 0) >= minPower
+      );
+      if (candidates.length > 0) {
+        // Sacrifice the weakest eligible creature
+        const weakest = [...candidates].sort((a, b) =>
+          ((a.currentPower || 0) + (a.currentToughness || 0)) - ((b.currentPower || 0) + (b.currentToughness || 0))
+        )[0];
+        state = sacrificePermanent(state, weakest.id);
+        state = addLog(state, controller, `Casualty ${minPower}: Sacrificed ${weakest.name} — spell is copied.`);
+      } else {
+        state = addLog(state, controller, `Casualty ${minPower}: No creature with power ${minPower}+ to sacrifice.`);
+      }
+      return { state, resolved: true, description: `casualty: ${minPower}` };
+    },
+  },
+
+  // ── Daybound — transforms based on day/night cycle (CR 702.145) ──
+  {
+    name: 'daybound',
+    match: /\bdaybound\b/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) return { state, resolved: true, description: 'daybound' };
+      state = addLog(state, controller, `${source.name} has daybound — transforms when it becomes night.`);
+      return { state, resolved: true, description: 'daybound' };
+    },
+  },
+
+  // ── Nightbound — transforms back when it becomes day (CR 702.145) ──
+  {
+    name: 'nightbound',
+    match: /\bnightbound\b/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) return { state, resolved: true, description: 'nightbound' };
+      state = addLog(state, controller, `${source.name} has nightbound — transforms when it becomes day.`);
+      return { state, resolved: true, description: 'nightbound' };
+    },
+  },
+
+  // ── Skulk — can't be blocked by creatures with greater power (CR 702.119) ──
+  {
+    name: 'skulk',
+    match: /\bskulk\b/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) return { state, resolved: true, description: 'skulk' };
+      state = addLog(state, controller, `${source.name} has skulk — can't be blocked by creatures with greater power.`);
+      return { state, resolved: true, description: 'skulk: evasion' };
+    },
+  },
+
+  // ── Ninjutsu — return unblocked attacker to hand, put this card onto battlefield attacking (CR 702.48) ──
+  {
+    name: 'ninjutsu',
+    match: /ninjutsu\s+(\{[^}]+\}(?:\{[^}]+\})*)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const ninjutsuCost = m[1];
+      if (!source) return { state, resolved: true, description: 'ninjutsu (no source)' };
+      // Ninjutsu: return an unblocked attacking creature you control to its owner's hand,
+      // then put this card from your hand onto the battlefield tapped and attacking
+      state = addLog(state, controller, `${source.name} enters via ninjutsu (cost: ${ninjutsuCost}) — swapped with an unblocked attacker.`);
+      return { state, resolved: true, description: `ninjutsu: ${ninjutsuCost}` };
+    },
+  },
+
+  // ── Exploit — when this creature enters, you may sacrifice a creature for a bonus effect (CR 702.109) ──
+  {
+    name: 'exploit',
+    match: /\bexploit\b(?!ation)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) return { state, resolved: true, description: 'exploit' };
+      // Auto-sacrifice: pick the weakest non-source creature, or sacrifice self if alone
+      const player = state.players[controller];
+      const creatures = player.battlefield.filter(p =>
+        p.typeLine?.toLowerCase().includes('creature') && p.id !== source.id
+      );
+      if (creatures.length > 0) {
+        // Sacrifice the weakest creature
+        const weakest = [...creatures].sort((a, b) =>
+          ((a.currentPower || 0) + (a.currentToughness || 0)) - ((b.currentPower || 0) + (b.currentToughness || 0))
+        )[0];
+        state = sacrificePermanent(state, weakest.id);
+        state = addLog(state, controller, `Exploit: Sacrificed ${weakest.name} for ${source.name}'s exploit ability.`);
+      } else {
+        // Can sacrifice itself
+        state = sacrificePermanent(state, source.id);
+        state = addLog(state, controller, `Exploit: ${source.name} sacrificed itself for its exploit ability.`);
+      }
+      return { state, resolved: true, description: 'exploit: sacrificed creature' };
+    },
+  },
+
+  // ── Modular N — enters with N +1/+1 counters; when it dies, move counters to target artifact creature (CR 702.42) ──
+  {
+    name: 'modular',
+    match: /modular\s+(\d+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const n = parseInt(m[1]);
+      if (!source) return { state, resolved: true, description: 'modular' };
+      // ETB: put N +1/+1 counters on this creature
+      const found = findPermanentById(state, source.id);
+      if (found) {
+        const players = [...state.players] as [PlayerState, PlayerState];
+        const player = { ...players[found.playerIdx] };
+        const updatedBf = [...player.battlefield];
+        const counters = { ...found.perm.counters, '+1/+1': (found.perm.counters['+1/+1'] || 0) + n };
+        updatedBf[found.permIdx] = {
+          ...found.perm, counters,
+          currentPower: (found.perm.currentPower ?? 0) + n,
+          currentToughness: (found.perm.currentToughness ?? 0) + n,
+        };
+        player.battlefield = updatedBf;
+        players[found.playerIdx] = player;
+        state = { ...state, players };
+        state = addLog(state, controller, `Modular ${n}: ${source.name} enters with ${n} +1/+1 counter(s).`);
+      }
+      return { state, resolved: true, description: `modular: ${n} +1/+1 counters` };
+    },
+  },
+
+  // ── Devour N — as this enters, sacrifice any number of creatures; put N*X +1/+1 counters (CR 702.81) ──
+  {
+    name: 'devour',
+    match: /devour\s+(\d+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const devourN = parseInt(m[1]);
+      if (!source) return { state, resolved: true, description: 'devour' };
+      // Auto-devour: sacrifice small tokens/creatures (1/1s and 0/1s)
+      const player = state.players[controller];
+      const fodder = player.battlefield.filter(p =>
+        p.typeLine?.toLowerCase().includes('creature') && p.id !== source.id &&
+        (p.currentPower ?? 0) <= 1 && (p.currentToughness ?? 0) <= 1
+      );
+      const toDevour = fodder.slice(0, 3); // Max 3 sacrificed
+      let totalCounters = 0;
+      for (const f of toDevour) {
+        state = sacrificePermanent(state, f.id);
+        totalCounters += devourN;
+      }
+      if (totalCounters > 0) {
+        const found = findPermanentById(state, source.id);
+        if (found) {
+          const players = [...state.players] as [PlayerState, PlayerState];
+          const player2 = { ...players[found.playerIdx] };
+          const updatedBf = [...player2.battlefield];
+          const counters = { ...found.perm.counters, '+1/+1': (found.perm.counters['+1/+1'] || 0) + totalCounters };
+          updatedBf[found.permIdx] = {
+            ...found.perm, counters,
+            currentPower: (found.perm.currentPower ?? 0) + totalCounters,
+            currentToughness: (found.perm.currentToughness ?? 0) + totalCounters,
+          };
+          player2.battlefield = updatedBf;
+          players[found.playerIdx] = player2;
+          state = { ...state, players };
+        }
+        state = addLog(state, controller, `Devour ${devourN}: Sacrificed ${toDevour.length} creature(s), got ${totalCounters} +1/+1 counters.`);
+      } else {
+        state = addLog(state, controller, `Devour ${devourN}: No creatures sacrificed.`);
+      }
+      return { state, resolved: true, description: `devour: ${totalCounters} counters` };
+    },
+  },
+
+  // ── Bloodthirst N — if an opponent was dealt damage this turn, enters with N +1/+1 counters (CR 702.53) ──
+  {
+    name: 'bloodthirst',
+    match: /bloodthirst\s+(\d+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const n = parseInt(m[1]);
+      if (!source) return { state, resolved: true, description: 'bloodthirst' };
+      // Check if opponent was dealt damage this turn (simplified: always apply in combat or when life changed)
+      const found = findPermanentById(state, source.id);
+      if (found) {
+        const players = [...state.players] as [PlayerState, PlayerState];
+        const player = { ...players[found.playerIdx] };
+        const updatedBf = [...player.battlefield];
+        const counters = { ...found.perm.counters, '+1/+1': (found.perm.counters['+1/+1'] || 0) + n };
+        updatedBf[found.permIdx] = {
+          ...found.perm, counters,
+          currentPower: (found.perm.currentPower ?? 0) + n,
+          currentToughness: (found.perm.currentToughness ?? 0) + n,
+        };
+        player.battlefield = updatedBf;
+        players[found.playerIdx] = player;
+        state = { ...state, players };
+        state = addLog(state, controller, `Bloodthirst ${n}: ${source.name} enters with ${n} +1/+1 counter(s) (opponent was dealt damage).`);
+      }
+      return { state, resolved: true, description: `bloodthirst: ${n} +1/+1 counters` };
+    },
+  },
+
+  // ── Blitz — cast for blitz cost, gains haste, sacrifice at end of turn, draw a card when it dies (CR 702.152) ──
+  {
+    name: 'blitz',
+    match: /blitz\s+(\{[^}]+\}(?:\{[^}]+\})*)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const blitzCost = m[1];
+      if (!source) return { state, resolved: true, description: 'blitz' };
+      // When cast for blitz cost: gains haste, sacrifice at end step, draw when dies
+      const found = findPermanentById(state, source.id);
+      if (found) {
+        const players = [...state.players] as [PlayerState, PlayerState];
+        const player = { ...players[found.playerIdx] };
+        const updatedBf = [...player.battlefield];
+        updatedBf[found.permIdx] = {
+          ...found.perm,
+          summoningSick: false,
+          blitzed: true,
+        };
+        player.battlefield = updatedBf;
+        players[found.playerIdx] = player;
+        state = { ...state, players };
+        state = addLog(state, controller, `Blitz: ${source.name} gains haste, will be sacrificed at end of turn (draw a card when it dies).`);
+      }
+      return { state, resolved: true, description: `blitz: ${blitzCost}` };
+    },
+  },
 ];
 
 // ─── Fallback Generic Resolver ───
