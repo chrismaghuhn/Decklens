@@ -293,10 +293,13 @@ export class Game {
 
   /** Apply commander damage tracking from combat results */
   private applyCommanderDamage(
-    damages: { commanderId: string; damage: number; defenderId: 0 | 1 }[]
+    damages: { commanderId: string; damage: number; defenderId: 0 | 1 | string }[]
   ): void {
     for (const { commanderId, damage, defenderId } of damages) {
-      this.state = trackCommanderDamage(this.state, commanderId, damage, defenderId);
+      // Commander damage only applies to players (0 | 1), not planeswalkers
+      if (typeof defenderId === 'number') {
+        this.state = trackCommanderDamage(this.state, commanderId, damage, defenderId);
+      }
     }
   }
 }

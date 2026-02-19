@@ -527,6 +527,41 @@ const TRIGGER_PATTERNS: TriggerPattern[] = [
     eventType: 'begin-combat',
     selfOnly: false,
   },
+
+  // ─── Niche Keyword Trigger Patterns ───
+
+  // Undying — when this creature dies, if it had no +1/+1 counters, return it with a +1/+1 counter (CR 702.93)
+  {
+    name: 'undying',
+    match: /\bundying\b/i,
+    eventType: 'death',
+    selfOnly: true,
+  },
+
+  // Persist — when this creature dies, if it had no -1/-1 counters, return it with a -1/-1 counter (CR 702.78)
+  {
+    name: 'persist',
+    match: /\bpersist\b/i,
+    eventType: 'death',
+    selfOnly: true,
+  },
+
+  // Afflict N — whenever this creature becomes blocked, defending player loses N life (CR 702.129)
+  {
+    name: 'afflict',
+    match: /\bafflict\s+(\d+)/i,
+    eventType: 'blocked',
+    selfOnly: true,
+  },
+
+  // Whenever a nontoken creature dies
+  {
+    name: 'nontoken-creature-dies',
+    match: /whenever a nontoken creature (?:dies|is put into a graveyard)/i,
+    eventType: 'death',
+    selfOnly: false,
+  },
+
 ];
 
 // ─── Stack ID counter ───

@@ -38,7 +38,7 @@ export function initializeCombat(state: GameState): GameState {
 export function resolveCombatDamage(
   state: GameState,
   firstStrikeOnly: boolean = false
-): { state: GameState; commanderDamageDealt: { commanderId: string; damage: number; defenderId: 0 | 1 }[] } {
+): { state: GameState; commanderDamageDealt: { commanderId: string; damage: number; defenderId: 0 | 1 | string }[] } {
   if (!state.combat || state.combat.attackers.length === 0) {
     return { state, commanderDamageDealt: [] };
   }
@@ -51,7 +51,7 @@ export function resolveCombatDamage(
   const defenderBattlefield = [...players[defendingPlayer].battlefield];
   let defenderLife = players[defendingPlayer].life;
   const logs: string[] = [];
-  const commanderDamageDealt: { commanderId: string; damage: number; defenderId: 0 | 1 }[] = [];
+  const commanderDamageDealt: { commanderId: string; damage: number; defenderId: 0 | 1 | string }[] = [];
 
   for (const attacker of state.combat.attackers) {
     const attackerPerm = attackerBattlefield.find((p) => p.id === attacker.permanentId);
@@ -71,34 +71,64 @@ export function resolveCombatDamage(
     const blockers = state.combat.blockers.filter((b) => b.blockingId === attacker.permanentId);
 
     if (blockers.length === 0) {
-      // Unblocked — damage goes to defending player
-      // Infect (CR 702.89): damage to players is dealt as poison counters instead of life loss
-      if (hasKeyword(attackerPerm, 'infect')) {
-        players[defendingPlayer] = {
-          ...players[defendingPlayer],
-          poisonCounters: players[defendingPlayer].poisonCounters + power,
-        };
-        logs.push(`${attackerPerm.name} deals ${power} poison to ${players[defendingPlayer].name}.`);
+      // Unblocked — damage goes to defending player or planeswalker
+      if (typeof attacker.defenderId === 'string') {
+        // ─── Planeswalker combat damage ───
+        // Find the planeswalker permanent on any player's battlefield
+        let pwFound = false;
+        for (let pi = 0; pi < 2; pi++) {
+          const bfKey = pi === activePlayer ? 'attackerBattlefield' : 'defenderBattlefield';
+          const bf = pi === activePlayer ? attackerBattlefield : defenderBattlefield;
+          const pwIdx = bf.findIndex(p => p.id === attacker.defenderId);
+          if (pwIdx !== -1) {
+            const pw = bf[pwIdx];
+            const newLoyalty = Math.max(0, (pw.currentLoyalty ?? 0) - power);
+            bf[pwIdx] = { ...pw, currentLoyalty: newLoyalty };
+            logs.push(`${attackerPerm.name} deals ${power} damage to ${pw.name} (loyalty: ${newLoyalty}).`);
+            pwFound = true;
+
+            // Lifelink still applies when damaging planeswalkers
+            if (hasKeyword(attackerPerm, 'lifelink')) {
+              players[activePlayer] = {
+                ...players[activePlayer],
+                life: players[activePlayer].life + power,
+              };
+            }
+            break;
+          }
+        }
+        // If planeswalker not found (already removed), skip damage
+        if (!pwFound) continue;
       } else {
-        defenderLife -= power;
-        logs.push(`${attackerPerm.name} deals ${power} damage to ${players[defendingPlayer].name}.`);
-      }
+        // ─── Player combat damage (original path) ───
+        // Infect (CR 702.89): damage to players is dealt as poison counters instead of life loss
+        if (hasKeyword(attackerPerm, 'infect')) {
+          players[defendingPlayer] = {
+            ...players[defendingPlayer],
+            poisonCounters: players[defendingPlayer].poisonCounters + power,
+          };
+          logs.push(`${attackerPerm.name} deals ${power} poison to ${players[defendingPlayer].name}.`);
+        } else {
+          defenderLife -= power;
+          logs.push(`${attackerPerm.name} deals ${power} damage to ${players[defendingPlayer].name}.`);
+        }
 
-      // Track commander damage
-      if (isCommanderPermanent(attackerPerm, players[activePlayer])) {
-        commanderDamageDealt.push({
-          commanderId: attackerPerm.id,
-          damage: power,
-          defenderId: defendingPlayer,
-        });
-      }
+        // Track commander damage (only for player damage, not planeswalker)
+        if (isCommanderPermanent(attackerPerm, players[activePlayer])) {
+          commanderDamageDealt.push({
+            commanderId: attackerPerm.id,
+            damage: power,
+            defenderId: defendingPlayer,
+          });
+        }
 
-      // Lifelink (works with infect too — CR 702.89c)
-      if (hasKeyword(attackerPerm, 'lifelink')) {
-        players[activePlayer] = {
-          ...players[activePlayer],
-          life: players[activePlayer].life + power,
-        };
+        // Lifelink (works with infect too — CR 702.89c)
+        if (hasKeyword(attackerPerm, 'lifelink')) {
+          players[activePlayer] = {
+            ...players[activePlayer],
+            life: players[activePlayer].life + power,
+          };
+        }
       }
     } else {
       // Blocked — assign damage to/from blockers
@@ -220,26 +250,42 @@ export function resolveCombatDamage(
         }
       }
 
-      // Trample: remaining damage goes to defending player
+      // Trample: remaining damage goes to the entity being attacked
       if (remainingPower > 0 && hasKeyword(attackerPerm, 'trample')) {
-        // Infect + Trample: excess damage as poison counters (CR 702.89)
-        if (hasKeyword(attackerPerm, 'infect')) {
-          players[defendingPlayer] = {
-            ...players[defendingPlayer],
-            poisonCounters: players[defendingPlayer].poisonCounters + remainingPower,
-          };
-          logs.push(`${attackerPerm.name} tramples ${remainingPower} poison to ${players[defendingPlayer].name}.`);
+        if (typeof attacker.defenderId === 'string') {
+          // Trample excess goes to the planeswalker (CR 702.19c)
+          for (let pi = 0; pi < 2; pi++) {
+            const bf = pi === activePlayer ? attackerBattlefield : defenderBattlefield;
+            const pwIdx = bf.findIndex(p => p.id === attacker.defenderId);
+            if (pwIdx !== -1) {
+              const pw = bf[pwIdx];
+              const newLoyalty = Math.max(0, (pw.currentLoyalty ?? 0) - remainingPower);
+              bf[pwIdx] = { ...pw, currentLoyalty: newLoyalty };
+              logs.push(`${attackerPerm.name} tramples ${remainingPower} damage to ${pw.name} (loyalty: ${newLoyalty}).`);
+              break;
+            }
+          }
         } else {
-          defenderLife -= remainingPower;
-          logs.push(`${attackerPerm.name} tramples ${remainingPower} damage to ${players[defendingPlayer].name}.`);
-        }
+          // Trample excess goes to defending player
+          // Infect + Trample: excess damage as poison counters (CR 702.89)
+          if (hasKeyword(attackerPerm, 'infect')) {
+            players[defendingPlayer] = {
+              ...players[defendingPlayer],
+              poisonCounters: players[defendingPlayer].poisonCounters + remainingPower,
+            };
+            logs.push(`${attackerPerm.name} tramples ${remainingPower} poison to ${players[defendingPlayer].name}.`);
+          } else {
+            defenderLife -= remainingPower;
+            logs.push(`${attackerPerm.name} tramples ${remainingPower} damage to ${players[defendingPlayer].name}.`);
+          }
 
-        if (isCommanderPermanent(attackerPerm, players[activePlayer])) {
-          commanderDamageDealt.push({
-            commanderId: attackerPerm.id,
-            damage: remainingPower,
-            defenderId: defendingPlayer,
-          });
+          if (isCommanderPermanent(attackerPerm, players[activePlayer])) {
+            commanderDamageDealt.push({
+              commanderId: attackerPerm.id,
+              damage: remainingPower,
+              defenderId: defendingPlayer,
+            });
+          }
         }
 
         if (hasKeyword(attackerPerm, 'lifelink')) {

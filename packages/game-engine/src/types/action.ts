@@ -90,6 +90,10 @@ export type GameAction =
       type: 'declare-attackers';
       player: 0 | 1;
       attackers: string[];
+      /** Optional per-attacker defender map: creatureId -> defenderId.
+       *  defenderId is 0|1 for a player, or a string permanent ID for a planeswalker.
+       *  If omitted, all attackers target the opponent player. */
+      defenderMap?: Record<string, 0 | 1 | string>;
     }
   | {
       type: 'declare-blockers';
@@ -181,7 +185,8 @@ export interface CombatState {
 
 export interface AttackingCreature {
   permanentId: string;
-  defenderId: 0 | 1;
+  /** 0 | 1 = attacking a player, string = attacking a planeswalker (permanent ID) */
+  defenderId: 0 | 1 | string;
 }
 
 export interface BlockingCreature {

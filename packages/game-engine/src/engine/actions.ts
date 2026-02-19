@@ -456,7 +456,7 @@ function executeDeclareAttackers(
   action: Extract<GameAction, { type: 'declare-attackers' }>
 ): GameState {
   const player = state.players[action.player];
-  const defenderId: 0 | 1 = action.player === 0 ? 1 : 0;
+  const defaultDefenderId: 0 | 1 = action.player === 0 ? 1 : 0;
 
   const updatedBattlefield = player.battlefield.map((perm) => {
     if (action.attackers.includes(perm.id)) {
@@ -476,7 +476,10 @@ function executeDeclareAttackers(
   const players = [...state.players] as [PlayerState, PlayerState];
   players[action.player] = updatedPlayer;
 
-  const attackers = action.attackers.map((id) => ({ permanentId: id, defenderId }));
+  const attackers = action.attackers.map((id) => ({
+    permanentId: id,
+    defenderId: action.defenderMap?.[id] ?? defaultDefenderId,
+  }));
   const combat = {
     ...(state.combat || { blockers: [], currentStep: 'declare-attackers' as const }),
     attackers,
@@ -514,8 +517,12 @@ function executeDeclareAttackers(
   }
 
   // Annihilator (CR 702.85): when creature with annihilator attacks, defending player sacrifices permanents
+  // Only applies when attacking a player, not a planeswalker
   for (const atkPerm of attackingPerms) {
-    result = processAnnihilator(result, atkPerm, defenderId);
+    const atkDefender = action.defenderMap?.[atkPerm.id] ?? defaultDefenderId;
+    if (typeof atkDefender === 'number') {
+      result = processAnnihilator(result, atkPerm, atkDefender);
+    }
   }
 
   return result;

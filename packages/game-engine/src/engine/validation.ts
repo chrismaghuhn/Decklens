@@ -614,6 +614,7 @@ function validateDeclareAttackers(
   if (state.activePlayer !== action.player) return 'Only active player can declare attackers.';
 
   const player = state.players[action.player];
+  const opponentIdx: 0 | 1 = action.player === 0 ? 1 : 0;
 
   for (const attackerId of action.attackers) {
     const creature = player.battlefield.find((p) => p.id === attackerId);
@@ -622,6 +623,20 @@ function validateDeclareAttackers(
     if (creature.tapped) return `${creature.name} is tapped.`;
     if (creature.summoningSick && !hasKeyword(creature, 'haste')) return `${creature.name} has summoning sickness.`;
     if (hasKeyword(creature, 'defender')) return `${creature.name} has defender and cannot attack.`;
+
+    // Validate planeswalker targets from defenderMap
+    if (action.defenderMap) {
+      const defenderId = action.defenderMap[attackerId];
+      if (typeof defenderId === 'string') {
+        // String defenderId = attacking a planeswalker
+        const opponentBf = state.players[opponentIdx].battlefield;
+        const pw = opponentBf.find(p => p.id === defenderId);
+        if (!pw) return `Planeswalker target ${defenderId} not on opponent's battlefield.`;
+        if (!pw.typeLine.toLowerCase().includes('planeswalker')) {
+          return `${pw.name} is not a planeswalker.`;
+        }
+      }
+    }
   }
 
   return null;

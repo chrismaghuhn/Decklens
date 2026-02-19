@@ -103,6 +103,10 @@ const RECOGNIZED_KEYWORDS = new Set([
   'menace', 'reach', 'defender', 'flash', 'ward', 'shroud',
   'fear', 'intimidate', 'skulk', 'forestwalk', 'islandwalk',
   'mountainwalk', 'swampwalk', 'plainswalk',
+  'prowess', 'extort', 'undying', 'persist', 'afflict', 'infect', 'wither',
+  'cascade', 'storm', 'cycling', 'escape', 'convoke', 'delve', 'crew',
+  'fabricate', 'riot', 'adapt', 'explore', 'surveil', 'connive', 'myriad',
+  'annihilator', 'battle cry', 'totem armor', 'bestow', 'embalm', 'eternalize',
 ]);
 
 // ─── Oracle Text Parsing ───

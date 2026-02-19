@@ -20,6 +20,7 @@ import { generateCardId } from '../engine/factory.ts';
 import { hasProtectionFrom } from './combat.ts';
 import { copyStackObject } from './stack.ts';
 import { checkLeavesBattlefieldTriggers, checkSacrificeTriggers, checkLifegainTriggers } from './triggers.ts';
+import { smartParserResolve } from './smart-parser.ts';
 
 // ─── Types ───
 
@@ -8663,6 +8664,374 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       return { state, resolved: true, description: `mass bounce: ${nonlands.length} permanents` };
     },
   },
+
+  // ── Proliferate (CR 701.27) ──
+  {
+    name: 'proliferate',
+    match: /\bproliferate\b/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const proliferated: string[] = [];
+
+      // Add one of each existing counter type to each permanent with counters
+      for (let pi = 0; pi < 2; pi++) {
+        const bf = [...players[pi as 0 | 1].battlefield];
+        let changed = false;
+        for (let i = 0; i < bf.length; i++) {
+          const perm = bf[i];
+          const counterTypes = Object.keys(perm.counters).filter(k => perm.counters[k] > 0);
+          if (counterTypes.length > 0) {
+            const newCounters = { ...perm.counters };
+            for (const ct of counterTypes) {
+              newCounters[ct] = (newCounters[ct] || 0) + 1;
+            }
+            const updated: Permanent = { ...perm, counters: newCounters };
+            // Update P/T for +1/+1 or -1/-1 counters
+            if (newCounters['+1/+1'] && updated.currentPower !== undefined) {
+              updated.currentPower = (updated.basePower || 0) + (newCounters['+1/+1'] || 0) - (newCounters['-1/-1'] || 0);
+              updated.currentToughness = (updated.baseToughness || 0) + (newCounters['+1/+1'] || 0) - (newCounters['-1/-1'] || 0);
+            }
+            bf[i] = updated;
+            changed = true;
+            proliferated.push(`${perm.name} (${counterTypes.join(', ')})`);
+          }
+        }
+        if (changed) {
+          players[pi as 0 | 1] = { ...players[pi as 0 | 1], battlefield: bf };
+        }
+      }
+
+      // Add poison counters to players that already have them
+      for (let pi = 0; pi < 2; pi++) {
+        const p = players[pi as 0 | 1];
+        if ((p as any).poisonCounters && (p as any).poisonCounters > 0) {
+          players[pi as 0 | 1] = { ...p, poisonCounters: ((p as any).poisonCounters || 0) + 1 } as PlayerState;
+          proliferated.push(`Player ${pi} (poison)`);
+        }
+      }
+
+      state = { ...state, players };
+      state = addLog(state, controller, `Proliferate: ${proliferated.length > 0 ? proliferated.join(', ') : 'no valid targets'}`);
+      return { state, resolved: true, description: `proliferate ${proliferated.length} permanents/players` };
+    },
+  },
+
+  // ── Populate (CR 701.29) ──
+  {
+    name: 'populate',
+    match: /\bpopulate\b/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const player = state.players[controller];
+      const creatureToken = player.battlefield.find(
+        p => p.typeLine.toLowerCase().includes('creature') && p.typeLine.toLowerCase().includes('token')
+      );
+
+      if (!creatureToken) {
+        state = addLog(state, controller, 'Populate: no creature tokens to populate.');
+        return { state, resolved: true, description: 'populate (no tokens)' };
+      }
+
+      const tokenCard: Card = {
+        id: generateCardId(), oracleId: creatureToken.oracleId, name: creatureToken.name,
+        manaCost: creatureToken.manaCost, cmc: creatureToken.cmc, typeLine: creatureToken.typeLine,
+        oracleText: creatureToken.oracleText, power: creatureToken.power, toughness: creatureToken.toughness,
+        colors: creatureToken.colors, colorIdentity: creatureToken.colorIdentity,
+        rarity: creatureToken.rarity, tags: creatureToken.tags, imageUrl: creatureToken.imageUrl,
+        owner: controller,
+      };
+      const newPerm = cardToPermanent(tokenCard, controller, state.turn);
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...players[controller], battlefield: [...players[controller].battlefield, newPerm] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Populate: created a copy of ${creatureToken.name}.`);
+      return { state, resolved: true, description: `populate ${creatureToken.name}` };
+    },
+  },
+
+  // ── Explore (CR 701.39) ──
+  {
+    name: 'explore-keyword',
+    match: /\bexplores?\b/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const player = players[controller];
+
+      if (player.library.length === 0) {
+        state = addLog(state, controller, 'Explore: library is empty.');
+        return { state, resolved: true, description: 'explore (empty library)' };
+      }
+
+      const revealed = player.library[0];
+      const isLand = revealed.typeLine.toLowerCase().includes('land');
+
+      if (isLand) {
+        // Land: put it into hand
+        players[controller] = {
+          ...player,
+          library: player.library.slice(1),
+          hand: [...player.hand, revealed],
+        };
+        state = { ...state, players };
+        state = addLog(state, controller, `Explore: revealed ${revealed.name} (land) — put into hand.`);
+      } else {
+        // Non-land: put a +1/+1 counter on the exploring creature, put card into graveyard
+        players[controller] = {
+          ...player,
+          library: player.library.slice(1),
+          graveyard: [...player.graveyard, revealed],
+        };
+        // Find the source creature on the battlefield and add a +1/+1 counter
+        if (source) {
+          const bf = [...players[controller].battlefield];
+          const srcIdx = bf.findIndex(p => p.name === source.name);
+          if (srcIdx !== -1) {
+            const perm = bf[srcIdx];
+            const newCounters: Record<string, number> = { ...perm.counters, '+1/+1': (perm.counters['+1/+1'] || 0) + 1 };
+            bf[srcIdx] = {
+              ...perm, counters: newCounters,
+              currentPower: (perm.basePower || 0) + (newCounters['+1/+1'] || 0) - (newCounters['-1/-1'] || 0),
+              currentToughness: (perm.baseToughness || 0) + (newCounters['+1/+1'] || 0) - (newCounters['-1/-1'] || 0),
+            };
+          }
+          players[controller] = { ...players[controller], battlefield: bf };
+        }
+        state = { ...state, players };
+        state = addLog(state, controller, `Explore: revealed ${revealed.name} (nonland) — +1/+1 counter, card to graveyard.`);
+      }
+      return { state, resolved: true, description: `explore: revealed ${revealed.name}` };
+    },
+  },
+
+  // ── Connive N (CR 701.47) ──
+  {
+    name: 'connive',
+    match: /\bconnives?\s*(\d+)?/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const n = m[1] ? parseInt(m[1]) : 1;
+
+      // Draw N cards
+      state = drawCards(state, controller, n);
+
+      // Set pending discard for N cards
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = {
+        ...players[controller],
+        pendingDiscard: (players[controller] as any).pendingDiscard
+          ? (players[controller] as any).pendingDiscard + n
+          : n,
+      } as PlayerState;
+      state = { ...state, players };
+
+      // Simplified: put N +1/+1 counters on the conniving creature
+      if (source) {
+        const ps = [...state.players] as [PlayerState, PlayerState];
+        const bf = [...ps[controller].battlefield];
+        const srcIdx = bf.findIndex(p => p.name === source.name);
+        if (srcIdx !== -1) {
+          const perm = bf[srcIdx];
+          const newCounters: Record<string, number> = { ...perm.counters, '+1/+1': (perm.counters['+1/+1'] || 0) + n };
+          bf[srcIdx] = {
+            ...perm, counters: newCounters,
+            currentPower: (perm.basePower || 0) + (newCounters['+1/+1'] || 0) - (newCounters['-1/-1'] || 0),
+            currentToughness: (perm.baseToughness || 0) + (newCounters['+1/+1'] || 0) - (newCounters['-1/-1'] || 0),
+          };
+        }
+        ps[controller] = { ...ps[controller], battlefield: bf };
+        state = { ...state, players: ps };
+      }
+
+      state = addLog(state, controller, `Connive ${n}: drew ${n}, must discard ${n}, +${n} +1/+1 counters.`);
+      return { state, resolved: true, description: `connive ${n}` };
+    },
+  },
+
+  // ── Surveil N (CR 701.42) ──
+  {
+    name: 'surveil',
+    match: /\bsurveils?\s+(\d+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const n = parseInt(m[1]);
+      // Simplified surveil: mill the top N cards (auto-decision for bot gameplay)
+      state = millCards(state, controller, n);
+      state = addLog(state, controller, `Surveil ${n}: put top ${n} card(s) into graveyard.`);
+      return { state, resolved: true, description: `surveil ${n}` };
+    },
+  },
+
+  // ── Amass N (CR 701.44) ──
+  {
+    name: 'amass',
+    match: /\bamass\s+(?:\w+\s+)?(\d+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const n = parseInt(m[1]);
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const bf = [...players[controller].battlefield];
+
+      // Find an existing Army creature token
+      const armyIdx = bf.findIndex(
+        p => p.typeLine.toLowerCase().includes('army')
+      );
+
+      if (armyIdx !== -1) {
+        // Put N +1/+1 counters on the existing Army
+        const army = bf[armyIdx];
+        const newCounters: Record<string, number> = { ...army.counters, '+1/+1': (army.counters['+1/+1'] || 0) + n };
+        bf[armyIdx] = {
+          ...army, counters: newCounters,
+          currentPower: (army.basePower || 0) + (newCounters['+1/+1'] || 0) - (newCounters['-1/-1'] || 0),
+          currentToughness: (army.baseToughness || 0) + (newCounters['+1/+1'] || 0) - (newCounters['-1/-1'] || 0),
+        };
+        players[controller] = { ...players[controller], battlefield: bf };
+        state = { ...state, players };
+        state = addLog(state, controller, `Amass ${n}: put ${n} +1/+1 counters on ${army.name}.`);
+      } else {
+        // Create a 0/0 black Zombie Army creature token with N +1/+1 counters
+        const tokenCard: Card = {
+          id: generateCardId(), oracleId: '', name: 'Zombie Army',
+          manaCost: '', cmc: 0, typeLine: 'Token Creature — Zombie Army',
+          oracleText: '', power: '0', toughness: '0',
+          colors: ['B'], colorIdentity: ['B'], rarity: 'common',
+          tags: [], imageUrl: '', owner: controller,
+        };
+        const token = cardToPermanent(tokenCard, controller, state.turn);
+        token.counters['+1/+1'] = n;
+        token.currentPower = n;
+        token.currentToughness = n;
+        bf.push(token);
+        players[controller] = { ...players[controller], battlefield: bf };
+        state = { ...state, players };
+        state = addLog(state, controller, `Amass ${n}: created a 0/0 Zombie Army token with ${n} +1/+1 counters.`);
+      }
+
+      return { state, resolved: true, description: `amass ${n}` };
+    },
+  },
+
+  // ── Bolster N (CR 701.32) ──
+  {
+    name: 'bolster',
+    match: /\bbolster\s+(\d+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const n = parseInt(m[1]);
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const bf = [...players[controller].battlefield];
+
+      // Find creature with the least toughness among creatures you control
+      let minToughness = Infinity;
+      let targetIdx = -1;
+      for (let i = 0; i < bf.length; i++) {
+        const p = bf[i];
+        if (p.currentToughness !== undefined && p.typeLine.toLowerCase().includes('creature')) {
+          if (p.currentToughness < minToughness) {
+            minToughness = p.currentToughness;
+            targetIdx = i;
+          }
+        }
+      }
+
+      if (targetIdx === -1) {
+        state = addLog(state, controller, 'Bolster: no creatures to bolster.');
+        return { state, resolved: true, description: 'bolster (no creatures)' };
+      }
+
+      const perm = bf[targetIdx];
+      const newCounters: Record<string, number> = { ...perm.counters, '+1/+1': (perm.counters['+1/+1'] || 0) + n };
+      bf[targetIdx] = {
+        ...perm, counters: newCounters,
+        currentPower: (perm.basePower || 0) + (newCounters['+1/+1'] || 0) - (newCounters['-1/-1'] || 0),
+        currentToughness: (perm.baseToughness || 0) + (newCounters['+1/+1'] || 0) - (newCounters['-1/-1'] || 0),
+      };
+      players[controller] = { ...players[controller], battlefield: bf };
+      state = { ...state, players };
+      state = addLog(state, controller, `Bolster ${n}: put ${n} +1/+1 counters on ${perm.name}.`);
+      return { state, resolved: true, description: `bolster ${n} on ${perm.name}` };
+    },
+  },
+
+  // ── Adapt N (CR 702.138) ──
+  {
+    name: 'adapt',
+    match: /\badapt\s+(\d+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const n = parseInt(m[1]);
+      if (!source) {
+        return { state, resolved: true, description: 'adapt (no source)' };
+      }
+
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const bf = [...players[controller].battlefield];
+      const srcIdx = bf.findIndex(p => p.name === source.name);
+
+      if (srcIdx === -1) {
+        return { state, resolved: true, description: 'adapt (source not on battlefield)' };
+      }
+
+      const perm = bf[srcIdx];
+      // Adapt only works if the creature has no +1/+1 counters
+      if ((perm.counters['+1/+1'] || 0) > 0) {
+        state = addLog(state, controller, `Adapt ${n}: ${perm.name} already has +1/+1 counters.`);
+        return { state, resolved: true, description: `adapt (already has counters)` };
+      }
+
+      const newCounters: Record<string, number> = { ...perm.counters, '+1/+1': n };
+      bf[srcIdx] = {
+        ...perm, counters: newCounters,
+        currentPower: (perm.basePower || 0) + n - (newCounters['-1/-1'] || 0),
+        currentToughness: (perm.baseToughness || 0) + n - (newCounters['-1/-1'] || 0),
+      };
+      players[controller] = { ...players[controller], battlefield: bf };
+      state = { ...state, players };
+      state = addLog(state, controller, `Adapt ${n}: put ${n} +1/+1 counters on ${perm.name}.`);
+      return { state, resolved: true, description: `adapt ${n} on ${perm.name}` };
+    },
+  },
+
+  // ── Transform (CR 701.28) ──
+  {
+    name: 'transform-self',
+    match: /\btransforms?\b/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) {
+        return { state, resolved: true, description: 'transform (no source)' };
+      }
+
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const bf = [...players[controller].battlefield];
+      const srcIdx = bf.findIndex(p => p.name === source.name);
+
+      if (srcIdx === -1) {
+        return { state, resolved: true, description: 'transform (source not on battlefield)' };
+      }
+
+      const perm = bf[srcIdx];
+      const updated = { ...perm, flipped: !perm.flipped };
+
+      // If backFace data exists on the card, swap relevant fields
+      const backFace = (source as any).backFace;
+      if (backFace) {
+        if (backFace.name) updated.name = perm.flipped ? source.name : backFace.name;
+        if (backFace.oracleText) updated.oracleText = perm.flipped ? source.oracleText : backFace.oracleText;
+        if (backFace.power) updated.power = perm.flipped ? source.power : backFace.power;
+        if (backFace.toughness) updated.toughness = perm.flipped ? source.toughness : backFace.toughness;
+        if (backFace.typeLine) updated.typeLine = perm.flipped ? source.typeLine : backFace.typeLine;
+      }
+
+      bf[srcIdx] = updated;
+      players[controller] = { ...players[controller], battlefield: bf };
+      state = { ...state, players };
+      state = addLog(state, controller, `Transform: ${perm.name} transformed (flipped=${updated.flipped}).`);
+      return { state, resolved: true, description: `transform ${perm.name}` };
+    },
+  },
 ];
 
 // ─── Fallback Generic Resolver ───
@@ -8885,6 +9254,17 @@ export function resolveEffect(
     const fallbackResult = fallbackGenericResolve(currentState, stackObject.controller, oracleText, stackObject.targets);
     if (fallbackResult.resolved) {
       return fallbackResult;
+    }
+    // Tier 2.5: Smart clause-based parser
+    const smartResult = smartParserResolve(
+      currentState,
+      stackObject.controller,
+      oracleText,
+      stackObject.targets,
+      stackObject.card,
+    );
+    if (smartResult.resolved) {
+      return smartResult;
     }
     return {
       state: currentState,
