@@ -9752,11 +9752,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, _targets, m, source) => {
       const bestowCost = m[1];
       if (!source) return { state, resolved: true, description: 'bestow (no source)' };
-      // Bestow allows casting an enchantment creature as an Aura that enchants a creature.
-      // When the enchanted creature leaves, the bestow aura becomes a creature.
-      // Simplified: log bestow option as available.
-      state = addLog(state, controller, `${source.name} has bestow ${bestowCost} — can be cast as an Aura.`);
-      return { state, resolved: true, description: `bestow: ${bestowCost}` };
+      // Bestow casting is handled by bestowPaid flag on cast-spell action
+      // This pattern marks the card as having bestow for detection
+      return { state, resolved: true, description: `bestow available (${bestowCost})` };
     },
   },
 
@@ -10203,10 +10201,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, _targets, m, source) => {
       const ninjutsuCost = m[1];
       if (!source) return { state, resolved: true, description: 'ninjutsu (no source)' };
-      // Ninjutsu: return an unblocked attacking creature you control to its owner's hand,
-      // then put this card from your hand onto the battlefield tapped and attacking
-      state = addLog(state, controller, `${source.name} enters via ninjutsu (cost: ${ninjutsuCost}) — swapped with an unblocked attacker.`);
-      return { state, resolved: true, description: `ninjutsu: ${ninjutsuCost}` };
+      // Ninjutsu activation is handled by the 'ninjutsu' action type in actions.ts
+      // This pattern only marks the card as having ninjutsu for detection
+      return { state, resolved: true, description: `ninjutsu available (${ninjutsuCost})` };
     },
   },
 
@@ -10426,6 +10423,21 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
 
       state = addLog(state, controller, `Mutate: ${source.name} merged ${onTop ? 'on top of' : 'under'} ${target.perm.name} (cost: ${mutateCost}).`);
       return { state, resolved: true, description: `mutate: merged with ${target.perm.name}` };
+    },
+  },
+
+  // ── Companion — deck restriction mechanic (CR 702.138) ──
+  {
+    name: 'companion',
+    match: /companion\s*[—\-]\s*(.+?)(?:\.|$)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const restriction = m[1];
+      if (!source) return { state, resolved: true, description: 'companion (no source)' };
+      // Companion activation is handled by the 'companion' action type
+      // This pattern marks the card for detection
+      state = addLog(state, controller, `${source.name} is a companion (restriction: ${restriction}).`);
+      return { state, resolved: true, description: `companion: ${restriction}` };
     },
   },
 ];

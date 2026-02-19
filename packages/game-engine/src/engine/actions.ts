@@ -204,6 +204,14 @@ export function executeAction(
       newState = executeCycle(state, action);
       break;
 
+    case 'ninjutsu':
+      newState = executeNinjutsu(state, action);
+      break;
+
+    case 'companion':
+      newState = executeCompanion(state, action);
+      break;
+
     default:
       return state;
   }
@@ -340,6 +348,10 @@ function executeCastSpell(
     // Blitz: use blitz cost instead of normal mana cost (CR 702.152)
     const blitzMatch = card.oracleText?.match(/blitz\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
     manaCostStr = blitzMatch ? blitzMatch[1] : card.manaCost;
+  } else if (action.bestowPaid) {
+    // Bestow: use bestow cost (CR 702.102)
+    const bestowMatch = card.oracleText?.match(/bestow\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    manaCostStr = bestowMatch ? bestowMatch[1] : card.manaCost;
   } else if (action.escapePaid) {
     // Escape: use escape mana cost (CR 702.137)
     const escapeMatch = card.oracleText?.match(/escape[—\-]\s*(\{[^}]+\}(?:\{[^}]+\})*)/i);
@@ -483,6 +495,7 @@ function executeCastSpell(
       isMutate: action.mutatePaid,
       mutateTargetId: action.mutateTargetId,
       mutateOnTop: action.mutateOnTop,
+      isBestow: action.bestowPaid,
       // MDFC: pass back face oracle text so effects resolve from back face
       oracleTextOverride: action.castBackFace && card.backFace ? card.backFace.oracleText : undefined,
     }
@@ -1399,6 +1412,185 @@ function executeCycle(
       message: `${card.name} cycled for ${cycleMatch[1]}.${drawnCard ? ` Drew a card.` : ''}`,
       cardName: card.name,
       actionType: 'cycle',
+    }],
+  };
+}
+
+/** Parse ninjutsu cost from oracle text */
+function getNinjutsuCost(card: { oracleText?: string }): string | null {
+  const match = card.oracleText?.match(/ninjutsu\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+  return match ? match[1] : null;
+}
+
+/**
+ * Execute ninjutsu activation (CR 702.48):
+ * 1. Pay ninjutsu cost
+ * 2. Return unblocked attacking creature to owner's hand
+ * 3. Put ninja from hand onto battlefield tapped and attacking
+ * 4. Update combat state to replace old attacker with ninja
+ * 5. Check ETB triggers for the ninja
+ */
+function executeNinjutsu(
+  state: GameState,
+  action: Extract<GameAction, { type: 'ninjutsu' }>
+): GameState {
+  let player = state.players[action.player];
+  if (!state.combat) return state;
+
+  // 1. Find the ninja card in hand
+  const cardIndex = player.hand.findIndex(c => c.id === action.cardId);
+  if (cardIndex === -1) return state;
+  const ninjaCard = player.hand[cardIndex];
+
+  // 2. Parse ninjutsu cost and pay mana
+  const ninjutsuCostStr = getNinjutsuCost(ninjaCard);
+  if (!ninjutsuCostStr) return state;
+  const cost = parseManaCost(ninjutsuCostStr);
+
+  let payment = action.manaPayment;
+  if (!canPayCost(player.manaPool, cost, player.life)) {
+    const tapResult = autoTapLandsForCost(player, cost);
+    if (!tapResult) return state;
+    player = tapResult.updatedPlayer;
+    payment = tapResult.payment;
+  }
+  const newPool = payCost(player.manaPool, cost, payment);
+  player = { ...player, manaPool: newPool };
+
+  // 3. Find the unblocked attacking creature to return to hand
+  const returnPermIndex = player.battlefield.findIndex(p => p.id === action.returnCreatureId);
+  if (returnPermIndex === -1) return state;
+  const returnPerm = player.battlefield[returnPermIndex];
+
+  // Find which player/planeswalker the attacker was attacking
+  const attackerEntry = state.combat.attackers.find(a => a.permanentId === action.returnCreatureId);
+  if (!attackerEntry) return state;
+  const defenderId = attackerEntry.defenderId;
+
+  // 4. Return the attacking creature to owner's hand (convert permanent back to card)
+  const returnedCard = permanentToCard(returnPerm);
+  const updatedBattlefield = [
+    ...player.battlefield.slice(0, returnPermIndex),
+    ...player.battlefield.slice(returnPermIndex + 1),
+  ];
+  const updatedHand = [
+    ...player.hand.slice(0, cardIndex),
+    ...player.hand.slice(cardIndex + 1),
+    returnedCard,
+  ];
+
+  // 5. Put ninja card onto battlefield tapped and attacking
+  const ninjaPerm = cardToPermanent(ninjaCard, action.player, state.turn);
+  ninjaPerm.tapped = true;
+  ninjaPerm.attacking = true;
+  ninjaPerm.summoningSick = false; // Ninjutsu bypasses summoning sickness for attack purposes
+
+  const finalBattlefield = [...updatedBattlefield, ninjaPerm];
+
+  const updatedPlayer: PlayerState = {
+    ...player,
+    hand: updatedHand,
+    battlefield: finalBattlefield,
+  };
+
+  const players = [...state.players] as [PlayerState, PlayerState];
+  players[action.player] = updatedPlayer;
+
+  // 6. Update combat state: replace old attacker with ninja
+  const updatedAttackers = state.combat.attackers.map(a =>
+    a.permanentId === action.returnCreatureId
+      ? { permanentId: ninjaPerm.id, defenderId }
+      : a
+  );
+  const combat = {
+    ...state.combat,
+    attackers: updatedAttackers,
+  };
+
+  let newState: GameState = {
+    ...state,
+    players,
+    combat,
+    log: [
+      ...state.log,
+      {
+        timestamp: Date.now(),
+        turn: state.turn,
+        phase: state.phase,
+        step: state.step,
+        player: action.player,
+        message: `${player.name} activates ninjutsu: ${ninjaCard.name} enters tapped and attacking, returning ${returnPerm.name} to hand (cost: ${ninjutsuCostStr}).`,
+        cardName: ninjaCard.name,
+        actionType: 'ninjutsu' as const,
+      },
+    ],
+  };
+
+  // 7. Check ETB triggers for the ninja
+  newState = checkETBTriggers(newState, ninjaPerm, { fromZone: 'hand' });
+
+  return newState;
+}
+
+/**
+ * Execute companion activation (CR 702.138, 2020 errata):
+ * Pay {3} to move companion from outside the game to hand.
+ * Once per game, sorcery speed.
+ */
+function executeCompanion(
+  state: GameState,
+  action: Extract<GameAction, { type: 'companion' }>
+): GameState {
+  if (!state.companion || !state.companion[action.player]) return state;
+
+  const companionCard = state.companion[action.player]!;
+  let player = state.players[action.player];
+
+  // Pay {3}
+  const cost = parseManaCost('{3}');
+  if (!canPayCost(player.manaPool, cost, player.life)) {
+    const tapResult = autoTapLandsForCost(player, cost);
+    if (tapResult) {
+      player = tapResult.updatedPlayer;
+    } else {
+      return state;
+    }
+  }
+
+  const payment = autoPayCost(player.manaPool, cost, player.life);
+  if (!payment) return state;
+  const newPool = payCost(player.manaPool, cost, payment);
+
+  // Add companion to hand
+  const updatedPlayer = {
+    ...player,
+    manaPool: newPool,
+    hand: [...player.hand, companionCard],
+  };
+
+  const players = [...state.players] as [PlayerState, PlayerState];
+  players[action.player] = updatedPlayer;
+
+  // Mark companion as used and remove from companion zone
+  const companion = [...(state.companion || [null, null])] as [import('../types/card.ts').Card | null, import('../types/card.ts').Card | null];
+  companion[action.player] = null;
+  const companionUsed = [...(state.companionUsed || [false, false])] as [boolean, boolean];
+  companionUsed[action.player] = true;
+
+  return {
+    ...state,
+    players,
+    companion,
+    companionUsed,
+    log: [...state.log, {
+      timestamp: Date.now(),
+      turn: state.turn,
+      phase: state.phase,
+      step: state.step,
+      player: action.player,
+      message: `${updatedPlayer.name} pays {3} to put ${companionCard.name} (companion) into their hand.`,
+      cardName: companionCard.name,
+      actionType: 'companion' as GameAction['type'],
     }],
   };
 }

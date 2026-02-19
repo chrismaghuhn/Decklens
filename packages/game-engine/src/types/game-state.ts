@@ -200,4 +200,9 @@ export interface GameState {
 
   /** Card IDs that were foretold (exiled face-down, can be cast for foretell cost) */
   foretoldCards?: string[];
+
+  /** Companion card revealed at game start (CR 702.138). One per player; null if no companion. */
+  companion?: [Card | null, Card | null];
+  /** Whether each player has already moved their companion to hand this game */
+  companionUsed?: [boolean, boolean];
 }

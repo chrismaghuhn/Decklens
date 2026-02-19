@@ -49,7 +49,8 @@ export function validateAction(
       action.type === 'cast-spell' ||
       action.type === 'activate-ability' ||
       action.type === 'activate-loyalty' ||
-      action.type === 'equip'
+      action.type === 'equip' ||
+      action.type === 'ninjutsu'
     )) {
       return 'Cannot cast spells or activate abilities while a spell with split second is on the stack.';
     }
@@ -96,6 +97,10 @@ export function validateAction(
       if (!state.pendingDamageAssignment) return 'No pending damage assignment.';
       if (state.pendingDamageAssignment.player !== action.player) return 'Not your damage assignment.';
       return null;
+    case 'ninjutsu':
+      return validateNinjutsu(state, action);
+    case 'companion':
+      return validateCompanion(state, action);
     default:
       return 'Unknown action type.';
   }
@@ -171,6 +176,8 @@ export function getLegalActionTypes(state: GameState): GameAction['type'][] {
   if (canTapAnyForMana(state, player)) types.push('tap-for-mana');
   if (canEquipAny(state, player)) types.push('equip');
   if (canActivateAnyLoyalty(state, player)) types.push('activate-loyalty');
+  if (canNinjutsuAny(state, player)) types.push('ninjutsu');
+  if (canUseCompanion(state, player)) types.push('companion');
 
   if (
     state.step === 'declare-attackers' &&
@@ -406,6 +413,26 @@ function validateCastSpell(
     if (state.activePlayer !== action.player) return 'Can only cast with blitz on your turn.';
     if (state.stack.length > 0) return 'Cannot cast with blitz while stack is not empty.';
     return null;
+  }
+
+  // ─── Bestow: cast as Aura for bestow cost (CR 702.102) ───
+  if (action.bestowPaid) {
+    const bestowCard = player.hand.find((c) => c.id === action.cardId);
+    if (!bestowCard) return 'Card not in hand.';
+    const bestowMatch = bestowCard.oracleText?.match(/bestow\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+    if (!bestowMatch) return 'Card does not have bestow.';
+    const cost = parseManaCost(bestowMatch[1]);
+    if (!canPayCost(player.manaPool, cost, player.life)) {
+      const tapResult = autoTapLandsForCost(player, cost);
+      if (!tapResult) return 'Not enough mana to pay bestow cost.';
+    }
+    // Bestow is sorcery speed (enchantment creature)
+    if (state.step !== 'main') return 'Can only bestow during main phase.';
+    if (state.activePlayer !== action.player) return 'Can only bestow on your turn.';
+    if (state.stack.length > 0) return 'Cannot bestow while stack is not empty.';
+    // Must have a valid creature target
+    if (action.targets.length === 0) return 'Bestow requires a target creature.';
+    return validateTargetLegality(state, action.player, action.targets, bestowCard);
   }
 
   // ─── Mutate: alternative cost, merge with non-Human creature you control (CR 702.139) ───
@@ -1235,5 +1262,130 @@ function canCycleAny(state: GameState, player: 0 | 1): boolean {
     if (canPayCost(ps.manaPool, cost, ps.life)) return true;
     if (autoTapLandsForCost(ps, cost) !== null) return true;
   }
+  return false;
+}
+
+/** Parse ninjutsu cost from oracle text */
+function getNinjutsuCost(card: { oracleText?: string }): string | null {
+  const match = card.oracleText?.match(/ninjutsu\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
+  return match ? match[1] : null;
+}
+
+/**
+ * Get the list of unblocked attacking creature IDs controlled by the given player.
+ * An attacker is "unblocked" if no blocker is assigned to it in state.combat.blockers.
+ */
+function getUnblockedAttackers(state: GameState, player: 0 | 1): string[] {
+  if (!state.combat) return [];
+  const blockedIds = new Set(state.combat.blockers.map(b => b.blockingId));
+  return state.combat.attackers
+    .filter(a => {
+      if (blockedIds.has(a.permanentId)) return false;
+      // Must be controlled by the player
+      const perm = state.players[player].battlefield.find(p => p.id === a.permanentId);
+      return !!perm;
+    })
+    .map(a => a.permanentId);
+}
+
+/** Validate ninjutsu activation (CR 702.48) */
+function validateNinjutsu(
+  state: GameState,
+  action: Extract<GameAction, { type: 'ninjutsu' }>
+): string | null {
+  const player = state.players[action.player];
+
+  // Card must be in hand
+  const card = player.hand.find(c => c.id === action.cardId);
+  if (!card) return 'Card not in hand.';
+
+  // Card must have ninjutsu keyword
+  const ninjutsuCostStr = getNinjutsuCost(card);
+  if (!ninjutsuCostStr) return 'Card does not have ninjutsu.';
+
+  // Timing: must be during declare-blockers or combat-damage step
+  if (state.step !== 'declare-blockers' && state.step !== 'combat-damage') {
+    return 'Ninjutsu can only be activated during the declare blockers or combat damage step.';
+  }
+
+  // Must have combat in progress
+  if (!state.combat) return 'No combat in progress.';
+
+  // The returnCreatureId must be an unblocked attacking creature you control
+  const unblockedIds = getUnblockedAttackers(state, action.player);
+  if (!unblockedIds.includes(action.returnCreatureId)) {
+    return 'Target creature is not an unblocked attacking creature you control.';
+  }
+
+  // Must be able to pay ninjutsu cost
+  const cost = parseManaCost(ninjutsuCostStr);
+  if (!canPayCost(player.manaPool, cost, player.life)) {
+    const tapResult = autoTapLandsForCost(player, cost);
+    if (!tapResult) return `Not enough mana to pay ninjutsu cost (${ninjutsuCostStr}).`;
+  }
+
+  return null;
+}
+
+/** Check if the player can activate ninjutsu for any card in hand */
+function canNinjutsuAny(state: GameState, player: 0 | 1): boolean {
+  // Must be during declare-blockers or combat-damage step with combat in progress
+  if (state.step !== 'declare-blockers' && state.step !== 'combat-damage') return false;
+  if (!state.combat) return false;
+
+  // Must have at least one unblocked attacking creature you control
+  const unblockedIds = getUnblockedAttackers(state, player);
+  if (unblockedIds.length === 0) return false;
+
+  // Must have a card in hand with ninjutsu and be able to pay the cost
+  const ps = state.players[player];
+  for (const card of ps.hand) {
+    const ninjutsuCostStr = getNinjutsuCost(card);
+    if (!ninjutsuCostStr) continue;
+    const cost = parseManaCost(ninjutsuCostStr);
+    if (canPayCost(ps.manaPool, cost, ps.life)) return true;
+    if (autoTapLandsForCost(ps, cost) !== null) return true;
+  }
+  return false;
+}
+
+// ─── Companion (CR 702.138) ───
+
+/** Validate companion activation: pay {3} to move companion from outside the game to hand. */
+function validateCompanion(
+  state: GameState,
+  action: Extract<GameAction, { type: 'companion' }>
+): string | null {
+  // Must have a companion card available
+  if (!state.companion || !state.companion[action.player]) {
+    return 'No companion available.';
+  }
+  // Can only use companion once per game
+  if (state.companionUsed?.[action.player]) {
+    return 'Companion already used this game.';
+  }
+  // Sorcery speed: main phase, your turn, empty stack
+  if (state.step !== 'main') return 'Can only use companion during main phase.';
+  if (state.activePlayer !== action.player) return 'Can only use companion on your turn.';
+  if (state.stack.length > 0) return 'Cannot use companion while stack is not empty.';
+  // Must be able to pay {3}
+  const cost = parseManaCost('{3}');
+  const player = state.players[action.player];
+  if (!canPayCost(player.manaPool, cost, player.life)) {
+    const tapResult = autoTapLandsForCost(player, cost);
+    if (!tapResult) return 'Not enough mana to pay companion cost ({3}).';
+  }
+  return null;
+}
+
+/** Check if the player can activate their companion (CR 702.138) */
+function canUseCompanion(state: GameState, player: 0 | 1): boolean {
+  if (!state.companion || !state.companion[player]) return false;
+  if (state.companionUsed?.[player]) return false;
+  if (state.step !== 'main' || state.activePlayer !== player || state.stack.length > 0) return false;
+  const ps = state.players[player];
+  const cost = parseManaCost('{3}');
+  if (canPayCost(ps.manaPool, cost, ps.life)) return true;
+  if (autoTapLandsForCost(ps, cost) !== null) return true;
   return false;
 }

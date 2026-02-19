@@ -220,23 +220,39 @@ export function handleAttachmentCleanup(state: GameState): GameState {
       if (perm.attachedTo && bfIds.has(perm.attachedTo)) {
         const attachedCreature = bf.find(p => p.id === perm.attachedTo);
         if (attachedCreature && isAura(perm) && hasProtectionFrom(attachedCreature, perm.colors || [])) {
-          // Aura falls off due to protection — goes to graveyard
-          dyingAuras.push({
-            id: perm.id, oracleId: perm.oracleId, name: perm.name,
-            manaCost: perm.manaCost, cmc: perm.cmc, typeLine: perm.typeLine,
-            oracleText: perm.oracleText, power: perm.power, toughness: perm.toughness,
-            loyalty: perm.loyalty, colors: perm.colors, colorIdentity: perm.colorIdentity,
-            rarity: perm.rarity, tags: perm.tags, imageUrl: perm.imageUrl, owner: perm.owner,
-          });
-          logs.push(`${perm.name} falls off — ${attachedCreature.name} has protection from its color.`);
-          bf[j] = null as unknown as Permanent;
-          // Also remove from creature's attachments list
+          // Remove from creature's attachments list
           const crIdx = bf.findIndex(p => p.id === perm.attachedTo);
           if (crIdx !== -1) {
             bf[crIdx] = {
               ...bf[crIdx],
               attachments: bf[crIdx].attachments.filter(id => id !== perm.id),
             };
+          }
+          // CR 702.102c: Bestow Aura becomes a creature instead of going to graveyard
+          if (perm.bestowed) {
+            const basePower = perm.power ? parseInt(perm.power, 10) || 0 : undefined;
+            const baseToughness = perm.toughness ? parseInt(perm.toughness, 10) || 0 : undefined;
+            bf[j] = {
+              ...perm,
+              attachedTo: undefined,
+              bestowed: false,
+              currentPower: basePower,
+              currentToughness: baseToughness,
+              basePower,
+              baseToughness,
+            };
+            logs.push(`${perm.name} becomes a creature — ${attachedCreature.name} has protection from its color (bestow).`);
+          } else {
+            // Normal Aura falls off due to protection — goes to graveyard
+            dyingAuras.push({
+              id: perm.id, oracleId: perm.oracleId, name: perm.name,
+              manaCost: perm.manaCost, cmc: perm.cmc, typeLine: perm.typeLine,
+              oracleText: perm.oracleText, power: perm.power, toughness: perm.toughness,
+              loyalty: perm.loyalty, colors: perm.colors, colorIdentity: perm.colorIdentity,
+              rarity: perm.rarity, tags: perm.tags, imageUrl: perm.imageUrl, owner: perm.owner,
+            });
+            logs.push(`${perm.name} falls off — ${attachedCreature.name} has protection from its color.`);
+            bf[j] = null as unknown as Permanent;
           }
           playerChanged = true;
           continue;
@@ -260,17 +276,34 @@ export function handleAttachmentCleanup(state: GameState): GameState {
       if (perm.attachedTo && !bfIds.has(perm.attachedTo)) {
         // The thing we were attached to is gone
         if (isAura(perm)) {
-          // Aura goes to graveyard
-          dyingAuras.push({
-            id: perm.id, oracleId: perm.oracleId, name: perm.name,
-            manaCost: perm.manaCost, cmc: perm.cmc, typeLine: perm.typeLine,
-            oracleText: perm.oracleText, power: perm.power, toughness: perm.toughness,
-            loyalty: perm.loyalty, colors: perm.colors, colorIdentity: perm.colorIdentity,
-            rarity: perm.rarity, tags: perm.tags, imageUrl: perm.imageUrl, owner: perm.owner,
-          });
-          logs.push(`${perm.name} goes to graveyard (enchanted permanent left).`);
-          bf[j] = null as unknown as Permanent; // mark for removal
-          playerChanged = true;
+          // CR 702.102c: Bestow Aura — becomes a creature instead of going to graveyard
+          if (perm.bestowed) {
+            const basePower = perm.power ? parseInt(perm.power, 10) || 0 : undefined;
+            const baseToughness = perm.toughness ? parseInt(perm.toughness, 10) || 0 : undefined;
+            bf[j] = {
+              ...perm,
+              attachedTo: undefined,
+              bestowed: false,
+              currentPower: basePower,
+              currentToughness: baseToughness,
+              basePower,
+              baseToughness,
+            };
+            logs.push(`${perm.name} becomes a creature (bestow — enchanted creature left).`);
+            playerChanged = true;
+          } else {
+            // Normal Aura goes to graveyard
+            dyingAuras.push({
+              id: perm.id, oracleId: perm.oracleId, name: perm.name,
+              manaCost: perm.manaCost, cmc: perm.cmc, typeLine: perm.typeLine,
+              oracleText: perm.oracleText, power: perm.power, toughness: perm.toughness,
+              loyalty: perm.loyalty, colors: perm.colors, colorIdentity: perm.colorIdentity,
+              rarity: perm.rarity, tags: perm.tags, imageUrl: perm.imageUrl, owner: perm.owner,
+            });
+            logs.push(`${perm.name} goes to graveyard (enchanted permanent left).`);
+            bf[j] = null as unknown as Permanent; // mark for removal
+            playerChanged = true;
+          }
         } else if (isEquipment(perm)) {
           // Equipment stays, becomes unattached
           bf[j] = { ...perm, attachedTo: undefined };

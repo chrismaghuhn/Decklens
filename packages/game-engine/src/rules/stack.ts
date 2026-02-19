@@ -35,7 +35,7 @@ export function addSpellToStack(
   targets: Target[],
   _manaPayment: ManaPayment,
   xValue?: number,
-  opts?: { isFlashback?: boolean; isKicked?: boolean; isAdventure?: boolean; isFaceDown?: boolean; isEvoked?: boolean; isDashed?: boolean; isBlitzed?: boolean; isOverloaded?: boolean; isBuyback?: boolean; isEscape?: boolean; isJumpStart?: boolean; isForetold?: boolean; isMutate?: boolean; mutateTargetId?: string; mutateOnTop?: boolean; oracleTextOverride?: string }
+  opts?: { isFlashback?: boolean; isKicked?: boolean; isAdventure?: boolean; isFaceDown?: boolean; isEvoked?: boolean; isDashed?: boolean; isBlitzed?: boolean; isOverloaded?: boolean; isBuyback?: boolean; isEscape?: boolean; isJumpStart?: boolean; isForetold?: boolean; isMutate?: boolean; mutateTargetId?: string; mutateOnTop?: boolean; isBestow?: boolean; oracleTextOverride?: string }
 ): GameState {
   const playerState = state.players[player];
 
@@ -106,6 +106,7 @@ export function addSpellToStack(
     isMutate: opts?.isMutate,
     mutateTargetId: opts?.mutateTargetId,
     mutateOnTop: opts?.mutateOnTop,
+    isBestow: opts?.isBestow,
   };
 
   const players = [...state.players] as [PlayerState, PlayerState];
@@ -124,6 +125,7 @@ export function addSpellToStack(
   if (opts?.isJumpStart) castMessage += ' (jump-start)';
   if (opts?.isForetold) castMessage += ' (foretold)';
   if (opts?.isMutate) castMessage += ' (mutate)';
+  if (opts?.isBestow) castMessage += ' (bestow)';
   if (xValue !== undefined && xValue > 0) castMessage += ` (X=${xValue})`;
   castMessage += '.';
 
@@ -433,6 +435,66 @@ export function resolveTopOfStack(state: GameState): GameState {
           return giveActivePlayerPriority(newState);
         }
         // If target is invalid, fall through to enter the battlefield normally
+      }
+
+      // ─── Bestow: enters as an Aura enchanting the target creature (CR 702.102) ───
+      if (resolving.isBestow && resolving.targets.length > 0) {
+        const bestowTarget = resolving.targets[0];
+        if (bestowTarget.type === 'permanent') {
+          // Find target creature on any battlefield
+          let targetFound = false;
+          for (let pi = 0; pi < 2; pi++) {
+            const pIdx = pi as 0 | 1;
+            const targetIdx = newState.players[pIdx].battlefield.findIndex(p => p.id === bestowTarget.id);
+            if (targetIdx !== -1 && newState.players[pIdx].battlefield[targetIdx].currentPower !== undefined) {
+              targetFound = true;
+              const bestowPower = permanent.basePower ?? 0;
+              const bestowToughness = permanent.baseToughness ?? 0;
+
+              // Make the bestow creature into an Aura attached to target
+              const bestowAura: Permanent = {
+                ...permanent,
+                attachedTo: bestowTarget.id,
+                bestowed: true,
+                // Clear creature stats while acting as Aura
+                currentPower: undefined,
+                currentToughness: undefined,
+              };
+
+              const bestowPlayers = [...newState.players] as [PlayerState, PlayerState];
+              bestowPlayers[controller] = {
+                ...bestowPlayers[controller],
+                battlefield: [...bestowPlayers[controller].battlefield, bestowAura],
+              };
+
+              // Update target creature: add attachment and P/T bonus
+              const targetBf = [...bestowPlayers[pIdx].battlefield];
+              const tgtCreature = targetBf[targetIdx];
+              targetBf[targetIdx] = {
+                ...tgtCreature,
+                attachments: [...tgtCreature.attachments, permanent.id],
+                currentPower: (tgtCreature.currentPower ?? 0) + bestowPower,
+                currentToughness: (tgtCreature.currentToughness ?? 0) + bestowToughness,
+              };
+              bestowPlayers[pIdx] = { ...bestowPlayers[pIdx], battlefield: targetBf };
+
+              newState = { ...newState, players: bestowPlayers };
+              newState = {
+                ...newState,
+                log: [...newState.log, {
+                  timestamp: Date.now(), turn: newState.turn, phase: newState.phase, step: newState.step,
+                  player: controller,
+                  message: `${card.name} enchants ${tgtCreature.name} via bestow (+${bestowPower}/+${bestowToughness}).`,
+                  cardName: card.name, actionType: 'effect',
+                }],
+              };
+
+              return giveActivePlayerPriority(newState);
+            }
+          }
+          // If target is gone, bestow enters as a creature (CR 702.102c)
+          // Fall through to normal permanent entry
+        }
       }
 
       // Check if permanent enters the battlefield tapped (e.g., tap-lands, "enters tapped" creatures)

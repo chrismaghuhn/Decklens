@@ -55,6 +55,8 @@ export interface StackObject {
   mutateTargetId?: string;
   /** Whether to place on top (true) or under (false) the target */
   mutateOnTop?: boolean;
+  /** Whether this was cast with bestow (enters as Aura, becomes creature if enchanted creature leaves) */
+  isBestow?: boolean;
 }
 
 /** All possible game actions a player can take */
@@ -114,6 +116,8 @@ export type GameAction =
       mutateTargetId?: string;
       /** Whether to place on top (true) or under (false) the target */
       mutateOnTop?: boolean;
+      /** Bestow — cast as Aura enchantment for bestow cost (CR 702.102) */
+      bestowPaid?: boolean;
     }
   | {
       type: 'activate-ability';
@@ -195,6 +199,12 @@ export type GameAction =
   | { type: 'turn-face-up'; player: 0 | 1; permanentId: string }
   // ─── Cycling (CR 702.28) ───
   | { type: 'cycle'; player: 0 | 1; cardId: string }
+  // ─── Companion (CR 702.138) ───
+  | {
+      /** Pay {3} to move companion from outside the game to hand */
+      type: 'companion';
+      player: 0 | 1;
+    }
   // ─── Combat Damage Assignment (CR 510.1) ───
   | {
       /** Assign damage from an attacker to multiple blockers in DAO order */
@@ -204,6 +214,18 @@ export type GameAction =
       assignments: Record<string, number>;
       /** Remaining damage to defending player (trample) */
       trampleDamage?: number;
+    }
+  // ─── Ninjutsu (CR 702.48) ───
+  | {
+      /** Activate ninjutsu from hand — swap unblocked attacker for ninja (CR 702.48) */
+      type: 'ninjutsu';
+      player: 0 | 1;
+      /** The ninja card ID (in hand) */
+      cardId: string;
+      /** The unblocked attacking creature to return to hand */
+      returnCreatureId: string;
+      /** Mana payment for ninjutsu cost */
+      manaPayment: ManaPayment;
     };
 
 /** Combat state tracking */

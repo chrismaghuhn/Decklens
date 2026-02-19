@@ -110,6 +110,8 @@ export interface Permanent extends Card {
   blitzed?: boolean;
   /** Mutate stack — cards merged under/over this creature (CR 702.139) */
   mutateStack?: { id: string; name: string; oracleText: string; power?: string | number; toughness?: string | number }[];
+  /** Whether this permanent was cast with bestow and is currently an Aura (CR 702.102) */
+  bestowed?: boolean;
   /** Whether this permanent should skip untapping during its controller's next untap step */
   skipNextUntap?: boolean;
 }
