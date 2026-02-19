@@ -88,10 +88,12 @@ function removePermanentFromBattlefield(state: GameState, permanentId: string, t
   const updatedBf = [...player.battlefield];
   updatedBf.splice(currentIdx, 1);
 
-  // Move the card object to the destination zone
+  // Move the card object to the destination zone.
+  // CR 613.1: Characteristics reset when leaving the battlefield — use originalOracleText
+  // if set (creature had "loses all abilities" via Layer 6), so GY card shows printed text.
   const cardObj: Card = {
     id: perm.id, oracleId: perm.oracleId, name: perm.name, manaCost: perm.manaCost,
-    cmc: perm.cmc, typeLine: perm.typeLine, oracleText: perm.oracleText,
+    cmc: perm.cmc, typeLine: perm.typeLine, oracleText: perm.originalOracleText ?? perm.oracleText,
     power: perm.power, toughness: perm.toughness, loyalty: perm.loyalty,
     colors: perm.colors, colorIdentity: perm.colorIdentity, rarity: perm.rarity,
     tags: perm.tags, imageUrl: perm.imageUrl, owner: perm.owner,
@@ -11779,7 +11781,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller) => {
       const players = [...state.players] as [PlayerState, PlayerState];
       const player = players[controller];
-      players[controller] = { ...player, landsPlayedThisTurn: Math.max(0, (player.landsPlayedThisTurn || 0) - 1) };
+      players[controller] = { ...player, maxLandPlays: (player.maxLandPlays || 1) + 1 };
       state = { ...state, players };
       state = addLog(state, controller, `May play an additional land this turn.`);
       return { state, resolved: true, description: 'extra land drop' };
@@ -11934,20 +11936,36 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     },
   },
 
-  // Util-18: "exile all cards from target player's graveyard" (Rest in Peace, Tormod's Crypt)
+  // Util-18a: "exile all cards from target player's graveyard" (Tormod's Crypt targeting)
   {
-    name: 'exile-all-graveyard',
-    match: /exile\s+all\s+cards\s+(?:from\s+)?(?:target\s+player's|each\s+(?:player's|opponent's))\s+graveyard/i,
+    name: 'exile-target-player-graveyard',
+    match: /exile\s+all\s+cards\s+(?:from\s+)?target\s+player's\s+graveyard/i,
     requiresTarget: false,
     apply: (state, controller) => {
       const opponent = controller === 0 ? 1 : 0;
-      const player = state.players[opponent];
-      const count = player.graveyard.length;
+      const count = state.players[opponent].graveyard.length;
       const players = [...state.players] as [PlayerState, PlayerState];
-      players[opponent] = { ...player, graveyard: [] };
+      players[opponent] = { ...state.players[opponent], graveyard: [] };
       state = { ...state, players };
       state = addLog(state, controller, `Exiles ${count} cards from opponent's graveyard.`);
-      return { state, resolved: true, description: `exile gy (${count} cards)` };
+      return { state, resolved: true, description: `exile target gy (${count})` };
+    },
+  },
+
+  // Util-18b: "exile all cards from each player's graveyard" (Rest in Peace, bojuka bog variant)
+  {
+    name: 'exile-each-player-graveyard',
+    match: /exile\s+all\s+cards\s+(?:from\s+)?each\s+(?:player's|opponent's)\s+graveyard/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const count0 = state.players[0].graveyard.length;
+      const count1 = state.players[1].graveyard.length;
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[0] = { ...state.players[0], graveyard: [] };
+      players[1] = { ...state.players[1], graveyard: [] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Exiles all graveyards (${count0 + count1} cards total).`);
+      return { state, resolved: true, description: `exile all GYs (${count0 + count1})` };
     },
   },
 

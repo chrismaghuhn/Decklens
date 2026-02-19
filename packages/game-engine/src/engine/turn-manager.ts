@@ -155,7 +155,8 @@ export function startNewTurn(state: GameState): GameState {
     ...players[nextActivePlayer],
     battlefield: players[nextActivePlayer].battlefield.map((p) => ({
       ...p,
-      tapped: false,
+      tapped: p.skipNextUntap ? p.tapped : false,  // CR 702.26: skipNextUntap prevents untapping
+      skipNextUntap: false,  // Always reset the flag after checking
       summoningSick:
         p.enteredBattlefieldTurn === newTurn ? true : false,
       attacking: false,
@@ -612,6 +613,51 @@ export function applyStepEffects(state: GameState): GameState {
             logs.push(`${p.name} no longer has hexproof.`);
             updated = { ...updated };
             delete (updated as any).temporaryHexproof;
+          }
+
+          // ─── Clear Layer 4 type changes (until end of turn) ───
+          if (updated.typeChanges && updated.typeChanges.length > 0) {
+            updated = { ...updated, typeChanges: [] };
+          }
+
+          // ─── Clear Layer 5 color changes (until end of turn) ───
+          if (updated.colorChanges && updated.colorChanges.length > 0) {
+            updated = { ...updated, colorChanges: [] };
+          }
+
+          // ─── Clear Layer 1 copy effects (until end of turn) ───
+          // Note: Permanent copies (Clone) that entered as a copy retain copyEffect always.
+          // Only temporary copy effects from spells like "becomes a copy until EOT" expire.
+          // We clear copyEffect only if it has a turn-based source (source contains 'eot' or 'until-eot').
+          // For now, clear all copyEffects that were not set as the creature's ETB identity.
+          // (Clone's copyEffect is part of its static identity, not a temp effect.)
+          // Simple heuristic: keep copyEffect if it was applied at the same turn as ETB
+          if (updated.copyEffect && updated.enteredBattlefieldTurn !== updated.copyEffect.timestamp) {
+            // Don't clear — copyEffect on Clone should persist
+            // Only targeted temporary "becomes a copy until EOT" should clear
+            // For now, leave copyEffect intact (permanent copy effects don't expire)
+          }
+
+          // ─── Restore oracle text after lostAllAbilities expires (targeted spells only) ───
+          // Static lostAllAbilities (from other permanents like Humility) is re-applied by continuous.ts
+          // and does NOT need to be cleared here — it will re-blank oracleText each frame.
+          // However, targeted "loses all abilities until EOT" spells set lostAllAbilities without
+          // a static source. We need to restore these at cleanup.
+          // Heuristic: if lostAllAbilities is set AND no static source is currently active, restore.
+          // Simple approach: clear lostAllAbilities and restore originalOracleText at cleanup.
+          // continuous.ts will re-apply if a static source (Humility) is still on the battlefield.
+          if (updated.lostAllAbilities) {
+            if (updated.originalOracleText !== undefined) {
+              logs.push(`${p.name} regains its abilities.`);
+              updated = {
+                ...updated,
+                lostAllAbilities: undefined,
+                oracleText: updated.originalOracleText,
+                originalOracleText: undefined,
+              };
+            } else {
+              updated = { ...updated, lostAllAbilities: undefined };
+            }
           }
 
           return updated;

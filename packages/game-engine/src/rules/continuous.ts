@@ -853,8 +853,9 @@ export function applyContinuousEffects(state: GameState): GameState {
 
   // --- Layer 6: Ability Adding/Removing Effects ---
   // Apply static "loses all abilities" effects to matching creatures (e.g. Humility)
-  // Static keyword grants are already handled in Layer 7c via getStaticBonuses.
-  // Here we handle the "loses all abilities" case specifically.
+  // Each frame: first restore oracle text for creatures whose static source is gone,
+  // then re-apply for creatures still under a static "lose abilities" effect.
+  // This allows correct behavior when Humility enters/leaves the battlefield.
   for (let p = 0; p < 2; p++) {
     const playerIdx = p as 0 | 1;
     const player = newPlayers[playerIdx];
@@ -864,29 +865,43 @@ export function applyContinuousEffects(state: GameState): GameState {
       const creature = updatedBf[i];
       if (creature.basePower === undefined) continue; // Skip non-creatures
 
-      // Check static "loses all abilities" effects from other permanents
+      // Check if any static source currently applies "loses all abilities" to this creature
+      let staticSourceActive = false;
       for (const effect of allStaticLoseAbilities) {
         const matches = doesEffectApply(
           { ...effect, power: 0, toughness: 0, keywords: [] } as ParsedStaticEffect,
           creature, playerIdx
         );
-        if (matches && !creature.lostAllAbilities) {
-          updatedBf[i] = {
-            ...creature,
-            lostAllAbilities: { source: effect.sourceId, timestamp: 0 },
-            originalOracleText: creature.originalOracleText || creature.oracleText,
-            oracleText: '',
-            temporaryKeywords: [],
-            abilities: [],
-          };
-          bfChanged = true;
-          break; // One "lose all abilities" is enough
-        }
+        if (matches) { staticSourceActive = true; break; }
       }
+
+      if (staticSourceActive && !creature.lostAllAbilities) {
+        // Static source active AND creature doesn't have the flag yet — apply it
+        updatedBf[i] = {
+          ...creature,
+          lostAllAbilities: { source: 'static', timestamp: 0 },
+          originalOracleText: creature.originalOracleText || creature.oracleText,
+          oracleText: '',
+          temporaryKeywords: [],
+          abilities: [],
+        };
+        bfChanged = true;
+      } else if (!staticSourceActive && creature.lostAllAbilities?.source === 'static') {
+        // Static source is GONE — restore original oracle text (static effect expired)
+        updatedBf[i] = {
+          ...creature,
+          lostAllAbilities: undefined,
+          oracleText: creature.originalOracleText ?? creature.oracleText,
+          originalOracleText: undefined,
+        };
+        bfChanged = true;
+      }
+      // If creature.lostAllAbilities exists with source !== 'static', it was set by a targeted spell
+      // (handled by turn-manager cleanup at EOT — don't touch it here)
 
       // Also handle per-permanent lostAllAbilities flag (set by targeted spells like Turn to Frog)
       const perm = updatedBf[i]; // Re-read in case we just modified it above
-      if (perm.lostAllAbilities && perm.oracleText && perm.oracleText.length > 0) {
+      if (perm.lostAllAbilities && perm.lostAllAbilities.source !== 'static' && perm.oracleText && perm.oracleText.length > 0) {
         updatedBf[i] = {
           ...perm,
           originalOracleText: perm.originalOracleText || perm.oracleText,
