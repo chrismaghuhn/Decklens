@@ -11266,6 +11266,934 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       return { state, resolved: true, description: `${count} creatures gain ${keywordList.join(', ')}` };
     },
   },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ═══  NEW EFFECT PATTERNS — Copy, Type, Color, Combat, Utility, Layer  ═══
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── Category 1: Copy Effects (Layer 1 setup) ──
+
+  // Copy-1: "becomes a copy of target creature" (Clone, Gigantoplasm)
+  {
+    name: 'becomes-copy-of-target',
+    match: /(?:you may have .+ )?(?:enter|enters) the battlefield as a copy of|becomes?\s+a\s+copy\s+of\s+target\s+creature/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, _m, source) => {
+      if (!source) return { state, resolved: false };
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const found = findPermanentById(state, source.id);
+      if (!found) return { state, resolved: false };
+      const { playerIdx, permIdx, perm } = found;
+      const { perm: targetPerm } = target;
+      const player = state.players[playerIdx];
+      const updatedBf = [...player.battlefield];
+      updatedBf[permIdx] = {
+        ...perm,
+        copyEffect: {
+          copiedName: targetPerm.name,
+          copiedTypeLine: targetPerm.typeLine,
+          copiedOracleText: targetPerm.oracleText || '',
+          copiedPower: targetPerm.power,
+          copiedToughness: targetPerm.toughness,
+          copiedColors: [...(targetPerm.colors || [])],
+          copiedManaCost: targetPerm.manaCost,
+          timestamp: nextEffectTimestamp(),
+        },
+        basePower: targetPerm.basePower,
+        baseToughness: targetPerm.baseToughness,
+        currentPower: targetPerm.currentPower,
+        currentToughness: targetPerm.currentToughness,
+      };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[playerIdx] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `${perm.name} becomes a copy of ${targetPerm.name}.`);
+      return { state, resolved: true, description: `copy: ${perm.name} → ${targetPerm.name}` };
+    },
+  },
+
+  // Copy-2: "create a token that's a copy of target creature"
+  {
+    name: 'create-token-copy-of-target',
+    match: /create\s+a\s+token\s+that(?:'s| is)\s+a\s+copy\s+of\s+target\s+(?:creature|permanent)/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { perm: targetPerm } = target;
+      const tokenCard: Card = {
+        id: generateCardId(), oracleId: `token_copy_${targetPerm.oracleId}`,
+        name: targetPerm.name, manaCost: targetPerm.manaCost || '', cmc: targetPerm.cmc || 0,
+        typeLine: `Token ${targetPerm.typeLine}`, oracleText: targetPerm.oracleText || '',
+        power: targetPerm.power, toughness: targetPerm.toughness,
+        colors: [...(targetPerm.colors || [])], colorIdentity: [...(targetPerm.colorIdentity || [])],
+        rarity: 'common', tags: [], imageUrl: targetPerm.imageUrl || '', owner: controller,
+      };
+      const newPerm = cardToPermanent(tokenCard, controller, state.turn);
+      const player = state.players[controller];
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, battlefield: [...player.battlefield, newPerm] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Creates a token copy of ${targetPerm.name}.`);
+      return { state, resolved: true, description: `token copy of ${targetPerm.name}` };
+    },
+  },
+
+  // ── Category 2: Type-Changing Effects (Layer 4) ──
+
+  // Type-1: "creatures you control are [type] in addition to their other types" (Arcane Adaptation)
+  {
+    name: 'creatures-are-type-in-addition',
+    match: /creatures?\s+you\s+control\s+are\s+(\w+)s?\s+in\s+addition\s+to\s+their\s+other\s+types?/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const addedType = m[1];
+      const player = state.players[controller];
+      const updatedBf = player.battlefield.map(perm => {
+        if (perm.basePower === undefined) return perm; // skip non-creatures
+        if (perm.typeLine.toLowerCase().includes(addedType.toLowerCase())) return perm;
+        return {
+          ...perm,
+          typeChanges: [...(perm.typeChanges || []), {
+            addedTypes: [addedType],
+            source: 'type-change-effect',
+            timestamp: nextEffectTimestamp(),
+          }],
+        };
+      });
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `Creatures you control are ${addedType}s in addition to their other types.`);
+      return { state, resolved: true, description: `type change: +${addedType}` };
+    },
+  },
+
+  // Type-2: "target creature becomes a [type] in addition to its other types"
+  {
+    name: 'target-becomes-type-in-addition',
+    match: /target\s+creature\s+becomes?\s+(?:a\s+)?(\w+)\s+in\s+addition\s+to\s+its?\s+other\s+types?\s+until\s+end\s+of\s+turn/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m) => {
+      const addedType = m[1];
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { playerIdx, permIdx, perm } = target;
+      const player = state.players[playerIdx];
+      const updatedBf = [...player.battlefield];
+      updatedBf[permIdx] = {
+        ...perm,
+        typeChanges: [...(perm.typeChanges || []), {
+          addedTypes: [addedType],
+          source: 'type-change-eot',
+          timestamp: nextEffectTimestamp(),
+        }],
+      };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[playerIdx] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `${perm.name} becomes a ${addedType} in addition to its other types until end of turn.`);
+      return { state, resolved: true, description: `${perm.name} +type ${addedType}` };
+    },
+  },
+
+  // ── Category 3: Color-Changing Effects (Layer 5) ──
+
+  // Color-1: "target permanent becomes [color] until end of turn"
+  {
+    name: 'target-becomes-color',
+    match: /target\s+(?:creature|permanent)\s+becomes?\s+(white|blue|black|red|green)\s+until\s+end\s+of\s+turn/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m) => {
+      const colorName = m[1].toLowerCase();
+      const colorMap: Record<string, string> = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' };
+      const colorCode = colorMap[colorName] || colorName[0].toUpperCase();
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { playerIdx, permIdx, perm } = target;
+      const player = state.players[playerIdx];
+      const updatedBf = [...player.battlefield];
+      updatedBf[permIdx] = {
+        ...perm,
+        colorChanges: [...(perm.colorChanges || []), {
+          addedColors: [],
+          setColors: [colorCode],
+          source: 'color-change-eot',
+          timestamp: nextEffectTimestamp(),
+        }],
+      };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[playerIdx] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `${perm.name} becomes ${colorName} until end of turn.`);
+      return { state, resolved: true, description: `${perm.name} → ${colorName}` };
+    },
+  },
+
+  // Color-2: "target permanent becomes [color] in addition to its other colors"
+  {
+    name: 'target-gains-color',
+    match: /target\s+(?:creature|permanent)\s+becomes?\s+(white|blue|black|red|green)\s+in\s+addition\s+to\s+its?\s+other\s+colors?/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m) => {
+      const colorName = m[1].toLowerCase();
+      const colorMap: Record<string, string> = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' };
+      const colorCode = colorMap[colorName] || colorName[0].toUpperCase();
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { playerIdx, permIdx, perm } = target;
+      const player = state.players[playerIdx];
+      const updatedBf = [...player.battlefield];
+      updatedBf[permIdx] = {
+        ...perm,
+        colorChanges: [...(perm.colorChanges || []), {
+          addedColors: [colorCode],
+          source: 'add-color-eot',
+          timestamp: nextEffectTimestamp(),
+        }],
+      };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[playerIdx] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `${perm.name} becomes ${colorName} in addition to its other colors.`);
+      return { state, resolved: true, description: `${perm.name} +${colorName}` };
+    },
+  },
+
+  // Color-3: All permanents are [color] in addition (Painter's Servant)
+  {
+    name: 'all-permanents-are-color',
+    match: /all\s+(?:cards?\s+(?:everywhere|that\s+aren't\s+on\s+the\s+battlefield)|permanents?)\s+are\s+(white|blue|black|red|green)\s+in\s+addition/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const colorName = m[1].toLowerCase();
+      const colorMap: Record<string, string> = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' };
+      const colorCode = colorMap[colorName] || colorName[0].toUpperCase();
+      const ts = nextEffectTimestamp();
+      for (let pi = 0; pi < 2; pi++) {
+        const player = state.players[pi as 0 | 1];
+        const updatedBf = player.battlefield.map(perm => ({
+          ...perm,
+          colorChanges: [...(perm.colorChanges || []), {
+            addedColors: [colorCode],
+            source: 'painters-servant',
+            timestamp: ts,
+          }],
+        }));
+        const players = [...state.players] as [PlayerState, PlayerState];
+        players[pi as 0 | 1] = { ...player, battlefield: updatedBf };
+        state = { ...state, players };
+      }
+      state = addLog(state, controller, `All permanents are ${colorName} in addition to their other colors.`);
+      return { state, resolved: true, description: `all permanents +${colorName}` };
+    },
+  },
+
+  // ── Category 4: More Combat/Board Effects ──
+
+  // Combat-1: "target creature can't be blocked this turn"
+  {
+    name: 'target-cant-be-blocked',
+    match: /target\s+creature\s+can(?:'t|not)\s+be\s+blocked\s+(?:this\s+turn|until\s+end\s+of\s+turn)/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { playerIdx, permIdx, perm } = target;
+      const player = state.players[playerIdx];
+      const updatedBf = [...player.battlefield];
+      updatedBf[permIdx] = {
+        ...perm,
+        temporaryKeywords: [...(perm.temporaryKeywords || []), { keyword: 'unblockable', source: 'cant-be-blocked', turn: state.turn }],
+      };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[playerIdx] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `${perm.name} can't be blocked this turn.`);
+      return { state, resolved: true, description: `${perm.name} unblockable` };
+    },
+  },
+
+  // Combat-2: "creatures you control gain indestructible until end of turn" (Heroic Intervention)
+  {
+    name: 'your-creatures-gain-indestructible',
+    match: /(?:creatures?|permanents?)\s+you\s+control\s+gain\s+(?:hexproof\s+and\s+)?indestructible\s+until\s+end\s+of\s+turn/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const player = state.players[controller];
+      const updatedBf = player.battlefield.map(perm => ({
+        ...perm,
+        temporaryKeywords: [
+          ...(perm.temporaryKeywords || []),
+          { keyword: 'indestructible', source: 'mass-indestructible', turn: state.turn },
+        ],
+      }));
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `Creatures you control gain indestructible until end of turn.`);
+      return { state, resolved: true, description: 'your creatures gain indestructible' };
+    },
+  },
+
+  // Combat-3: "prevent all combat damage that would be dealt this turn" (Fog)
+  {
+    name: 'prevent-all-combat-damage',
+    match: /prevent\s+all\s+combat\s+damage\s+(?:that\s+would\s+be\s+dealt\s+)?(?:this\s+turn|until\s+end\s+of\s+turn)/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const shields = [...(state.damageShields || [])];
+      shields.push({ targetId: `player-${controller}`, amount: 999999, source: 'fog-combat', turn: state.turn, untilEndOfTurn: true });
+      const opponent = controller === 0 ? 1 : 0;
+      shields.push({ targetId: `player-${opponent}`, amount: 999999, source: 'fog-combat', turn: state.turn, untilEndOfTurn: true });
+      for (const player of state.players) {
+        for (const perm of player.battlefield) {
+          if (perm.basePower !== undefined) {
+            shields.push({ targetId: perm.id, amount: 999999, source: 'fog-combat', turn: state.turn, untilEndOfTurn: true });
+          }
+        }
+      }
+      state = { ...state, damageShields: shields };
+      state = addLog(state, controller, `Prevents all combat damage this turn.`);
+      return { state, resolved: true, description: 'prevent all combat damage' };
+    },
+  },
+
+  // ── Category 5: Utility/Value Effects ──
+
+  // Util-1: "each player draws a card" (Howling Mine)
+  {
+    name: 'each-player-draws',
+    match: /each\s+player\s+draws?\s+(a|an|one|two|three|four|five|\d+)\s+cards?/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const qty = parseNumber(m[1]);
+      state = drawCards(state, 0, qty);
+      state = drawCards(state, 1, qty);
+      state = addLog(state, controller, `Each player draws ${qty} card${qty > 1 ? 's' : ''}.`);
+      return { state, resolved: true, description: `each player draws ${qty}` };
+    },
+  },
+
+  // Util-2: "look at the top [N] cards of your library. Put one into your hand and the rest on the bottom" (Impulse, Anticipate)
+  {
+    name: 'look-top-put-hand-rest-bottom',
+    match: /look\s+at\s+the\s+top\s+(two|three|four|five|six|seven|\d+)\s+cards?\s+of\s+your\s+library.*put\s+(?:one|a card|one of them)\s+into\s+your\s+hand/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const lookCount = parseNumber(m[1]);
+      // Simplified: draw 1 card (equivalent to selecting best from top N)
+      state = drawCards(state, controller, 1);
+      state = addLog(state, controller, `Looks at top ${lookCount} cards, puts one into hand, rest on bottom.`);
+      return { state, resolved: true, description: `impulse ${lookCount}` };
+    },
+  },
+
+  // Util-3: "exile target creature. Its controller gains life equal to its power" (Swords to Plowshares)
+  {
+    name: 'exile-creature-controller-gains-life-power',
+    match: /exile\s+target\s+creature.*(?:its|that creature's)\s+controller\s+gains?\s+life\s+equal\s+to\s+(?:its|that creature's)\s+power/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { perm } = target;
+      const power = perm.currentPower ?? perm.basePower ?? 0;
+      const permController = perm.controller;
+      state = removePermanentFromBattlefield(state, perm.id, 'exile');
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[permController] = { ...players[permController], life: players[permController].life + power };
+      state = { ...state, players };
+      state = checkLifegainTriggers(state, permController, power);
+      state = addLog(state, controller, `Exiles ${perm.name}. Its controller gains ${power} life.`);
+      return { state, resolved: true, description: `exile ${perm.name}, gain ${power} life` };
+    },
+  },
+
+  // Util-4: "destroy target permanent. Its controller creates a 3/3 token" (Beast Within variant)
+  {
+    name: 'destroy-target-permanent-create-token',
+    match: /destroy\s+target\s+(?:nonland\s+)?permanent.*(?:its|that permanent's)\s+controller\s+creates?\s+a\s+(\d+)\/(\d+)/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m) => {
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { perm } = target;
+      const power = parseInt(m[1]) || 3;
+      const toughness = parseInt(m[2]) || 3;
+      const permController = perm.controller;
+      state = removePermanentFromBattlefield(state, perm.id, 'graveyard');
+      const tokenCard: Card = {
+        id: generateCardId(), oracleId: 'token_beast', name: 'Beast',
+        manaCost: '', cmc: 0, typeLine: 'Token Creature — Beast',
+        oracleText: '', power: String(power), toughness: String(toughness),
+        colors: ['G'], colorIdentity: ['G'], rarity: 'common', tags: [], imageUrl: '', owner: permController,
+      };
+      const newPerm = cardToPermanent(tokenCard, permController, state.turn);
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[permController] = { ...players[permController], battlefield: [...players[permController].battlefield, newPerm] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Destroys ${perm.name}. Its controller creates a ${power}/${toughness} Beast token.`);
+      return { state, resolved: true, description: `destroy ${perm.name}, create ${power}/${toughness} token` };
+    },
+  },
+
+  // Util-5: "each opponent discards a card" (Mind Rot, Hymn to Tourach)
+  {
+    name: 'each-opponent-discards',
+    match: /each\s+opponent\s+discards?\s+(a|an|one|two|three|\d+)\s+cards?/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const qty = parseNumber(m[1]);
+      const opponent = controller === 0 ? 1 : 0;
+      const player = state.players[opponent];
+      const actualDiscard = Math.min(qty, player.hand.length);
+      if (actualDiscard > 0) {
+        const discarded = player.hand.slice(-actualDiscard);
+        const remaining = player.hand.slice(0, -actualDiscard);
+        const players = [...state.players] as [PlayerState, PlayerState];
+        players[opponent] = { ...player, hand: remaining, graveyard: [...player.graveyard, ...discarded] };
+        state = { ...state, players };
+        for (const c of discarded) {
+          state = addLog(state, opponent, `Discards ${c.name}.`);
+        }
+      }
+      state = addLog(state, controller, `Each opponent discards ${qty} card${qty > 1 ? 's' : ''}.`);
+      return { state, resolved: true, description: `each opponent discards ${qty}` };
+    },
+  },
+
+  // Util-6: "put a +1/+1 counter on each creature you control" (Gavony Township)
+  {
+    name: 'counter-on-each-creature-you-control',
+    match: /put\s+(?:a|one|two|three|\d+)\s+\+1\/\+1\s+counters?\s+on\s+each\s+creature\s+you\s+control/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const countMatch = m[0].match(/(a|one|two|three|four|\d+)\s+\+1\/\+1/i);
+      const qty = countMatch ? parseNumber(countMatch[1]) : 1;
+      const player = state.players[controller];
+      const updatedBf = player.battlefield.map(perm => {
+        if (perm.basePower === undefined) return perm;
+        return { ...perm, counters: { ...perm.counters, '+1/+1': (perm.counters['+1/+1'] || 0) + qty } };
+      });
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `Puts ${qty > 1 ? qty + ' ' : 'a '}+1/+1 counter${qty > 1 ? 's' : ''} on each creature you control.`);
+      return { state, resolved: true, description: `+1/+1 on each creature (${qty})` };
+    },
+  },
+
+  // Util-7: "target player reveals their hand. You choose a nonland card. That player discards that card" (Thoughtseize)
+  {
+    name: 'reveal-hand-choose-discard',
+    match: /target\s+(?:player|opponent)\s+reveals?\s+(?:their|his\s+or\s+her)\s+hand.*(?:you\s+choose|choose).*(?:discard|exile)/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const opponent = controller === 0 ? 1 : 0;
+      const player = state.players[opponent];
+      if (player.hand.length === 0) {
+        state = addLog(state, controller, `Opponent reveals empty hand.`);
+        return { state, resolved: true, description: 'reveal hand (empty)' };
+      }
+      const nonlands = player.hand.filter(c => !c.typeLine.toLowerCase().includes('land'));
+      if (nonlands.length === 0) {
+        state = addLog(state, controller, `Opponent reveals hand — no nonland cards.`);
+        return { state, resolved: true, description: 'reveal hand (no nonlands)' };
+      }
+      const chosen = nonlands.sort((a, b) => (b.cmc || 0) - (a.cmc || 0))[0];
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[opponent] = {
+        ...player,
+        hand: player.hand.filter(c => c.id !== chosen.id),
+        graveyard: [...player.graveyard, chosen],
+      };
+      state = { ...state, players };
+      state = addLog(state, controller, `Opponent reveals hand. ${chosen.name} is discarded.`);
+      return { state, resolved: true, description: `thoughtseize: discard ${chosen.name}` };
+    },
+  },
+
+  // Util-8: "you gain life equal to the number of creatures you control"
+  {
+    name: 'gain-life-equal-to-creatures',
+    match: /you\s+gain\s+life\s+equal\s+to\s+the\s+number\s+of\s+creatures?\s+you\s+control/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const count = state.players[controller].battlefield.filter(p => p.basePower !== undefined).length;
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...players[controller], life: players[controller].life + count };
+      state = { ...state, players };
+      state = checkLifegainTriggers(state, controller, count);
+      state = addLog(state, controller, `Gains ${count} life (equal to creatures controlled).`);
+      return { state, resolved: true, description: `gain ${count} life` };
+    },
+  },
+
+  // Util-9: "target creature's power and toughness become N/N" (Humble, Turn to Frog)
+  {
+    name: 'set-pt-to-base',
+    match: /(?:target|that)\s+creature(?:'s)?\s+(?:has\s+base\s+)?power\s+and\s+toughness\s+(?:each\s+)?become\s+(\d+)\/(\d+)/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m) => {
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { playerIdx, permIdx, perm } = target;
+      const setPower = parseInt(m[1]);
+      const setToughness = parseInt(m[2]);
+      const player = state.players[playerIdx];
+      const updatedBf = [...player.battlefield];
+      updatedBf[permIdx] = {
+        ...perm,
+        temporaryPtMods: [...(perm.temporaryPtMods || []), {
+          power: setPower, toughness: setToughness,
+          source: 'set-base-pt', turn: state.turn,
+          isSetEffect: true, timestamp: nextEffectTimestamp(),
+        }],
+      };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[playerIdx] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `${perm.name}'s base power and toughness become ${setPower}/${setToughness}.`);
+      return { state, resolved: true, description: `${perm.name} → ${setPower}/${setToughness}` };
+    },
+  },
+
+  // Util-10: "each creature assigns combat damage equal to its toughness" (Doran, the Siege Tower)
+  {
+    name: 'damage-equals-toughness',
+    match: /each\s+creature\s+(?:you\s+control\s+)?assigns?\s+combat\s+damage\s+equal\s+to\s+its\s+toughness/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      state = addLog(state, controller, `Creatures assign combat damage equal to their toughness.`);
+      return { state, resolved: true, description: 'damage = toughness' };
+    },
+  },
+
+  // Util-11: "you may play an additional land this turn" (Exploration)
+  {
+    name: 'additional-land-drop',
+    match: /you\s+may\s+play\s+(?:an\s+)?additional\s+land(?:s)?\s+(?:on\s+each\s+of\s+your\s+turns?|this\s+turn)/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const player = players[controller];
+      players[controller] = { ...player, landsPlayedThisTurn: Math.max(0, (player.landsPlayedThisTurn || 0) - 1) };
+      state = { ...state, players };
+      state = addLog(state, controller, `May play an additional land this turn.`);
+      return { state, resolved: true, description: 'extra land drop' };
+    },
+  },
+
+  // Util-12: "exile target card from a graveyard" (Scavenging Ooze, Tormod's Crypt)
+  {
+    name: 'exile-target-from-graveyard',
+    match: /exile\s+(?:target|a)\s+card\s+from\s+(?:a|target\s+(?:player's|opponent's))\s+graveyard/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const opponent = controller === 0 ? 1 : 0;
+      const player = state.players[opponent];
+      if (player.graveyard.length === 0) {
+        state = addLog(state, controller, `No cards in opponent's graveyard to exile.`);
+        return { state, resolved: true, description: 'exile from gy (empty)' };
+      }
+      const exiled = player.graveyard[player.graveyard.length - 1];
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[opponent] = { ...player, graveyard: player.graveyard.slice(0, -1) };
+      state = { ...state, players };
+      state = addLog(state, controller, `Exiles ${exiled.name} from opponent's graveyard.`);
+      return { state, resolved: true, description: `exile ${exiled.name} from gy` };
+    },
+  },
+
+  // Util-13: "return all nonland permanents you don't control to their owners' hands" (Cyclonic Rift overloaded)
+  {
+    name: 'return-all-nonland-to-hand',
+    match: /return\s+all\s+(?:nonland\s+)?permanents?\s+(?:you\s+don't\s+control\s+)?to\s+their\s+owners?'?\s+hands?/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      let bounced = 0;
+      for (let pi = 0; pi < 2; pi++) {
+        if (pi === controller) continue; // Only opponent's permanents
+        const player = state.players[pi as 0 | 1];
+        const nonlands = player.battlefield.filter(p => !p.typeLine.toLowerCase().includes('land'));
+        const lands = player.battlefield.filter(p => p.typeLine.toLowerCase().includes('land'));
+        const bouncedCards: Card[] = nonlands.map(perm => ({
+          id: perm.id, oracleId: perm.oracleId, name: perm.name, manaCost: perm.manaCost,
+          cmc: perm.cmc, typeLine: perm.typeLine, oracleText: perm.oracleText,
+          power: perm.power, toughness: perm.toughness, loyalty: perm.loyalty,
+          colors: perm.colors, colorIdentity: perm.colorIdentity, rarity: perm.rarity,
+          tags: perm.tags, imageUrl: perm.imageUrl, owner: perm.owner,
+        }));
+        bounced += nonlands.length;
+        const ownerIdx = (nonlands[0]?.owner ?? pi) as 0 | 1;
+        const players = [...state.players] as [PlayerState, PlayerState];
+        players[pi as 0 | 1] = { ...player, battlefield: lands };
+        players[ownerIdx] = { ...players[ownerIdx], hand: [...players[ownerIdx].hand, ...bouncedCards] };
+        state = { ...state, players };
+      }
+      state = addLog(state, controller, `Returns ${bounced} nonland permanents to their owners' hands.`);
+      return { state, resolved: true, description: `bounce all nonland (${bounced})` };
+    },
+  },
+
+  // Util-14: "destroy each creature with power N or greater" (Retribution of the Meek)
+  {
+    name: 'destroy-creatures-power-or-greater',
+    match: /destroy\s+(?:each|all)\s+creatures?\s+with\s+power\s+(\d+)\s+or\s+greater/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const threshold = parseInt(m[1]);
+      let destroyed = 0;
+      for (let pi = 0; pi < 2; pi++) {
+        const player = state.players[pi as 0 | 1];
+        for (const perm of [...player.battlefield]) {
+          if (perm.basePower !== undefined && (perm.currentPower ?? perm.basePower ?? 0) >= threshold) {
+            state = removePermanentFromBattlefield(state, perm.id, 'graveyard');
+            destroyed++;
+          }
+        }
+      }
+      state = addLog(state, controller, `Destroys all creatures with power ${threshold} or greater (${destroyed} destroyed).`);
+      return { state, resolved: true, description: `destroy power>=${threshold} (${destroyed})` };
+    },
+  },
+
+  // Util-15: "creatures you control get +X/+X until end of turn, where X is the number of creatures you control" (Craterhoof Behemoth)
+  {
+    name: 'creatures-get-plus-x-x-count',
+    match: /creatures?\s+you\s+control\s+get\s+\+X\/\+X\s+until\s+end\s+of\s+turn,?\s+where\s+X\s+is\s+the\s+number\s+of\s+creatures?\s+you\s+control/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const count = state.players[controller].battlefield.filter(p => p.basePower !== undefined).length;
+      const player = state.players[controller];
+      const updatedBf = player.battlefield.map(perm => {
+        if (perm.basePower === undefined) return perm;
+        return {
+          ...perm,
+          temporaryPtMods: [...(perm.temporaryPtMods || []), {
+            power: count, toughness: count,
+            source: 'craterhoof', turn: state.turn,
+          }],
+          temporaryKeywords: [...(perm.temporaryKeywords || []), { keyword: 'trample', source: 'craterhoof', turn: state.turn }],
+        };
+      });
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `Creatures you control get +${count}/+${count} and gain trample until end of turn.`);
+      return { state, resolved: true, description: `+${count}/+${count} trample to all creatures` };
+    },
+  },
+
+  // Util-16: "double the power of target creature until end of turn" (Berserk, Rush of Blood)
+  {
+    name: 'double-power-target',
+    match: /double\s+(?:target|the)\s+(?:creature's\s+)?power\s+(?:of\s+target\s+creature\s+)?until\s+end\s+of\s+turn/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { playerIdx, permIdx, perm } = target;
+      const currentPower = perm.currentPower ?? perm.basePower ?? 0;
+      const player = state.players[playerIdx];
+      const updatedBf = [...player.battlefield];
+      updatedBf[permIdx] = {
+        ...perm,
+        temporaryPtMods: [...(perm.temporaryPtMods || []), {
+          power: currentPower, toughness: 0,
+          source: 'double-power', turn: state.turn,
+        }],
+      };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[playerIdx] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `Doubles ${perm.name}'s power (now ${currentPower * 2}).`);
+      return { state, resolved: true, description: `double ${perm.name}'s power` };
+    },
+  },
+
+  // Util-17: "tap target creature. It doesn't untap during its controller's next untap step" (Icy Manipulator, Sleep)
+  {
+    name: 'tap-doesnt-untap',
+    match: /tap\s+target\s+(?:creature|permanent).*doesn(?:'t|ot)\s+untap\s+during\s+(?:its|that\s+creature's)\s+controller's\s+next\s+untap\s+step/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { playerIdx, permIdx, perm } = target;
+      const player = state.players[playerIdx];
+      const updatedBf = [...player.battlefield];
+      updatedBf[permIdx] = { ...perm, tapped: true, skipNextUntap: true };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[playerIdx] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `Taps ${perm.name}. It doesn't untap during its controller's next untap step.`);
+      return { state, resolved: true, description: `tap + freeze ${perm.name}` };
+    },
+  },
+
+  // Util-18: "exile all cards from target player's graveyard" (Rest in Peace, Tormod's Crypt)
+  {
+    name: 'exile-all-graveyard',
+    match: /exile\s+all\s+cards\s+(?:from\s+)?(?:target\s+player's|each\s+(?:player's|opponent's))\s+graveyard/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const opponent = controller === 0 ? 1 : 0;
+      const player = state.players[opponent];
+      const count = player.graveyard.length;
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[opponent] = { ...player, graveyard: [] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Exiles ${count} cards from opponent's graveyard.`);
+      return { state, resolved: true, description: `exile gy (${count} cards)` };
+    },
+  },
+
+  // Util-19: "untap all creatures you control" (Seedborn Muse, Mobilize)
+  {
+    name: 'untap-all-creatures-you-control',
+    match: /untap\s+(?:all|each)\s+creatures?\s+you\s+control/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const player = state.players[controller];
+      let untapped = 0;
+      const updatedBf = player.battlefield.map(perm => {
+        if (perm.basePower !== undefined && perm.tapped) {
+          untapped++;
+          return { ...perm, tapped: false };
+        }
+        return perm;
+      });
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `Untaps ${untapped} creatures.`);
+      return { state, resolved: true, description: `untap ${untapped} creatures` };
+    },
+  },
+
+  // Util-20: "you draw X cards, where X is the number of creatures you control"
+  {
+    name: 'draw-x-where-x-creatures',
+    match: /(?:you\s+)?draw\s+(?:X|cards?\s+equal\s+to)\s+(?:cards?,?\s+)?(?:where\s+X\s+is\s+)?(?:the\s+number\s+of|equal\s+to\s+the\s+number\s+of)\s+creatures?\s+you\s+control/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const count = state.players[controller].battlefield.filter(p => p.basePower !== undefined).length;
+      state = drawCards(state, controller, count);
+      state = addLog(state, controller, `Draws ${count} cards (one per creature controlled).`);
+      return { state, resolved: true, description: `draw ${count} (creatures)` };
+    },
+  },
+
+  // ── Category 6: Ability-Modifying (Layer 6 support) ──
+
+  // Ability-1: "all creatures lose all abilities" (Humility)
+  {
+    name: 'all-creatures-lose-all-abilities',
+    match: /(?:all|each)\s+creatures?\s+(?:lose|have\s+no)\s+(?:all\s+)?abilities/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const ts = nextEffectTimestamp();
+      for (let pi = 0; pi < 2; pi++) {
+        const player = state.players[pi as 0 | 1];
+        const updatedBf = player.battlefield.map(perm => {
+          if (perm.basePower === undefined) return perm;
+          return {
+            ...perm,
+            lostAllAbilities: { source: 'humility', timestamp: ts },
+            originalOracleText: perm.originalOracleText || perm.oracleText,
+            oracleText: '',
+            temporaryKeywords: [],
+            abilities: [],
+          };
+        });
+        const players = [...state.players] as [PlayerState, PlayerState];
+        players[pi as 0 | 1] = { ...player, battlefield: updatedBf };
+        state = { ...state, players };
+      }
+      state = addLog(state, controller, `All creatures lose all abilities.`);
+      return { state, resolved: true, description: 'all creatures lose abilities' };
+    },
+  },
+
+  // Ability-2: "target creature gains all abilities of target creature" (Soulflayer, Cairn Wanderer)
+  {
+    name: 'target-gains-abilities-of-target',
+    match: /(?:target|this)\s+creature\s+(?:has|gains)\s+(?:all\s+)?(?:activated\s+)?abilities\s+of/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { perm: sourcePerm } = target;
+      const text = (sourcePerm.oracleText || '').toLowerCase();
+      const keywords = ['flying', 'trample', 'haste', 'lifelink', 'deathtouch', 'first strike', 'double strike', 'vigilance', 'hexproof', 'indestructible', 'menace', 'reach'];
+      const granted = keywords.filter(kw => text.includes(kw));
+      state = addLog(state, controller, `Gains abilities: ${granted.join(', ') || 'none'}.`);
+      return { state, resolved: true, description: `gains abilities: ${granted.join(', ')}` };
+    },
+  },
+
+  // Ability-3: "creatures with no abilities get +2/+2" (Muraganda Petroglyphs)
+  {
+    name: 'no-abilities-get-bonus',
+    match: /creatures?\s+with\s+no\s+abilities\s+get\s+\+(\d+)\/\+(\d+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const power = parseInt(m[1]);
+      const toughness = parseInt(m[2]);
+      state = addLog(state, controller, `Creatures with no abilities get +${power}/+${toughness}.`);
+      return { state, resolved: true, description: `no-ability creatures +${power}/+${toughness}` };
+    },
+  },
+
+  // ── Category 7: Ward/Protection Triggers ──
+
+  // Ward-1: "ward—pay N life" (Common ward variant)
+  {
+    name: 'ward-pay-life',
+    match: /ward\s*[—\-]\s*(?:pay\s+)?(\d+)\s+life/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const life = parseInt(m[1]);
+      state = addLog(state, controller, `Ward: opponent must pay ${life} life.`);
+      return { state, resolved: true, description: `ward ${life} life` };
+    },
+  },
+
+  // Ward-2: "ward—discard a card"
+  {
+    name: 'ward-discard',
+    match: /ward\s*[—\-]\s*discard\s+(?:a|one)\s+card/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      state = addLog(state, controller, `Ward: opponent must discard a card.`);
+      return { state, resolved: true, description: 'ward discard' };
+    },
+  },
+
+  // ── Category 8: Additional Coverage Patterns ──
+
+  // Extra-1: "target creature gets +N/+N and gains [keyword] until end of turn" (pump + keyword combo)
+  {
+    name: 'pump-and-keyword-target',
+    match: /target\s+creature\s+gets\s+\+(\d+)\/\+(\d+)\s+and\s+gains?\s+(flying|trample|first\s+strike|double\s+strike|lifelink|deathtouch|haste|vigilance|menace|hexproof|indestructible|reach)\s+until\s+end\s+of\s+turn/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m) => {
+      const powerBuff = parseInt(m[1]);
+      const toughnessBuff = parseInt(m[2]);
+      const keyword = m[3].toLowerCase();
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { playerIdx, permIdx, perm } = target;
+      const player = state.players[playerIdx];
+      const updatedBf = [...player.battlefield];
+      updatedBf[permIdx] = {
+        ...perm,
+        temporaryPtMods: [...(perm.temporaryPtMods || []), {
+          power: powerBuff, toughness: toughnessBuff,
+          source: 'pump-keyword', turn: state.turn,
+        }],
+        temporaryKeywords: [...(perm.temporaryKeywords || []), { keyword, source: 'pump-keyword', turn: state.turn }],
+      };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[playerIdx] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `${perm.name} gets +${powerBuff}/+${toughnessBuff} and gains ${keyword} until end of turn.`);
+      return { state, resolved: true, description: `${perm.name} +${powerBuff}/+${toughnessBuff} ${keyword}` };
+    },
+  },
+
+  // Extra-2: "destroy all enchantments" (Back to Nature, Tranquility)
+  {
+    name: 'destroy-all-enchantments',
+    match: /destroy\s+all\s+enchantments?/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      let destroyed = 0;
+      for (let pi = 0; pi < 2; pi++) {
+        const player = state.players[pi as 0 | 1];
+        for (const perm of [...player.battlefield]) {
+          if (perm.typeLine.toLowerCase().includes('enchantment')) {
+            state = removePermanentFromBattlefield(state, perm.id, 'graveyard');
+            destroyed++;
+          }
+        }
+      }
+      state = addLog(state, controller, `Destroys all enchantments (${destroyed} destroyed).`);
+      return { state, resolved: true, description: `destroy all enchantments (${destroyed})` };
+    },
+  },
+
+  // Extra-3: "destroy all artifacts" (Shatterstorm, Vandalblast overloaded)
+  {
+    name: 'destroy-all-artifacts',
+    match: /destroy\s+all\s+artifacts?/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      let destroyed = 0;
+      for (let pi = 0; pi < 2; pi++) {
+        const player = state.players[pi as 0 | 1];
+        for (const perm of [...player.battlefield]) {
+          if (perm.typeLine.toLowerCase().includes('artifact')) {
+            state = removePermanentFromBattlefield(state, perm.id, 'graveyard');
+            destroyed++;
+          }
+        }
+      }
+      state = addLog(state, controller, `Destroys all artifacts (${destroyed} destroyed).`);
+      return { state, resolved: true, description: `destroy all artifacts (${destroyed})` };
+    },
+  },
+
+  // Extra-4: "each player sacrifices a creature" (Fleshbag Marauder, Plaguecrafter)
+  {
+    name: 'each-player-sacrifices-creature',
+    match: /each\s+(?:player|opponent)\s+sacrifices?\s+(?:a|one)\s+creature/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      for (let pi = 0; pi < 2; pi++) {
+        const player = state.players[pi as 0 | 1];
+        const creatures = player.battlefield.filter(p => p.basePower !== undefined);
+        if (creatures.length > 0) {
+          // Sacrifice the weakest creature (lowest power)
+          const weakest = creatures.sort((a, b) => (a.currentPower ?? a.basePower ?? 0) - (b.currentPower ?? b.basePower ?? 0))[0];
+          state = removePermanentFromBattlefield(state, weakest.id, 'graveyard');
+          state = addLog(state, pi as 0 | 1, `Sacrifices ${weakest.name}.`);
+        }
+      }
+      return { state, resolved: true, description: 'each player sacrifices a creature' };
+    },
+  },
+
+  // Extra-5: "proliferate" (add a counter of each kind already there)
+  {
+    name: 'proliferate',
+    match: /\bproliferate\b/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      const player = state.players[controller];
+      let count = 0;
+      const updatedBf = player.battlefield.map(perm => {
+        const counterTypes = Object.keys(perm.counters || {});
+        if (counterTypes.length === 0) return perm;
+        const updatedCounters = { ...perm.counters };
+        for (const ct of counterTypes) {
+          if ((updatedCounters[ct] || 0) > 0) {
+            updatedCounters[ct] = (updatedCounters[ct] || 0) + 1;
+            count++;
+          }
+        }
+        return { ...perm, counters: updatedCounters };
+      });
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `Proliferates (${count} counters added).`);
+      return { state, resolved: true, description: `proliferate (${count})` };
+    },
+  },
 ];
 
 // ─── Fallback Generic Resolver ───

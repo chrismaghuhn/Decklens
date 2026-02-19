@@ -88,6 +88,47 @@ export interface Permanent extends Card {
   /** Keywords granted until end of turn (e.g. "gains flying until end of turn") */
   temporaryKeywords?: TemporaryKeyword[];
 
+  // ─── Layer System Fields (CR 613) ───
+
+  /** Layer 1: Copy effect — this permanent is a copy of another card */
+  copyEffect?: {
+    /** The name of the copied card */
+    copiedName: string;
+    copiedTypeLine: string;
+    copiedOracleText: string;
+    copiedPower?: string;
+    copiedToughness?: string;
+    copiedColors: string[];
+    copiedManaCost?: string;
+    /** Timestamp for ordering among multiple copy effects */
+    timestamp: number;
+  };
+
+  /** Layer 4: Type changes applied to this permanent */
+  typeChanges?: Array<{
+    addedTypes: string[];
+    removedAllTypes?: boolean;
+    source: string;
+    timestamp: number;
+  }>;
+
+  /** Layer 5: Color changes applied to this permanent */
+  colorChanges?: Array<{
+    addedColors: string[];
+    setColors?: string[];  // replaces all colors
+    source: string;
+    timestamp: number;
+  }>;
+
+  /** Layer 6: Ability changes — tracks "loses all abilities" effects */
+  lostAllAbilities?: {
+    source: string;
+    timestamp: number;
+  };
+
+  /** Stores original oracle text before "loses all abilities" was applied (for restoration at cleanup) */
+  originalOracleText?: string;
+
   // ─── Equipment / Aura Attachment ───
 
   /** ID of the permanent this is attached to (for Equipment/Auras) */

@@ -11,10 +11,17 @@
  * - Opponent debuffs: "Creatures your opponents control get -2/-2"
  *
  * MTG Layer System (Rule 613):
- * This module applies in Layer 7c (power/toughness modifications) and
- * Layer 6 (ability-adding effects). The full layer system is simplified
- * here since we don't track timestamps for dependency ordering — all
- * continuous effects are applied simultaneously from a clean base.
+ * This module implements the full layer system:
+ *   Layer 1: Copy effects (Clone, etc.)
+ *   Layer 2: Control-changing effects (handled imperatively elsewhere)
+ *   Layer 3: Text-changing effects (not implemented — extremely rare)
+ *   Layer 4: Type-changing effects (type additions/removals)
+ *   Layer 5: Color-changing effects (color additions/replacements)
+ *   Layer 6: Ability adding/removing effects (Humility, etc.)
+ *   Layer 7: P/T modifications (sublayers 7a-7e)
+ *
+ * Layers 1-6 are applied first, then Layer 7 operates on the modified state.
+ * Within each layer, effects are ordered by timestamp where applicable.
  *
  * Called frequently (on every state change), so performance matters.
  */
@@ -314,6 +321,57 @@ function parseStaticSetPtEffects(perm: Permanent): ParsedStaticEffect[] {
   return effects;
 }
 
+// ─── Layer 6: Static "Loses All Abilities" Parsing ───
+
+/** Parsed static "loses all abilities" effect from a permanent */
+interface ParsedStaticLoseAbilities {
+  sourceId: string;
+  sourceController: 0 | 1;
+  appliesToController: boolean;
+  excludeSelf: boolean;
+  typeFilter: string;
+}
+
+const LOSE_ABILITIES_PATTERN =
+  /(?:(other|each other)\s+)?(?:(\w+)\s+)?creatures?\s+(?:(you|your opponents?)\s+control)\s+(?:lose|have\s+no)\s+(?:all\s+)?abilities/gi;
+
+/**
+ * Parse static "loses all abilities" effects from a permanent's oracle text (Layer 6).
+ *
+ * These are continuous effects like Humility ("All creatures lose all abilities")
+ * that strip abilities from affected creatures as long as the source is on the battlefield.
+ */
+function parseStaticLoseAbilitiesEffects(perm: Permanent): ParsedStaticLoseAbilities[] {
+  const text = perm.oracleText || '';
+  if (!text) return [];
+  const effects: ParsedStaticLoseAbilities[] = [];
+  const paragraphs = text.split('\n');
+  for (const paragraph of paragraphs) {
+    const trimmed = paragraph.trim();
+    if (!trimmed) continue;
+    if (/^when(ever)?[\s,]/i.test(trimmed)) continue;
+    if (/^at\s+(the\s+)?beginning/i.test(trimmed)) continue;
+    if (/until\s+end\s+of\s+turn/i.test(trimmed)) continue;
+    if (/\{[^}]*\}\s*:/i.test(trimmed) && !/^\{t\}\s*:/i.test(trimmed)) continue;
+
+    LOSE_ABILITIES_PATTERN.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = LOSE_ABILITIES_PATTERN.exec(trimmed)) !== null) {
+      const otherPrefix = match[1];
+      const typeWord = match[2];
+      const target = match[3];
+      const excludeSelf = !!otherPrefix;
+      const appliesToController = target.toLowerCase() === 'you';
+      let typeFilter = '';
+      if (typeWord && typeWord.toLowerCase() !== 'creature' && typeWord.toLowerCase() !== 'creatures') {
+        typeFilter = typeWord.toLowerCase();
+      }
+      effects.push({ sourceId: perm.id, sourceController: perm.controller, appliesToController, excludeSelf, typeFilter });
+    }
+  }
+  return effects;
+}
+
 /**
  * Extract recognized MTG keywords from a text fragment.
  * Handles "flying", "flying and first strike", "haste, menace", etc.
@@ -465,6 +523,154 @@ function doesEffectApply(
   return true;
 }
 
+// ─── Layer 7a: Characteristic-Defining Abilities (CR 604.3) ───
+
+/**
+ * Evaluate a star formula like "*", "*+1", "1+*", "2+*" etc.
+ * Star (*) is replaced by the count value.
+ */
+function evaluateStarFormula(
+  powerStr: string | undefined,
+  toughnessStr: string | undefined,
+  starValue: number
+): { power: number; toughness: number } {
+  const evalOne = (formula: string | undefined): number => {
+    if (!formula) return 0;
+    // Replace * with the actual value
+    const resolved = formula.replace(/\*/g, String(starValue));
+    // Handle "+1", "1+3", etc. as simple arithmetic
+    try {
+      // Safe eval for simple expressions like "3+1", "0", "4"
+      const parts = resolved.split('+').map(p => parseInt(p.trim(), 10) || 0);
+      return parts.reduce((a, b) => a + b, 0);
+    } catch {
+      return starValue;
+    }
+  };
+  return { power: evalOne(powerStr), toughness: evalOne(toughnessStr) };
+}
+
+/**
+ * Calculate Characteristic-Defining Abilities (CR 604.3, Layer 7a).
+ * CDA creatures have * in their power/toughness, e.g. Tarmogoyf is *\/*+1.
+ * These are calculated FIRST in Layer 7, before any other modifications.
+ */
+function calculateCDA(
+  creature: Permanent,
+  state: GameState
+): { power: number; toughness: number } | null {
+  const oracleText = (creature.oracleText || '').toLowerCase();
+  const power = creature.power; // string like "*" or "1+*"
+  const toughness = creature.toughness; // string like "*" or "*+1"
+
+  // Only process if power or toughness contains '*'
+  if (!power?.includes('*') && !toughness?.includes('*')) return null;
+
+  // Pattern 1: Card types in graveyards (Tarmogoyf, Deathrite Shaman)
+  if (oracleText.includes('card type') && (oracleText.includes('graveyard') || oracleText.includes('graveyards'))) {
+    const types = new Set<string>();
+    for (const player of state.players) {
+      for (const card of player.graveyard) {
+        const tl = (card.typeLine || '').toLowerCase();
+        if (tl.includes('creature')) types.add('creature');
+        if (tl.includes('artifact')) types.add('artifact');
+        if (tl.includes('enchantment')) types.add('enchantment');
+        if (tl.includes('instant')) types.add('instant');
+        if (tl.includes('sorcery')) types.add('sorcery');
+        if (tl.includes('land')) types.add('land');
+        if (tl.includes('planeswalker')) types.add('planeswalker');
+        if (tl.includes('tribal')) types.add('tribal');
+        if (tl.includes('kindred')) types.add('kindred');
+        if (tl.includes('battle')) types.add('battle');
+      }
+    }
+    return evaluateStarFormula(power, toughness, types.size);
+  }
+
+  // Pattern 2: Creature cards in graveyards (Nighthowler, Lhurgoyf, Boneyard Wurm)
+  if ((oracleText.includes('creature card') && oracleText.includes('graveyard')) ||
+      (oracleText.includes('creatures') && oracleText.includes('graveyard'))) {
+    let count = 0;
+    for (const player of state.players) {
+      count += player.graveyard.filter(c => (c.typeLine || '').toLowerCase().includes('creature')).length;
+    }
+    return evaluateStarFormula(power, toughness, count);
+  }
+
+  // Pattern 3: Cards in opponents' graveyards (Consuming Aberration)
+  if (oracleText.includes('opponent') && oracleText.includes('graveyard') && oracleText.includes('card')) {
+    const opponent = creature.controller === 0 ? 1 : 0;
+    const count = state.players[opponent].graveyard.length;
+    return evaluateStarFormula(power, toughness, count);
+  }
+
+  // Pattern 4: Cards in hand (Maro, Kagemaro, Soramaro)
+  if (oracleText.includes('cards in your hand') || oracleText.includes('cards in hand')) {
+    const count = state.players[creature.controller].hand.length;
+    return evaluateStarFormula(power, toughness, count);
+  }
+
+  // Pattern 5: Lands you control (Dakkon Blackblade, Multani)
+  if (oracleText.includes('land') && oracleText.includes('you control') &&
+      (power?.includes('*') || toughness?.includes('*'))) {
+    const count = state.players[creature.controller].battlefield.filter(
+      p => (p.typeLine || '').toLowerCase().includes('land')
+    ).length;
+    return evaluateStarFormula(power, toughness, count);
+  }
+
+  // Pattern 6: Enchantments you control (Drove of Elves variant)
+  if (oracleText.includes('enchantment') && oracleText.includes('you control')) {
+    const count = state.players[creature.controller].battlefield.filter(
+      p => (p.typeLine || '').toLowerCase().includes('enchantment')
+    ).length;
+    return evaluateStarFormula(power, toughness, count);
+  }
+
+  // Pattern 7: Devotion (Nykthos creature aspects, Erebos, Thassa)
+  if (oracleText.includes('devotion')) {
+    // Count mana symbols of a color in mana costs of permanents you control
+    const devotionColor = oracleText.includes('devotion to black') ? 'B' :
+                          oracleText.includes('devotion to blue') ? 'U' :
+                          oracleText.includes('devotion to red') ? 'R' :
+                          oracleText.includes('devotion to green') ? 'G' :
+                          oracleText.includes('devotion to white') ? 'W' : null;
+    if (devotionColor) {
+      let devotion = 0;
+      for (const perm of state.players[creature.controller].battlefield) {
+        const mc = perm.manaCost || '';
+        const regex = new RegExp(`\\{${devotionColor}\\}`, 'gi');
+        const matches = mc.match(regex);
+        if (matches) devotion += matches.length;
+      }
+      return evaluateStarFormula(power, toughness, devotion);
+    }
+  }
+
+  // Pattern 8: Instants and sorceries in graveyard (Crackling Drake variant)
+  if ((oracleText.includes('instant') && oracleText.includes('sorcery')) &&
+      (oracleText.includes('graveyard') || oracleText.includes('exile'))) {
+    let count = 0;
+    for (const player of state.players) {
+      count += player.graveyard.filter(c => {
+        const tl = (c.typeLine || '').toLowerCase();
+        return tl.includes('instant') || tl.includes('sorcery');
+      }).length;
+    }
+    return evaluateStarFormula(power, toughness, count);
+  }
+
+  // Pattern 9: Artifacts you control (Broodstar, Cranial Plating CDA)
+  if (oracleText.includes('artifact') && oracleText.includes('you control') && !oracleText.includes('enchantment')) {
+    const count = state.players[creature.controller].battlefield.filter(
+      p => (p.typeLine || '').toLowerCase().includes('artifact')
+    ).length;
+    return evaluateStarFormula(power, toughness, count);
+  }
+
+  return null; // Not a recognized CDA — use base P/T
+}
+
 // ─── Main: Apply Continuous Effects ───
 
 /**
@@ -507,6 +713,17 @@ export function applyContinuousEffects(state: GameState): GameState {
     }
   }
 
+  // Pre-parse static "loses all abilities" effects (Humility-type, Layer 6)
+  const allStaticLoseAbilities: ParsedStaticLoseAbilities[] = [];
+  for (let p = 0; p < 2; p++) {
+    const player = state.players[p as 0 | 1];
+    for (const perm of player.battlefield) {
+      if (!perm.oracleText) continue;
+      const loseAbilityEffects = parseStaticLoseAbilitiesEffects(perm);
+      allStaticLoseAbilities.push(...loseAbilityEffects);
+    }
+  }
+
   // Build a lookup map of all permanents by ID across both battlefields
   // for fast attachment resolution
   const allPermsById = new Map<string, Permanent>();
@@ -519,9 +736,178 @@ export function applyContinuousEffects(state: GameState): GameState {
   let stateChanged = false;
   const newPlayers = [...state.players] as [PlayerState, PlayerState];
 
+  // === CR 613: Layers 1-6 (applied before P/T modifications) ===
+
+  // --- Layer 1: Copy Effects ---
+  // If a permanent has a copyEffect, its copiable values become those of the copied card.
+  // This affects name, types, oracle text, P/T, colors, mana cost.
   for (let p = 0; p < 2; p++) {
     const playerIdx = p as 0 | 1;
-    const player = state.players[playerIdx];
+    const player = newPlayers[playerIdx];
+    for (let i = 0; i < player.battlefield.length; i++) {
+      const perm = player.battlefield[i];
+      if (perm.copyEffect) {
+        const copy = perm.copyEffect;
+        const updatedBf = [...player.battlefield];
+        const newBasePower = copy.copiedPower ? parseInt(copy.copiedPower, 10) || 0 : perm.basePower;
+        const newBaseToughness = copy.copiedToughness ? parseInt(copy.copiedToughness, 10) || 0 : perm.baseToughness;
+        updatedBf[i] = {
+          ...perm,
+          name: copy.copiedName,
+          typeLine: copy.copiedTypeLine,
+          oracleText: copy.copiedOracleText,
+          colors: copy.copiedColors,
+          manaCost: copy.copiedManaCost || perm.manaCost,
+          basePower: newBasePower,
+          baseToughness: newBaseToughness,
+          power: copy.copiedPower || perm.power,
+          toughness: copy.copiedToughness || perm.toughness,
+        };
+        newPlayers[playerIdx] = { ...player, battlefield: updatedBf };
+        stateChanged = true;
+      }
+    }
+  }
+
+  // --- Layer 2: Control-Changing Effects ---
+  // Already handled at action execution time via temporaryControlChange field.
+  // The controller field is set when the effect is applied and reverted at end of turn.
+  // No additional processing needed here since it's done imperatively.
+
+  // --- Layer 3: Text-Changing Effects (not implemented — extremely rare) ---
+
+  // --- Layer 4: Type-Changing Effects ---
+  // Apply type modifications (e.g., "creatures you control are Zombies in addition to their other types")
+  for (let p = 0; p < 2; p++) {
+    const playerIdx = p as 0 | 1;
+    const player = newPlayers[playerIdx];
+    let bfChanged = false;
+    const updatedBf = [...player.battlefield];
+    for (let i = 0; i < updatedBf.length; i++) {
+      const perm = updatedBf[i];
+      if (perm.typeChanges && perm.typeChanges.length > 0) {
+        // Sort by timestamp, apply in order
+        const sorted = [...perm.typeChanges].sort((a, b) => a.timestamp - b.timestamp);
+        let typeLine = perm.typeLine;
+        for (const tc of sorted) {
+          if (tc.removedAllTypes) {
+            // Remove all creature types (keep supertypes and card types)
+            const parts = typeLine.split('\u2014');
+            typeLine = parts[0].trim(); // keep everything before the dash
+          }
+          for (const addType of tc.addedTypes) {
+            if (!typeLine.toLowerCase().includes(addType.toLowerCase())) {
+              if (typeLine.includes('\u2014')) {
+                typeLine = typeLine + ' ' + addType;
+              } else {
+                typeLine = typeLine + ' \u2014 ' + addType;
+              }
+            }
+          }
+        }
+        if (typeLine !== perm.typeLine) {
+          updatedBf[i] = { ...perm, typeLine };
+          bfChanged = true;
+        }
+      }
+    }
+    if (bfChanged) {
+      newPlayers[playerIdx] = { ...newPlayers[playerIdx], battlefield: updatedBf };
+      stateChanged = true;
+    }
+  }
+
+  // --- Layer 5: Color-Changing Effects ---
+  for (let p = 0; p < 2; p++) {
+    const playerIdx = p as 0 | 1;
+    const player = newPlayers[playerIdx];
+    let bfChanged = false;
+    const updatedBf = [...player.battlefield];
+    for (let i = 0; i < updatedBf.length; i++) {
+      const perm = updatedBf[i];
+      if (perm.colorChanges && perm.colorChanges.length > 0) {
+        const sorted = [...perm.colorChanges].sort((a, b) => a.timestamp - b.timestamp);
+        let colors = [...(perm.colors || [])];
+        for (const cc of sorted) {
+          if (cc.setColors) {
+            colors = [...cc.setColors]; // Replace all colors
+          }
+          for (const addColor of cc.addedColors) {
+            if (!colors.includes(addColor)) {
+              colors.push(addColor);
+            }
+          }
+        }
+        const currentColors = perm.colors || [];
+        if (colors.length !== currentColors.length || colors.some((c, idx) => c !== currentColors[idx])) {
+          updatedBf[i] = { ...perm, colors };
+          bfChanged = true;
+        }
+      }
+    }
+    if (bfChanged) {
+      newPlayers[playerIdx] = { ...newPlayers[playerIdx], battlefield: updatedBf };
+      stateChanged = true;
+    }
+  }
+
+  // --- Layer 6: Ability Adding/Removing Effects ---
+  // Apply static "loses all abilities" effects to matching creatures (e.g. Humility)
+  // Static keyword grants are already handled in Layer 7c via getStaticBonuses.
+  // Here we handle the "loses all abilities" case specifically.
+  for (let p = 0; p < 2; p++) {
+    const playerIdx = p as 0 | 1;
+    const player = newPlayers[playerIdx];
+    let bfChanged = false;
+    const updatedBf = [...player.battlefield];
+    for (let i = 0; i < updatedBf.length; i++) {
+      const creature = updatedBf[i];
+      if (creature.basePower === undefined) continue; // Skip non-creatures
+
+      // Check static "loses all abilities" effects from other permanents
+      for (const effect of allStaticLoseAbilities) {
+        const matches = doesEffectApply(
+          { ...effect, power: 0, toughness: 0, keywords: [] } as ParsedStaticEffect,
+          creature, playerIdx
+        );
+        if (matches && !creature.lostAllAbilities) {
+          updatedBf[i] = {
+            ...creature,
+            lostAllAbilities: { source: effect.sourceId, timestamp: 0 },
+            originalOracleText: creature.originalOracleText || creature.oracleText,
+            oracleText: '',
+            temporaryKeywords: [],
+            abilities: [],
+          };
+          bfChanged = true;
+          break; // One "lose all abilities" is enough
+        }
+      }
+
+      // Also handle per-permanent lostAllAbilities flag (set by targeted spells like Turn to Frog)
+      const perm = updatedBf[i]; // Re-read in case we just modified it above
+      if (perm.lostAllAbilities && perm.oracleText && perm.oracleText.length > 0) {
+        updatedBf[i] = {
+          ...perm,
+          originalOracleText: perm.originalOracleText || perm.oracleText,
+          oracleText: '',
+          temporaryKeywords: [],
+          abilities: [],
+        };
+        bfChanged = true;
+      }
+    }
+    if (bfChanged) {
+      newPlayers[playerIdx] = { ...newPlayers[playerIdx], battlefield: updatedBf };
+      stateChanged = true;
+    }
+  }
+
+  // === CR 613.4: Layer 7 — P/T Modifications ===
+
+  for (let p = 0; p < 2; p++) {
+    const playerIdx = p as 0 | 1;
+    const player = newPlayers[playerIdx];
     let bfChanged = false;
     const newBattlefield = [...player.battlefield];
 
@@ -535,11 +921,16 @@ export function applyContinuousEffects(state: GameState): GameState {
 
       // === CR 613.4: Layer 7 Sublayers (applied in order) ===
 
-      // --- Layer 7a: Characteristic-Defining Abilities (e.g. Tarmogoyf */*+1) ---
-      // For now, CDA creatures use their base P/T as-is (parsed from card data).
-      // A future enhancement can dynamically calculate * values.
+      // --- Layer 7a: Characteristic-Defining Abilities (CR 604.3) ---
+      // CDA creatures have * in their power/toughness that depends on game state.
+      // Examples: Tarmogoyf (*/*+1 = card types in GY), Nighthowler (*/* = creatures in GY)
       let totalPower = creature.basePower;
       let totalToughness = creature.baseToughness;
+      const cdaResult = calculateCDA(creature, state);
+      if (cdaResult !== null) {
+        totalPower = cdaResult.power;
+        totalToughness = cdaResult.toughness;
+      }
 
       // --- Layer 7b: Set P/T to specific value (e.g. "becomes a 3/3") ---
       // Sort set-effects by timestamp; the latest one wins (CR 613.7)
