@@ -1000,7 +1000,10 @@ export class GameLoop {
   /** Check if a spell needs targeting (heuristic based on oracle text) */
   private spellNeedsTarget(card: Card): boolean {
     const text = (card.oracleText ?? '').toLowerCase();
-    return text.includes('target') && !card.typeLine.toLowerCase().includes('enchantment — aura');
+    const typeLine = (card.typeLine ?? '').toLowerCase();
+    // Auras always need a target (the enchanted permanent)
+    if (typeLine.includes('enchantment') && typeLine.includes('aura')) return true;
+    return text.includes('target');
   }
 
   /** Handle hand card click — cast spell or play land */
@@ -1408,7 +1411,7 @@ export class GameLoop {
         if (equipMatch && perm.typeLine.toLowerCase().includes('equipment')) {
           this.handleEquipAbility(perm, equipMatch[1]);
         } else {
-          this.submitAction({ type: 'activate-ability', player: this.humanPlayer, sourceId: perm.id, abilityIndex: index, targets: [] });
+          this.activateAbilityWithTargeting(perm, ability, index);
         }
       }
       return;
@@ -1468,7 +1471,7 @@ export class GameLoop {
           if (equipMatch && perm.typeLine.toLowerCase().includes('equipment')) {
             this.handleEquipAbility(perm, equipMatch[1]);
           } else {
-            this.submitAction({ type: 'activate-ability', player: this.humanPlayer, sourceId: perm.id, abilityIndex: index, targets: [] });
+            this.activateAbilityWithTargeting(perm, ability, index);
           }
         }
       });
@@ -1511,6 +1514,54 @@ export class GameLoop {
     overlay.appendChild(panel);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
     document.body.appendChild(overlay);
+  }
+
+  /** Activate an ability, entering targeting mode if it needs targets */
+  private activateAbilityWithTargeting(perm: Permanent, ability: Ability, abilityIndex: number): void {
+    const text = (ability.text || '').toLowerCase();
+    const needsTarget = /target\s+(creature|permanent|artifact|enchantment|player|opponent)/i.test(text);
+
+    if (!needsTarget) {
+      // No targeting needed — fire directly
+      this.submitAction({ type: 'activate-ability', player: this.humanPlayer, sourceId: perm.id, abilityIndex, targets: [] });
+      return;
+    }
+
+    // Determine target filter from ability text
+    const isGY = /target\s+card\s+(?:in|from)\s+(?:a\s+)?graveyard/i.test(text);
+    const zone: 'battlefield' | 'graveyard' = isGY ? 'graveyard' : 'battlefield';
+
+    // Create a pseudo-card for the targeting system
+    const pseudoCard: Card = {
+      id: perm.id, oracleId: perm.oracleId, name: perm.name,
+      manaCost: perm.manaCost, cmc: perm.cmc, typeLine: perm.typeLine,
+      oracleText: ability.text, colors: perm.colors, colorIdentity: perm.colorIdentity,
+      rarity: perm.rarity, tags: perm.tags, imageUrl: perm.imageUrl, owner: perm.owner,
+    };
+
+    this.targetingMode = true;
+    this.targetingCard = pseudoCard;
+    this.targetingState = {
+      card: pseudoCard,
+      requiredTargets: 1,
+      collectedTargets: [],
+      zone,
+      onComplete: (targets) => {
+        this.targetingMode = false;
+        this.targetingCard = null;
+        this.targetingState = null;
+        this.submitAction({ type: 'activate-ability', player: this.humanPlayer, sourceId: perm.id, abilityIndex, targets });
+        this.render();
+      },
+      onCancel: () => {
+        this.targetingMode = false;
+        this.targetingCard = null;
+        this.targetingState = null;
+        this.render();
+      },
+    };
+    this.render();
+    this.appendToLog(`Select target for ${perm.name}'s ability...`);
   }
 
   /** Highlight selected attackers */

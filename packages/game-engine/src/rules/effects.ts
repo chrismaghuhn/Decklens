@@ -9163,6 +9163,172 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     },
   },
 
+  // ── Death triggers: "when ~ dies, [effect]" ──
+  {
+    name: 'dies-draw',
+    match: /when\s+(?:~|this creature)\s+dies,?\s+draw\s+(a|\d+|two|three)\s+cards?/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const count = parseNumber(m[1]);
+      state = drawCards(state, controller, count);
+      state = addLog(state, controller, `Death trigger: drew ${count} card(s).`);
+      return { state, resolved: true, description: `dies → draw ${count}` };
+    },
+  },
+  {
+    name: 'dies-create-token',
+    match: /when\s+(?:~|this creature)\s+dies,?\s+create\s+(a|an|\d+|two|three)\s+(\d+)\/(\d+)\s+([^.]+)\s+(?:creature\s+)?tokens?/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const count = parseNumber(m[1]);
+      const pw = parseInt(m[2]); const th = parseInt(m[3]);
+      const name = m[4].trim().replace(/\s+creature/i, '');
+      const tokens: Permanent[] = [];
+      for (let i = 0; i < count; i++) {
+        const tokenCard: Card = {
+          id: generateCardId(), oracleId: `token_${name.toLowerCase()}`, name,
+          manaCost: '', cmc: 0, typeLine: `Token Creature — ${name}`,
+          oracleText: '', power: String(pw), toughness: String(th),
+          colors: [], colorIdentity: [], rarity: 'common', tags: [], imageUrl: '', owner: controller,
+        };
+        const perm = cardToPermanent(tokenCard, controller, state.turn);
+        perm.currentPower = pw; perm.currentToughness = th; perm.basePower = pw; perm.baseToughness = th;
+        tokens.push(perm);
+      }
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...players[controller], battlefield: [...players[controller].battlefield, ...tokens] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Death trigger: created ${count} ${pw}/${th} ${name} token(s).`);
+      return { state, resolved: true, description: `dies → ${count} ${name} token(s)` };
+    },
+  },
+  {
+    name: 'dies-deal-damage',
+    match: /when\s+(?:~|this creature)\s+dies,?\s+(?:it\s+)?deals?\s+(\d+)\s+damage\s+to\s+(any\s+target|target\s+(?:creature|player|opponent)|each\s+opponent)/i,
+    requiresTarget: false,
+    apply: (state, controller, targets, m) => {
+      const amount = parseInt(m[1]); const targetText = m[2].toLowerCase();
+      if (targetText.includes('opponent') || targetText.includes('player')) {
+        const opponent = (controller === 0 ? 1 : 0) as 0 | 1;
+        const players = [...state.players] as [PlayerState, PlayerState];
+        players[opponent] = { ...players[opponent], life: players[opponent].life - amount };
+        state = { ...state, players };
+        state = addLog(state, controller, `Death trigger: dealt ${amount} damage to opponent.`);
+      } else if (targets.length > 0) {
+        const t = targets[0];
+        if (t.type === 'player') {
+          const pIdx = parseInt(t.id) as 0 | 1;
+          const players = [...state.players] as [PlayerState, PlayerState];
+          players[pIdx] = { ...players[pIdx], life: players[pIdx].life - amount };
+          state = { ...state, players };
+        }
+        state = addLog(state, controller, `Death trigger: dealt ${amount} damage.`);
+      }
+      return { state, resolved: true, description: `dies → ${amount} damage` };
+    },
+  },
+  {
+    name: 'dies-gain-life',
+    match: /when\s+(?:~|this creature)\s+dies,?\s+(?:you\s+)?gain\s+(\d+)\s+life/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const amount = parseInt(m[1]);
+      state = gainLife(state, controller, amount);
+      state = addLog(state, controller, `Death trigger: gained ${amount} life.`);
+      return { state, resolved: true, description: `dies → gain ${amount} life` };
+    },
+  },
+  {
+    name: 'dies-return-to-hand',
+    match: /when\s+(?:~|this creature)\s+dies,?\s+return\s+(?:it|~)\s+to\s+(?:its\s+)?owner'?s?\s+hand/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) return { state, resolved: true, description: 'dies → return (no source)' };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const gy = [...players[controller].graveyard];
+      const idx = gy.findIndex(c => c.name === source.name);
+      if (idx !== -1) {
+        const card = gy[idx];
+        gy.splice(idx, 1);
+        players[controller] = { ...players[controller], graveyard: gy, hand: [...players[controller].hand, card] };
+        state = { ...state, players };
+        state = addLog(state, controller, `Death trigger: ${source.name} returned to hand.`);
+      }
+      return { state, resolved: true, description: `dies → return to hand` };
+    },
+  },
+  {
+    name: 'dies-each-opponent-loses-life',
+    match: /when\s+(?:~|this creature)\s+dies,?\s+each\s+opponent\s+loses?\s+(\d+)\s+life/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const amount = parseInt(m[1]);
+      const opponent = (controller === 0 ? 1 : 0) as 0 | 1;
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[opponent] = { ...players[opponent], life: players[opponent].life - amount };
+      state = { ...state, players };
+      state = addLog(state, controller, `Death trigger: each opponent loses ${amount} life.`);
+      return { state, resolved: true, description: `dies → opponents lose ${amount} life` };
+    },
+  },
+  {
+    name: 'dies-create-treasure',
+    match: /when\s+(?:~|this creature)\s+dies,?\s+create\s+(a|an|\d+|two|three)\s+treasure\s+tokens?/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const count = parseNumber(m[1]);
+      const tokens: Permanent[] = [];
+      for (let i = 0; i < count; i++) {
+        const tokenCard: Card = {
+          id: generateCardId(), oracleId: 'token_treasure', name: 'Treasure',
+          manaCost: '', cmc: 0, typeLine: 'Token Artifact — Treasure',
+          oracleText: '{T}, Sacrifice this artifact: Add one mana of any color.',
+          colors: [], colorIdentity: [], rarity: 'common', tags: [], imageUrl: '', owner: controller,
+        };
+        tokens.push(cardToPermanent(tokenCard, controller, state.turn));
+      }
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[controller] = { ...players[controller], battlefield: [...players[controller].battlefield, ...tokens] };
+      state = { ...state, players };
+      state = addLog(state, controller, `Death trigger: created ${count} Treasure token(s).`);
+      return { state, resolved: true, description: `dies → ${count} Treasure` };
+    },
+  },
+  {
+    name: 'whenever-creature-dies-draw',
+    match: /whenever\s+(?:a|another)\s+creature\s+(?:you\s+control\s+)?dies,?\s+(?:you\s+(?:may\s+)?)?draw\s+a\s+card/i,
+    requiresTarget: false,
+    apply: (state, controller) => {
+      state = drawCards(state, controller, 1);
+      state = addLog(state, controller, `Creature death trigger: drew a card.`);
+      return { state, resolved: true, description: 'creature dies → draw 1' };
+    },
+  },
+  {
+    name: 'whenever-creature-dies-counter',
+    match: /whenever\s+(?:a|another)\s+creature\s+(?:you\s+control\s+)?dies,?\s+put\s+a\s+\+1\/\+1\s+counter\s+on\s+~/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) return { state, resolved: true, description: 'creature dies counter (no source)' };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const bf = [...players[controller].battlefield];
+      const idx = bf.findIndex(p => p.name === source.name);
+      if (idx !== -1) {
+        const perm = bf[idx];
+        const counters = { ...perm.counters, '+1/+1': (perm.counters['+1/+1'] || 0) + 1 };
+        bf[idx] = {
+          ...perm, counters,
+          currentPower: (perm.basePower || 0) + (counters['+1/+1'] || 0) - (counters['-1/-1'] || 0),
+          currentToughness: (perm.baseToughness || 0) + (counters['+1/+1'] || 0) - (counters['-1/-1'] || 0),
+        };
+        players[controller] = { ...players[controller], battlefield: bf };
+        state = { ...state, players };
+        state = addLog(state, controller, `Creature death trigger: +1/+1 counter on ${source.name}.`);
+      }
+      return { state, resolved: true, description: 'creature dies → +1/+1 counter' };
+    },
+  },
+
   // ── Miracle — reduced cost if first draw this turn ──
   {
     name: 'miracle',
