@@ -506,11 +506,30 @@ function validateCastSpell(
     delveReduction = action.delveCards.length;
   }
 
+  // Affinity for artifacts: automatic cost reduction (CR 702.40)
+  let affinityReduction = 0;
+  if (action.affinityReduction && action.affinityReduction > 0) {
+    if (!card.oracleText?.toLowerCase().includes('affinity for artifacts')) {
+      return 'Card does not have affinity for artifacts.';
+    }
+    const artifactCount = player.battlefield.filter(p => p.typeLine?.toLowerCase().includes('artifact')).length;
+    affinityReduction = Math.min(action.affinityReduction, artifactCount);
+  }
+
+  // Improvise: tap artifacts to reduce generic cost (CR 702.125)
+  let improviseReduction = 0;
+  if (action.improviseArtifacts && action.improviseArtifacts.length > 0) {
+    if (!card.oracleText?.toLowerCase().includes('improvise')) {
+      return 'Card does not have improvise.';
+    }
+    improviseReduction = action.improviseArtifacts.length;
+  }
+
   let cost = parseManaCost(manaCostStr);
 
-  // Apply convoke/delve reductions to generic mana
-  if (convokeReduction > 0 || delveReduction > 0) {
-    const totalReduction = convokeReduction + delveReduction;
+  // Apply convoke/delve/affinity/improvise reductions to generic mana
+  if (convokeReduction > 0 || delveReduction > 0 || affinityReduction > 0 || improviseReduction > 0) {
+    const totalReduction = convokeReduction + delveReduction + affinityReduction + improviseReduction;
     cost = { ...cost, generic: Math.max(0, cost.generic - totalReduction) };
   }
 

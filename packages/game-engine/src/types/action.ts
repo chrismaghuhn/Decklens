@@ -72,6 +72,10 @@ export type GameAction =
       convokeCreatures?: string[];
       /** Card IDs exiled from graveyard for delve (each reduces generic cost by {1}) */
       delveCards?: string[];
+      /** Affinity for artifacts: automatic cost reduction (1 per artifact you control) */
+      affinityReduction?: number;
+      /** Artifact IDs tapped for improvise (each reduces generic cost by {1}) */
+      improviseArtifacts?: string[];
       /** Cast the adventure half instead of the creature */
       castAsAdventure?: boolean;
       /** Cast the back face of a modal DFC card */

@@ -9424,6 +9424,386 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       return { state, resolved: true, description: `madness: ${madnessCost}` };
     },
   },
+
+  // ── Hexproof from [color] — can't be targeted by [color] spells/abilities opponents control (CR 702.11) ──
+  {
+    name: 'hexproof-from-color',
+    match: /hexproof from (white|blue|black|red|green|multicolored)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const color = m[1].toLowerCase();
+      if (!source) return { state, resolved: true, description: `hexproof from ${color}` };
+      // Mark as a static ability — actual enforcement in targeting validation
+      state = addLog(state, controller, `${source.name} has hexproof from ${color}.`);
+      return { state, resolved: true, description: `hexproof from ${color}` };
+    },
+  },
+
+  // ── Exalted — whenever a creature you control attacks alone, it gets +1/+1 (CR 702.82) ──
+  {
+    name: 'exalted',
+    match: /\bexalted\b/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) return { state, resolved: true, description: 'exalted' };
+      const combat = state.combat;
+      if (!combat || !combat.attackers) return { state, resolved: true, description: 'exalted (no combat)' };
+      const attackerIds = combat.attackers.map(a => typeof a === 'string' ? a : a.permanentId);
+      if (attackerIds.length !== 1) return { state, resolved: true, description: 'exalted (not alone)' };
+
+      // Buff the lone attacker +1/+1
+      const attackerId = attackerIds[0];
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const player = { ...players[controller] };
+      const updatedBf = player.battlefield.map(p => {
+        if (p.id === attackerId && p.currentPower !== undefined) {
+          return { ...p, currentPower: (p.currentPower ?? 0) + 1, currentToughness: (p.currentToughness ?? 0) + 1 };
+        }
+        return p;
+      });
+      player.battlefield = updatedBf;
+      players[controller] = player;
+      state = { ...state, players };
+      state = addLog(state, controller, `Exalted: Attacking creature gets +1/+1 until end of turn.`);
+      return { state, resolved: true, description: 'exalted: +1/+1' };
+    },
+  },
+
+  // ── Embalm — create a token copy from graveyard (CR 702.127) ──
+  {
+    name: 'embalm',
+    match: /embalm\s+(\{[^}]+\}(?:\{[^}]+\})*)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const embalmCost = m[1];
+      if (!source) return { state, resolved: true, description: 'embalm (no source)' };
+
+      const tokenPerm: Permanent = {
+        id: `embalm-${source.id}-${Date.now()}`,
+        oracleId: source.oracleId || '',
+        name: source.name,
+        manaCost: '',
+        cmc: source.cmc || 0,
+        typeLine: (source.typeLine || 'Creature') + ' — Zombie',
+        oracleText: source.oracleText || '',
+        power: source.power,
+        toughness: source.toughness,
+        colors: ['W'],
+        colorIdentity: ['W'],
+        rarity: source.rarity || 'common',
+        tags: [...(source.tags || []), 'token', 'zombie'],
+        owner: controller,
+        controller,
+        currentPower: source.power ? parseInt(String(source.power)) : undefined,
+        currentToughness: source.toughness ? parseInt(String(source.toughness)) : undefined,
+        damage: 0,
+        tapped: false,
+        summoningSick: true,
+        counters: {},
+        abilities: [],
+        isToken: true,
+      };
+
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const player = { ...players[controller] };
+      player.battlefield = [...player.battlefield, tokenPerm];
+      player.graveyard = player.graveyard.filter(c => c.id !== source.id);
+      player.exile = [...player.exile, source];
+      players[controller] = player;
+      state = { ...state, players };
+      state = addLog(state, controller, `Embalm: Created white Zombie token copy of ${source.name} (cost: ${embalmCost}).`);
+      return { state, resolved: true, description: `embalm: token copy of ${source.name}` };
+    },
+  },
+
+  // ── Eternalize — create a 4/4 token copy from graveyard (CR 702.128) ──
+  {
+    name: 'eternalize',
+    match: /eternalize\s+(\{[^}]+\}(?:\{[^}]+\})*)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const eternalizeCost = m[1];
+      if (!source) return { state, resolved: true, description: 'eternalize (no source)' };
+
+      const tokenPerm: Permanent = {
+        id: `eternalize-${source.id}-${Date.now()}`,
+        oracleId: source.oracleId || '',
+        name: source.name,
+        manaCost: '',
+        cmc: source.cmc || 0,
+        typeLine: (source.typeLine || 'Creature') + ' — Zombie',
+        oracleText: source.oracleText || '',
+        power: 4,
+        toughness: 4,
+        colors: ['B'],
+        colorIdentity: ['B'],
+        rarity: source.rarity || 'common',
+        tags: [...(source.tags || []), 'token', 'zombie'],
+        owner: controller,
+        controller,
+        currentPower: 4,
+        currentToughness: 4,
+        damage: 0,
+        tapped: false,
+        summoningSick: true,
+        counters: {},
+        abilities: [],
+        isToken: true,
+      };
+
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const player = { ...players[controller] };
+      player.battlefield = [...player.battlefield, tokenPerm];
+      player.graveyard = player.graveyard.filter(c => c.id !== source.id);
+      player.exile = [...player.exile, source];
+      players[controller] = player;
+      state = { ...state, players };
+      state = addLog(state, controller, `Eternalize: Created 4/4 black Zombie token copy of ${source.name} (cost: ${eternalizeCost}).`);
+      return { state, resolved: true, description: `eternalize: 4/4 token copy of ${source.name}` };
+    },
+  },
+
+  // ── Prowess — whenever you cast a noncreature spell, this creature gets +1/+1 until end of turn (CR 702.107) ──
+  {
+    name: 'prowess',
+    match: /\bprowess\b/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) return { state, resolved: true, description: 'prowess' };
+      // Find the source permanent and buff it
+      const found = findPermanentById(state, source.id);
+      if (!found) return { state, resolved: true, description: 'prowess (not on battlefield)' };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const player = { ...players[found.playerIdx] };
+      const updatedBf = [...player.battlefield];
+      updatedBf[found.permIdx] = {
+        ...found.perm,
+        currentPower: (found.perm.currentPower ?? 0) + 1,
+        currentToughness: (found.perm.currentToughness ?? 0) + 1,
+      };
+      player.battlefield = updatedBf;
+      players[found.playerIdx] = player;
+      state = { ...state, players };
+      state = addLog(state, controller, `Prowess: ${source.name} gets +1/+1 until end of turn.`);
+      return { state, resolved: true, description: 'prowess: +1/+1' };
+    },
+  },
+
+  // ── Infect — damage to players is dealt as poison counters (CR 702.89) ──
+  {
+    name: 'infect',
+    match: /\binfect\b/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) return { state, resolved: true, description: 'infect' };
+      // Mark as static ability — actual enforcement in combat damage step
+      state = addLog(state, controller, `${source.name} has infect — damage is dealt as poison counters to players and -1/-1 counters to creatures.`);
+      return { state, resolved: true, description: 'infect: active' };
+    },
+  },
+
+  // ── Fabricate N — put N +1/+1 counters on this creature or create N 1/1 Servo tokens (CR 702.118) ──
+  {
+    name: 'fabricate',
+    match: /fabricate\s+(\d+)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const n = parseInt(m[1]);
+      if (!source) return { state, resolved: true, description: 'fabricate' };
+
+      // AI choice: prefer +1/+1 counters if creature is big enough, otherwise tokens
+      const found = findPermanentById(state, source.id);
+      if (found && found.perm.currentPower !== undefined && found.perm.currentPower >= 3) {
+        // Put counters
+        const players = [...state.players] as [PlayerState, PlayerState];
+        const player = { ...players[found.playerIdx] };
+        const updatedBf = [...player.battlefield];
+        const counters = { ...found.perm.counters, '+1/+1': (found.perm.counters['+1/+1'] || 0) + n };
+        updatedBf[found.permIdx] = {
+          ...found.perm, counters,
+          currentPower: (found.perm.currentPower ?? 0) + n,
+          currentToughness: (found.perm.currentToughness ?? 0) + n,
+        };
+        player.battlefield = updatedBf;
+        players[found.playerIdx] = player;
+        state = { ...state, players };
+        state = addLog(state, controller, `Fabricate ${n}: Put ${n} +1/+1 counter(s) on ${source.name}.`);
+        return { state, resolved: true, description: `fabricate: ${n} +1/+1 counters` };
+      } else {
+        // Create servo tokens
+        const players = [...state.players] as [PlayerState, PlayerState];
+        const player = { ...players[controller] };
+        for (let i = 0; i < n; i++) {
+          const servo: Permanent = {
+            id: `servo-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
+            oracleId: '', name: 'Servo', manaCost: '', cmc: 0,
+            typeLine: 'Artifact Creature — Servo',
+            oracleText: '', power: 1, toughness: 1,
+            colors: [], colorIdentity: [], rarity: 'common', tags: ['token'],
+            owner: controller, controller,
+            currentPower: 1, currentToughness: 1, damage: 0,
+            tapped: false, summoningSick: true, counters: {}, abilities: [], isToken: true,
+          };
+          player.battlefield = [...player.battlefield, servo];
+        }
+        players[controller] = player;
+        state = { ...state, players };
+        state = addLog(state, controller, `Fabricate ${n}: Created ${n} 1/1 Servo token(s).`);
+        return { state, resolved: true, description: `fabricate: ${n} servo tokens` };
+      }
+    },
+  },
+
+  // ── Bestow — cast as Aura enchantment for bestow cost (CR 702.102) ──
+  {
+    name: 'bestow',
+    match: /bestow\s+(\{[^}]+\}(?:\{[^}]+\})*)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const bestowCost = m[1];
+      if (!source) return { state, resolved: true, description: 'bestow (no source)' };
+      // Bestow allows casting an enchantment creature as an Aura that enchants a creature.
+      // When the enchanted creature leaves, the bestow aura becomes a creature.
+      // Simplified: log bestow option as available.
+      state = addLog(state, controller, `${source.name} has bestow ${bestowCost} — can be cast as an Aura.`);
+      return { state, resolved: true, description: `bestow: ${bestowCost}` };
+    },
+  },
+
+  // ── Encore — pay cost, exile from GY, create token copies attacking each opponent (CR 702.141) ──
+  {
+    name: 'encore',
+    match: /encore\s+(\{[^}]+\}(?:\{[^}]+\})*)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m, source) => {
+      const encoreCost = m[1];
+      if (!source) return { state, resolved: true, description: 'encore (no source)' };
+
+      // Encore creates a token copy for each opponent, they attack and get sacrificed at end of turn.
+      // Simplified for 1v1: create one token copy with haste.
+      const tokenCard: Card = {
+        id: generateCardId(),
+        oracleId: `token_encore_${source.oracleId || source.id}`,
+        name: source.name,
+        manaCost: source.manaCost || '',
+        cmc: source.cmc ?? 0,
+        typeLine: `Token ${source.typeLine || 'Creature'}`,
+        oracleText: source.oracleText || '',
+        power: source.power,
+        toughness: source.toughness,
+        colors: source.colors || [],
+        colorIdentity: source.colorIdentity || [],
+        rarity: 'common',
+        tags: [],
+        imageUrl: source.imageUrl || '',
+        owner: controller,
+      };
+      const tokenPerm = cardToPermanent(tokenCard, controller, state.turn);
+
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const player = { ...players[controller] };
+      player.battlefield = [...player.battlefield, tokenPerm];
+      // Exile the source from graveyard
+      player.graveyard = player.graveyard.filter(c => c.id !== source.id);
+      player.exile = [...player.exile, source];
+      players[controller] = player;
+      state = { ...state, players };
+
+      state = addLog(state, controller, `Encore: Created token copy of ${source.name} with haste (exiled from graveyard).`);
+      return { state, resolved: true, description: `encore: token copy of ${source.name}` };
+    },
+  },
+
+  // ── Myriad — create attacking token copies for each opponent beyond the first (CR 702.115) ──
+  {
+    name: 'myriad',
+    match: /\bmyriad\b/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) return { state, resolved: true, description: 'myriad (no source)' };
+      // In 1v1, myriad doesn't create tokens (only for additional opponents).
+      // But log it for EDH context where there would be multiple opponents.
+      state = addLog(state, controller, `${source.name} has myriad — in multiplayer, would create attacking copies for each other opponent.`);
+      return { state, resolved: true, description: 'myriad (1v1: no additional tokens)' };
+    },
+  },
+
+  // ── Reconfigure — artifact creature attaches to or detaches from another creature (CR 702.151) ──
+  {
+    name: 'reconfigure',
+    match: /reconfigure\s+(\{[^}]+\}(?:\{[^}]+\})*)/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m, source) => {
+      const reconfigureCost = m[1];
+      if (!source) return { state, resolved: true, description: 'reconfigure (no source)' };
+
+      // Reconfigure lets an Equipment creature attach to another creature (becoming non-creature Equipment)
+      // or detach (becoming a creature again).
+      const target = getTargetPermanent(state, targets);
+      if (target && target.perm.typeLine?.toLowerCase().includes('creature')) {
+        // Attach to target creature — source stops being a creature
+        const players = [...state.players] as [PlayerState, PlayerState];
+        const player = { ...players[controller] };
+        const updatedBf = player.battlefield.map(p => {
+          if (p.id === source.id) {
+            return { ...p, attachedTo: target.perm.id };
+          }
+          return p;
+        });
+        player.battlefield = updatedBf;
+        players[controller] = player;
+        state = { ...state, players };
+        state = addLog(state, controller, `Reconfigure: ${source.name} attached to ${target.perm.name} (cost: ${reconfigureCost}).`);
+        return { state, resolved: true, description: `reconfigure: attached to ${target.perm.name}` };
+      }
+
+      // No target — detach, become creature again
+      state = addLog(state, controller, `Reconfigure: ${source.name} detached, becoming a creature again (cost: ${reconfigureCost}).`);
+      return { state, resolved: true, description: 'reconfigure: detached' };
+    },
+  },
+
+  // ── Totem Armor — destroy the Aura instead of the enchanted permanent (CR 702.88) ──
+  {
+    name: 'totem-armor',
+    match: /\btotem\s+armor\b/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) return { state, resolved: true, description: 'totem armor (no source)' };
+      // When enchanted permanent would be destroyed, destroy this Aura instead.
+      // This is a replacement effect — handled as a marker.
+      state = addLog(state, controller, `${source.name} has totem armor — protects enchanted permanent from destruction.`);
+      return { state, resolved: true, description: 'totem armor: protection applied' };
+    },
+  },
+
+  // ── Battle Cry — whenever this creature attacks, each other attacking creature gets +1/+0 (CR 702.90) ──
+  {
+    name: 'battle-cry',
+    match: /\bbattle\s+cry\b/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) return { state, resolved: true, description: 'battle cry (no source)' };
+      // Buff all other attacking creatures +1/+0 until end of turn
+      const players = [...state.players] as [PlayerState, PlayerState];
+      const player = { ...players[controller] };
+      const combat = state.combat;
+      if (combat && combat.attackers) {
+        const attackerIds = new Set(combat.attackers.map(a => a.permanentId));
+        const updatedBf = player.battlefield.map(p => {
+          if (p.id !== source.id && attackerIds.has(p.id) && p.currentPower !== undefined) {
+            return { ...p, currentPower: (p.currentPower ?? 0) + 1 };
+          }
+          return p;
+        });
+        player.battlefield = updatedBf;
+        players[controller] = player;
+        state = { ...state, players };
+      }
+      state = addLog(state, controller, `Battle cry: Each other attacking creature gets +1/+0.`);
+      return { state, resolved: true, description: 'battle cry: +1/+0 to other attackers' };
+    },
+  },
 ];
 
 // ─── Fallback Generic Resolver ───

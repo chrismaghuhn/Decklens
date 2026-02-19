@@ -621,6 +621,81 @@ const TRIGGER_PATTERNS: TriggerPattern[] = [
     selfOnly: true,
   },
 
+  // Prowess — whenever you cast a noncreature spell (CR 702.107)
+  {
+    name: 'prowess-cast',
+    match: /\bprowess\b/i,
+    eventType: 'cast',
+    selfOnly: false,
+    controllerOnly: true,
+  },
+
+  // Extort — whenever you cast a spell, you may pay {W/B} (CR 702.100)
+  {
+    name: 'extort-cast',
+    match: /\bextort\b/i,
+    eventType: 'cast',
+    selfOnly: false,
+    controllerOnly: true,
+  },
+
+  // Fabricate — when this creature enters the battlefield (CR 702.118)
+  {
+    name: 'fabricate-etb',
+    match: /fabricate\s+\d+/i,
+    eventType: 'etb',
+    selfOnly: true,
+  },
+
+  // Myriad — whenever this creature attacks, create tokens (CR 702.115)
+  {
+    name: 'myriad-attack',
+    match: /\bmyriad\b/i,
+    eventType: 'attack',
+    selfOnly: true,
+  },
+
+  // Battle cry — whenever this creature attacks (CR 702.90)
+  {
+    name: 'battle-cry-attack',
+    match: /\bbattle\s+cry\b/i,
+    eventType: 'attack',
+    selfOnly: true,
+  },
+
+  // Encore — activated ability from graveyard (CR 702.141)
+  {
+    name: 'encore-activated',
+    match: /encore\s+\{[^}]+\}/i,
+    eventType: 'cast',
+    selfOnly: true,
+  },
+
+  // Totem armor — replacement effect when enchanted permanent would be destroyed (CR 702.88)
+  {
+    name: 'totem-armor-destroy',
+    match: /\btotem\s+armor\b/i,
+    eventType: 'death',
+    selfOnly: true,
+  },
+
+  // Exalted — whenever a creature you control attacks alone (CR 702.82)
+  {
+    name: 'exalted',
+    match: /\bexalted\b/i,
+    eventType: 'attack',
+    selfOnly: false,
+    controllerOnly: true,
+  },
+
+  // Cascade — when you cast this spell, exile cards until you exile a nonland card with lesser cost (CR 702.84)
+  {
+    name: 'cascade-cast',
+    match: /\bcascade\b/i,
+    eventType: 'cast',
+    selfOnly: true,
+  },
+
 ];
 
 // ─── Stack ID counter ───

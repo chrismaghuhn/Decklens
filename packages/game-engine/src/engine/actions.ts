@@ -379,6 +379,16 @@ function executeCastSpell(
     cost = { ...cost, generic: Math.max(0, cost.generic - action.delveCards.length) };
   }
 
+  // Affinity for artifacts: automatic cost reduction (CR 702.40)
+  if (action.affinityReduction && action.affinityReduction > 0) {
+    cost = { ...cost, generic: Math.max(0, cost.generic - action.affinityReduction) };
+  }
+
+  // Improvise: reduce cost by tapped artifacts (CR 702.125)
+  if (action.improviseArtifacts && action.improviseArtifacts.length > 0) {
+    cost = { ...cost, generic: Math.max(0, cost.generic - action.improviseArtifacts.length) };
+  }
+
   // ─── Pay mana ───
   let payment = action.manaPayment;
   if (!canPayCost(player.manaPool, cost, player.life)) {
@@ -396,6 +406,14 @@ function executeCastSpell(
   if (action.convokeCreatures && action.convokeCreatures.length > 0) {
     const updatedBf = updatedPlayer.battlefield.map(p =>
       action.convokeCreatures!.includes(p.id) ? { ...p, tapped: true } : p
+    );
+    updatedPlayer = { ...updatedPlayer, battlefield: updatedBf };
+  }
+
+  // ─── Improvise: tap the chosen artifacts ───
+  if (action.improviseArtifacts && action.improviseArtifacts.length > 0) {
+    const updatedBf = updatedPlayer.battlefield.map(p =>
+      action.improviseArtifacts!.includes(p.id) ? { ...p, tapped: true } : p
     );
     updatedPlayer = { ...updatedPlayer, battlefield: updatedBf };
   }
