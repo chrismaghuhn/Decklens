@@ -2948,10 +2948,8 @@ body { font-size: 15px; line-height: 1.65; }
    <button class="action-item" id="btnShowTools" data-action="toggle-panel" data-panel="toolsPanel"><svg class="ui-icon"><use href="#i-tools"></use></svg>Tools</button>
    <span class="divider"></span>
    <button class="action-item" id="btnAnalysis" data-action="toggle-panel" data-panel="analysisPanel"><svg class="ui-icon"><use href="#i-chart"></use></svg>Analysis</button>
-    <span class="divider"></span>
-    <button class="action-item" id="btnBeta" data-action="toggle-panel" data-panel="betaDashboardPanel"><svg class="ui-icon"><use href="#i-target"></use></svg>Beta</button>
-    <span class="divider"></span>
-    <button class="action-item" id="btnHand" data-action="toggle-panel" data-panel="testHandPanel"><svg class="ui-icon"><use href="#i-hand"></use></svg>Hand</button>
+   <span class="divider"></span>
+   <button class="action-item" id="btnHand" data-action="toggle-panel" data-panel="testHandPanel"><svg class="ui-icon"><use href="#i-hand"></use></svg>Hand</button>
    <span class="divider"></span>
    <button class="action-item" id="btnExport" data-action="toggle-panel" data-panel="exportPanel"><svg class="ui-icon"><use href="#i-export"></use></svg>Export</button>
  </div>
@@ -2966,13 +2964,14 @@ body { font-size: 15px; line-height: 1.65; }
  <div class="header-more" id="headerMore">
    <button class="icon-btn" id="btnMore" title="More options" aria-label="More options">⋯</button>
    <div class="header-more-menu" id="moreMenu">
+      <button data-panel="recsPanel" data-close-menu><svg class="ui-icon"><use href="#i-spark"></use></svg>Suggestions</button>
+      <button data-panel="comparePanel" data-close-menu><svg class="ui-icon"><use href="#i-compare"></use></svg>Compare</button>
       <button data-panel="collectionPanel" data-close-menu><svg class="ui-icon"><use href="#i-box"></use></svg>Collection</button>
+      <button data-panel="budgetPanel" data-close-menu><svg class="ui-icon"><use href="#i-wallet"></use></svg>Budget</button>
       <button data-panel="buyPanel" data-close-menu><svg class="ui-icon"><use href="#i-cart"></use></svg>Buy Cards</button>
       <button data-panel="wishlistPanel" data-close-menu><svg class="ui-icon"><use href="#i-star"></use></svg>Wishlist</button>
       <button data-panel="goldfishPanel" data-close-menu><svg class="ui-icon"><use href="#i-fish"></use></svg>Goldfish</button>
-      <button data-panel="budgetPanel" data-close-menu><svg class="ui-icon"><use href="#i-wallet"></use></svg>Budget</button>
-      <button data-panel="comparePanel" data-close-menu><svg class="ui-icon"><use href="#i-compare"></use></svg>Compare</button>
-      <button data-panel="recsPanel" data-close-menu><svg class="ui-icon"><use href="#i-spark"></use></svg>Suggestions</button>
+      <button data-panel="betaDashboardPanel" data-close-menu><svg class="ui-icon"><use href="#i-target"></use></svg>Beta Dashboard</button>
       <button data-action="show-share" data-close-menu><svg class="ui-icon"><use href="#i-link"></use></svg>Share</button>
    </div>
  </div>
