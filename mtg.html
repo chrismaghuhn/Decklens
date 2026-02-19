@@ -3190,16 +3190,9 @@ Sideboard:
    <!-- DNA Tab -->
    <div class="tools-content" id="tool-dna">
       <h4><svg class="ui-icon"><use href="#i-dna"></use></svg>Deck DNA Fingerprint</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Analyze your deck's archetype signature.</p>
-     <div id="dnaResult" style="margin-top:0.5rem;">
-       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:0.5rem;" id="dnaGrid">
-         <div class="dna-stat"><span class="label">Aggro</span><div class="bar"><div class="fill" style="width:0%"></div></div><span class="val">0%</span></div>
-         <div class="dna-stat"><span class="label">Control</span><div class="bar"><div class="fill" style="width:0%"></div></div><span class="val">0%</span></div>
-         <div class="dna-stat"><span class="label">Combo</span><div class="bar"><div class="fill" style="width:0%"></div></div><span class="val">0%</span></div>
-         <div class="dna-stat"><span class="label">Midrange</span><div class="bar"><div class="fill" style="width:0%"></div></div><span class="val">0%</span></div>
-         <div class="dna-stat"><span class="label">Ramp</span><div class="bar"><div class="fill" style="width:0%"></div></div><span class="val">0%</span></div>
-         <div class="dna-stat"><span class="label">Tempo</span><div class="bar"><div class="fill" style="width:0%"></div></div><span class="val">0%</span></div>
-       </div>
+     <p class="tool-lead">Analyze your deck's archetype signature.</p>
+     <div id="dnaResult">
+       <p class="tool-empty">Load a deck to analyze its DNA.</p>
      </div>
      <button class="hand-btn primary" id="btnCalcDNA" style="margin-top:1rem;">Analyze DNA</button>
    </div>

@@ -3646,7 +3646,7 @@ export function calculateDNA(): void {
   const labels: DNAArchetype[] = ['aggro', 'control', 'combo', 'midrange', 'ramp', 'tempo'];
   
   // Update UI
-  const grid = $('dnaGrid');
+  const grid = $('dnaResult');
   if (grid) {
     replaceChildren(grid, fragment(
       ...labels.map(l => 
