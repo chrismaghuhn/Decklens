@@ -252,12 +252,17 @@ export function applyStepEffects(state: GameState): GameState {
       state = { ...state, players };
 
       for (const card of reboundCards) {
-        // Remove the reboundExile marker
+        // Remove the reboundExile marker and put card back in exile temporarily
+        // so addSpellToStack can find it by ID (it expects the card to be in exile)
         const cleanCard = { ...card };
         delete (cleanCard as any).reboundExile;
+        // Re-insert clean card into exile so addSpellToStack can locate it
+        const tempPlayers = [...state.players];
+        tempPlayers[ap] = { ...tempPlayers[ap], exile: [...tempPlayers[ap].exile, cleanCard] };
+        state = { ...state, players: tempPlayers };
 
-        // Put on stack without paying cost (free rebound cast)
-        state = addSpellToStack(state, cleanCard, ap, {});
+        // Put on stack without paying cost (free rebound cast) — CR 702.87
+        state = addSpellToStack(state, cleanCard.id, ap, [], { from: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }, phyrexianLife: 0, hybridChoices: [], xValue: 0 });
         state = {
           ...state,
           log: [...state.log, {

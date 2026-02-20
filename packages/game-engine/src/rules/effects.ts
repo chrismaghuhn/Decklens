@@ -17,7 +17,7 @@ import type { Card } from '../types/card.ts';
 import { drawCards, shuffleLibrary, millCards } from '../engine/zone-manager.ts';
 import { cardToPermanent, transformPermanent } from '../types/permanent.ts';
 import { generateCardId } from '../engine/factory.ts';
-import { hasProtectionFrom, applyDamageWithShields } from './combat.ts';
+import { hasProtectionFrom, applyDamageWithShields, hasKeyword } from './combat.ts';
 import { copyStackObject } from './stack.ts';
 import { checkLeavesBattlefieldTriggers, checkSacrificeTriggers, checkLifegainTriggers, checkETBTriggers } from './triggers.ts';
 import { smartParserResolve } from './smart-parser.ts';
@@ -399,7 +399,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       let count = 0;
       for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
-        const creatures = player.battlefield.filter(p => p.currentPower !== undefined);
+        // CR 702.12: indestructible permanents can't be destroyed
+        const creatures = player.battlefield.filter(p => p.currentPower !== undefined && !hasKeyword(p, 'indestructible'));
         for (const c of creatures) {
           state = removePermanentFromBattlefield(state, c.id, 'graveyard');
           count++;
@@ -417,7 +418,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       let count = 0;
       for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
-        const nonlands = player.battlefield.filter(p => !p.typeLine.toLowerCase().includes('land'));
+        // CR 702.12: indestructible permanents can't be destroyed
+        const nonlands = player.battlefield.filter(p => !p.typeLine.toLowerCase().includes('land') && !hasKeyword(p, 'indestructible'));
         for (const c of nonlands) {
           state = removePermanentFromBattlefield(state, c.id, 'graveyard');
           count++;
@@ -1528,7 +1530,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       let count = 0;
       for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
-        const artifacts = player.battlefield.filter(p => p.typeLine.toLowerCase().includes('artifact'));
+        // CR 702.12: indestructible permanents can't be destroyed
+        const artifacts = player.battlefield.filter(p => p.typeLine.toLowerCase().includes('artifact') && !hasKeyword(p, 'indestructible'));
         for (const a of artifacts) {
           state = removePermanentFromBattlefield(state, a.id, 'graveyard');
           count++;
@@ -1548,7 +1551,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       let count = 0;
       for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
-        const enchantments = player.battlefield.filter(p => p.typeLine.toLowerCase().includes('enchantment'));
+        // CR 702.12: indestructible permanents can't be destroyed
+        const enchantments = player.battlefield.filter(p => p.typeLine.toLowerCase().includes('enchantment') && !hasKeyword(p, 'indestructible'));
         for (const e of enchantments) {
           state = removePermanentFromBattlefield(state, e.id, 'graveyard');
           count++;
@@ -4559,9 +4563,10 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       let count = 0;
       for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
+        // CR 702.12: indestructible permanents can't be destroyed
         const targets = player.battlefield.filter(p => {
           const tl = p.typeLine.toLowerCase();
-          return tl.includes('artifact') || tl.includes('enchantment');
+          return (tl.includes('artifact') || tl.includes('enchantment')) && !hasKeyword(p, 'indestructible');
         });
         for (const t of targets) {
           state = removePermanentFromBattlefield(state, t.id, 'graveyard');
@@ -7875,8 +7880,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       let count = 0;
       for (let pi = 0; pi < state.players.length; pi++) {
         const bf = state.players[pi].battlefield;
-        const tapped = bf.filter(p => p.tapped && p.currentPower !== undefined);
-        const remaining = bf.filter(p => !p.tapped || p.currentPower === undefined);
+        // CR 702.12: indestructible permanents can't be destroyed
+        const tapped = bf.filter(p => p.tapped && p.currentPower !== undefined && !hasKeyword(p, 'indestructible'));
+        const remaining = bf.filter(p => !p.tapped || p.currentPower === undefined || hasKeyword(p, 'indestructible'));
         if (tapped.length > 0) {
           count += tapped.length;
           const players = [...state.players];
@@ -11035,7 +11041,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
           } else if (typeDesc.includes('nonwhite creature')) {
             matches = tl.includes('creature') && !(perm.colors || []).includes('W');
           } else if (typeDesc.includes('creature')) matches = tl.includes('creature');
-          if (matches) {
+          // CR 702.12: indestructible permanents can't be destroyed
+          if (matches && !hasKeyword(perm, 'indestructible')) {
             state = removePermanentFromBattlefield(state, perm.id, 'graveyard');
             count++;
           }
