@@ -5,6 +5,7 @@ import { PHASES, PHASE_STEPS } from '../types/game-state.ts';
 import { emptyManaPool } from '../types/player.ts';
 import { checkUpkeepTriggers, checkEndStepTriggers, checkBeginCombatTriggers } from '../rules/triggers.ts';
 import { addSpellToStack } from '../rules/stack.ts';
+import { nextPlayer } from '../rules/n-player.ts';
 
 
 /**
@@ -37,10 +38,8 @@ export function advanceStep(state: GameState): GameState {
   const nextStep = getNextStep(state.phase, state.step);
 
   if (nextStep !== null) {
-    // CR 106.4: Empty mana pools when moving between steps
-    const players = [...state.players];
-    players[0] = { ...players[0], manaPool: emptyManaPool() };
-    players[1] = { ...players[1], manaPool: emptyManaPool() };
+    // CR 106.4: Empty mana pools when moving between steps (all players)
+    const players = state.players.map(p => ({ ...p, manaPool: emptyManaPool() }));
 
     // Stay in same phase, move to next step
     return applyStepEffects({
@@ -65,9 +64,8 @@ export function advancePhase(state: GameState): GameState {
   // Extra combat phases: if leaving combat and extra combats remain,
   // go back to another combat phase instead of advancing normally
   if (state.phase === 'combat' && (state.extraCombats ?? 0) > 0) {
-    const players = [...state.players];
-    players[0] = { ...players[0], manaPool: emptyManaPool() };
-    players[1] = { ...players[1], manaPool: emptyManaPool() };
+    // CR 106.4: Empty mana pools when moving between phases (all players)
+    const players = state.players.map(p => ({ ...p, manaPool: emptyManaPool() }));
 
     const firstStep = PHASE_STEPS['combat'][0];
     return applyStepEffects({
@@ -88,10 +86,8 @@ export function advancePhase(state: GameState): GameState {
   const nextPhase = getNextPhase(state.phase);
 
   if (nextPhase !== null) {
-    // CR 106.4: Empty mana pools when moving between phases
-    const players = [...state.players];
-    players[0] = { ...players[0], manaPool: emptyManaPool() };
-    players[1] = { ...players[1], manaPool: emptyManaPool() };
+    // CR 106.4: Empty mana pools when moving between phases (all players)
+    const players = state.players.map(p => ({ ...p, manaPool: emptyManaPool() }));
 
     const firstStep = PHASE_STEPS[nextPhase][0];
     return applyStepEffects({
@@ -121,60 +117,56 @@ export function advancePhase(state: GameState): GameState {
 export function startNewTurn(state: GameState): GameState {
   let nextActivePlayer: number;
   let updatedExtraTurns = state.extraTurns ? [...state.extraTurns] : [];
+  const n = state.players.length;
 
   if (updatedExtraTurns.length > 0) {
     // Extra turn: use the player from the front of the queue
     const extraTurn = updatedExtraTurns.shift()!;
     nextActivePlayer = extraTurn.player;
   } else {
-    // Normal alternation
-    nextActivePlayer = state.activePlayer === 0 ? 1 : 0;
+    // Normal N-player rotation: clockwise, skipping eliminated players
+    nextActivePlayer = nextPlayer(state.activePlayer, n);
+    let safety = 0;
+    while (state.players[nextActivePlayer]?.eliminated && safety < n) {
+      nextActivePlayer = nextPlayer(nextActivePlayer, n);
+      safety++;
+    }
   }
 
-  const newTurn = state.activePlayer === 1 ? state.turn + 1 : state.turn;
+  // Turn number increments when we wrap back to player 0 (completed a full round)
+  const newTurn = nextActivePlayer === 0 ? state.turn + 1 : state.turn;
 
-  // Reset active player's turn state
-  const players = [...state.players];
+  // Reset all players' mana pools; only reset land plays for the next active player
+  const players = state.players.map((p, i) => {
+    if (i === nextActivePlayer) {
+      // CR 702.26d: Phase back in all phased-out permanents for the new active player
+      const afterPhasing = p.battlefield.map((perm) =>
+        perm.phasedOut ? { ...perm, phasedOut: false } : perm
+      );
 
-  // CR 702.26d: Phasing — During the untap step, BEFORE untapping,
-  // all phased-out permanents controlled by the active player phase back in.
-  // Phased-in permanents with phasing would phase out here, but we only
-  // handle phase-in since phase-out is triggered by effects (not automatic phasing keyword).
-  players[nextActivePlayer] = {
-    ...players[nextActivePlayer],
-    battlefield: players[nextActivePlayer].battlefield.map((p) => {
-      if (p.phasedOut) {
-        return { ...p, phasedOut: false };
-      }
-      return p;
-    }),
-  };
+      // Untap all permanents for the new active player (after phasing)
+      const afterUntap = afterPhasing.map((perm) => ({
+        ...perm,
+        tapped: perm.skipNextUntap ? perm.tapped : false,
+        skipNextUntap: false,
+        summoningSick: perm.enteredBattlefieldTurn === newTurn ? true : false,
+        attacking: false,
+        blocking: null,
+        loyaltyUsedThisTurn: false,
+      }));
 
-  // Untap all permanents for the new active player (after phasing)
-  players[nextActivePlayer] = {
-    ...players[nextActivePlayer],
-    battlefield: players[nextActivePlayer].battlefield.map((p) => ({
-      ...p,
-      tapped: p.skipNextUntap ? p.tapped : false,  // CR 702.26: skipNextUntap prevents untapping
-      skipNextUntap: false,  // Always reset the flag after checking
-      summoningSick:
-        p.enteredBattlefieldTurn === newTurn ? true : false,
-      attacking: false,
-      blocking: null,
-      loyaltyUsedThisTurn: false, // Reset planeswalker loyalty usage
-    })),
-    landPlayedThisTurn: false,
-    landsPlayedThisTurn: 0,
-    maxLandPlays: 1,
-    manaPool: emptyManaPool(),
-  };
-
-  // Empty the other player's mana pool too
-  const otherPlayer: number = nextActivePlayer === 0 ? 1 : 0;
-  players[otherPlayer] = {
-    ...players[otherPlayer],
-    manaPool: emptyManaPool(),
-  };
+      return {
+        ...p,
+        battlefield: afterUntap,
+        landPlayedThisTurn: false,
+        landsPlayedThisTurn: 0,
+        maxLandPlays: 1,
+        manaPool: emptyManaPool(),
+      };
+    }
+    // All other players: just empty their mana pool
+    return { ...p, manaPool: emptyManaPool() };
+  });
 
   const newState: GameState = {
     ...state,
@@ -565,7 +557,7 @@ export function applyStepEffects(state: GameState): GameState {
     // Collect all permanents that need to move back to their original controller
     const stealsToReturn: { perm: (typeof players)[0]['battlefield'][0]; fromPlayer: number }[] = [];
 
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < players.length; i++) {
       const player = players[i];
       const keeping: typeof player.battlefield = [];
 
@@ -599,7 +591,7 @@ export function applyStepEffects(state: GameState): GameState {
     }
 
     // ── Phase 2: Clean up per-permanent temporary effects ──
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < players.length; i++) {
       const player = players[i];
       players[i] = {
         ...player,
@@ -848,14 +840,23 @@ export function getCurrentStepActions(state: GameState): string[] {
 }
 
 /**
- * Create the initial game state from two player states.
+ * Create the initial game state from an array of player states (2+ players).
+ * Accepts a single spread-style PlayerState pair for backward compatibility.
  */
 export function createInitialGameState(
-  player1: PlayerState,
-  player2: PlayerState
+  playersOrFirst: PlayerState | PlayerState[],
+  player2?: PlayerState
 ): GameState {
+  let players: PlayerState[];
+  if (Array.isArray(playersOrFirst)) {
+    players = playersOrFirst;
+  } else {
+    // Legacy 2-arg signature: createInitialGameState(p1, p2)
+    players = [playersOrFirst, player2!];
+  }
+
   return {
-    players: [player1, player2],
+    players,
     activePlayer: 0,
     priorityPlayer: 0,
     turn: 1,
@@ -878,7 +879,9 @@ export function createInitialGameState(
     actionHistory: [],
     playersPassed: new Set(),
     mulliganPhase: true,
-    mulliganCount: [0, 0],
+    mulliganCount: Array(players.length).fill(0),
+    companion: Array(players.length).fill(null),
+    companionUsed: Array(players.length).fill(false),
   };
 }
 

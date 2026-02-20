@@ -40,6 +40,9 @@ export interface PlayerState {
 
   /** Names of this player's commander(s) for commander zone replacement detection */
   commanderNames?: string[];
+
+  /** Whether this player has been eliminated from the game (N-player: game continues without them) */
+  eliminated?: boolean;
 }
 
 /** Starting life total for Commander */

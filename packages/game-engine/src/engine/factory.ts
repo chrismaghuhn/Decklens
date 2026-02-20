@@ -216,8 +216,43 @@ export function keepHand(
   };
 }
 
+/** Configuration for a single player when starting an N-player game */
+export interface PlayerConfig {
+  name: string;
+  deck: Card[];
+  commander: Card;
+}
+
+/**
+ * Set up an N-player game: create player states, shuffle, draw opening hands.
+ * Supports any number of players (2+).
+ */
+export function setupNewGameN(configs: PlayerConfig[]): GameState {
+  if (configs.length < 2) {
+    throw new Error('setupNewGameN requires at least 2 players');
+  }
+
+  // Create player states for each config
+  const playerStates: PlayerState[] = configs.map((cfg, i) =>
+    createPlayerState(i, cfg.name, cfg.deck, cfg.commander)
+  );
+
+  let state = createInitialGameState(playerStates);
+
+  // Shuffle libraries and deal opening hands for all players
+  for (let i = 0; i < configs.length; i++) {
+    state = shuffleLibrary(state, i);
+  }
+  for (let i = 0; i < configs.length; i++) {
+    state = drawOpeningHand(state, i, 7);
+  }
+
+  return state;
+}
+
 /**
  * Set up a new game: create player states, shuffle, draw opening hands.
+ * Backward-compatible 2-player wrapper around setupNewGameN.
  */
 export function setupNewGame(
   player1Name: string,
@@ -227,18 +262,8 @@ export function setupNewGame(
   player2Deck: Card[],
   player2Commander: Card
 ): GameState {
-  const p1 = createPlayerState(0, player1Name, player1Deck, player1Commander);
-  const p2 = createPlayerState(1, player2Name, player2Deck, player2Commander);
-
-  let state = createInitialGameState(p1, p2);
-
-  // Shuffle libraries
-  state = shuffleLibrary(state, 0);
-  state = shuffleLibrary(state, 1);
-
-  // Draw opening hands (7 cards each)
-  state = drawOpeningHand(state, 0, 7);
-  state = drawOpeningHand(state, 1, 7);
-
-  return state;
+  return setupNewGameN([
+    { name: player1Name, deck: player1Deck, commander: player1Commander },
+    { name: player2Name, deck: player2Deck, commander: player2Commander },
+  ]);
 }

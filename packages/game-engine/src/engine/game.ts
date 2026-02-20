@@ -97,6 +97,7 @@ export class Game {
 
       // Pass goes through priority system
       const beforeStack = this.state.stack.length;
+      const beforePassed = this.state.playersPassed.size;
       this.state = passPriority(this.state);
 
       // Record pass in action history
@@ -105,15 +106,19 @@ export class Game {
         actionHistory: [...this.state.actionHistory, action],
       };
 
-      // Check if both players passed and stack needs resolution
-      // CRITICAL FIX: Check if playersPassed.size >= 2 (not false)
-      // The logic was inverted - both players must have passed to resolve
-      if (
-        this.state.playersPassed.size >= 2 &&
+      // Detect "all players passed with a non-empty stack" signal:
+      // passPriority clears playersPassed to 0 and returns priority to activePlayer.
+      // This happens when the previous set had N-1 members and we just added the Nth,
+      // which triggers the all-passed path (clearing the set).
+      // Detection: playersPassed went from (players.length - 1) to 0, stack unchanged.
+      const allPassedSignal =
+        this.state.playersPassed.size === 0 &&
+        beforePassed === this.state.players.length - 1 &&
         beforeStack > 0 &&
-        this.state.stack.length === beforeStack
-      ) {
-        // Both passed with stack → resolve top
+        this.state.stack.length === beforeStack;
+
+      if (allPassedSignal) {
+        // All players passed with stack → resolve top
         this.state = resolveTopOfStack(this.state);
         // Run SBAs after resolution
         this.runStateBasedActions();

@@ -72,7 +72,9 @@ describe('passPriority', () => {
     const state = createTestState();
     const after = passPriority(state);
     expect(after.priorityPlayer).toBe(1);
-    expect(after.playersPassed.size).toBe(2);
+    // N-player: only the passing player (0) is added to the set (size = 1)
+    expect(after.playersPassed.size).toBe(1);
+    expect(after.playersPassed.has(0)).toBe(true);
   });
 
   it('should advance step when both pass with empty stack', () => {

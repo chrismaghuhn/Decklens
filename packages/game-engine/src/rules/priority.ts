@@ -3,15 +3,16 @@ import type { GameAction } from '../types/action.ts';
 import { advanceStep } from '../engine/turn-manager.ts';
 
 /**
- * Priority System for 2-player EDH.
+ * Priority System for N-player EDH.
  *
  * Rules:
  * 1. Active player gets priority first in each phase/step
- * 2. After a player acts (casts/activates), they retain priority
- * 3. After a player passes, the other player gets priority
- * 4. If both players pass in sequence on an empty stack → advance step/phase
- * 5. If both players pass in sequence with stack → resolve top of stack
- * 6. After stack resolves, active player gets priority again
+ * 2. After a player acts (casts/activates), they retain priority (playersPassed cleared)
+ * 3. After a player passes, the next player clockwise gets priority
+ * 4. Once every player has passed in sequence (playersPassed.size >= players.length):
+ *    - Stack not empty → resolve top of stack, active player gets priority
+ *    - Stack empty → advance to next step/phase
+ * 5. After stack resolves, active player gets priority again
  */
 
 /** Get which player currently has priority */
@@ -22,49 +23,65 @@ export function getCurrentPriorityPlayer(state: GameState): number {
 /**
  * Pass priority from the current priority player.
  *
- * If both players have now passed in sequence:
+ * Adds the current player to playersPassed, then passes clockwise.
+ * If all players have now passed in sequence:
  * - Stack not empty → returns state flagged for resolution (caller handles)
  * - Stack empty → advance to next step/phase
  */
 export function passPriority(state: GameState): GameState {
-  const otherPlayer: number = state.priorityPlayer === 0 ? 1 : 0;
+  const n = state.players.length;
+  // Only count non-eliminated players for the threshold
+  const activePlayers = state.players.filter(p => !p.eliminated).length;
+  const newPassed = new Set(state.playersPassed);
+  newPassed.add(state.priorityPlayer);
 
-  if (state.playersPassed.size >= 2) {
-    // Both players have now passed in sequence
+  // Build the log entry for this pass
+  const passLog = {
+    id: `log-${Date.now()}`,
+    timestamp: Date.now(),
+    turn: state.turn,
+    phase: state.phase,
+    step: state.step,
+    player: state.priorityPlayer,
+    message: `${state.players[state.priorityPlayer].name} passes priority.`,
+    actionType: 'pass' as const,
+  };
+
+  if (newPassed.size >= activePlayers) {
+    // All active (non-eliminated) players have passed in sequence
+    const clearedPassed = new Set<number>();
     if (state.stack.length > 0) {
-      // Signal stack resolution needed — active player gets priority after
+      // Stack has items — signal resolution needed; active player gets priority after
       return {
         ...state,
+        playersPassed: clearedPassed,
         priorityPlayer: state.activePlayer,
-        playersPassed: new Set(),
+        log: [...state.log, passLog],
       };
     } else {
-      // Empty stack, both passed → advance step
+      // Empty stack → advance step/phase
       return advanceStep({
         ...state,
-        playersPassed: new Set(),
+        playersPassed: clearedPassed,
         priorityPlayer: state.activePlayer,
+        log: [...state.log, passLog],
       });
     }
   }
 
-  // First pass — give priority to other player, mark one pass
+  // Not all active players have passed — pass to next non-eliminated player clockwise
+  let next = (state.priorityPlayer + 1) % n;
+  let safety = 0;
+  while (state.players[next]?.eliminated && safety < n) {
+    next = (next + 1) % n;
+    safety++;
+  }
+
   return {
     ...state,
-    priorityPlayer: otherPlayer,
-    playersPassed: new Set([0, 1]),
-    log: [
-      ...state.log,
-      {
-        timestamp: Date.now(),
-        turn: state.turn,
-        phase: state.phase,
-        step: state.step,
-        player: state.priorityPlayer,
-        message: `${state.players[state.priorityPlayer].name} passes priority.`,
-        actionType: 'pass',
-      },
-    ],
+    priorityPlayer: next,
+    playersPassed: newPassed,
+    log: [...state.log, passLog],
   };
 }
 

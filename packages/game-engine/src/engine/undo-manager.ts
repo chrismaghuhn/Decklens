@@ -9,6 +9,28 @@ export interface GameSnapshot {
 }
 
 /**
+ * Serialize a GameState to a plain object for JSON storage.
+ * Sets (like playersPassed) are converted to arrays.
+ */
+function serializeState(state: GameState): object {
+  return {
+    ...state,
+    playersPassed: [...state.playersPassed],
+  };
+}
+
+/**
+ * Deserialize a stored GameState back into a live GameState.
+ * Arrays that represent Sets are converted back to Set<number>.
+ */
+function deserializeState(raw: any): GameState {
+  return {
+    ...raw,
+    playersPassed: new Set<number>(raw.playersPassed ?? []),
+  };
+}
+
+/**
  * Manages undo/redo and full game replay.
  *
  * Uses JSON serialization for deep copies (same pattern as goldfish.ts undoStack,
@@ -25,10 +47,11 @@ export class UndoManager {
   /**
    * Save a game state snapshot.
    * Call this before each action is executed.
+   * Sets (playersPassed) are serialized to arrays so JSON round-trips correctly.
    */
   saveSnapshot(state: GameState, action: GameAction | null = null): void {
     const snapshot: GameSnapshot = {
-      state: JSON.parse(JSON.stringify(state)),
+      state: deserializeState(JSON.parse(JSON.stringify(serializeState(state)))),
       action,
       timestamp: Date.now(),
     };
@@ -51,7 +74,7 @@ export class UndoManager {
     if (this.snapshots.length === 0) return null;
 
     const snapshot = this.snapshots.pop()!;
-    return JSON.parse(JSON.stringify(snapshot.state));
+    return deserializeState(JSON.parse(JSON.stringify(serializeState(snapshot.state))));
   }
 
   /**
@@ -60,7 +83,7 @@ export class UndoManager {
   peek(): GameState | null {
     if (this.snapshots.length === 0) return null;
     const snapshot = this.snapshots[this.snapshots.length - 1];
-    return JSON.parse(JSON.stringify(snapshot.state));
+    return deserializeState(JSON.parse(JSON.stringify(serializeState(snapshot.state))));
   }
 
   /**
@@ -69,7 +92,7 @@ export class UndoManager {
   getReplayData(): GameSnapshot[] {
     return this.snapshots.map((s) => ({
       ...s,
-      state: JSON.parse(JSON.stringify(s.state)),
+      state: deserializeState(JSON.parse(JSON.stringify(serializeState(s.state)))),
     }));
   }
 

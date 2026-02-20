@@ -34,6 +34,46 @@ export interface SBAResult {
 }
 
 /**
+ * Eliminate a player from an N-player game.
+ *
+ * Marks the player as eliminated. If only one non-eliminated player remains,
+ * that player wins. If zero remain, it's a draw (gameOver with winner = null).
+ */
+function eliminatePlayer(state: GameState, playerIndex: number, reason: string): GameState {
+  const newPlayers = [...state.players];
+  newPlayers[playerIndex] = { ...newPlayers[playerIndex], eliminated: true };
+
+  const logEntry = {
+    timestamp: Date.now(),
+    turn: state.turn,
+    phase: state.phase,
+    step: state.step,
+    player: playerIndex,
+    message: reason,
+  };
+
+  let newState: GameState = {
+    ...state,
+    players: newPlayers,
+    log: [...state.log, logEntry],
+  };
+
+  // Check remaining active (non-eliminated) players
+  const activePlayers = newState.players.filter(p => !p.eliminated);
+
+  if (activePlayers.length === 1) {
+    // One player left — they win
+    newState = { ...newState, winner: activePlayers[0].id, gameOver: true };
+  } else if (activePlayers.length === 0) {
+    // Everyone lost simultaneously — draw
+    newState = { ...newState, winner: null, gameOver: true };
+  }
+  // Otherwise: game continues with remaining players
+
+  return newState;
+}
+
+/**
  * Check and apply all state-based actions.
  * Loops until no more SBAs apply.
  */
@@ -64,13 +104,12 @@ export function checkStateBasedActions(state: GameState): GameState {
     if (r6.changed) { current = r6.state; changed = true; }
     if (current.gameOver) return current;
 
-    // CR 704.5b: Player who attempted to draw from empty library loses
-    const r6a0 = checkEmptyLibraryLoss(current, 0);
-    if (r6a0.changed) { current = r6a0.state; changed = true; }
-    if (current.gameOver) return current;
-    const r6a1 = checkEmptyLibraryLoss(current, 1);
-    if (r6a1.changed) { current = r6a1.state; changed = true; }
-    if (current.gameOver) return current;
+    // CR 704.5b: Player who attempted to draw from empty library loses (all players)
+    for (let pi = 0; pi < current.players.length; pi++) {
+      const r6ax = checkEmptyLibraryLoss(current, pi);
+      if (r6ax.changed) { current = r6ax.state; changed = true; }
+      if (current.gameOver) return current;
+    }
 
     const r6b = checkCounterCancellation(current);
     if (r6b.changed) { current = r6b.state; changed = true; }
@@ -111,33 +150,19 @@ export function checkStateBasedActions(state: GameState): GameState {
 function checkPlayerLoss(state: GameState): SBAResult {
   if (state.gameOver) return { state, changed: false };
 
-  for (let i = 0; i < 2; i++) {
-    const player = state.players[i];
-    if (player.life <= 0) {
-      const winner: number = i === 0 ? 1 : 0;
-      return {
-        state: {
-          ...state,
-          winner,
-          gameOver: true,
-          log: [
-            ...state.log,
-            {
-              timestamp: Date.now(),
-              turn: state.turn,
-              phase: state.phase,
-              step: state.step,
-              player: i,
-              message: `${player.name} has ${player.life} life and loses the game.`,
-            },
-          ],
-        },
-        changed: true,
-      };
+  let changed = false;
+  let newState = state;
+
+  for (let i = 0; i < state.players.length; i++) {
+    const player = newState.players[i];
+    if (!player.eliminated && player.life <= 0) {
+      newState = eliminatePlayer(newState, i, `${player.name} has ${player.life} life and loses the game.`);
+      changed = true;
+      if (newState.gameOver) return { state: newState, changed: true };
     }
   }
 
-  return { state, changed: false };
+  return { state: newState, changed };
 }
 
 /**
@@ -154,7 +179,7 @@ function checkCreatureDeath(state: GameState): SBAResult {
   const logs: string[] = [];
   const allDying: { playerIdx: number; dying: Permanent[] }[] = [];
 
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < players.length; i++) {
     const player = players[i];
     const dying: Permanent[] = [];
     const surviving: Permanent[] = [];
@@ -303,7 +328,7 @@ function checkZeroToughness(state: GameState): SBAResult {
   const players = [...state.players];
   const logs: string[] = [];
 
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < players.length; i++) {
     const player = players[i];
     const dying: Permanent[] = [];
     const surviving: Permanent[] = [];
@@ -416,7 +441,7 @@ function checkPlaneswalkerLoyalty(state: GameState): SBAResult {
   const players = [...state.players];
   const logs: string[] = [];
 
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < players.length; i++) {
     const player = players[i];
     const dying: Permanent[] = [];
     const surviving: Permanent[] = [];
@@ -486,7 +511,7 @@ function checkLegendRule(state: GameState): SBAResult {
   // If there's already a pending legend choice, skip — wait for player input
   if (state.pendingLegendChoice) return { state, changed: false };
 
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < state.players.length; i++) {
     const player = state.players[i];
     const legendaryByName = new Map<string, Permanent[]>();
 
@@ -531,33 +556,19 @@ function checkLegendRule(state: GameState): SBAResult {
 function checkPoisonCounters(state: GameState): SBAResult {
   if (state.gameOver) return { state, changed: false };
 
-  for (let i = 0; i < 2; i++) {
-    const player = state.players[i];
-    if (player.poisonCounters >= 10) {
-      const winner: number = i === 0 ? 1 : 0;
-      return {
-        state: {
-          ...state,
-          winner,
-          gameOver: true,
-          log: [
-            ...state.log,
-            {
-              timestamp: Date.now(),
-              turn: state.turn,
-              phase: state.phase,
-              step: state.step,
-              player: i,
-              message: `${player.name} has ${player.poisonCounters} poison counters and loses the game.`,
-            },
-          ],
-        },
-        changed: true,
-      };
+  let changed = false;
+  let newState = state;
+
+  for (let i = 0; i < state.players.length; i++) {
+    const player = newState.players[i];
+    if (!player.eliminated && player.poisonCounters >= 10) {
+      newState = eliminatePlayer(newState, i, `${player.name} has ${player.poisonCounters} poison counters and loses the game.`);
+      changed = true;
+      if (newState.gameOver) return { state: newState, changed: true };
     }
   }
 
-  return { state, changed: false };
+  return { state: newState, changed };
 }
 
 /**
@@ -568,35 +579,23 @@ function checkPoisonCounters(state: GameState): SBAResult {
 export function checkCommanderDamageLoss(state: GameState): SBAResult {
   if (state.gameOver) return { state, changed: false };
 
-  for (let i = 0; i < 2; i++) {
-    const player = state.players[i];
-    for (const [cmdId, damage] of Object.entries(player.commanderDamage)) {
+  let changed = false;
+  let newState = state;
+
+  for (let i = 0; i < state.players.length; i++) {
+    const player = newState.players[i];
+    if (player.eliminated) continue;
+    for (const [_cmdId, damage] of Object.entries(player.commanderDamage)) {
       if (damage >= 21) {
-        const winner: number = i === 0 ? 1 : 0;
-        return {
-          state: {
-            ...state,
-            winner,
-            gameOver: true,
-            log: [
-              ...state.log,
-              {
-                timestamp: Date.now(),
-                turn: state.turn,
-                phase: state.phase,
-                step: state.step,
-                player: i,
-                message: `${player.name} has taken 21+ commander damage and loses the game.`,
-              },
-            ],
-          },
-          changed: true,
-        };
+        newState = eliminatePlayer(newState, i, `${player.name} has taken 21+ commander damage and loses the game.`);
+        changed = true;
+        if (newState.gameOver) return { state: newState, changed: true };
+        break; // player already eliminated, move to next
       }
     }
   }
 
-  return { state, changed: false };
+  return { state: newState, changed };
 }
 
 /**
@@ -607,27 +606,13 @@ export function checkEmptyLibraryLoss(state: GameState, player: number): SBAResu
   if (state.gameOver) return { state, changed: false };
 
   const ps = state.players[player];
-  if (ps.library.length === 0 && ps.hasDrawnThisGame) {
-    const winner: number = player === 0 ? 1 : 0;
-    return {
-      state: {
-        ...state,
-        winner,
-        gameOver: true,
-        log: [
-          ...state.log,
-          {
-            timestamp: Date.now(),
-            turn: state.turn,
-            phase: state.phase,
-            step: state.step,
-            player,
-            message: `${ps.name} tried to draw from an empty library and loses the game.`,
-          },
-        ],
-      },
-      changed: true,
-    };
+  if (!ps.eliminated && ps.library.length === 0 && ps.hasDrawnThisGame) {
+    const newState = eliminatePlayer(
+      state,
+      player,
+      `${ps.name} tried to draw from an empty library and loses the game.`
+    );
+    return { state: newState, changed: true };
   }
 
   return { state, changed: false };
@@ -642,7 +627,7 @@ function checkCounterCancellation(state: GameState): SBAResult {
   const players = [...state.players];
   const logs: string[] = [];
 
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < players.length; i++) {
     const player = players[i];
     let playerChanged = false;
     const updatedBattlefield: Permanent[] = [];
@@ -704,7 +689,7 @@ function checkTokensInWrongZone(state: GameState): SBAResult {
   const players = [...state.players];
   const logs: string[] = [];
 
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < players.length; i++) {
     const player = players[i];
     let playerChanged = false;
 
@@ -785,7 +770,7 @@ function checkSagaSacrifice(state: GameState): SBAResult {
   const players = [...state.players];
   const logs: string[] = [];
 
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < players.length; i++) {
     const player = players[i];
     const surviving: Permanent[] = [];
     const dying: Permanent[] = [];
@@ -851,7 +836,7 @@ function checkPlaneswalkerUniqueness(state: GameState): SBAResult {
   // If there's already a pending legend choice, skip — wait for player input
   if (state.pendingLegendChoice) return { state, changed: false };
 
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < state.players.length; i++) {
     const player = state.players[i];
     const pwByName = new Map<string, Permanent[]>();
 
@@ -905,7 +890,7 @@ function checkEvokeSacrifice(state: GameState): SBAResult {
   const players = [...state.players];
   const logs: string[] = [];
 
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < players.length; i++) {
     const player = players[i];
     const dying: Permanent[] = [];
     const surviving: Permanent[] = [];
@@ -964,7 +949,7 @@ function checkEvokeSacrifice(state: GameState): SBAResult {
   let newState: GameState = { ...state, players, log: [...state.log, ...logEntries] };
 
   // Check death triggers for evoked creatures
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < players.length; i++) {
     const dyingPerms = state.players[i].battlefield.filter(p => p.sacrificeOnETB);
     if (dyingPerms.length > 0) {
       newState = checkDeathTriggers(newState, dyingPerms, i);
@@ -984,7 +969,7 @@ function checkEquipmentOnNonCreature(state: GameState): SBAResult {
   const players = [...state.players];
   const logs: string[] = [];
 
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < players.length; i++) {
     const player = players[i];
     let playerChanged = false;
     const updatedBf: Permanent[] = [];
@@ -993,7 +978,7 @@ function checkEquipmentOnNonCreature(state: GameState): SBAResult {
       if (perm.attachedTo && perm.typeLine.toLowerCase().includes('equipment')) {
         // Find the attached-to permanent
         let attachedCreature: Permanent | undefined;
-        for (let j = 0; j < 2; j++) {
+        for (let j = 0; j < players.length; j++) {
           attachedCreature = players[j].battlefield.find(p => p.id === perm.attachedTo);
           if (attachedCreature) break;
         }
@@ -1002,7 +987,7 @@ function checkEquipmentOnNonCreature(state: GameState): SBAResult {
           // Unattach equipment
           updatedBf.push({ ...perm, attachedTo: undefined });
           // Also remove from the creature's attachments list
-          for (let j = 0; j < 2; j++) {
+          for (let j = 0; j < players.length; j++) {
             players[j] = {
               ...players[j],
               battlefield: players[j].battlefield.map(p =>
