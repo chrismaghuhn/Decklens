@@ -657,15 +657,16 @@ describe('Smart Parser', () => {
       expect(result.resolved).toBe(false);
     });
 
-    it('should return resolved false for complex conditional without recognizable verbs', () => {
+    it('should return resolved true for recognized condition that evaluates to false (no-op)', () => {
       const state = createTestState();
       const result = smartParserResolve(
         state, 0,
         'If you control 3 or more artifacts, transform ~.',
         [],
       );
-      // transform requires a backFace on the permanent, which we don't have -> resolved false
-      expect(result.resolved).toBe(false);
+      // The condition "you control 3 or more artifacts" is recognized and evaluates to false
+      // (no artifacts on battlefield), so the effect is skipped as a no-op → resolved: true
+      expect(result.resolved).toBe(true);
     });
   });
 
@@ -814,5 +815,53 @@ describe('Smart Parser', () => {
       expect(elf!.currentPower).toBe(3);
       expect(elf!.currentToughness).toBe(3);
     });
+  });
+});
+
+describe('evaluateCondition', () => {
+  it('resolves "if you control a forest" true when forest is on battlefield', () => {
+    let state = createTestState();
+    const forest = createSimpleCard('Forest', 'Basic Land — Forest', '', 0);
+    const forestPerm = cardToPermanent(forest, 0, state.turn);
+    const players = [...state.players];
+    players[0] = { ...players[0], battlefield: [...players[0].battlefield, forestPerm] };
+    state = { ...state, players: players as typeof state.players };
+
+    const handBefore = state.players[0].hand.length;
+    const result = smartParserResolve(state, 0, 'If you control a Forest, draw a card.', [], undefined);
+    expect(result.resolved).toBe(true);
+    expect(result.state.players[0].hand.length).toBeGreaterThan(handBefore);
+  });
+
+  it('resolves "if you control a forest" false — skips effect, resolved=true (no manual fallback)', () => {
+    const state = createTestState();
+    const handBefore = state.players[0].hand.length;
+    const result = smartParserResolve(state, 0, 'If you control a Forest, draw a card.', [], undefined);
+    expect(result.resolved).toBe(true);
+    expect(result.state.players[0].hand.length).toBe(handBefore);
+  });
+
+  it('resolves "if you control three or more creatures" when 3 creatures present', () => {
+    let state = createTestState();
+    for (let i = 0; i < 3; i++) {
+      const c = createSimpleCard(`Beast ${i}`, 'Creature — Beast', '{2}', 0);
+      c.power = '2'; c.toughness = '2';
+      const p = cardToPermanent(c, 0, state.turn);
+      const players = [...state.players];
+      players[0] = { ...players[0], battlefield: [...players[0].battlefield, p] };
+      state = { ...state, players: players as typeof state.players };
+    }
+    const handBefore = state.players[0].hand.length;
+    const result = smartParserResolve(state, 0, 'If you control three or more creatures, draw a card.', [], undefined);
+    expect(result.resolved).toBe(true);
+    expect(result.state.players[0].hand.length).toBeGreaterThan(handBefore);
+  });
+
+  it('handles "unless" inverted logic — fires when condition is false', () => {
+    const state = createTestState();
+    const lifeBefore = state.players[0].life;
+    const result = smartParserResolve(state, 0, 'Unless you control a creature, you lose 1 life.', [], undefined);
+    expect(result.resolved).toBe(true);
+    expect(result.state.players[0].life).toBe(lifeBefore - 1);
   });
 });

@@ -462,6 +462,12 @@ function parseClause(clause: string): ParsedClause | null {
     targetFilter = 'creature';
   } else if (/\bits\s+controller\b/i.test(lower)) {
     targetScope = 'its-controller';
+  } else if (/\bits\s+owner\b/i.test(lower)) {
+    targetScope = 'its-controller';  // owner = controller in most practical cases
+  } else if (/\bthat\s+player\b/i.test(lower)) {
+    targetScope = 'its-controller';  // "that player" refers to the last targeted player/controller
+  } else if (/\bthey\b/i.test(lower) && !/\bthey\s+don't\b/i.test(lower)) {
+    targetScope = 'its-controller';  // "they draw" etc. refers to target's controller
   } else if (/\btarget\s+opponent\b/i.test(lower)) {
     targetScope = 'opponent';
   } else if (/\btarget\s+player\b/i.test(lower)) {
@@ -696,6 +702,83 @@ function resolveDynamicQuantity(
   return 1;
 }
 
+// ─── Condition Evaluator ───
+
+/**
+ * Evaluate a condition string against the current game state.
+ * Returns true if the condition is met, false if not met, null if unrecognized.
+ * When null is returned, the caller should NOT skip the effect (fall through to normal parsing).
+ */
+function evaluateCondition(
+  conditionText: string,
+  state: GameState,
+  controller: number,
+  source?: Permanent,
+): boolean | null {
+  const txt = conditionText.toLowerCase().trim();
+  const player = state.players[controller];
+
+  // ── "you control [N] or more [type]" — check BEFORE "you control a/an" to avoid shadowing ──
+  const controlNMatch = txt.match(/^you\s+control\s+(\w+)\s+or\s+more\s+(.+)$/);
+  if (controlNMatch) {
+    const n = parseNumber(controlNMatch[1]);
+    const typeNeeded = controlNMatch[2].replace(/s$/, '').trim(); // de-pluralize
+    const count = player.battlefield.filter(p =>
+      p.typeLine.toLowerCase().includes(typeNeeded),
+    ).length;
+    return count >= n;
+  }
+
+  // ── "you control a/an [type]" ──
+  const controlOneMatch = txt.match(/^you\s+control\s+(?:a|an)\s+(.+)$/);
+  if (controlOneMatch) {
+    const typeNeeded = controlOneMatch[1].trim();
+    return player.battlefield.some(p =>
+      p.typeLine.toLowerCase().includes(typeNeeded) ||
+      p.name.toLowerCase() === typeNeeded,
+    );
+  }
+
+  // ── "~ has [N] or more [counter] counters" ──
+  const sourceCounterMatch = txt.match(/^~\s+has\s+(\w+)\s+or\s+more\s+(\S+)\s+counters?$/);
+  if (sourceCounterMatch && source) {
+    const n = parseNumber(sourceCounterMatch[1]);
+    const counterType = sourceCounterMatch[2];
+    return (source.counters?.[counterType] ?? 0) >= n;
+  }
+
+  // ── "you have [N] or more cards in hand" ──
+  const handSizeMatch = txt.match(/^you\s+have\s+(\w+)\s+or\s+more\s+cards?\s+in\s+(?:your\s+)?hand$/);
+  if (handSizeMatch) {
+    const n = parseNumber(handSizeMatch[1]);
+    return player.hand.length >= n;
+  }
+
+  // ── "it's your turn" ──
+  if (/^it'?s?\s+your\s+turn$/.test(txt)) {
+    return state.activePlayer === controller;
+  }
+
+  // ── "~ entered the battlefield this turn" ──
+  if (/^~\s+entered\s+(?:the\s+)?battlefield\s+this\s+turn$/.test(txt) && source) {
+    return source.enteredBattlefieldTurn === state.turn;
+  }
+
+  // ── "a creature died this turn" ──
+  if (/^a\s+creature\s+died\s+this\s+turn$/.test(txt)) {
+    return state.creatureDiedThisTurn === true;
+  }
+
+  // ── "you have [N] or more life" ──
+  const lifeMatch = txt.match(/^you\s+have\s+(\w+)\s+or\s+more\s+life$/);
+  if (lifeMatch) {
+    const n = parseNumber(lifeMatch[1]);
+    return player.life >= n;
+  }
+
+  return null; // unrecognized condition
+}
+
 // ─── Clause Execution ───
 
 /**
@@ -748,6 +831,17 @@ function resolveItsControllerClause(
       description: `${state.players[resolvedPlayer].name} must sacrifice ${clause.quantity} ${filter}(s)`,
     };
   }
+
+  // "its controller takes N damage"
+  if (clause.verb === 'deal') {
+    const s = loseLife(state, resolvedPlayer, clause.quantity);
+    return { state: s, resolved: true, description: `${s.players[resolvedPlayer].name} takes ${clause.quantity} damage` };
+  }
+
+  // "its controller puts a +1/+1 counter on it" — skip (complex, let it fall through)
+
+  // "return it to its owner's hand" (bounce) — handled via main pattern match typically
+  // "exile it" — also usually handled by main patterns
 
   return null;
 }
@@ -2030,6 +2124,41 @@ export function smartParserResolve(
   let ctx: ClauseContext = {};
 
   for (const clauseText of clauses) {
+    // ── Conditional clause: "If [condition], [effect]" / "Unless [condition], [effect]" ──
+    const ifMatch = clauseText.match(/^(unless|if)\s+(.+),\s+([^,]+)$/i);
+    if (ifMatch) {
+      const inverted = ifMatch[1].toLowerCase() === 'unless';
+      const conditionText = ifMatch[2].trim();
+      const effectText = ifMatch[3].trim();
+
+      const condResult = evaluateCondition(conditionText, currentState, controller, source as any);
+
+      if (condResult !== null) {
+        const conditionMet = inverted ? !condResult : condResult;
+        if (!conditionMet) {
+          // Condition false → skip clause, mark as resolved (no-op)
+          anyResolved = true;
+          continue;
+        }
+        // Condition true → execute effectText as the clause
+        const effectClause = effectText;
+        const parsed = parseClause(effectClause);
+        if (parsed) {
+          const result = executeClause(parsed, currentState, controller, targets, source);
+          if (result.resolved) {
+            currentState = result.state;
+            anyResolved = true;
+            if (result.description) descriptions.push(result.description);
+          }
+        } else {
+          // condition was true but effect text unrecognized — leave anyResolved unchanged
+          // so the spell escalates to manual resolution rather than silently fizzling
+        }
+        continue;
+      }
+      // condResult === null → unrecognized condition, fall through to normal parsing
+    }
+
     const parsed = parseClause(clauseText);
     if (!parsed) continue;
 
@@ -2048,12 +2177,14 @@ export function smartParserResolve(
       anyResolved = true;
       if (result.description) descriptions.push(result.description);
 
-      // Update context: if this clause targeted/destroyed/exiled a permanent, track its controller
-      if (parsed.targetScope === 'target' && (parsed.verb === 'destroy' || parsed.verb === 'exile' || parsed.verb === 'bounce')) {
+      // Update context: if this clause targeted a permanent, track its controller for pronoun resolution
+      // Covers: destroy/exile/bounce (permanent removed), deal damage, tap, return, put counters, etc.
+      if (parsed.targetScope === 'target') {
         const permTarget = targets.find(t => t.type === 'permanent');
         if (permTarget) {
-          // The permanent was already removed, so look up from original state
-          const found = findPermanentById(state, permTarget.id);
+          // For destroy/exile/bounce the permanent was removed — look up from original state
+          // For other verbs (deal, tap, etc.) the permanent still exists — check current state first
+          const found = findPermanentById(currentState, permTarget.id) ?? findPermanentById(state, permTarget.id);
           if (found) {
             ctx = {
               lastTargetController: found.playerIdx,
@@ -2061,6 +2192,14 @@ export function smartParserResolve(
               lastTargetName: found.perm.name,
             };
           }
+        }
+        // Also track if targeting a player directly (for "that player" resolution)
+        const playerTarget = targets.find(t => t.type === 'player');
+        if (playerTarget) {
+          ctx = {
+            ...ctx,
+            lastTargetController: parseInt(playerTarget.id),
+          };
         }
       }
     }
