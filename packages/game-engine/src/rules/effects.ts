@@ -6263,6 +6263,63 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     },
   },
 
+  // 79a. each-opponent-creates-token — each opponent creates a token
+  {
+    name: 'each-opponent-creates-token',
+    match: /each\s+opponent\s+creates?\s+(?:a|one|\d+)\s+(?:(\d+)\/(\d+)\s+)?(\w[\w\s]*?)\s+(?:creature\s+)?token/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const power = m[1] ? parseInt(m[1]) : 1;
+      const toughness = m[2] ? parseInt(m[2]) : 1;
+      const tokenName = m[3] ? m[3].trim() : 'Creature';
+      const opponents = getOpponents(state, controller);
+      let count = 0;
+      for (const opp of opponents) {
+        const tokenCard: Card = {
+          id: generateCardId(), oracleId: `token_${tokenName.toLowerCase().replace(/\s+/g, '_')}`,
+          name: tokenName, manaCost: '', cmc: 0,
+          typeLine: `Token Creature — ${tokenName}`,
+          oracleText: '', power: String(power), toughness: String(toughness),
+          colors: [], colorIdentity: [], rarity: 'common', tags: [], imageUrl: '', owner: opp,
+        };
+        const perm = cardToPermanent(tokenCard, opp, state.turn);
+        const players = [...state.players];
+        players[opp] = { ...players[opp], battlefield: [...players[opp].battlefield, perm] };
+        state = { ...state, players };
+        count++;
+      }
+      state = addLog(state, controller, `Each opponent creates a ${power}/${toughness} ${tokenName} token (${count} tokens).`);
+      return { state, resolved: true, description: `each opponent creates ${tokenName} token` };
+    },
+  },
+
+  // 79b. each-player-creates-token — each player creates a token
+  {
+    name: 'each-player-creates-token',
+    match: /each\s+player\s+creates?\s+(?:a|one|\d+)\s+(?:(\d+)\/(\d+)\s+)?(\w[\w\s]*?)\s+(?:creature\s+)?token/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      const power = m[1] ? parseInt(m[1]) : 1;
+      const toughness = m[2] ? parseInt(m[2]) : 1;
+      const tokenName = m[3] ? m[3].trim() : 'Creature';
+      for (let pi = 0; pi < state.players.length; pi++) {
+        const tokenCard: Card = {
+          id: generateCardId(), oracleId: `token_${tokenName.toLowerCase().replace(/\s+/g, '_')}`,
+          name: tokenName, manaCost: '', cmc: 0,
+          typeLine: `Token Creature — ${tokenName}`,
+          oracleText: '', power: String(power), toughness: String(toughness),
+          colors: [], colorIdentity: [], rarity: 'common', tags: [], imageUrl: '', owner: pi,
+        };
+        const perm = cardToPermanent(tokenCard, pi, state.turn);
+        const players = [...state.players];
+        players[pi] = { ...players[pi], battlefield: [...players[pi].battlefield, perm] };
+        state = { ...state, players };
+      }
+      state = addLog(state, controller, `Each player creates a ${power}/${toughness} ${tokenName} token.`);
+      return { state, resolved: true, description: `each player creates ${tokenName} token` };
+    },
+  },
+
   // 79. target-player-skips-draw — target player skips their draw step
   {
     name: 'target-player-skips-draw',

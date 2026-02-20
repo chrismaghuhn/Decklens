@@ -145,7 +145,24 @@ export function checkStateBasedActions(state: GameState): GameState {
   return current;
 }
 
-/** Player with 0 or less life loses */
+/**
+ * Returns true if a player controls a permanent that prevents them from losing
+ * (e.g. Platinum Angel "you can't lose the game", Lich's Mastery, etc.)
+ * CR 613.11: loss-prevention effects are checked before elimination.
+ */
+function playerCantLose(state: GameState, playerIndex: number): boolean {
+  const player = state.players[playerIndex];
+  return player.battlefield.some(perm => {
+    const text = (perm.oracleText || '').toLowerCase();
+    return (
+      text.includes("you can't lose the game") ||
+      text.includes("you cannot lose the game") ||
+      text.includes("your opponents can't win the game")
+    );
+  });
+}
+
+/** Player with 0 or less life loses (CR 704.5a) */
 function checkPlayerLoss(state: GameState): SBAResult {
   if (state.gameOver) return { state, changed: false };
 
@@ -155,6 +172,25 @@ function checkPlayerLoss(state: GameState): SBAResult {
   for (let i = 0; i < state.players.length; i++) {
     const player = newState.players[i];
     if (!player.eliminated && player.life <= 0) {
+      // CR 613.11: check for "can't lose" effects (Platinum Angel etc.)
+      if (playerCantLose(newState, i)) {
+        // Log once so UI shows it, but don't eliminate
+        const alreadyLogged = newState.log.some(
+          l => l.message.includes(`${player.name} can't lose`) && l.turn === newState.turn
+        );
+        if (!alreadyLogged) {
+          newState = {
+            ...newState,
+            log: [...newState.log, {
+              timestamp: Date.now(), turn: newState.turn,
+              phase: newState.phase, step: newState.step, player: i,
+              message: `${player.name} has ${player.life} life but can't lose the game!`,
+            }],
+          };
+          changed = true;
+        }
+        continue;
+      }
       newState = eliminatePlayer(newState, i, `${player.name} has ${player.life} life and loses the game.`);
       changed = true;
       if (newState.gameOver) return { state: newState, changed: true };
@@ -561,6 +597,7 @@ function checkPoisonCounters(state: GameState): SBAResult {
   for (let i = 0; i < state.players.length; i++) {
     const player = newState.players[i];
     if (!player.eliminated && player.poisonCounters >= 10) {
+      if (playerCantLose(newState, i)) continue; // CR 613.11
       newState = eliminatePlayer(newState, i, `${player.name} has ${player.poisonCounters} poison counters and loses the game.`);
       changed = true;
       if (newState.gameOver) return { state: newState, changed: true };
@@ -586,6 +623,7 @@ export function checkCommanderDamageLoss(state: GameState): SBAResult {
     if (player.eliminated) continue;
     for (const [_cmdId, damage] of Object.entries(player.commanderDamage)) {
       if (damage >= 21) {
+        if (playerCantLose(newState, i)) break; // CR 613.11
         newState = eliminatePlayer(newState, i, `${player.name} has taken 21+ commander damage and loses the game.`);
         changed = true;
         if (newState.gameOver) return { state: newState, changed: true };
@@ -606,6 +644,7 @@ export function checkEmptyLibraryLoss(state: GameState, player: number): SBAResu
 
   const ps = state.players[player];
   if (!ps.eliminated && ps.library.length === 0 && ps.hasDrawnThisGame) {
+    if (playerCantLose(state, player)) return { state, changed: false }; // CR 613.11
     const newState = eliminatePlayer(
       state,
       player,
