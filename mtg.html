@@ -57,30 +57,6 @@
    OBSIDIAN FORGE — DeckLens MTG Theme
    Rich, atmospheric, premium dark design
    ══════════════════════════════════════════════════════════════ */
-:root {
- --gold: #f0a830; --gold-light: #ffd166; --gold-dark: #c48a20;
- --gold-glow: rgba(240,168,48,0.10); --gold-ember: rgba(240,168,48,0.18);
- --bg-0: #08090d; --bg-1: #101218; --bg-2: #181b24; --bg-3: #232838; --bg-4: #353d52;
- --text: #c4cad8; --text-dim: #6b7394; --text-bright: #eef0f6;
- --color-w: #fef3c7; --color-u: #5eaaff; --color-b: #b48efa; --color-r: #ff6b6b; --color-g: #3ddfa0; --color-m: #fbbf24; --color-c: #8a94aa;
- --border: rgba(120,140,200,0.08); --border-light: rgba(120,140,200,0.16);
- --radius: 14px; --radius-sm: 8px;
- --shadow: 0 8px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3);
- --shadow-gold: 0 0 24px rgba(240,168,48,0.12), 0 0 60px rgba(240,168,48,0.05);
- --font-display: 'Playfair Display', Georgia, serif;
- --font-body: 'DM Sans', system-ui, sans-serif;
- --font-serif: 'Playfair Display', Georgia, serif;
- --font-mono: 'Fira Code', 'Consolas', monospace;
- --transition: 0.25s cubic-bezier(0.4,0,0.2,1);
- --creature: #f97316; --instant: #3b82f6; --sorcery: #ef4444;
- --enchantment: #b48efa; --artifact: #8a94aa; --planeswalker: #eab308; --land: #3ddfa0;
- --banned: #ff4757; --legal: #2ed573; --restricted: #ffa502; --notlegal: #57606f;
- --cyan: #06d6a0; --cyan-glow: rgba(6,214,160,0.12);
- --glass: rgba(16,18,24,0.75);
- --glass-border: rgba(120,140,200,0.10);
- --glow-purple: rgba(139,92,246,0.08);
- --glow-blue: rgba(59,130,246,0.06);
-}
 [data-theme="light"] {
  --bg-0: #f4f5f8; --bg-1: #ffffff; --bg-2: #ebedf3; --bg-3: #dde0e9; --bg-4: #c5c9d6;
  --text: #2d3250; --text-dim: #6b7394; --text-bright: #0d0f1a;
@@ -2852,6 +2828,223 @@ body { font-size: 15px; line-height: 1.65; }
   .import-btn,
   .hand-btn { font-size: 0.74rem; }
 }
+
+/* ── TOOL CONTENT UTILITIES ───────────────────────── */
+.tool-textarea {
+  width: 100%;
+  min-height: 80px;
+  margin-bottom: 0.5rem;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  resize: vertical;
+}
+.tool-textarea:focus { outline: none; border-color: var(--gold); }
+.tool-number-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  max-width: 300px;
+}
+.tool-number-label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.tool-number-input {
+  width: 70px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.25rem 0.4rem;
+  color: var(--text);
+  font-size: 0.82rem;
+}
+.tool-number-input:focus { outline: none; border-color: var(--gold); }
+.btn-danger-ghost {
+  background: rgba(229, 62, 62, 0.1);
+  color: var(--banned);
+  border-color: rgba(229, 62, 62, 0.25);
+}
+.btn-danger-ghost:hover {
+  background: rgba(229, 62, 62, 0.18);
+  border-color: rgba(229, 62, 62, 0.4);
+}
+.tool-score-display {
+  text-align: center;
+  padding: 1rem;
+}
+.tool-score-num {
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--gold);
+  font-family: var(--font-display);
+  line-height: 1;
+}
+.tool-score-label {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-top: 0.4rem;
+}
+.tool-lead {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 1rem;
+}
+
+/* ── STAT CHIP COMPACT VARIANT ────────────────────── */
+.stat-chip--sm {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.75rem;
+  gap: 0.35rem;
+}
+.stat-chip--sm .num { font-size: 0.85rem; }
+
+/* ── HOVER ORACLE TEXT ───────────────────────────── */
+.hover-oracle {
+  display: none;
+  padding: 0.6rem 0.75rem;
+  background: rgba(8, 7, 18, 0.97);
+  border-top: 1px solid var(--glass-border);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--text);
+  max-height: 120px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.hover-oracle:not(:empty) { display: block; }
+.hover-oracle-type {
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.3rem;
+}
+.hover-oracle-mana {
+  color: var(--gold);
+  font-size: 0.7rem;
+  margin-bottom: 0.25rem;
+}
+
+/* ── ONBOARDING EMPTY STATE ───────────────────────── */
+.onboard-shell {
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+.onboard-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: var(--text-bright);
+  margin-bottom: 0.4rem;
+  letter-spacing: 0.04em;
+}
+.onboard-sub {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+.onboard-methods {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  text-align: left;
+}
+.onboard-method {
+  background: rgba(201, 168, 76, 0.04);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 0.85rem;
+}
+.onboard-method-icon {
+  font-size: 1.3rem;
+  margin-bottom: 0.4rem;
+}
+.onboard-method-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 0.2rem;
+}
+.onboard-method-desc {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+.onboard-tip {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  border: 1px dashed rgba(201, 168, 76, 0.2);
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  display: inline-block;
+}
+.onboard-tip strong { color: var(--gold); }
+
+/* ── FORMAT SELECTOR ─────────────────────────────── */
+.toolbar-format-select {
+  background: var(--bg-2);
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  color: var(--gold);
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+}
+.toolbar-format-select:focus { outline: none; box-shadow: 0 0 0 2px rgba(201,168,76,0.2); }
+
+/* ── IMPORT TABS ─────────────────────────────────── */
+/* Override the old 2-col grid layout for tabbed import */
+#importPanel {
+  display: block;
+}
+.import-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+.import-tab-btn {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.4rem 0.5rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  transition: all 0.2s;
+}
+.import-tab-btn:hover {
+  border-color: var(--border-light);
+  color: var(--gold-light);
+  background: rgba(201, 168, 76, 0.06);
+}
+.import-tab-btn.active {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: rgba(201, 168, 76, 0.1);
+}
+.import-pane { display: none; }
+.import-pane.active { display: block; }
 </style>
 </head>
 <body>
@@ -2884,6 +3077,7 @@ body { font-size: 15px; line-height: 1.65; }
   <symbol id="i-printer" viewBox="0 0 24 24"><path d="M7 8V3h10v5"></path><path d="M6 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"></path><path d="M7 14h10v7H7z"></path></symbol>
   <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></symbol>
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12"></path><path d="M7.5 11.5L12 16l4.5-4.5"></path><path d="M4 20h16"></path></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"></path></symbol>
 </svg>
 <div class="container">
  <header class="app-header">
@@ -2902,10 +3096,8 @@ body { font-size: 15px; line-height: 1.65; }
    <button class="action-item" id="btnShowTools" data-action="toggle-panel" data-panel="toolsPanel"><svg class="ui-icon"><use href="#i-tools"></use></svg>Tools</button>
    <span class="divider"></span>
    <button class="action-item" id="btnAnalysis" data-action="toggle-panel" data-panel="analysisPanel"><svg class="ui-icon"><use href="#i-chart"></use></svg>Analysis</button>
-    <span class="divider"></span>
-    <button class="action-item" id="btnBeta" data-action="toggle-panel" data-panel="betaDashboardPanel"><svg class="ui-icon"><use href="#i-target"></use></svg>Beta</button>
-    <span class="divider"></span>
-    <button class="action-item" id="btnHand" data-action="toggle-panel" data-panel="testHandPanel"><svg class="ui-icon"><use href="#i-hand"></use></svg>Hand</button>
+   <span class="divider"></span>
+   <button class="action-item" id="btnHand" data-action="toggle-panel" data-panel="testHandPanel"><svg class="ui-icon"><use href="#i-hand"></use></svg>Hand</button>
    <span class="divider"></span>
    <button class="action-item" id="btnExport" data-action="toggle-panel" data-panel="exportPanel"><svg class="ui-icon"><use href="#i-export"></use></svg>Export</button>
  </div>
@@ -2918,20 +3110,21 @@ body { font-size: 15px; line-height: 1.65; }
  
  <!-- More Menu -->
  <div class="header-more" id="headerMore">
-   <button class="icon-btn" id="btnMore" title="More">⋯</button>
+   <button class="icon-btn" id="btnMore" title="More options" aria-label="More options">⋯</button>
    <div class="header-more-menu" id="moreMenu">
+      <button data-panel="recsPanel" data-close-menu><svg class="ui-icon"><use href="#i-spark"></use></svg>Suggestions</button>
+      <button data-panel="comparePanel" data-close-menu><svg class="ui-icon"><use href="#i-compare"></use></svg>Compare</button>
       <button data-panel="collectionPanel" data-close-menu><svg class="ui-icon"><use href="#i-box"></use></svg>Collection</button>
+      <button data-panel="budgetPanel" data-close-menu><svg class="ui-icon"><use href="#i-wallet"></use></svg>Budget</button>
       <button data-panel="buyPanel" data-close-menu><svg class="ui-icon"><use href="#i-cart"></use></svg>Buy Cards</button>
       <button data-panel="wishlistPanel" data-close-menu><svg class="ui-icon"><use href="#i-star"></use></svg>Wishlist</button>
       <button data-panel="goldfishPanel" data-close-menu><svg class="ui-icon"><use href="#i-fish"></use></svg>Goldfish</button>
-      <button data-panel="budgetPanel" data-close-menu><svg class="ui-icon"><use href="#i-wallet"></use></svg>Budget</button>
-      <button data-panel="comparePanel" data-close-menu><svg class="ui-icon"><use href="#i-compare"></use></svg>Compare</button>
-      <button data-panel="recsPanel" data-close-menu><svg class="ui-icon"><use href="#i-spark"></use></svg>Suggestions</button>
+      <button data-panel="betaDashboardPanel" data-close-menu><svg class="ui-icon"><use href="#i-target"></use></svg>Beta Dashboard</button>
       <button data-action="show-share" data-close-menu><svg class="ui-icon"><use href="#i-link"></use></svg>Share</button>
    </div>
  </div>
  
- <button class="icon-btn" id="btnTheme" data-action="toggle-theme" title="Toggle Theme">☀</button>
+ <button class="icon-btn" id="btnTheme" data-action="toggle-theme" title="Toggle light/dark theme" aria-label="Toggle light/dark theme">☀</button>
  <button class="icon-btn" id="btnPrint" title="Print Deck"><svg class="ui-icon"><use href="#i-printer"></use></svg></button>
  </div>
  </header>
@@ -2941,32 +3134,58 @@ body { font-size: 15px; line-height: 1.65; }
     <div class="workspace-block-title">Import & Setup</div>
 
   <div class="import-panel" id="importPanel">
- <div class="dropzone" id="dropzone">
- <div class="dropzone-icon"><svg class="ui-icon"><use href="#i-upload"></use></svg></div><h3>Drop your deck file here</h3><p>.dec .txt .dek .csv .json or click to browse</p>
- <input type="file" accept=".dec,.txt,.dek,.mwDeck,.csv,.json" id="deckFileInput" >
- </div>
- <div class="import-alt">
- <label><svg class="ui-icon"><use href="#i-file"></use></svg>Paste Decklist</label>
- <textarea id="pasteArea" placeholder="4 Lightning Bolt
+  <!-- Tab switcher -->
+  <div class="import-tabs">
+    <button class="import-tab-btn active" data-import-tab="paste" id="importTabPaste">
+      <svg class="ui-icon"><use href="#i-file"></use></svg>Paste
+    </button>
+    <button class="import-tab-btn" data-import-tab="file" id="importTabFile">
+      <svg class="ui-icon"><use href="#i-upload"></use></svg>File
+    </button>
+    <button class="import-tab-btn" data-import-tab="url" id="importTabUrl">
+      <svg class="ui-icon"><use href="#i-globe"></use></svg>URL
+    </button>
+  </div>
+
+  <!-- Paste pane (default) -->
+  <div class="import-pane active" id="importPanePaste">
+    <div class="import-alt">
+      <label><svg class="ui-icon"><use href="#i-file"></use></svg>Paste Decklist</label>
+      <textarea id="pasteArea" placeholder="4 Lightning Bolt
 4 Counterspell
 2x Brainstorm
 
 Sideboard:
 3 Mystical Dispute
 2 Flusterstorm" maxlength="200000"></textarea>
- <div class="format-hint">Formats: <code>4 Card Name</code> • <code>4x Card</code> • <code>*1 Card</code> • Arena • MTGO</div>
- <button class="import-btn" id="btnImportPaste"><svg class="ui-icon"><use href="#i-upload"></use></svg>Load Deck</button>
- </div>
-  <div class="import-alt">
-  <label><svg class="ui-icon"><use href="#i-link"></use></svg>Import from URL</label>
-  <input type="text" id="urlInput" placeholder="https://www.moxfield.com/decks/..." maxlength="2000">
-  <div class="format-hint">Supports: Moxfield, Archidekt</div>
-  <div class="import-url-actions">
-  <button class="import-btn" id="btnImportUrl"><svg class="ui-icon"><use href="#i-globe"></use></svg>Fetch Deck</button>
-  <button class="import-btn subtle" id="btnImportUrlAuto"><svg class="ui-icon"><use href="#i-copy"></use></svg>Fetch + AutoPaste</button>
-  <button class="import-btn subtle" id="btnPasteClipboardNow"><svg class="ui-icon"><use href="#i-download"></use></svg>Paste Clipboard</button>
+      <div class="format-hint">Formats: <code>4 Card Name</code> • <code>4x Card</code> • <code>*1 Card</code> • Arena • MTGO</div>
+      <button class="import-btn" id="btnImportPaste"><svg class="ui-icon"><use href="#i-upload"></use></svg>Load Deck</button>
+    </div>
   </div>
-</div>
+
+  <!-- File pane -->
+  <div class="import-pane" id="importPaneFile">
+    <div class="dropzone" id="dropzone">
+      <div class="dropzone-icon"><svg class="ui-icon"><use href="#i-upload"></use></svg></div>
+      <h3>Drop your deck file here</h3>
+      <p>.dec .txt .dek .csv .json or click to browse</p>
+      <input type="file" accept=".dec,.txt,.dek,.mwDeck,.csv,.json" id="deckFileInput">
+    </div>
+  </div>
+
+  <!-- URL pane -->
+  <div class="import-pane" id="importPaneUrl">
+    <div class="import-alt">
+      <label><svg class="ui-icon"><use href="#i-link"></use></svg>Import from URL</label>
+      <input type="text" id="urlInput" placeholder="https://www.moxfield.com/decks/..." maxlength="2000">
+      <div class="format-hint">Supports: Moxfield, Archidekt</div>
+      <div class="import-url-actions">
+        <button class="import-btn" id="btnImportUrl"><svg class="ui-icon"><use href="#i-globe"></use></svg>Fetch Deck</button>
+        <button class="import-btn subtle" id="btnImportUrlAuto"><svg class="ui-icon"><use href="#i-copy"></use></svg>Fetch + AutoPaste</button>
+        <button class="import-btn subtle" id="btnPasteClipboardNow"><svg class="ui-icon"><use href="#i-download"></use></svg>Paste Clipboard</button>
+      </div>
+    </div>
+  </div>
   </div>
 
   <div class="flow-panel" id="flowPanel" data-status="empty" data-step="import">
@@ -2974,7 +3193,7 @@ Sideboard:
   <button class="flow-step active" id="flowStepImport" type="button"><span class="flow-step-index">1</span><svg class="ui-icon"><use href="#i-upload"></use></svg>Import</button>
   <button class="flow-step" id="flowStepAnalyze" type="button"><span class="flow-step-index">2</span><svg class="ui-icon"><use href="#i-chart"></use></svg>Analyze</button>
   <button class="flow-step" id="flowStepRecommend" type="button"><span class="flow-step-index">3</span><svg class="ui-icon"><use href="#i-spark"></use></svg>Top 3</button>
-  <button class="flow-step" id="flowStepApply" type="button"><span class="flow-step-index">4</span><svg class="ui-icon"><use href="#i-spark"></use></svg>Apply</button>
+  <button class="flow-step" id="flowStepApply" type="button"><span class="flow-step-index">4</span><svg class="ui-icon"><use href="#i-check"></use></svg>Apply</button>
   <button class="flow-step" id="flowStepExport" type="button"><span class="flow-step-index">5</span><svg class="ui-icon"><use href="#i-export"></use></svg>Export</button>
   </div>
   <div class="flow-status-row">
@@ -3010,16 +3229,53 @@ Sideboard:
  <div class="toolbar-group"><span class="toolbar-label">Sort</span>
  <select class="toolbar-select" id="sortSelect" ><option value="name">Name</option><option value="cmc">Mana Value</option><option value="type">Type</option><option value="price">Price</option><option value="color">Color</option></select>
  </div>
+ <div class="toolbar-group"><span class="toolbar-label">Format</span>
+   <select class="toolbar-format-select" id="formatSelect">
+     <option value="commander">Commander</option>
+     <option value="standard">Standard</option>
+     <option value="modern">Modern</option>
+     <option value="pioneer">Pioneer</option>
+     <option value="legacy">Legacy</option>
+     <option value="vintage">Vintage</option>
+     <option value="pauper">Pauper</option>
+     <option value="any">Any</option>
+   </select>
+ </div>
  </div>
 
-  <div id="deckContent"><p class="tool-empty">Import a deck to populate card sections and live deck details.</p></div>
+  <div id="deckContent">
+    <div class="onboard-shell" id="onboardState">
+      <div class="onboard-title">Ready to analyze your deck</div>
+      <p class="onboard-sub">Import any deck — paste a list, drop a file, or fetch from Moxfield or Archidekt.</p>
+      <div class="onboard-methods">
+        <div class="onboard-method">
+          <div class="onboard-method-icon">📋</div>
+          <div class="onboard-method-title">Paste</div>
+          <div class="onboard-method-desc">Copy your Arena or MTGO export and paste it in the left panel.</div>
+        </div>
+        <div class="onboard-method">
+          <div class="onboard-method-icon">📁</div>
+          <div class="onboard-method-title">File</div>
+          <div class="onboard-method-desc">Drop a .dec, .txt, or .json deck file onto the left panel.</div>
+        </div>
+        <div class="onboard-method">
+          <div class="onboard-method-icon">🔗</div>
+          <div class="onboard-method-title">URL</div>
+          <div class="onboard-method-desc">Paste a Moxfield or Archidekt deck URL to fetch it directly.</div>
+        </div>
+      </div>
+      <div class="onboard-tip">
+        <strong>Tip:</strong> After import, use <strong>Analysis</strong> in the header to see mana curve, color distribution &amp; format legality.
+      </div>
+    </div>
+  </div>
   </section>
   </div>
 
   <div class="workspace-advanced">
    <div class="workspace-advanced-head">
-    <p>Advanced Modules</p>
-    <span>Open only the panels you need from header actions and keep the workspace focused.</span>
+    <p>Tools &amp; Analysis</p>
+    <span>Select a tool from the tabs below, or use the header buttons to open Analysis, Export, and Hand Simulator.</span>
    </div>
 
   <!-- TOOLS PANEL -->
@@ -3074,10 +3330,10 @@ Sideboard:
    <!-- Compare Tab -->
    <div class="tools-content" id="tool-compare">
       <h4><svg class="ui-icon"><use href="#i-compare"></use></svg>Deck Comparison</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Compare two decks side by side.</p>
+     <p class="tool-lead">Compare two decks side by side.</p>
      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
-       <textarea id="compareDeck1" placeholder="Paste deck 1..." style="min-height:100px;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:0.5rem;color:var(--text);font-size:0.75rem;"></textarea>
-       <textarea id="compareDeck2" placeholder="Paste deck 2..." style="min-height:100px;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:0.5rem;color:var(--text);font-size:0.75rem;"></textarea>
+       <textarea id="compareDeck1" placeholder="Paste deck 1..." class="tool-textarea"></textarea>
+       <textarea id="compareDeck2" placeholder="Paste deck 2..." class="tool-textarea"></textarea>
      </div>
      <button class="hand-btn primary" id="btnRunCompare2">Compare</button>
      <div id="compareResults2" style="margin-top:1rem;"></div>
@@ -3086,7 +3342,7 @@ Sideboard:
    <!-- Buy Tab -->
    <div class="tools-content" id="tool-buy">
       <h4><svg class="ui-icon"><use href="#i-cart"></use></svg>Buy Cards</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Find best prices across vendors.</p>
+     <p class="tool-lead">Find best prices across vendors.</p>
      <div id="buyOptions" style="margin-top:0.5rem;">
        <p style="font-size:0.8rem;color:var(--text-dim);">Load a deck to see purchase options.</p>
      </div>
@@ -3095,7 +3351,7 @@ Sideboard:
    <!-- Wishlist Tab -->
    <div class="tools-content" id="tool-wishlist">
       <h4><svg class="ui-icon"><use href="#i-star"></use></svg>Wishlist</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Track cards you want to acquire.</p>
+     <p class="tool-lead">Track cards you want to acquire.</p>
      <div id="wishlistContent" style="margin-top:0.5rem;">
        <p style="font-size:0.8rem;color:var(--text-dim);">Click cards in your deck to add them to wishlist.</p>
      </div>
@@ -3104,12 +3360,12 @@ Sideboard:
    <!-- Probability Tab -->
    <div class="tools-content" id="tool-hyper">
       <h4><svg class="ui-icon"><use href="#i-target"></use></svg>Hypergeometric Calculator</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Calculate draw probabilities.</p>
-     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.5rem;max-width:300px;">
-       <label style="font-size:0.75rem;">Deck size: <input type="number" id="hyperDeck" value="60" style="width:60px;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:0.25rem;color:var(--text);"></label>
-       <label style="font-size:0.75rem;">Cards drawn: <input type="number" id="hyperDraw" value="7" style="width:60px;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:0.25rem;color:var(--text);"></label>
-       <label style="font-size:0.75rem;">Copies in deck: <input type="number" id="hyperCopies" value="4" style="width:60px;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:0.25rem;color:var(--text);"></label>
-       <label style="font-size:0.75rem;">Want at least: <input type="number" id="hyperWant" value="1" style="width:60px;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:0.25rem;color:var(--text);"></label>
+     <p class="tool-lead">Calculate draw probabilities.</p>
+     <div class="tool-number-grid">
+       <label class="tool-number-label">Deck size: <input type="number" id="hyperDeck" value="60" class="tool-number-input"></label>
+       <label class="tool-number-label">Cards drawn: <input type="number" id="hyperDraw" value="7" class="tool-number-input"></label>
+       <label class="tool-number-label">Copies in deck: <input type="number" id="hyperCopies" value="4" class="tool-number-input"></label>
+       <label class="tool-number-label">Want at least: <input type="number" id="hyperWant" value="1" class="tool-number-input"></label>
      </div>
      <button class="hand-btn primary" id="btnCalcHyper" style="margin-top:0.75rem;">Calculate</button>
      <div id="hyperResult" style="margin-top:0.75rem;font-size:0.85rem;color:var(--gold-light);"></div>
@@ -3118,7 +3374,7 @@ Sideboard:
    <!-- Tokens Tab -->
    <div class="tools-content" id="tool-tokens">
       <h4><svg class="ui-icon"><use href="#i-layers"></use></svg>Token Detection</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Find tokens your deck creates.</p>
+     <p class="tool-lead">Find tokens your deck creates.</p>
      <div id="tokensList" style="margin-top:0.5rem;">
        <p style="font-size:0.8rem;color:var(--text-dim);">Load a deck to detect tokens.</p>
      </div>
@@ -3127,7 +3383,7 @@ Sideboard:
    <!-- Combos Tab -->
    <div class="tools-content" id="tool-combos">
       <h4><svg class="ui-icon"><use href="#i-infinity"></use></svg>Combo Detection</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Find 2-card combos in your deck from 3,900+ Commander Spellbook entries.</p>
+     <p class="tool-lead">Find 2-card combos in your deck from 3,900+ Commander Spellbook entries.</p>
      <div id="combosList" style="margin-top:0.5rem;">
        <p style="font-size:0.8rem;color:var(--text-dim);">Load a deck to detect combos.</p>
      </div>
@@ -3136,7 +3392,7 @@ Sideboard:
    <!-- Versions Tab -->
    <div class="tools-content" id="tool-versions">
       <h4><svg class="ui-icon"><use href="#i-history"></use></svg>Version History</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Save and restore deck versions.</p>
+     <p class="tool-lead">Save and restore deck versions.</p>
      <button class="hand-btn primary" id="btnSaveVersion2">Save Current</button>
      <div id="versionsList2" style="margin-top:1rem;"></div>
    </div>
@@ -3144,16 +3400,9 @@ Sideboard:
    <!-- DNA Tab -->
    <div class="tools-content" id="tool-dna">
       <h4><svg class="ui-icon"><use href="#i-dna"></use></svg>Deck DNA Fingerprint</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Analyze your deck's archetype signature.</p>
-     <div id="dnaResult" style="margin-top:0.5rem;">
-       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:0.5rem;" id="dnaGrid">
-         <div class="dna-stat"><span class="label">Aggro</span><div class="bar"><div class="fill" style="width:0%"></div></div><span class="val">0%</span></div>
-         <div class="dna-stat"><span class="label">Control</span><div class="bar"><div class="fill" style="width:0%"></div></div><span class="val">0%</span></div>
-         <div class="dna-stat"><span class="label">Combo</span><div class="bar"><div class="fill" style="width:0%"></div></div><span class="val">0%</span></div>
-         <div class="dna-stat"><span class="label">Midrange</span><div class="bar"><div class="fill" style="width:0%"></div></div><span class="val">0%</span></div>
-         <div class="dna-stat"><span class="label">Ramp</span><div class="bar"><div class="fill" style="width:0%"></div></div><span class="val">0%</span></div>
-         <div class="dna-stat"><span class="label">Tempo</span><div class="bar"><div class="fill" style="width:0%"></div></div><span class="val">0%</span></div>
-       </div>
+     <p class="tool-lead">Analyze your deck's archetype signature.</p>
+     <div id="dnaResult">
+       <p class="tool-empty">Load a deck to analyze its DNA.</p>
      </div>
      <button class="hand-btn primary" id="btnCalcDNA" style="margin-top:1rem;">Analyze DNA</button>
    </div>
@@ -3161,10 +3410,10 @@ Sideboard:
    <!-- Power Tab -->
    <div class="tools-content" id="tool-power">
       <h4><svg class="ui-icon"><use href="#i-bolt"></use></svg>Power Level Estimate</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Estimate your deck's competitive power (1-10 scale).</p>
-     <div id="powerResult" style="text-align:center;padding:1rem;">
-       <div style="font-size:3rem;font-weight:700;color:var(--gold);" id="powerScore">?</div>
-       <div style="font-size:0.85rem;color:var(--text-dim);" id="powerLabel">Load a deck to analyze</div>
+     <p class="tool-lead">Estimate your deck's competitive power (1-10 scale).</p>
+     <div id="powerResult" class="tool-score-display">
+       <div class="tool-score-num" id="powerScore">?</div>
+       <div class="tool-score-label" id="powerLabel">Load a deck to analyze</div>
      </div>
      <div id="powerFactors" style="margin-top:1rem;font-size:0.8rem;"></div>
      <button class="hand-btn primary" id="btnCalcPower" style="margin-top:1rem;">Calculate Power</button>
@@ -3173,10 +3422,10 @@ Sideboard:
    <!-- Salt Tab -->
    <div class="tools-content" id="tool-salt">
       <h4><svg class="ui-icon"><use href="#i-flask"></use></svg>Salt Score</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">How annoying is your deck to play against?</p>
-     <div id="saltResult" style="text-align:center;padding:1rem;">
-       <div style="font-size:3rem;font-weight:700;color:var(--text);" id="saltScore">?</div>
-       <div style="font-size:0.85rem;color:var(--text-dim);" id="saltLabel">Load a deck to analyze</div>
+     <p class="tool-lead">How annoying is your deck to play against?</p>
+     <div id="saltResult" class="tool-score-display">
+       <div class="tool-score-num" style="color:var(--text);" id="saltScore">?</div>
+       <div class="tool-score-label" id="saltLabel">Load a deck to analyze</div>
      </div>
      <div id="saltCards" style="margin-top:1rem;font-size:0.8rem;"></div>
      <button class="hand-btn primary" id="btnCalcSalt" style="margin-top:1rem;">Calculate Salt</button>
@@ -3185,7 +3434,7 @@ Sideboard:
    <!-- Synergy Tab -->
    <div class="tools-content" id="tool-synergy">
       <h4><svg class="ui-icon"><use href="#i-network"></use></svg>Card Synergies</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Discover card interactions in your deck.</p>
+     <p class="tool-lead">Discover card interactions in your deck.</p>
      <div id="synergyResult" style="margin-top:0.5rem;">
        <p style="font-size:0.8rem;color:var(--text-dim);">Load a deck to find synergies.</p>
      </div>
@@ -3195,7 +3444,7 @@ Sideboard:
    <!-- Budget Tab -->
    <div class="tools-content" id="tool-budget">
       <h4><svg class="ui-icon"><use href="#i-wallet"></use></svg>Budget Alternatives</h4>
-     <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Find cheaper replacements for expensive cards.</p>
+     <p class="tool-lead">Find cheaper replacements for expensive cards.</p>
      <div id="budgetResult" style="margin-top:0.5rem;">
        <p style="font-size:0.8rem;color:var(--text-dim);">Load a deck to find budget options.</p>
      </div>
@@ -3205,7 +3454,7 @@ Sideboard:
     <!-- Suggestions Tab -->
     <div class="tools-content" id="tool-recs">
        <h4><svg class="ui-icon"><use href="#i-spark"></use></svg>Card Suggestions</h4>
-      <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">AI-powered card recommendations for your deck.</p>
+      <p class="tool-lead">AI-powered card recommendations for your deck.</p>
       <div class="recs-filters">
         <div class="meta-mode-control">
           <label class="meta-mode-label" for="metaModeSelect">Meta Mode</label>
@@ -3225,7 +3474,7 @@ Sideboard:
     <!-- Matchup Tab -->
     <div class="tools-content" id="tool-matchup">
        <h4><svg class="ui-icon"><use href="#i-target"></use></svg>Matchup Guide</h4>
-      <p class="text-dim" style="font-size:0.8rem;margin-bottom:1rem;">Generate pre-board and post-board plans with sideboard in/out swaps.</p>
+      <p class="tool-lead">Generate pre-board and post-board plans with sideboard in/out swaps.</p>
       <div id="matchupResult" style="margin-top:0.5rem;">
         <p style="font-size:0.8rem;color:var(--text-dim);">Load a deck and run matchup guide.</p>
       </div>
@@ -3265,11 +3514,11 @@ Sideboard:
  <div class="format-hint" style="margin-top:0.3rem">Import from Arena, MTGO, Moxfield export, Manabox CSV, or simple list. Also supports <code>4x Card Name</code> format.</div>
  <div class="coll-actions">
  <button class="import-btn" id="btnImportColl">Import Collection</button>
- <button class="import-btn" style="background:var(--bg-2);color:var(--text);border:1px solid var(--border)" id="btnMergeColl">Merge with Existing</button>
+ <button class="import-btn subtle" id="btnMergeColl">Merge with Existing</button>
  <input type="file" id="collFileInput" accept=".csv,.txt,.dec" style="display:none">
- <button class="import-btn" style="background:var(--bg-2);color:var(--text);border:1px solid var(--border)" id="btnCollUpload" > Upload File</button>
-  <button class="import-btn" style="background:rgba(229,62,62,0.15);color:var(--banned);border:1px solid rgba(229,62,62,0.25)" id="btnClearColl" > Clear</button>
-  <button class="import-btn" style="background:var(--bg-2);color:var(--text);border:1px solid var(--border)" id="btnExportColl"><svg class="ui-icon"><use href="#i-export"></use></svg>Export</button>
+ <button class="import-btn subtle" id="btnCollUpload">Upload File</button>
+  <button class="import-btn btn-danger-ghost" id="btnClearColl">Clear</button>
+  <button class="import-btn subtle" id="btnExportColl"><svg class="ui-icon"><use href="#i-export"></use></svg>Export</button>
   </div>
   <div class="coll-unresolved" id="collUnresolved" hidden>
   <div class="coll-unresolved-title">Unresolved Rows (manual fix)</div>
@@ -3520,7 +3769,7 @@ Sideboard:
 
 <div class="analysis-spotlight-backdrop" id="flowAnalysisBackdrop" aria-hidden="true"></div>
 
-<div class="hover-preview" id="hoverPreview"><img id="hoverImg" src="" alt=""></div>
+<div class="hover-preview" id="hoverPreview"><img id="hoverImg" src="" alt=""><div class="hover-oracle" id="hoverOracle"></div></div>
 <div class="symbol-tooltip" id="symbolTooltip" role="tooltip"></div>
 <div class="modal-overlay" id="modal">
  <div class="modal"><button class="modal-close">&times;</button>
@@ -3603,5 +3852,19 @@ Sideboard:
 
 <script type="module" src="/src/mtg/main.ts"></script>
 <script type="module" src="/src/shared/discord-popup.ts"></script>
+<script>
+// Import tab switcher
+(function() {
+  var tabs = document.querySelectorAll('[data-import-tab]');
+  var panes = document.querySelectorAll('.import-pane');
+  tabs.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var target = btn.dataset.importTab;
+      tabs.forEach(function(t) { t.classList.toggle('active', t.dataset.importTab === target); });
+      panes.forEach(function(p) { p.classList.toggle('active', p.id === 'importPane' + target.charAt(0).toUpperCase() + target.slice(1)); });
+    });
+  });
+})();
+</script>
 </body>
 </html>
