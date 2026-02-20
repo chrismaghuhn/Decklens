@@ -218,6 +218,92 @@ function addLog(state: GameState, player: number, message: string): GameState {
   };
 }
 
+// ─── Generic Token Factory (parseTokenFromOracle) ───
+
+/**
+ * Generic token factory — parses creature token specs from oracle text.
+ * Handles: "Create a 2/2 white Human Soldier creature token"
+ *          "Create two 1/1 black Zombie creature tokens"
+ *          "Create a 4/4 green Elemental creature token with flying and trample"
+ *          "Create a 3/3 colorless Golem artifact creature token"
+ * Returns array of Permanent objects, or null if text doesn't match.
+ */
+function parseTokenFromOracle(
+  text: string,
+  controller: number,
+  turn: number,
+): Permanent[] | null {
+  const match = text.match(
+    /create\s+(?:(a|an|\d+|two|three|four|five|six)\s+)?(?:(\d+)\/(\d+)\s+)?([\w\s]+?)\s+(?:creature\s+|artifact\s+creature\s+)?tokens?(?:\s+with\s+([^.]+))?/i
+  );
+  if (!match) return null;
+
+  const NUMBER_WORDS: Record<string, number> = {
+    a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
+  };
+  const COLOR_MAP: Record<string, string> = {
+    white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G',
+  };
+
+  const countRaw = (match[1] ?? '1').toLowerCase();
+  const count = NUMBER_WORDS[countRaw] ?? (parseInt(countRaw) || 1);
+  const power = match[2] ?? '1';
+  const toughness = match[3] ?? '1';
+  const descriptors = (match[4] ?? '').toLowerCase().trim();
+  const withClause = match[5] ?? '';
+
+  // Extract colors
+  const colors: import('../types/card.ts').Color[] = [];
+  for (const [word, sym] of Object.entries(COLOR_MAP)) {
+    if (descriptors.includes(word)) {
+      colors.push(sym as import('../types/card.ts').Color);
+    }
+  }
+
+  // Build creature subtype (remove color/structural words)
+  const subtypeWords = descriptors
+    .replace(/\b(white|blue|black|red|green|colorless|artifact|creature|token)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(w => w.length > 1)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1));
+  const subtype = subtypeWords.join(' ');
+
+  // Build keywords from "with X, Y and Z"
+  const keywords: string[] = withClause
+    ? withClause.split(/,\s*|\s+and\s+/).map(k => k.trim()).filter(Boolean)
+    : [];
+
+  const isArtifact = /artifact\s+creature/i.test(text);
+  const typeLine = isArtifact
+    ? `Token Artifact Creature — ${subtype || 'Construct'}`
+    : `Token Creature — ${subtype || 'Elemental'}`;
+
+  const tokens: Permanent[] = [];
+  for (let i = 0; i < count; i++) {
+    const tokenCard: Card = {
+      id: generateCardId(),
+      oracleId: `token_${subtype || 'generic'}`,
+      name: subtype || 'Token',
+      manaCost: '',
+      cmc: 0,
+      typeLine,
+      oracleText: keywords.join(', '),
+      power,
+      toughness,
+      colors,
+      colorIdentity: colors,
+      rarity: 'common',
+      tags: [],
+      imageUrl: '',
+      owner: controller,
+    };
+    tokens.push(cardToPermanent(tokenCard, controller, turn));
+  }
+  return tokens.length > 0 ? tokens : null;
+}
+
 // ─── Token Doubling Helper (Doubling Season, Parallel Lives, Anointed Procession, Primal Vigor) ───
 
 /**
@@ -540,6 +626,125 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     },
   },
 
+  // ── Counter — specific spell types ──
+  {
+    name: 'counter-target-creature-spell',
+    match: /counter\s+target\s+creature\s+spell/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      const targetId = targets.find(t => t.type === 'card-in-zone' && t.zone === 'stack')?.id ?? targets[0]?.id;
+      if (!targetId) return { state, resolved: false };
+      const stackIdx = state.stack.findIndex(s => s.id === targetId);
+      if (stackIdx === -1) return { state, resolved: false };
+      const countered = state.stack[stackIdx];
+      if (countered.type !== 'spell' || !countered.card?.typeLine?.toLowerCase().includes('creature')) {
+        return { state, resolved: true, description: 'Target is not a creature spell — no effect' };
+      }
+      if (countered.uncounterable) {
+        return { state: addLog(state, controller, `${countered.card.name} can't be countered.`), resolved: true, description: `${countered.card.name} can't be countered` };
+      }
+      const updatedStack = [...state.stack];
+      updatedStack.splice(stackIdx, 1);
+      if (countered.card) {
+        const owner = countered.card.owner;
+        const players = [...state.players];
+        players[owner] = { ...players[owner], graveyard: [...players[owner].graveyard, countered.card] };
+        state = { ...state, players, stack: updatedStack };
+      } else {
+        state = { ...state, stack: updatedStack };
+      }
+      return { state: addLog(state, controller, `Counters ${countered.card?.name ?? 'creature spell'}.`), resolved: true, description: `counter ${countered.card?.name ?? 'creature spell'}` };
+    },
+  },
+
+  {
+    name: 'counter-target-noncreature-spell',
+    match: /counter\s+target\s+noncreature\s+spell/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      const targetId = targets.find(t => t.type === 'card-in-zone' && t.zone === 'stack')?.id ?? targets[0]?.id;
+      if (!targetId) return { state, resolved: false };
+      const stackIdx = state.stack.findIndex(s => s.id === targetId);
+      if (stackIdx === -1) return { state, resolved: false };
+      const countered = state.stack[stackIdx];
+      if (countered.type !== 'spell' || countered.card?.typeLine?.toLowerCase().includes('creature')) {
+        return { state, resolved: true, description: 'Target is a creature spell — no effect' };
+      }
+      if (countered.uncounterable) {
+        return { state: addLog(state, controller, `${countered.card?.name} can't be countered.`), resolved: true, description: `${countered.card?.name} can't be countered` };
+      }
+      const updatedStack = [...state.stack];
+      updatedStack.splice(stackIdx, 1);
+      if (countered.card) {
+        const owner = countered.card.owner;
+        const players = [...state.players];
+        players[owner] = { ...players[owner], graveyard: [...players[owner].graveyard, countered.card] };
+        state = { ...state, players, stack: updatedStack };
+      } else {
+        state = { ...state, stack: updatedStack };
+      }
+      return { state: addLog(state, controller, `Counters ${countered.card?.name ?? 'noncreature spell'}.`), resolved: true, description: `counter ${countered.card?.name ?? 'noncreature spell'}` };
+    },
+  },
+
+  {
+    name: 'counter-target-instant-or-sorcery',
+    match: /counter\s+target\s+(?:instant\s+or\s+sorcery|instant|sorcery)/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      const targetId = targets.find(t => t.type === 'card-in-zone' && t.zone === 'stack')?.id ?? targets[0]?.id;
+      if (!targetId) return { state, resolved: false };
+      const stackIdx = state.stack.findIndex(s => s.id === targetId);
+      if (stackIdx === -1) return { state, resolved: false };
+      const countered = state.stack[stackIdx];
+      const typeLine = countered.card?.typeLine?.toLowerCase() ?? '';
+      if (countered.type !== 'spell' || (!typeLine.includes('instant') && !typeLine.includes('sorcery'))) {
+        return { state, resolved: true, description: 'Target is not an instant or sorcery — no effect' };
+      }
+      if (countered.uncounterable) {
+        return { state: addLog(state, controller, `${countered.card?.name} can't be countered.`), resolved: true, description: `${countered.card?.name} can't be countered` };
+      }
+      const updatedStack = [...state.stack];
+      updatedStack.splice(stackIdx, 1);
+      if (countered.card) {
+        const owner = countered.card.owner;
+        const players = [...state.players];
+        players[owner] = { ...players[owner], graveyard: [...players[owner].graveyard, countered.card] };
+        state = { ...state, players, stack: updatedStack };
+      } else {
+        state = { ...state, stack: updatedStack };
+      }
+      return { state: addLog(state, controller, `Counters ${countered.card?.name ?? 'instant or sorcery'}.`), resolved: true, description: `counter ${countered.card?.name ?? 'instant or sorcery'}` };
+    },
+  },
+
+  {
+    name: 'counter-target-artifact-spell',
+    match: /counter\s+target\s+artifact\s+spell/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      const targetId = targets.find(t => t.type === 'card-in-zone' && t.zone === 'stack')?.id ?? targets[0]?.id;
+      if (!targetId) return { state, resolved: false };
+      const stackIdx = state.stack.findIndex(s => s.id === targetId);
+      if (stackIdx === -1) return { state, resolved: false };
+      const countered = state.stack[stackIdx];
+      if (countered.type !== 'spell' || !countered.card?.typeLine?.toLowerCase().includes('artifact')) {
+        return { state, resolved: true, description: 'Target is not an artifact spell — no effect' };
+      }
+      const updatedStack = [...state.stack];
+      updatedStack.splice(stackIdx, 1);
+      if (countered.card) {
+        const owner = countered.card.owner;
+        const players = [...state.players];
+        players[owner] = { ...players[owner], graveyard: [...players[owner].graveyard, countered.card] };
+        state = { ...state, players, stack: updatedStack };
+      } else {
+        state = { ...state, stack: updatedStack };
+      }
+      return { state: addLog(state, controller, `Counters ${countered.card?.name ?? 'artifact spell'}.`), resolved: true, description: `counter ${countered.card?.name ?? 'artifact spell'}` };
+    },
+  },
+
   // ── Life Gain/Loss ──
   {
     name: 'gain-life',
@@ -692,7 +897,31 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     name: 'create-token',
     match: /create\s+(a|an|one|two|three|four|five|\d+)\s+(\d+)\/(\d+)\s+(\w+(?:\s+\w+)*?)\s+(?:creature\s+)?tokens?/i,
     requiresTarget: false,
-    apply: (state, controller, _targets, m) => {
+    apply: (state, controller, _targets, m, source) => {
+      // Fast-path: try the generic token factory first — it extracts colors, keywords, and
+      // artifact creature type properly from the full oracle text.
+      const oracleText = source?.oracleText ?? '';
+      if (oracleText) {
+        const parsedTokens = parseTokenFromOracle(oracleText, controller, state.turn);
+        if (parsedTokens && parsedTokens.length > 0) {
+          const multiplier = getTokenMultiplier(state, controller);
+          const allTokens: Permanent[] = [];
+          for (let mi = 0; mi < multiplier; mi++) {
+            for (let ti = 0; ti < parsedTokens.length; ti++) {
+              allTokens.push({ ...parsedTokens[ti], id: generateCardId() });
+            }
+          }
+          const players = [...state.players];
+          const p = players[controller];
+          players[controller] = { ...p, battlefield: [...p.battlefield, ...allTokens] };
+          state = { ...state, players };
+          const desc = `${allTokens.length}× ${parsedTokens[0].name}`;
+          state = addLog(state, controller, `Creates ${desc}.${multiplier > 1 ? ` (${multiplier}x doubling)` : ''}`);
+          return { state, resolved: true, description: `token: ${desc}` };
+        }
+      }
+
+      // Fallback: legacy logic (no oracle-text source available)
       const baseQty = parseNumber(m[1]);
       const power = parseInt(m[2]);
       const toughness = parseInt(m[3]);
@@ -1407,21 +1636,29 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const type = (m[1] || 'creature').toLowerCase();
-      const isCreature = type === 'creature';
-      for (let p = 0; p < state.players.length; p++) {
-        const pi = p;
-        const player = state.players[pi];
-        const candidates = isCreature
-          ? player.battlefield.filter(perm => perm.currentPower !== undefined)
-          : player.battlefield;
-        if (candidates.length > 0) {
-          // Auto-select weakest
-          const weakest = candidates.reduce((a, b) => ((a.currentPower ?? 0) <= (b.currentPower ?? 0) ? a : b));
-          state = sacrificePermanent(state, weakest.id);
-          state = addLog(state, pi, `${state.players[pi].name} sacrifices ${weakest.name}.`);
-        }
+      // Build queue of players who have eligible permanents to sacrifice (CR 800.4)
+      const queue: { player: number; count: number; filter: string }[] = [];
+      for (let pi = 0; pi < state.players.length; pi++) {
+        const bf = state.players[pi].battlefield;
+        const hasCandidates = type === 'creature'
+          ? bf.some(p => p.currentPower !== undefined)
+          : type === 'permanent' ? bf.length > 0
+          : bf.some(p => (p.typeLine || '').toLowerCase().includes(type));
+        if (hasCandidates) queue.push({ player: pi, count: 1, filter: type });
       }
-      return { state, resolved: true, description: `each player sacrifices a ${type}` };
+      if (queue.length === 0) {
+        return { state, resolved: true, description: `each player sacrifices a ${type} (none)` };
+      }
+      const first = queue.shift()!;
+      return {
+        state: {
+          ...state,
+          pendingSacrifice: { player: first.player, filter: first.filter, count: 1 },
+          pendingSacrificeQueue: queue.length > 0 ? queue : undefined,
+        },
+        resolved: false,
+        description: `each player sacrifices a ${type}`,
+      };
     },
   },
   {
@@ -2673,18 +2910,24 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /each\s+(?:player|opponent)\s+sacrifices?\s+a\s+creature/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      for (let p = 0; p < state.players.length; p++) {
-        const pi = p;
-        const player = state.players[pi];
-        const creatures = player.battlefield.filter(perm => perm.currentPower !== undefined);
-        if (creatures.length > 0) {
-          // Auto-select weakest creature
-          const weakest = creatures.reduce((a, b) => ((a.currentPower ?? 0) <= (b.currentPower ?? 0) ? a : b));
-          state = sacrificePermanent(state, weakest.id);
-          state = addLog(state, pi, `${state.players[pi].name} sacrifices ${weakest.name}.`);
-        }
+      const queue: { player: number; count: number; filter: string }[] = [];
+      for (let pi = 0; pi < state.players.length; pi++) {
+        const hasCreature = state.players[pi].battlefield.some(p => p.currentPower !== undefined);
+        if (hasCreature) queue.push({ player: pi, count: 1, filter: 'creature' });
       }
-      return { state, resolved: true, description: 'each player sacrifices a creature' };
+      if (queue.length === 0) {
+        return { state, resolved: true, description: 'each player sacrifices a creature (none)' };
+      }
+      const first = queue.shift()!;
+      return {
+        state: {
+          ...state,
+          pendingSacrifice: { player: first.player, filter: 'creature', count: 1 },
+          pendingSacrificeQueue: queue.length > 0 ? queue : undefined,
+        },
+        resolved: false,
+        description: 'each player sacrifices a creature',
+      };
     },
   },
 
@@ -3635,23 +3878,26 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /each\s+player\s+sacrifices?\s+a\s+creature/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      const sacrificed: string[] = [];
+      const queue: { player: number; count: number; filter: string }[] = [];
       for (let pi = 0; pi < state.players.length; pi++) {
-        const player = state.players[pi];
-        const creatures = player.battlefield.filter(p => p.typeLine?.toLowerCase().includes('creature'));
-        if (creatures.length === 0) continue;
-        const sorted = [...creatures].sort((a, b) => {
-          const aIsToken = a.oracleId?.startsWith('token_') ? 0 : 1;
-          const bIsToken = b.oracleId?.startsWith('token_') ? 0 : 1;
-          if (aIsToken !== bIsToken) return aIsToken - bIsToken;
-          return (a.cmc ?? 0) - (b.cmc ?? 0);
-        });
-        const victim = sorted[0];
-        state = sacrificePermanent(state, victim.id);
-        state = addLog(state, pi, `${player.name} sacrifices ${victim.name}.`);
-        sacrificed.push(victim.name);
+        const hasCreature = state.players[pi].battlefield.some(
+          p => (p.typeLine || '').toLowerCase().includes('creature')
+        );
+        if (hasCreature) queue.push({ player: pi, count: 1, filter: 'creature' });
       }
-      return { state, resolved: true, description: `each player sacrifices: ${sacrificed.join(', ') || 'none'}` };
+      if (queue.length === 0) {
+        return { state, resolved: true, description: 'each player sacrifices a creature (none)' };
+      }
+      const first = queue.shift()!;
+      return {
+        state: {
+          ...state,
+          pendingSacrifice: { player: first.player, filter: 'creature', count: 1 },
+          pendingSacrificeQueue: queue.length > 0 ? queue : undefined,
+        },
+        resolved: false,
+        description: 'each player sacrifices a creature',
+      };
     },
   },
 
@@ -4943,7 +5189,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
         name: original.name,
         manaCost: original.manaCost || '',
         cmc: original.cmc ?? 0,
-        typeLine: `Token ${original.typeLine}`,
+        // CR 706.2: tokens don't have the legendary supertype (strip it from copies)
+        typeLine: `Token ${(original.typeLine || '').replace(/\blegendary\s+/i, '')}`,
         oracleText: original.oracleText || '',
         power: original.power,
         toughness: original.toughness,
@@ -6249,17 +6496,25 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /each player sacrifices/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      for (let p = 0; p < state.players.length; p++) {
-        const pi = p;
-        const player = state.players[pi];
-        const creatures = player.battlefield.filter(perm => perm.currentPower !== undefined);
-        if (creatures.length > 0) {
-          const weakest = creatures.reduce((a, b) => ((a.currentPower ?? 0) <= (b.currentPower ?? 0) ? a : b));
-          state = sacrificePermanent(state, weakest.id);
-          state = addLog(state, pi, `${state.players[pi].name} sacrifices ${weakest.name}.`);
+      const queue: { player: number; count: number; filter: string }[] = [];
+      for (let pi = 0; pi < state.players.length; pi++) {
+        if (state.players[pi].battlefield.length > 0) {
+          queue.push({ player: pi, count: 1, filter: 'permanent' });
         }
       }
-      return { state, resolved: true, description: 'each player sacrifices' };
+      if (queue.length === 0) {
+        return { state, resolved: true, description: 'each player sacrifices (none)' };
+      }
+      const first = queue.shift()!;
+      return {
+        state: {
+          ...state,
+          pendingSacrifice: { player: first.player, filter: first.filter, count: 1 },
+          pendingSacrificeQueue: queue.length > 0 ? queue : undefined,
+        },
+        resolved: false,
+        description: 'each player sacrifices',
+      };
     },
   },
 
@@ -9079,6 +9334,38 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     },
   },
 
+  // ── Generic Token Factory — dynamic P/T, color, subtype, keywords ──
+  // Must appear AFTER all static token patterns (treasure, food, clue, etc.)
+  // and BEFORE the modal-choice-general catch-all.
+  // Skipped if any specific create-*-token pattern already resolved.
+  {
+    name: 'create-token-generic',
+    match: /create\s+(?:a|an|\d+|two|three|four|five|six)\s+(?:\d+\/\d+\s+)?[\w\s]+?(?:creature|artifact\s+creature)\s+tokens?/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      const text = source?.oracleText ?? '';
+      const multiplier = getTokenMultiplier(state, controller);
+      const tokens = parseTokenFromOracle(text, controller, state.turn);
+      if (!tokens || tokens.length === 0) {
+        return { state, resolved: false, description: 'token parse failed' };
+      }
+      // Apply token doubling
+      const allTokens: Permanent[] = [];
+      for (let i = 0; i < multiplier; i++) {
+        for (const t of tokens) {
+          allTokens.push({ ...t, id: generateCardId() });
+        }
+      }
+      const players = [...state.players];
+      const p = players[controller];
+      players[controller] = { ...p, battlefield: [...p.battlefield, ...allTokens] };
+      state = { ...state, players };
+      const desc = `${allTokens.length}× ${tokens[0].name}`;
+      state = addLog(state, controller, `Creates ${desc}.${multiplier > 1 ? ` (${multiplier}x doubling)` : ''}`);
+      return { state, resolved: true, description: `token: ${desc}` };
+    },
+  },
+
   // P4-18. modal-choice-general — "Choose one" with generic fallback
   // NOTE: This is the LAST modal pattern — it only fires when no specific modal pattern matches.
   // The resolver checks matchedPatternNames and skips this if any 'choose-one-*' already resolved.
@@ -9138,7 +9425,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     name: 'cultivate',
     match: /search your library for up to (two|2|\d+) basic land cards?.*?put (?:one|1|a) (?:of them )?onto the battlefield(?: tapped)?.*?(?:the other|another|put the rest|and the other).*?(?:into|to|in) your hand/i,
     requiresTarget: false,
-    apply: (state, controller) => {
+    apply: (state, controller, _targets, _m, source) => {
       const player = state.players[controller];
       const basicLands = player.library.filter(c => {
         const tl = c.typeLine.toLowerCase();
@@ -9149,31 +9436,25 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
         state = shuffleLibrary(state, controller);
         return { state, resolved: true, description: 'no basic lands found' };
       }
-      const toTake = basicLands.slice(0, 2);
-      const toBf = toTake[0];
-      const toHand = toTake[1]; // may be undefined if only 1 found
-
-      // Remove from library
-      let newLib = [...player.library];
-      for (const card of toTake) {
-        const idx = newLib.findIndex(c => c.id === card.id);
-        if (idx !== -1) newLib.splice(idx, 1);
-      }
-
-      // Put first onto battlefield tapped
-      const perm = cardToPermanent(toBf, controller, state.turn);
-      (perm as any).tapped = true;
-      let newBf = [...player.battlefield, perm];
-      let newHand = [...player.hand];
-      if (toHand) newHand = [...newHand, toHand];
-
-      const players = [...state.players];
-      players[controller] = { ...player, library: newLib, battlefield: newBf, hand: newHand };
-      state = { ...state, players };
-      state = shuffleLibrary(state, controller);
-      const names = toTake.map(c => c.name).join(', ');
-      state = addLog(state, controller, `Searched for ${names}. ${toBf.name} to battlefield tapped${toHand ? `, ${toHand.name} to hand` : ''}.`);
-      return { state, resolved: true, description: `cultivate: ${names}` };
+      // Let the player choose — pendingSearch with split-destination
+      // count=1 → battlefield tapped, count2=1 → hand
+      return {
+        state: {
+          ...state,
+          pendingSearch: {
+            player: controller,
+            filter: 'basic land',
+            count: 1,
+            destination: 'battlefield' as const,
+            tapped: true,
+            count2: 1,
+            destination2: 'hand' as const,
+            sourceName: source?.name ?? 'Cultivate',
+          },
+        },
+        resolved: false,
+        description: 'cultivate search',
+      };
     },
   },
 
@@ -10335,7 +10616,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
         name: source.name,
         manaCost: source.manaCost || '',
         cmc: source.cmc ?? 0,
-        typeLine: `Token ${source.typeLine || 'Creature'}`,
+        // CR 706.2: tokens don't have the legendary supertype
+        typeLine: `Token ${(source.typeLine || 'Creature').replace(/\blegendary\s+/i, '')}`,
         oracleText: source.oracleText || '',
         power: source.power,
         toughness: source.toughness,
@@ -11706,7 +11988,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const tokenCard: Card = {
         id: generateCardId(), oracleId: `token_copy_${targetPerm.oracleId}`,
         name: targetPerm.name, manaCost: targetPerm.manaCost || '', cmc: targetPerm.cmc || 0,
-        typeLine: `Token ${targetPerm.typeLine}`, oracleText: targetPerm.oracleText || '',
+        // CR 706.2: tokens don't have the legendary supertype
+        typeLine: `Token ${(targetPerm.typeLine || '').replace(/\blegendary\s+/i, '')}`, oracleText: targetPerm.oracleText || '',
         power: targetPerm.power, toughness: targetPerm.toughness,
         colors: [...(targetPerm.colors || [])], colorIdentity: [...(targetPerm.colorIdentity || [])],
         rarity: 'common', tags: [], imageUrl: targetPerm.imageUrl || '', owner: controller,
@@ -12475,6 +12758,79 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     },
   },
 
+  // ── Morbid Condition (CR 702.109) ──
+
+  // Morbid-1: "If a creature died this turn, [destroy/exile target creature]"
+  {
+    name: 'morbid-destroy-target',
+    match: /if\s+a\s+creature\s+died\s+this\s+turn.*destroy\s+target\s+creature/i,
+    requiresTarget: true,
+    apply: (state, controller, targets) => {
+      if (!state.creatureDiedThisTurn) {
+        state = addLog(state, controller, 'Morbid condition not met (no creature died this turn).');
+        return { state, resolved: true, description: 'morbid: condition not met' };
+      }
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { perm } = target;
+      if (hasKeyword(perm, 'indestructible')) {
+        state = addLog(state, controller, `${perm.name} is indestructible and cannot be destroyed.`);
+        return { state, resolved: true, description: 'morbid: target indestructible' };
+      }
+      state = removePermanentFromBattlefield(state, perm.id, 'graveyard');
+      state = addLog(state, controller, `Morbid: ${perm.name} is destroyed.`);
+      return { state, resolved: true, description: `morbid: ${perm.name} destroyed` };
+    },
+  },
+
+  // Morbid-2: "If a creature died this turn, [target creature gets -N/-N]"
+  {
+    name: 'morbid-minus-target',
+    match: /if\s+a\s+creature\s+died\s+this\s+turn.*target\s+creature\s+gets\s+-(\d+)\/-(\d+)/i,
+    requiresTarget: true,
+    apply: (state, controller, targets, m) => {
+      const powerDebuff = parseInt(m[1]);
+      const toughnessDebuff = parseInt(m[2]);
+      if (!state.creatureDiedThisTurn) {
+        state = addLog(state, controller, 'Morbid condition not met (no creature died this turn).');
+        return { state, resolved: true, description: 'morbid: condition not met' };
+      }
+      const target = getTargetPermanent(state, targets);
+      if (!target) return { state, resolved: false };
+      const { playerIdx, permIdx, perm } = target;
+      const players = [...state.players];
+      const bf = [...players[playerIdx].battlefield];
+      bf[permIdx] = {
+        ...perm,
+        temporaryPtMods: [...(perm.temporaryPtMods || []), {
+          power: -powerDebuff, toughness: -toughnessDebuff,
+          source: 'morbid', turn: state.turn,
+        }],
+      };
+      players[playerIdx] = { ...players[playerIdx], battlefield: bf };
+      state = { ...state, players };
+      state = addLog(state, controller, `Morbid: ${perm.name} gets -${powerDebuff}/-${toughnessDebuff} until end of turn.`);
+      return { state, resolved: true, description: `morbid: ${perm.name} -${powerDebuff}/-${toughnessDebuff}` };
+    },
+  },
+
+  // Morbid-3: "Morbid — If a creature died this turn, [draw a card / gain life / etc.]"
+  {
+    name: 'morbid-draw',
+    match: /morbid\b.*if\s+a\s+creature\s+died\s+this\s+turn.*draw\s+(?:a\s+card|(\d+)\s+cards?)/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, m) => {
+      if (!state.creatureDiedThisTurn) {
+        state = addLog(state, controller, 'Morbid condition not met (no creature died this turn).');
+        return { state, resolved: true, description: 'morbid: condition not met' };
+      }
+      const count = m[1] ? parseInt(m[1]) : 1;
+      state = drawCards(state, controller, count);
+      state = addLog(state, controller, `Morbid: drew ${count} card(s).`);
+      return { state, resolved: true, description: `morbid: drew ${count}` };
+    },
+  },
+
   // ── Category 8: Additional Coverage Patterns ──
 
   // Extra-1: "target creature gets +N/+N and gains [keyword] until end of turn" (pump + keyword combo)
@@ -12557,17 +12913,24 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /each\s+(?:player|opponent)\s+sacrifices?\s+(?:a|one)\s+creature/i,
     requiresTarget: false,
     apply: (state, controller) => {
+      const queue: { player: number; count: number; filter: string }[] = [];
       for (let pi = 0; pi < state.players.length; pi++) {
-        const player = state.players[pi];
-        const creatures = player.battlefield.filter(p => p.basePower !== undefined);
-        if (creatures.length > 0) {
-          // Sacrifice the weakest creature (lowest power)
-          const weakest = creatures.sort((a, b) => (a.currentPower ?? a.basePower ?? 0) - (b.currentPower ?? b.basePower ?? 0))[0];
-          state = removePermanentFromBattlefield(state, weakest.id, 'graveyard');
-          state = addLog(state, pi, `Sacrifices ${weakest.name}.`);
-        }
+        const hasCreature = state.players[pi].battlefield.some(p => p.basePower !== undefined);
+        if (hasCreature) queue.push({ player: pi, count: 1, filter: 'creature' });
       }
-      return { state, resolved: true, description: 'each player sacrifices a creature' };
+      if (queue.length === 0) {
+        return { state, resolved: true, description: 'each player sacrifices a creature (none)' };
+      }
+      const first = queue.shift()!;
+      return {
+        state: {
+          ...state,
+          pendingSacrifice: { player: first.player, filter: 'creature', count: 1 },
+          pendingSacrificeQueue: queue.length > 0 ? queue : undefined,
+        },
+        resolved: false,
+        description: 'each player sacrifices a creature',
+      };
     },
   },
 
@@ -12955,6 +13318,18 @@ export function resolveEffect(
         [...matchedPatternNames].some(n => n.startsWith('choose-one-') || n.startsWith('choose-two-'))) {
       continue;
     }
+    // Skip named creature-token patterns (create-soldier-token, create-zombie-token, etc.)
+    // when the early generic create-token pattern already resolved — avoids double-creating tokens.
+    if (pattern.name !== 'create-token' && pattern.name !== 'create-token-generic' &&
+        pattern.name.startsWith('create-') && pattern.name.endsWith('-token') &&
+        matchedPatternNames.has('create-token')) {
+      continue;
+    }
+    // Skip create-token-generic if any create-token pattern (generic or specific) already resolved
+    if (pattern.name === 'create-token-generic' &&
+        [...matchedPatternNames].some(n => n === 'create-token' || (n.startsWith('create-') && n.endsWith('-token')))) {
+      continue;
+    }
 
     const m = oracleText.match(pattern.match);
     if (!m) continue;
@@ -12989,6 +13364,17 @@ export function resolveEffect(
         // Skip generic modal fallback if a specific modal pattern already resolved
         if (pattern.name === 'modal-choice-general' &&
             [...matchedPatternNames].some(n => n.startsWith('choose-one-') || n.startsWith('choose-two-'))) {
+          continue;
+        }
+        // Skip named creature-token patterns when generic create-token already resolved
+        if (pattern.name !== 'create-token' && pattern.name !== 'create-token-generic' &&
+            pattern.name.startsWith('create-') && pattern.name.endsWith('-token') &&
+            matchedPatternNames.has('create-token')) {
+          continue;
+        }
+        // Skip create-token-generic if any create-token pattern already resolved
+        if (pattern.name === 'create-token-generic' &&
+            [...matchedPatternNames].some(n => n === 'create-token' || (n.startsWith('create-') && n.endsWith('-token')))) {
           continue;
         }
 

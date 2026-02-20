@@ -426,3 +426,81 @@ describe('Phase 6.1: Advanced Effect Patterns', () => {
     });
   });
 });
+
+describe('parseTokenFromOracle — generic token factory', () => {
+  it('creates a 4/4 green Elemental creature token with trample', () => {
+    const state = createTestState();
+    const source = createSimpleCard('Dragon Egg', 'Creature', '{2}{R}', 0);
+    source.oracleText = 'Create a 4/4 green Elemental creature token with trample.';
+    const result = resolveEffect(state, {
+      id: 'test-1',
+      type: 'spell',
+      controller: 0,
+      targets: [],
+      text: source.oracleText,
+      oracleText: source.oracleText,
+      card: source,
+    });
+    expect(result.resolved).toBe(true);
+    const newPerm = result.state.players[0].battlefield.find(p =>
+      p.typeLine.toLowerCase().includes('elemental')
+    );
+    expect(newPerm).toBeDefined();
+    expect(newPerm!.power).toBe('4');
+    expect(newPerm!.toughness).toBe('4');
+    // Verify color extraction
+    expect(newPerm!.colors).toContain('G');
+    // Verify the token has trample in oracleText or abilities
+    expect(
+      newPerm!.oracleText?.toLowerCase().includes('trample') ||
+      (newPerm as any).abilities?.some((a: any) =>
+        typeof a === 'string' ? a.includes('trample') : a?.text?.includes('trample')
+      )
+    ).toBe(true);
+  });
+
+  it('creates two 1/1 white Soldier creature tokens', () => {
+    const state = createTestState();
+    const source = createSimpleCard('Raise the Alarm', 'Instant', '{1}{W}', 0);
+    source.oracleText = 'Create two 1/1 white Soldier creature tokens.';
+    const result = resolveEffect(state, {
+      id: 'test-2',
+      type: 'spell',
+      controller: 0,
+      targets: [],
+      text: source.oracleText,
+      oracleText: source.oracleText,
+      card: source,
+    });
+    expect(result.resolved).toBe(true);
+    const soldiers = result.state.players[0].battlefield.filter(p =>
+      p.typeLine.toLowerCase().includes('soldier')
+    );
+    expect(soldiers.length).toBe(2);
+    // Verify color extraction
+    expect(soldiers[0].colors).toContain('W');
+  });
+
+  it('creates a 3/3 colorless Golem artifact creature token', () => {
+    const state = createTestState();
+    const source = createSimpleCard('Sculpting Steel', 'Artifact', '{3}', 0);
+    source.oracleText = 'Create a 3/3 colorless Golem artifact creature token.';
+    const result = resolveEffect(state, {
+      id: 'test-3',
+      type: 'spell',
+      controller: 0,
+      targets: [],
+      text: source.oracleText,
+      oracleText: source.oracleText,
+      card: source,
+    });
+    expect(result.resolved).toBe(true);
+    const golem = result.state.players[0].battlefield.find(p =>
+      p.typeLine.toLowerCase().includes('golem')
+    );
+    expect(golem).toBeDefined();
+    expect(golem!.power).toBe('3');
+    // Verify artifact creature type line (isArtifact detection fix)
+    expect(golem!.typeLine.toLowerCase()).toMatch(/artifact.*creature|creature.*artifact/);
+  });
+});
