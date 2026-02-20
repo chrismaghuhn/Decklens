@@ -3,6 +3,7 @@ import type { PlayerState } from '../types/player.ts';
 import type { Permanent } from '../types/permanent.ts';
 import type { Card } from '../types/card.ts';
 import type { StackObject } from '../types/action.ts';
+import { parseAbilities } from './abilities.ts';
 
 /**
  * Triggered Abilities System for the Rules Engine.
@@ -935,11 +936,107 @@ export function checkTriggers(
   };
 }
 
+/** Regex to detect clone-type "enters as a copy of" ETB replacement effects (CR 706.10a) */
+const ETB_COPY_PATTERN = /enters\s+the\s+battlefield\s+as\s+a\s+copy\s+of/i;
+
+/** Monotonically increasing timestamp for copy effects set at ETB time */
+let _etbCopyTimestamp = Date.now();
+function nextETBCopyTimestamp(): number {
+  return ++_etbCopyTimestamp;
+}
+
+/**
+ * Apply the copy-permanent ETB replacement effect (CR 706.10a).
+ * When a clone-type card enters the battlefield ("enters as a copy of any creature"),
+ * immediately set its copyEffect to the best available creature (highest power).
+ * This runs BEFORE the normal ETB trigger queue so Layer 1 sees the copyEffect right away.
+ */
+function applyETBCopyEffect(state: GameState, permanent: Permanent): GameState {
+  const oracleText = permanent.oracleText || '';
+  if (!ETB_COPY_PATTERN.test(oracleText)) return state;
+  // If copyEffect is already set (e.g. a targeted copy was provided via the stack),
+  // do not overwrite it — the explicit target takes precedence.
+  if (permanent.copyEffect) return state;
+
+  // Auto-pick the highest-power creature on either battlefield (excluding self)
+  let bestTarget: Permanent | null = null;
+  let bestPower = -1;
+  for (let pi = 0; pi < 2; pi++) {
+    for (const candidate of state.players[pi as 0 | 1].battlefield) {
+      if (candidate.id === permanent.id) continue;
+      if (!candidate.typeLine?.toLowerCase().includes('creature')) continue;
+      const candidatePower = candidate.currentPower ?? candidate.basePower ?? 0;
+      if (candidatePower > bestPower) {
+        bestPower = candidatePower;
+        bestTarget = candidate;
+      }
+    }
+  }
+  if (!bestTarget) return state;
+
+  // Find the permanent on the battlefield so we can update it immutably
+  for (let pi = 0; pi < 2; pi++) {
+    const player = state.players[pi as 0 | 1];
+    const idx = player.battlefield.findIndex(p => p.id === permanent.id);
+    if (idx === -1) continue;
+    const perm = player.battlefield[idx];
+    const targetPerm = bestTarget;
+    const copiedAbilities = parseAbilities({
+      ...perm,
+      oracleText: targetPerm.oracleText || '',
+      name: targetPerm.name,
+    });
+    const newBasePower = targetPerm.basePower ?? 0;
+    const newBaseToughness = targetPerm.baseToughness ?? 0;
+    const updatedPerm: Permanent = {
+      ...perm,
+      copyEffect: {
+        copiedName: targetPerm.name,
+        copiedTypeLine: targetPerm.typeLine,
+        copiedOracleText: targetPerm.oracleText || '',
+        copiedPower: targetPerm.power,
+        copiedToughness: targetPerm.toughness,
+        copiedColors: [...(targetPerm.colors || [])],
+        copiedManaCost: targetPerm.manaCost,
+        timestamp: nextETBCopyTimestamp(),
+      },
+      originalOracleText: perm.originalOracleText || perm.oracleText,
+      basePower: newBasePower,
+      baseToughness: newBaseToughness,
+      currentPower: newBasePower,
+      currentToughness: newBaseToughness,
+      abilities: copiedAbilities,
+    };
+    const updatedBf = [...player.battlefield];
+    updatedBf[idx] = updatedPerm;
+    const players = [...state.players] as [PlayerState, PlayerState];
+    players[pi as 0 | 1] = { ...player, battlefield: updatedBf };
+    state = {
+      ...state,
+      players,
+      log: [...state.log, {
+        timestamp: Date.now(),
+        turn: state.turn,
+        phase: state.phase,
+        step: state.step,
+        player: permanent.controller,
+        message: `${perm.name} enters the battlefield as a copy of ${targetPerm.name}.`,
+      }],
+    };
+    return state;
+  }
+  return state;
+}
+
 /**
  * Check for ETB triggers when a permanent enters the battlefield.
  */
 export function checkETBTriggers(state: GameState, permanent: Permanent, meta?: Record<string, any>): GameState {
-  let newState = checkTriggers(state, {
+  // Apply ETB copy replacement effect before queueing normal triggers (CR 706.10a)
+  // Clone-type cards set their copyEffect immediately on ETB so Layer 1 sees it.
+  let newState = applyETBCopyEffect(state, permanent);
+
+  newState = checkTriggers(newState, {
     type: 'etb',
     source: permanent,
     controller: permanent.controller,

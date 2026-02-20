@@ -217,6 +217,70 @@ function addLog(state: GameState, player: 0 | 1, message: string): GameState {
   };
 }
 
+// ─── Token Doubling Helper (Doubling Season, Parallel Lives, Anointed Procession, Primal Vigor) ───
+
+/**
+ * Scan the battlefield for permanents with token-doubling effects controlled by the given player.
+ * Returns the total multiplier (stacks multiplicatively: two Doubling Seasons = 4x).
+ *
+ * Matches oracle text patterns for:
+ * - Doubling Season: "If an effect would create one or more tokens under your control, it creates twice that many instead."
+ * - Parallel Lives: "If an effect would create one or more tokens under your control, it creates twice that many instead."
+ * - Anointed Procession: "If an effect would create one or more tokens under your control, it creates twice that many instead."
+ * - Primal Vigor: "If an effect would create one or more tokens, it creates twice that many instead."
+ */
+export function getTokenMultiplier(state: GameState, controller: 0 | 1): number {
+  const DOUBLING_PATTERNS = [
+    // Matches the exact text on Doubling Season / Parallel Lives / Anointed Procession / Primal Vigor
+    /if\s+(?:an?\s+)?effect\s+would\s+create\s+one\s+or\s+more\s+tokens?[^,]*,?\s+it\s+creates?\s+twice\s+that\s+many\s+instead/i,
+    // Alternate wording variants
+    /whenever.*would.*create.*tokens?.*instead.*double/i,
+    /if.*would.*create.*token.*twice\s+that\s+many/i,
+  ];
+
+  let multiplier = 1;
+
+  // Check controller's permanents (Doubling Season, Parallel Lives, Anointed Procession)
+  for (const perm of state.players[controller].battlefield) {
+    const oracleText = perm.oracleText || perm.name || '';
+    for (const pattern of DOUBLING_PATTERNS) {
+      if (pattern.test(oracleText)) {
+        multiplier *= 2;
+        break; // Only count each permanent once
+      }
+    }
+    // Also match by card name for well-known cards that may have simplified oracle text
+    const name = (perm.name || '').toLowerCase();
+    if (name === 'doubling season' || name === 'parallel lives' || name === 'anointed procession') {
+      // Only count if not already counted via oracle text match
+      const alreadyCounted = DOUBLING_PATTERNS.some(p => p.test(oracleText));
+      if (!alreadyCounted) {
+        multiplier *= 2;
+      }
+    }
+  }
+
+  // Primal Vigor applies to all players' token creation — check both battlefields
+  // but only if controller doesn't already have it (avoid double-counting)
+  const opp: 0 | 1 = controller === 0 ? 1 : 0;
+  for (const perm of state.players[opp].battlefield) {
+    const oracleText = perm.oracleText || perm.name || '';
+    const name = (perm.name || '').toLowerCase();
+    // Primal Vigor specifically says "If an effect would create one or more tokens" (no "under your control")
+    if (/if\s+(?:an?\s+)?effect\s+would\s+create\s+one\s+or\s+more\s+tokens?\s*,?\s+it\s+creates?\s+twice\s+that\s+many\s+instead/i.test(oracleText) ||
+        name === 'primal vigor') {
+      // Only apply if it's Primal Vigor style (no "under your control" restriction)
+      // Simple heuristic: if oracleText does NOT contain "under your control", it applies globally
+      const controllerRestricted = /under\s+your\s+control/i.test(oracleText);
+      if (!controllerRestricted) {
+        multiplier *= 2;
+      }
+    }
+  }
+
+  return multiplier;
+}
+
 // ─── Effect Patterns Registry ───
 
 export const EFFECT_PATTERNS: EffectPattern[] = [
@@ -432,6 +496,23 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       if (stackIdx === -1) return { state, resolved: false };
 
       const countered = state.stack[stackIdx];
+
+      // CR 608.2b: If a spell can't be countered, the counter spell resolves but has no effect.
+      if (countered.uncounterable) {
+        const spellName = countered.card?.name ?? countered.text ?? 'that spell';
+        state = addLog(state, controller, `${spellName} can't be countered.`);
+        return { state, resolved: true, description: `${spellName} can't be countered` };
+      }
+
+      // Also check oracle text directly as a fallback (for spells where uncounterable
+      // wasn't set at cast time, e.g. from older data or ability-granted uncounterability)
+      const targetOracleText = countered.card?.oracleText || countered.oracleText || '';
+      if (/\bcan't be countered\b/i.test(targetOracleText)) {
+        const spellName = countered.card?.name ?? countered.text ?? 'that spell';
+        state = addLog(state, controller, `${spellName} can't be countered.`);
+        return { state, resolved: true, description: `${spellName} can't be countered` };
+      }
+
       const updatedStack = [...state.stack];
       updatedStack.splice(stackIdx, 1);
 
@@ -601,10 +682,14 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /create\s+(a|an|one|two|three|four|five|\d+)\s+(\d+)\/(\d+)\s+(\w+(?:\s+\w+)*?)\s+(?:creature\s+)?tokens?/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      const qty = parseNumber(m[1]);
+      const baseQty = parseNumber(m[1]);
       const power = parseInt(m[2]);
       const toughness = parseInt(m[3]);
       const tokenName = m[4].trim();
+
+      // Apply token doubling (Doubling Season, Parallel Lives, Anointed Procession, Primal Vigor)
+      const multiplier = getTokenMultiplier(state, controller);
+      const qty = baseQty * multiplier;
 
       const player = state.players[controller];
       const newTokens: Permanent[] = [];
@@ -637,7 +722,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const players = [...state.players] as [PlayerState, PlayerState];
       players[controller] = updatedPlayer;
       state = { ...state, players };
-      state = addLog(state, controller, `Creates ${qty} ${power}/${toughness} ${tokenName} token${qty !== 1 ? 's' : ''}.`);
+      state = addLog(state, controller, `Creates ${qty} ${power}/${toughness} ${tokenName} token${qty !== 1 ? 's' : ''}${multiplier > 1 ? ` (${multiplier}x doubling)` : ''}.`);
       return { state, resolved: true, description: `create ${qty} ${power}/${toughness} ${tokenName} token(s)` };
     },
   },
@@ -1811,7 +1896,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /create\s+(a|an|\d+|two|three|four|five)\s+treasure\s+tokens?/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      const count = parseNumber(m[1]);
+      const baseCount = parseNumber(m[1]);
+      const count = baseCount * getTokenMultiplier(state, controller);
       const tokens: Permanent[] = [];
       for (let i = 0; i < count; i++) {
         const tokenCard: Card = {
@@ -1839,7 +1925,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /create\s+(a|an|\d+|two|three|four|five)\s+food\s+tokens?/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      const count = parseNumber(m[1]);
+      const baseCount = parseNumber(m[1]);
+      const count = baseCount * getTokenMultiplier(state, controller);
       const tokens: Permanent[] = [];
       for (let i = 0; i < count; i++) {
         const tokenCard: Card = {
@@ -1867,7 +1954,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /create\s+(a|an|\d+|two|three|four|five)\s+clue\s+tokens?/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      const count = parseNumber(m[1]);
+      const baseCount = parseNumber(m[1]);
+      const count = baseCount * getTokenMultiplier(state, controller);
       const tokens: Permanent[] = [];
       for (let i = 0; i < count; i++) {
         const tokenCard: Card = {
@@ -1895,7 +1983,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /create\s+(a|an|\d+|two|three|four|five)\s+blood\s+tokens?/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      const count = parseNumber(m[1]);
+      const baseCount = parseNumber(m[1]);
+      const count = baseCount * getTokenMultiplier(state, controller);
       const tokens: Permanent[] = [];
       for (let i = 0; i < count; i++) {
         const tokenCard: Card = {
@@ -1921,7 +2010,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /create\s+(a|an|\d+|two|three|four|five)\s+powerstone\s+tokens?/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      const count = parseNumber(m[1]);
+      const baseCount = parseNumber(m[1]);
+      const count = baseCount * getTokenMultiplier(state, controller);
       const tokens: Permanent[] = [];
       for (let i = 0; i < count; i++) {
         const tokenCard: Card = {
@@ -1947,7 +2037,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /create\s+(a|an|\d+|two|three|four|five)\s+(?:\d+\/\d+\s+)?(?:colorless\s+)?servo\s+(?:artifact\s+creature\s+)?tokens?/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      const count = parseNumber(m[1]);
+      const baseCount = parseNumber(m[1]);
+      const count = baseCount * getTokenMultiplier(state, controller);
       const tokens: Permanent[] = [];
       for (let i = 0; i < count; i++) {
         const tokenCard: Card = {
@@ -1999,7 +2090,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /create\s+(a|an|\d+|two|three|four|five)\s+map\s+tokens?/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      const count = parseNumber(m[1]);
+      const baseCount = parseNumber(m[1]);
+      const count = baseCount * getTokenMultiplier(state, controller);
       const tokens: Permanent[] = [];
       for (let i = 0; i < count; i++) {
         const tokenCard: Card = {
@@ -2739,7 +2831,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /create\s+(a|an|one|two|three|four|\d+)\s+(\d+)\/(\d+)\s+\w+\s+(?:\w+\s+)?(?:creature\s+)?tokens?\s+with\s+(flying|haste|trample|lifelink|deathtouch|vigilance|menace)/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      const count = parseNumber(m[1]);
+      const baseCount = parseNumber(m[1]);
+      const count = baseCount * getTokenMultiplier(state, controller);
       const power = parseInt(m[2]);
       const toughness = parseInt(m[3]);
       const keyword = m[4];
@@ -4621,7 +4714,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /create\s+(a|an|one|two|three|four|\d+)\s+1\/1\s+white\s+spirit\s+creature\s+tokens?\s+with\s+flying/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      const qty = parseNumber(m[1]);
+      const baseQty = parseNumber(m[1]);
+      const qty = baseQty * getTokenMultiplier(state, controller);
       const tokens: Permanent[] = [];
       for (let i = 0; i < qty; i++) {
         const tokenCard: Card = {
@@ -4649,7 +4743,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /create\s+(a|an|one|two|three|four|\d+)\s+1\/1\s+white\s+soldier\s+creature\s+tokens?/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      const qty = parseNumber(m[1]);
+      const baseQty = parseNumber(m[1]);
+      const qty = baseQty * getTokenMultiplier(state, controller);
       const tokens: Permanent[] = [];
       for (let i = 0; i < qty; i++) {
         const tokenCard: Card = {
@@ -4677,7 +4772,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /create\s+(a|an|one|two|three|four|\d+)\s+1\/1\s+green\s+saproling\s+creature\s+tokens?/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      const qty = parseNumber(m[1]);
+      const baseQty = parseNumber(m[1]);
+      const qty = baseQty * getTokenMultiplier(state, controller);
       const tokens: Permanent[] = [];
       for (let i = 0; i < qty; i++) {
         const tokenCard: Card = {
@@ -4705,7 +4801,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /create\s+(a|an|one|two|three|\d+)\s+3\/3\s+green\s+beast\s+creature\s+tokens?/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      const qty = parseNumber(m[1]);
+      const baseQty = parseNumber(m[1]);
+      const qty = baseQty * getTokenMultiplier(state, controller);
       const tokens: Permanent[] = [];
       for (let i = 0; i < qty; i++) {
         const tokenCard: Card = {
@@ -4733,7 +4830,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /create\s+(a|an|one|two|three|four|\d+)\s+2\/2\s+black\s+zombie\s+creature\s+tokens?/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      const qty = parseNumber(m[1]);
+      const baseQty = parseNumber(m[1]);
+      const qty = baseQty * getTokenMultiplier(state, controller);
       const tokens: Permanent[] = [];
       for (let i = 0; i < qty; i++) {
         const tokenCard: Card = {
@@ -5242,7 +5340,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /create\s+(a|an|one|two|three|four|\d+)\s+1\/1\s+red\s+goblin\s+creature\s+tokens?/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      const qty = parseNumber(m[1]);
+      const baseQty = parseNumber(m[1]);
+      const qty = baseQty * getTokenMultiplier(state, controller);
       const tokens: Permanent[] = [];
       for (let i = 0; i < qty; i++) {
         const tokenCard: Card = {
@@ -5270,7 +5369,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /create\s+(a|an|one|two|three|\d+)\s+4\/4\s+white\s+angel\s+creature\s+tokens?\s+with\s+flying/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      const qty = parseNumber(m[1]);
+      const baseQty = parseNumber(m[1]);
+      const qty = baseQty * getTokenMultiplier(state, controller);
       const tokens: Permanent[] = [];
       for (let i = 0; i < qty; i++) {
         const tokenCard: Card = {
@@ -11275,10 +11375,10 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
 
   // ── Category 1: Copy Effects (Layer 1 setup) ──
 
-  // Copy-1: "becomes a copy of target creature" (Clone, Gigantoplasm)
+  // Copy-1: "becomes a copy of target creature/permanent" (Clone, Gigantoplasm, Metamorph)
   {
     name: 'becomes-copy-of-target',
-    match: /(?:you may have .+ )?(?:enter|enters) the battlefield as a copy of|becomes?\s+a\s+copy\s+of\s+target\s+creature/i,
+    match: /(?:you may have .+ )?(?:enter|enters) the battlefield as a copy of|becomes?\s+a\s+copy\s+of\s+target\s+(?:creature|permanent)/i,
     requiresTarget: true,
     apply: (state, controller, targets, _m, source) => {
       if (!source) return { state, resolved: false };
@@ -11312,6 +11412,66 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       state = { ...state, players };
       state = addLog(state, controller, `${perm.name} becomes a copy of ${targetPerm.name}.`);
       return { state, resolved: true, description: `copy: ${perm.name} → ${targetPerm.name}` };
+    },
+  },
+
+  // Copy-1b: "enters the battlefield as a copy of any creature" -- auto-selects highest-power creature (bot heuristic)
+  // Handles: Clone, Phantasmal Image, Phyrexian Metamorph, Clever Impersonator, Sakashima, Spark Double, etc.
+  // Used when no explicit target is provided (oracle text says "any creature" / "any permanent"),
+  // or as the ETB copy resolver when requiresTarget patterns cannot fire (no target on stack object).
+  {
+    name: 'becomes-copy-of-permanent',
+    match: /enters\s+the\s+battlefield\s+as\s+a\s+copy\s+of|becomes\s+a\s+copy\s+of/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      if (!source) return { state, resolved: false };
+      const found = findPermanentById(state, source.id);
+      if (!found) return { state, resolved: false };
+      const { playerIdx, permIdx, perm } = found;
+      let bestTarget: { perm: Permanent; playerIdx: 0 | 1; permIdx: number } | null = null;
+      let bestPower = -1;
+      for (let pi = 0; pi < 2; pi++) {
+        const p = state.players[pi as 0 | 1];
+        for (let i = 0; i < p.battlefield.length; i++) {
+          const candidate = p.battlefield[i];
+          if (candidate.id === perm.id) continue;
+          if (!candidate.typeLine.toLowerCase().includes('creature')) continue;
+          const candidatePower = candidate.currentPower ?? candidate.basePower ?? 0;
+          if (candidatePower > bestPower) {
+            bestPower = candidatePower;
+            bestTarget = { perm: candidate, playerIdx: pi as 0 | 1, permIdx: i };
+          }
+        }
+      }
+      if (!bestTarget) {
+        state = addLog(state, controller, `${perm.name} enters the battlefield -- no creature to copy.`);
+        return { state, resolved: true, description: `${perm.name}: no copy target found` };
+      }
+      const targetPerm = bestTarget.perm;
+      const player = state.players[playerIdx];
+      const updatedBf = [...player.battlefield];
+      updatedBf[permIdx] = {
+        ...perm,
+        copyEffect: {
+          copiedName: targetPerm.name,
+          copiedTypeLine: targetPerm.typeLine,
+          copiedOracleText: targetPerm.oracleText || '',
+          copiedPower: targetPerm.power,
+          copiedToughness: targetPerm.toughness,
+          copiedColors: [...(targetPerm.colors || [])],
+          copiedManaCost: targetPerm.manaCost,
+          timestamp: nextEffectTimestamp(),
+        },
+        basePower: targetPerm.basePower,
+        baseToughness: targetPerm.baseToughness,
+        currentPower: targetPerm.currentPower,
+        currentToughness: targetPerm.currentToughness,
+      };
+      const players = [...state.players] as [PlayerState, PlayerState];
+      players[playerIdx] = { ...player, battlefield: updatedBf };
+      state = { ...state, players };
+      state = addLog(state, controller, `${perm.name} enters as a copy of ${targetPerm.name}.`);
+      return { state, resolved: true, description: `copy: ${perm.name} -> ${targetPerm.name}` };
     },
   },
 

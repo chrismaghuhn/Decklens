@@ -36,6 +36,7 @@ import {
   getAuraBonuses,
 } from './equipment.ts';
 import { hasKeyword } from './combat.ts';
+import { parseAbilities } from './abilities.ts';
 
 // ─── Types ───
 
@@ -751,17 +752,29 @@ export function applyContinuousEffects(state: GameState): GameState {
         const updatedBf = [...player.battlefield];
         const newBasePower = copy.copiedPower ? parseInt(copy.copiedPower, 10) || 0 : perm.basePower;
         const newBaseToughness = copy.copiedToughness ? parseInt(copy.copiedToughness, 10) || 0 : perm.baseToughness;
+        // Re-parse abilities from the copied oracle text so the copy gains the right triggered/static abilities
+        // Permanent extends Card, so spread with overridden fields is valid as Card argument.
+        const copiedAbilities = parseAbilities({
+          ...perm,
+          oracleText: copy.copiedOracleText,
+          name: copy.copiedName,
+        });
         updatedBf[i] = {
           ...perm,
           name: copy.copiedName,
           typeLine: copy.copiedTypeLine,
+          // Preserve original oracle text before overwriting (for restoration if copy effect is removed)
+          originalOracleText: perm.originalOracleText || perm.oracleText,
           oracleText: copy.copiedOracleText,
           colors: copy.copiedColors,
           manaCost: copy.copiedManaCost || perm.manaCost,
           basePower: newBasePower,
           baseToughness: newBaseToughness,
+          currentPower: newBasePower,
+          currentToughness: newBaseToughness,
           power: copy.copiedPower || perm.power,
           toughness: copy.copiedToughness || perm.toughness,
+          abilities: copiedAbilities,
         };
         newPlayers[playerIdx] = { ...player, battlefield: updatedBf };
         stateChanged = true;
