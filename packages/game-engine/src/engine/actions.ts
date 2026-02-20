@@ -104,17 +104,14 @@ export function executeAction(
         newState = performLondonMulligan(state, action.player, action.toBottom);
       }
       
-      // Check if both players have kept their hands - if so, exit mulligan phase
-      const bothPlayersKept = newState.log.some(
-        entry => entry.message && entry.message.includes('keeps their hand')
-      );
-      // Count how many "keeps their hand" messages exist
+      // Count how many players have kept their hands
+      // N-player: need ALL players to keep before exiting mulligan phase
       const keepCount = newState.log.filter(
         entry => entry.message && entry.message.includes('keeps their hand')
       ).length;
-      
-      // If both players have kept, exit mulligan phase and advance to draw step
-      if (keepCount >= 2) {
+
+      // If all players have kept, exit mulligan phase and advance to draw step
+      if (keepCount >= newState.players.length) {
         newState = {
           ...newState,
           mulliganPhase: false,

@@ -25,6 +25,15 @@ export function validateAction(
   // Mulligan is only valid during mulligan phase
   if (action.type === 'mulligan') {
     if (!state.mulliganPhase) return 'Not in mulligan phase.';
+    // Sentinel value for "start a new mulligan" — always valid
+    if (action.toBottom.length === 1 && action.toBottom[0] === 'MULLIGAN') return null;
+    // Keeping hand (toBottom empty) — always valid
+    if (action.toBottom.length === 0) return null;
+    // London Mulligan: must put exactly mulliganCount[player] cards on bottom
+    const required = state.mulliganCount[action.player] ?? 0;
+    if (action.toBottom.length !== required) {
+      return `Must put exactly ${required} card(s) on bottom (got ${action.toBottom.length}).`;
+    }
     return null;
   }
 

@@ -242,6 +242,62 @@ export function applyStepEffects(state: GameState): GameState {
   if (state.step === 'upkeep' && !state.mulliganPhase) {
     state = checkUpkeepTriggers(state);
 
+    // ─── Suspend (CR 702.61): Remove a time counter from each suspended card ───
+    // At the beginning of owner's upkeep, remove one time counter.
+    // When the last counter is removed, cast the spell for free (with haste if creature).
+    if (state.suspendedCards && state.suspendedCards.length > 0) {
+      const ap = state.activePlayer;
+      const updated: typeof state.suspendedCards = [];
+      for (const entry of state.suspendedCards) {
+        if (entry.ownerId !== ap) {
+          updated.push(entry); // not this player's upkeep
+          continue;
+        }
+        const newCounters = entry.counters - 1;
+        if (newCounters <= 0) {
+          // Last counter removed — cast for free from exile
+          // Find the card in exile
+          const exileIdx = state.players[ap].exile.findIndex(c => c.id === entry.cardId);
+          if (exileIdx !== -1) {
+            const card = state.players[ap].exile[exileIdx];
+            // Remove from exile
+            const players = [...state.players];
+            players[ap] = {
+              ...players[ap],
+              exile: players[ap].exile.filter(c => c.id !== entry.cardId),
+            };
+            state = { ...state, players };
+            // Cast for free (no mana cost) — CR 702.61b
+            state = addSpellToStack(state, card.id, ap, [], {
+              from: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+              phyrexianLife: 0, hybridChoices: [], xValue: 0,
+            });
+            state = {
+              ...state,
+              log: [...state.log, {
+                timestamp: Date.now(), turn: state.turn,
+                phase: state.phase, step: state.step, player: ap,
+                message: `${card.name} suspended — last time counter removed, cast for free.`,
+                cardName: card.name,
+              }],
+            };
+          }
+          // Don't push — card is gone from suspend
+        } else {
+          updated.push({ ...entry, counters: newCounters });
+          state = {
+            ...state,
+            log: [...state.log, {
+              timestamp: Date.now(), turn: state.turn,
+              phase: state.phase, step: state.step, player: ap,
+              message: `Removed a time counter from suspended card (${newCounters} remaining).`,
+            }],
+          };
+        }
+      }
+      state = { ...state, suspendedCards: updated.length > 0 ? updated : undefined };
+    }
+
     // ─── Rebound (CR 702.87): Cast exiled rebound spells at upkeep for free ───
     const ap = state.activePlayer;
     const reboundCards = state.players[ap].exile.filter(c => (c as any).reboundExile);
