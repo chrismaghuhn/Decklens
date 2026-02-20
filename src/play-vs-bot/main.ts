@@ -2,6 +2,7 @@
  * EDH Bot Arena — Main Entry Point.
  *
  * Handles deck selection, game initialization, and button wiring.
+ * Also handles multiplayer mode via MultiplayerClient (Phase 5).
  */
 
 import type { Card } from '@mtg/game-engine';
@@ -12,8 +13,10 @@ import { listDecks } from '../deckbuilder/storage.js';
 import type { DeckbuilderDeck, DeckbuilderCardEntry } from '../deckbuilder/types.js';
 import { getCardImageUrl } from './card-renderer.ts';
 import { resolveCardNames, validateEDHDeck, type ProgressCallback } from './card-resolver.ts';
+import { MultiplayerClient, createGameSession, type SeatInfo, type GameStateView } from './mp-client.ts';
 
 let gameLoop: GameLoop | null = null;
+let mpClient: MultiplayerClient | null = null;
 
 // ==================== Deck Selection ====================
 
@@ -423,7 +426,8 @@ async function initGame(deckText?: string, savedDeck?: DeckbuilderDeck): Promise
     }
   }
 
-  // Hide deck selector, show game
+  // Hide deck selector, show game — activate game layout
+  document.body.classList.add('game-active');
   const deckOverlay = document.getElementById('deck-overlay');
   if (deckOverlay) deckOverlay.classList.add('hidden');
 
@@ -492,17 +496,499 @@ function wireButtons(): void {
   });
 }
 
+// ==================== Multiplayer — UI Helpers ====================
+
+/** Hide the mode selection screen */
+function hideModeScreen(): void {
+  const el = document.getElementById('mode-screen');
+  if (el) el.style.display = 'none';
+}
+
+/** Show the lobby screen */
+function showLobbyScreen(): void {
+  hideModeScreen();
+  const el = document.getElementById('lobby-screen');
+  if (el) el.style.display = 'flex';
+}
+
+/** Hide the lobby screen */
+function hideLobbyScreen(): void {
+  const el = document.getElementById('lobby-screen');
+  if (el) el.style.display = 'none';
+}
+
+/** Show the join-code dialog, optionally pre-filling the code */
+function showJoinDialog(prefill?: string): void {
+  const dialog = document.getElementById('join-dialog');
+  if (dialog) dialog.style.display = 'flex';
+
+  const input = document.getElementById('join-code-input') as HTMLInputElement | null;
+  if (input) {
+    if (prefill) input.value = prefill.toUpperCase();
+    setTimeout(() => input.focus(), 50);
+  }
+}
+
+/** Hide the join-code dialog */
+function hideJoinDialog(): void {
+  const dialog = document.getElementById('join-dialog');
+  if (dialog) dialog.style.display = 'none';
+}
+
+/** Set the session code display in the lobby header */
+function setSessionCodeDisplay(code: string): void {
+  const el = document.getElementById('session-code-text');
+  if (el) el.textContent = code;
+}
+
+/** Rebuild the seat grid from a SeatInfo[] array */
+function updateLobbyUI(seats: SeatInfo[]): void {
+  const grid = document.getElementById('seat-grid');
+  if (!grid) return;
+
+  grid.innerHTML = '';
+
+  for (const s of seats) {
+    const card = document.createElement('div');
+
+    let classes = 'seat-card';
+    let icon = '🪑';
+    let name = 'Empty';
+    let badge = 'Waiting for player...';
+    let badgeClass = 'seat-badge';
+
+    if (s.playerName) {
+      const isMe = mpClient !== null && s.seat === mpClient.seat;
+      if (s.isBot) {
+        classes += ' seat-card bot';
+        icon = '🤖';
+      } else if (isMe) {
+        classes += ' seat-card you';
+        icon = '⭐';
+      } else {
+        classes += ' seat-card occupied';
+        icon = '🧙';
+      }
+
+      name = s.playerName;
+
+      if (s.ready) {
+        badge = s.isBot ? 'Bot · Ready' : (isMe ? 'You · Ready' : 'Ready');
+        badgeClass = 'seat-badge ready';
+      } else {
+        badge = s.isBot ? 'Bot' : (isMe ? 'You · Not ready' : (s.connected ? 'Connected' : 'Disconnected'));
+      }
+    } else {
+      classes += ' seat-card empty';
+    }
+
+    card.className = classes;
+    card.innerHTML = `
+      <div class="seat-icon">${icon}</div>
+      <div class="seat-name">${name}</div>
+      <div class="${badgeClass}">Seat ${s.seat + 1} · ${badge}</div>
+    `;
+
+    grid.appendChild(card);
+  }
+}
+
+/** Get the next empty (non-bot, non-player) seat index, or -1 if none */
+function nextEmptySeat(seats: SeatInfo[]): number {
+  const empty = seats.find(s => s.playerName === null && !s.isBot);
+  return empty ? empty.seat : -1;
+}
+
+/** Get the deck JSON string for the current player's deck (from textarea or saved deck) */
+function getCurrentDeckJson(): string {
+  // Try to get from the import textarea
+  const textarea = document.getElementById('deck-import') as HTMLTextAreaElement | null;
+  const text = textarea?.value?.trim() ?? '';
+  if (text.length > 10) {
+    return text; // Arena/MTGO format — server can parse this
+  }
+  // Return empty JSON — server will use a placeholder deck
+  return '{}';
+}
+
+/** Get a player name (from localStorage or a default) */
+function getPlayerName(): string {
+  try {
+    const stored = localStorage.getItem('decklens-player-name');
+    if (stored) return stored;
+  } catch { /* ignore */ }
+  return `Player${Math.floor(Math.random() * 9000) + 1000}`;
+}
+
+/** Show the MP status banner */
+function showMpStatus(text: string, connected: boolean): void {
+  const banner = document.getElementById('mp-status-banner');
+  const dot = document.getElementById('mp-status-dot');
+  const textEl = document.getElementById('mp-status-text');
+  if (banner) banner.classList.add('visible');
+  if (dot) dot.className = `mp-status-dot${connected ? '' : ' disconnected'}`;
+  if (textEl) textEl.textContent = text;
+}
+
+/** Update the MP game panel in the sidebar with current player states */
+function updateMpGamePanel(state: GameStateView): void {
+  const panel = document.getElementById('mp-game-panel');
+  if (panel) panel.style.display = 'block';
+
+  const list = document.getElementById('mp-player-list');
+  if (!list) return;
+
+  list.innerHTML = '';
+
+  for (const p of state.players) {
+    const row = document.createElement('div');
+    const isActive = p.id === state.activePlayer;
+    const isMe = mpClient !== null && p.id === mpClient.seat;
+    const isElim = p.eliminated;
+
+    row.className = [
+      'mp-player-row',
+      isActive ? 'active-player' : '',
+      isMe ? 'you-marker' : '',
+    ].filter(Boolean).join(' ');
+
+    if (isElim) row.style.opacity = '0.4';
+
+    row.innerHTML = `
+      <span>${p.name}${isMe ? ' (you)' : ''}${isElim ? ' 💀' : ''}</span>
+      <span class="mp-player-life">${p.life} ♥</span>
+    `;
+
+    list.appendChild(row);
+  }
+}
+
+// ==================== Multiplayer — Core Functions ====================
+
+let _lastSeats: SeatInfo[] = [];
+
+/** Host a new multiplayer game session */
+async function createAndHostGame(): Promise<void> {
+  const hostBtn = document.getElementById('btn-mp-host') as HTMLButtonElement | null;
+  if (hostBtn) { hostBtn.disabled = true; hostBtn.textContent = 'Creating...'; }
+
+  try {
+    const sessionId = await createGameSession();
+
+    // Tear down any existing client
+    if (mpClient) {
+      mpClient.disconnect();
+      mpClient = null;
+    }
+
+    mpClient = new MultiplayerClient(sessionId);
+
+    // Show lobby
+    showLobbyScreen();
+    setSessionCodeDisplay(sessionId);
+
+    // Wire lobby events
+    _wireMpClientEvents(mpClient);
+
+    // Connect
+    const playerName = getPlayerName();
+    const deckJson = getCurrentDeckJson();
+    mpClient.connect(playerName, deckJson);
+
+  } catch (err) {
+    console.error('[MP] Failed to create session:', err);
+    alert(`Failed to create game session: ${err instanceof Error ? err.message : String(err)}`);
+    if (hostBtn) { hostBtn.disabled = false; hostBtn.textContent = 'Host Game'; }
+  }
+}
+
+/** Join an existing multiplayer game session by code */
+async function joinGame(code: string): Promise<void> {
+  const clean = code.trim().toUpperCase();
+  if (clean.length < 3) {
+    alert('Please enter a valid session code.');
+    return;
+  }
+
+  // Tear down any existing client
+  if (mpClient) {
+    mpClient.disconnect();
+    mpClient = null;
+  }
+
+  mpClient = new MultiplayerClient(clean);
+
+  hideJoinDialog();
+  showLobbyScreen();
+  setSessionCodeDisplay(clean);
+
+  _wireMpClientEvents(mpClient);
+
+  const playerName = getPlayerName();
+  const deckJson = getCurrentDeckJson();
+  mpClient.connect(playerName, deckJson);
+}
+
+/** Wire all event listeners on a MultiplayerClient instance */
+function _wireMpClientEvents(client: MultiplayerClient): void {
+  client.addEventListener('lobby-update', (ev) => {
+    const { seats } = (ev as CustomEvent<{ seats: SeatInfo[] }>).detail;
+    _lastSeats = seats;
+    updateLobbyUI(seats);
+    // Keep session code updated from server
+    // (sessionCode is already set from the client's sessionId)
+  });
+
+  client.addEventListener('game-started', (ev) => {
+    const { yourSeat, playerCount } = (ev as CustomEvent<{ yourSeat: number; playerCount: number }>).detail;
+
+    // Transition from lobby to a simple MP game view
+    hideLobbyScreen();
+
+    // Activate game layout (locks body overflow)
+    document.body.classList.add('game-active');
+
+    // Show the game container but replace topbar labels for MP context
+    const gameContainer = document.getElementById('game-container');
+    if (gameContainer) gameContainer.style.display = 'grid';
+
+    // Hide solo-mode overlays (deck overlay should already be hidden)
+    const deckOverlay = document.getElementById('deck-overlay');
+    if (deckOverlay) deckOverlay.classList.add('hidden');
+
+    // Show MP status
+    showMpStatus(`MP Game · ${playerCount} players · Seat ${yourSeat + 1}`, true);
+
+    // Show MP game panel
+    const panel = document.getElementById('mp-game-panel');
+    if (panel) panel.style.display = 'block';
+
+    console.log(`[MP] Game started! You are seat ${yourSeat} of ${playerCount}`);
+
+    // Request a state sync immediately
+    client.requestSync();
+  });
+
+  client.addEventListener('state-update', (ev) => {
+    const state = (ev as CustomEvent<GameStateView>).detail;
+
+    // Update MP game panel
+    updateMpGamePanel(state);
+
+    // Update top-bar displays with MP state
+    _updateTopBarFromMpState(state);
+
+    // Append new log entries
+    _appendMpLogEntries(state.log);
+
+    // If game is over, show result
+    if (state.gameOver && state.winner !== null) {
+      const panel = document.getElementById('gameover-panel');
+      const overlay = document.getElementById('gameover-overlay');
+      if (panel && overlay) {
+        const myName = state.players[client.seat]?.name ?? 'Unknown';
+        const winnerName = state.players[state.winner]?.name ?? `Player ${state.winner}`;
+        const isWinner = state.winner === client.seat;
+        panel.className = `pvb-gameover ${isWinner ? 'win' : 'loss'}`;
+        panel.innerHTML = `
+          <h2>${isWinner ? 'Victory!' : 'Defeated'}</h2>
+          <div class="pvb-gameover-stats">${winnerName} wins the game!</div>
+          <div class="pvb-gameover-actions">
+            <button class="pvb-btn primary" onclick="location.reload()">Play Again</button>
+          </div>
+        `;
+        overlay.classList.remove('hidden');
+      }
+    }
+  });
+
+  client.addEventListener('action-rejected', (ev) => {
+    const reason = (ev as CustomEvent<string>).detail;
+    console.warn('[MP] Action rejected:', reason);
+    // Brief flash in the log
+    _appendMpLogEntry(`Action rejected: ${reason}`, 'pvb-log-bot');
+  });
+
+  client.addEventListener('game-over', (ev) => {
+    const { winner, reason } = (ev as CustomEvent<{ winner: number | null; reason: string }>).detail;
+    const panel = document.getElementById('gameover-panel');
+    const overlay = document.getElementById('gameover-overlay');
+    if (panel && overlay) {
+      const isWinner = winner !== null && winner === client.seat;
+      panel.className = `pvb-gameover ${isWinner ? 'win' : 'loss'}`;
+      panel.innerHTML = `
+        <h2>${isWinner ? 'Victory!' : (winner === null ? 'Draw' : 'Defeated')}</h2>
+        <div class="pvb-gameover-stats">${reason}</div>
+        <div class="pvb-gameover-actions">
+          <button class="pvb-btn primary" onclick="location.reload()">Play Again</button>
+        </div>
+      `;
+      overlay.classList.remove('hidden');
+    }
+    showMpStatus('Game Over', false);
+  });
+
+  client.addEventListener('connection-error', (ev) => {
+    const detail = (ev as CustomEvent<string>).detail;
+    showMpStatus(`Disconnected: ${detail}`, false);
+    console.error('[MP] Connection error:', detail);
+  });
+}
+
+/** Update the existing top-bar UI elements with MP game state */
+function _updateTopBarFromMpState(state: GameStateView): void {
+  const turnDisplay = document.getElementById('turn-display');
+  if (turnDisplay) turnDisplay.textContent = `Turn ${state.turn}`;
+
+  const phaseDisplay = document.getElementById('phase-display');
+  if (phaseDisplay) phaseDisplay.textContent = `${state.phase} · ${state.step}`;
+
+  // Priority
+  const priorityDisplay = document.getElementById('priority-display');
+  if (priorityDisplay && mpClient) {
+    const hasPriority = state.priorityPlayer === mpClient.seat;
+    priorityDisplay.textContent = hasPriority ? 'Your Priority' : `Player ${state.priorityPlayer + 1} Priority`;
+    priorityDisplay.className = `pvb-priority ${hasPriority ? 'yours' : 'theirs'}`;
+  }
+
+  // Life totals — show yours and active player
+  const yourLife = document.getElementById('your-life');
+  const botLife = document.getElementById('bot-life');
+  if (mpClient && yourLife) {
+    const me = state.players[mpClient.seat];
+    if (me) yourLife.textContent = String(me.life);
+  }
+  if (botLife && state.players.length > 1) {
+    // Show the active player's life (if not yourself)
+    const other = state.players.find(p => mpClient ? p.id !== mpClient.seat : true);
+    if (other) botLife.textContent = String(other.life);
+  }
+}
+
+let _lastLogCount = 0;
+
+/** Append new log entries to the game log panel */
+function _appendMpLogEntries(log: unknown[]): void {
+  const newEntries = log.slice(_lastLogCount);
+  _lastLogCount = log.length;
+  for (const entry of newEntries) {
+    _appendMpLogEntry(String(entry), 'pvb-log-turn');
+  }
+}
+
+function _appendMpLogEntry(text: string, cssClass: string = 'pvb-log-turn'): void {
+  const logEl = document.getElementById('game-log');
+  if (!logEl) return;
+  const div = document.createElement('div');
+  div.className = `pvb-log-entry ${cssClass}`;
+  div.textContent = text;
+  logEl.appendChild(div);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
 // ==================== Entry Point ====================
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Quick-start button (import text)
+  // ── Check URL params to decide startup mode ──────────────────────────────
+  const params = new URLSearchParams(window.location.search);
+  const modeParam = params.get('mode');
+  const joinParam = params.get('join');
+
+  if (modeParam === 'solo') {
+    // Directly launch solo mode — skip mode screen
+    hideModeScreen();
+    // Show deck selector overlay (existing flow)
+    const deckOverlay = document.getElementById('deck-overlay');
+    if (deckOverlay) deckOverlay.classList.remove('hidden');
+  } else if (joinParam) {
+    // Auto-open join dialog with pre-filled code
+    hideModeScreen();
+    showJoinDialog(joinParam);
+  }
+  // else: show mode screen (default — it's already visible)
+
+  // ── Mode Screen Buttons ──────────────────────────────────────────────────
+  document.getElementById('btn-solo')?.addEventListener('click', () => {
+    hideModeScreen();
+    // Show deck selector overlay (existing solo flow)
+    const deckOverlay = document.getElementById('deck-overlay');
+    if (deckOverlay) deckOverlay.classList.remove('hidden');
+  });
+
+  document.getElementById('btn-mp-host')?.addEventListener('click', () => {
+    void createAndHostGame();
+  });
+
+  document.getElementById('btn-mp-join')?.addEventListener('click', () => {
+    hideModeScreen();
+    showJoinDialog();
+  });
+
+  // ── Join Dialog Buttons ──────────────────────────────────────────────────
+  document.getElementById('btn-join-confirm')?.addEventListener('click', () => {
+    const input = document.getElementById('join-code-input') as HTMLInputElement | null;
+    const code = input?.value?.trim() ?? '';
+    void joinGame(code);
+  });
+
+  document.getElementById('btn-join-cancel')?.addEventListener('click', () => {
+    hideJoinDialog();
+    // Return to mode screen
+    const modeScreen = document.getElementById('mode-screen');
+    if (modeScreen) modeScreen.style.display = 'flex';
+  });
+
+  // Allow pressing Enter in the code input to confirm join
+  document.getElementById('join-code-input')?.addEventListener('keydown', (ev) => {
+    if ((ev as KeyboardEvent).key === 'Enter') {
+      const input = document.getElementById('join-code-input') as HTMLInputElement | null;
+      const code = input?.value?.trim() ?? '';
+      void joinGame(code);
+    }
+  });
+
+  // ── Lobby Buttons ────────────────────────────────────────────────────────
+  document.getElementById('btn-copy-code')?.addEventListener('click', async () => {
+    const code = document.getElementById('session-code-text')?.textContent ?? '';
+    if (!code || code === '--------') return;
+    try {
+      await navigator.clipboard.writeText(code);
+      const btn = document.getElementById('btn-copy-code') as HTMLButtonElement | null;
+      if (btn) {
+        btn.textContent = '✅';
+        setTimeout(() => { if (btn) btn.textContent = '📋'; }, 1500);
+      }
+    } catch {
+      // Clipboard may not be available
+    }
+  });
+
+  document.getElementById('btn-add-bot')?.addEventListener('click', () => {
+    if (!mpClient) return;
+    const emptySeat = nextEmptySeat(_lastSeats);
+    if (emptySeat === -1) {
+      alert('No empty seats available.');
+      return;
+    }
+    mpClient.addBot(emptySeat);
+  });
+
+  document.getElementById('btn-ready')?.addEventListener('click', () => {
+    if (!mpClient) return;
+    mpClient.sendReady();
+    // Update button state
+    const btn = document.getElementById('btn-ready') as HTMLButtonElement | null;
+    if (btn) { btn.disabled = true; btn.textContent = 'Waiting...'; }
+  });
+
+  // ── Quick-start button (import text, solo mode) ──────────────────────────
   document.getElementById('btn-start-import')?.addEventListener('click', () => {
     const textarea = document.getElementById('deck-import') as HTMLTextAreaElement | null;
     const text = textarea?.value ?? '';
-    initGame(text);
+    void initGame(text);
   });
 
-  // Populate deck grid with saved decks + prebuilt options
+  // ── Populate deck grid with saved decks + prebuilt options ───────────────
   const deckGrid = document.getElementById('deck-grid');
   if (deckGrid) {
     // Load saved decks from deckbuilder storage
@@ -544,7 +1030,7 @@ document.addEventListener('DOMContentLoaded', () => {
       cardCount.textContent = `${total} cards`;
       option.appendChild(cardCount);
 
-      option.addEventListener('click', () => initGame(undefined, deck));
+      option.addEventListener('click', () => void initGame(undefined, deck));
       deckGrid.appendChild(option);
     }
 
@@ -580,7 +1066,7 @@ document.addEventListener('DOMContentLoaded', () => {
       sampleTag.style.color = 'var(--gold)';
       option.appendChild(sampleTag);
 
-      option.addEventListener('click', () => initGame());
+      option.addEventListener('click', () => void initGame());
       deckGrid.appendChild(option);
     }
 

@@ -2,6 +2,7 @@ import type { GameState } from '../types/game-state.ts';
 import type { Target } from '../types/action.ts';
 import type { Permanent } from '../types/permanent.ts';
 import { hasKeyword } from './combat.ts';
+import { getOpponents } from './n-player.ts';
 
 /**
  * Targeting System — Phase 6 Wave 1
@@ -210,8 +211,8 @@ export function getValidTargets(
     filter.controller === 'you'
       ? [controller]
       : filter.controller === 'opponent'
-        ? [controller === 0 ? 1 : 0]
-        : [0, 1];
+        ? getOpponents(state, controller)
+        : state.players.map((_, i) => i);
 
   if (zone === 'battlefield') {
     for (const pi of playerIndicesToCheck) {

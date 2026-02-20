@@ -11,6 +11,8 @@
     /* ==================== EDH Bot Arena Styles ==================== */
 
     body { overflow: hidden; }
+    /* Mode/lobby screens need normal scroll; game adds .game-active to body */
+    body:not(.game-active) { overflow: auto; }
 
     /* === Layout Grid === */
     .pvb-container {
@@ -555,9 +557,280 @@
       position: absolute; top: 2px; right: 18px; font-size: 0.55rem; font-weight: 700;
       background: #c9a84c; color: #000; padding: 0 3px; border-radius: 3px; z-index: 5;
     }
+
+    /* ═══════════════ Mode Selection Screen ═══════════════ */
+    .mode-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: var(--void, #0a0e17);
+      padding: 2rem;
+    }
+    .mode-header { text-align: center; margin-bottom: 3rem; }
+    .mode-title {
+      font-family: 'Cinzel', serif;
+      font-size: 3rem;
+      color: #c9a84c;
+      text-align: center;
+      margin-bottom: 0.5rem;
+      text-shadow: 0 0 30px rgba(201,168,76,0.3);
+    }
+    .mode-subtitle {
+      color: rgba(255,255,255,0.5);
+      text-align: center;
+      font-size: 1rem;
+    }
+    .mode-cards {
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .mode-card {
+      background: #0f1623;
+      border: 1px solid rgba(201,168,76,0.3);
+      border-radius: 16px;
+      padding: 2rem;
+      width: 220px;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: white;
+      text-align: center;
+      font-family: 'Outfit', sans-serif;
+    }
+    .mode-card:hover {
+      border-color: #c9a84c;
+      transform: translateY(-4px);
+      box-shadow: 0 8px 32px rgba(201,168,76,0.2);
+    }
+    .mode-icon { font-size: 2.5rem; margin-bottom: 1rem; }
+    .mode-card h2 { font-family: 'Cinzel', serif; color: #c9a84c; margin-bottom: 0.5rem; font-size: 1.1rem; }
+    .mode-card p { color: rgba(255,255,255,0.5); font-size: 0.85rem; margin: 0; }
+
+    /* ═══════════════ Lobby Screen ═══════════════ */
+    .lobby-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      background: var(--void, #0a0e17);
+      padding: 2rem;
+      font-family: 'Outfit', sans-serif;
+    }
+    .lobby-header { text-align: center; margin-bottom: 2rem; }
+    .lobby-header h1 { font-family: 'Cinzel', serif; color: #c9a84c; font-size: 2rem; margin-bottom: 0.5rem; }
+    .session-code-display {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: #1a1f2e;
+      border: 1px solid rgba(201,168,76,0.3);
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      color: #c9a84c;
+      font-size: 1.2rem;
+      margin-top: 0.5rem;
+      letter-spacing: 0.1em;
+    }
+    #btn-copy-code {
+      background: none; border: none; cursor: pointer; font-size: 1rem;
+      padding: 0; transition: transform 0.15s;
+    }
+    #btn-copy-code:hover { transform: scale(1.2); }
+    .seat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      width: 100%;
+      max-width: 800px;
+      margin-bottom: 2rem;
+    }
+    .seat-card {
+      background: #0f1623;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 1.5rem;
+      text-align: center;
+      transition: border-color 0.2s;
+    }
+    .seat-card.occupied { border-color: rgba(52,211,153,0.4); }
+    .seat-card.bot { border-color: rgba(201,168,76,0.3); }
+    .seat-card.you { border-color: #c9a84c; box-shadow: 0 0 12px rgba(201,168,76,0.15); }
+    .seat-card.empty { border-style: dashed; }
+    .seat-icon { font-size: 1.8rem; margin-bottom: 0.5rem; }
+    .seat-name { color: white; font-weight: 600; margin-bottom: 0.25rem; font-size: 0.95rem; }
+    .seat-badge { font-size: 0.75rem; color: rgba(255,255,255,0.5); }
+    .seat-badge.ready { color: #34d399; }
+    .lobby-actions { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+
+    .btn-primary {
+      background: #c9a84c;
+      color: #0a0e17;
+      border: none;
+      border-radius: 50px;
+      padding: 0.75rem 2rem;
+      font-family: 'Cinzel', serif;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, box-shadow 0.2s;
+      font-size: 0.9rem;
+    }
+    .btn-primary:hover { opacity: 0.85; box-shadow: 0 4px 16px rgba(201,168,76,0.3); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-secondary {
+      background: transparent;
+      color: #c9a84c;
+      border: 1px solid #c9a84c;
+      border-radius: 50px;
+      padding: 0.75rem 2rem;
+      font-family: 'Cinzel', serif;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.9rem;
+    }
+    .btn-secondary:hover { background: rgba(201,168,76,0.1); }
+
+    /* ═══════════════ Join Dialog ═══════════════ */
+    .join-dialog {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10000;
+      backdrop-filter: blur(4px);
+    }
+    .join-dialog-inner {
+      background: #0f1623;
+      border: 1px solid rgba(201,168,76,0.4);
+      border-radius: 16px;
+      padding: 2rem;
+      min-width: 320px;
+      text-align: center;
+      font-family: 'Outfit', sans-serif;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+    .join-dialog-inner h2 { font-family: 'Cinzel', serif; color: #c9a84c; margin-bottom: 1rem; font-size: 1.4rem; }
+    #join-code-input {
+      width: 100%;
+      background: #1a1f2e;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      padding: 0.75rem;
+      color: white;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.4rem;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: 1rem;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+    #join-code-input:focus { outline: none; border-color: #c9a84c; }
+    .join-actions { display: flex; gap: 1rem; justify-content: center; }
+
+    /* ═══════════════ MP Status Banner ═══════════════ */
+    .mp-status-banner {
+      position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%);
+      background: #1a1f2e; border: 1px solid rgba(201,168,76,0.3);
+      border-radius: 50px; padding: 0.5rem 1.25rem;
+      font-family: 'Outfit', sans-serif; font-size: 0.82rem;
+      color: rgba(255,255,255,0.7); z-index: 500;
+      display: none; gap: 0.5rem; align-items: center;
+    }
+    .mp-status-banner.visible { display: flex; }
+    .mp-status-dot { width: 8px; height: 8px; border-radius: 50%; background: #34d399; flex-shrink: 0; }
+    .mp-status-dot.disconnected { background: #ef4444; animation: dotPulse 1s ease-in-out infinite; }
+    @keyframes dotPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    /* ═══════════════ MP Game Info Panel ═══════════════ */
+    .mp-game-panel {
+      padding: 0.75rem;
+      background: #0f1623;
+      border: 1px solid rgba(201,168,76,0.2);
+      border-radius: 12px;
+      margin-bottom: 0.5rem;
+    }
+    .mp-game-panel h3 {
+      font-family: 'Cinzel', serif; color: #c9a84c;
+      font-size: 0.8rem; margin-bottom: 0.5rem;
+    }
+    .mp-player-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0.25rem 0; font-size: 0.75rem; color: rgba(255,255,255,0.7);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .mp-player-row:last-child { border-bottom: none; }
+    .mp-player-row.active-player { color: #c9a84c; font-weight: 600; }
+    .mp-player-row.you-marker::before { content: '★ '; color: #c9a84c; }
+    .mp-player-life { font-weight: 700; }
   </style>
 </head>
 <body>
+  <!-- ═══════════════ Mode Selection Screen ═══════════════ -->
+  <div id="mode-screen" class="mode-screen">
+    <div class="mode-header">
+      <h1 class="mode-title">EDH Arena</h1>
+      <p class="mode-subtitle">Choose your battle</p>
+    </div>
+    <div class="mode-cards">
+      <button class="mode-card" id="btn-solo">
+        <div class="mode-icon">⚔️</div>
+        <h2>1v1 vs Bot</h2>
+        <p>Offline · Instant start · AI opponent</p>
+      </button>
+      <button class="mode-card" id="btn-mp-host">
+        <div class="mode-icon">👑</div>
+        <h2>Host Game</h2>
+        <p>2–6 players · Share code · Add bots</p>
+      </button>
+      <button class="mode-card" id="btn-mp-join">
+        <div class="mode-icon">🚪</div>
+        <h2>Join Game</h2>
+        <p>Enter session code to join</p>
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════ Lobby Screen ═══════════════ -->
+  <div id="lobby-screen" class="lobby-screen" style="display:none">
+    <div class="lobby-header">
+      <h1>Game Lobby</h1>
+      <div class="session-code-display">
+        Code: <span id="session-code-text">--------</span>
+        <button id="btn-copy-code" title="Copy code to clipboard">📋</button>
+      </div>
+    </div>
+    <div id="seat-grid" class="seat-grid">
+      <!-- Seat cards populated dynamically -->
+    </div>
+    <div class="lobby-actions">
+      <button id="btn-add-bot" class="btn-secondary">Add Bot to Empty Seat</button>
+      <button id="btn-ready" class="btn-primary">Ready!</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════ Join Dialog ═══════════════ -->
+  <div id="join-dialog" style="display:none" class="join-dialog">
+    <div class="join-dialog-inner">
+      <h2>Join Game</h2>
+      <input id="join-code-input" type="text" placeholder="SESSION CODE" maxlength="32" autocomplete="off" spellcheck="false" />
+      <div class="join-actions">
+        <button id="btn-join-confirm" class="btn-primary">Join</button>
+        <button id="btn-join-cancel" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ MP Status Banner (shown during MP game) ═══════════════ -->
+  <div id="mp-status-banner" class="mp-status-banner">
+    <div class="mp-status-dot" id="mp-status-dot"></div>
+    <span id="mp-status-text">Connected</span>
+  </div>
+
   <!-- Deck Selector Overlay -->
   <div id="deck-overlay" class="pvb-overlay">
     <div class="pvb-deck-selector">
@@ -661,6 +934,12 @@
 
     <!-- Side Panel -->
     <div class="pvb-side">
+      <!-- MP Game Info Panel (only visible during multiplayer games) -->
+      <div id="mp-game-panel" class="mp-game-panel" style="display:none">
+        <h3>Players</h3>
+        <div id="mp-player-list"></div>
+      </div>
+
       <!-- Stack -->
       <div>
         <div class="pvb-zone-title">Stack <span class="pvb-zone-count" id="stack-count">0</span></div>

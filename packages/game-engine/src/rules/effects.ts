@@ -21,6 +21,7 @@ import { hasProtectionFrom, applyDamageWithShields } from './combat.ts';
 import { copyStackObject } from './stack.ts';
 import { checkLeavesBattlefieldTriggers, checkSacrificeTriggers, checkLifegainTriggers, checkETBTriggers } from './triggers.ts';
 import { smartParserResolve } from './smart-parser.ts';
+import { getFirstOpponent, getOpponents } from './n-player.ts';
 
 // ─── Types ───
 
@@ -262,7 +263,7 @@ export function getTokenMultiplier(state: GameState, controller: number): number
 
   // Primal Vigor applies to all players' token creation — check both battlefields
   // but only if controller doesn't already have it (avoid double-counting)
-  const opp: number = controller === 0 ? 1 : 0;
+  const opp: number = getFirstOpponent(state, controller);
   for (const perm of state.players[opp].battlefield) {
     const oracleText = perm.oracleText || perm.name || '';
     const name = (perm.name || '').toLowerCase();
@@ -318,8 +319,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const amount = parseInt(m[1]);
-      const opponent: number = controller === 0 ? 1 : 0;
-      state = damagePlayer(state, opponent, amount);
+      for (const opp of getOpponents(state, controller)) {
+        state = damagePlayer(state, opp, amount);
+      }
       state = addLog(state, controller, `Deals ${amount} damage to each opponent.`);
       return { state, resolved: true, description: `${amount} damage to each opponent` };
     },
@@ -330,8 +332,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const amount = parseInt(m[1]);
-      state = damagePlayer(state, 0, amount);
-      state = damagePlayer(state, 1, amount);
+      for (let pi = 0; pi < state.players.length; pi++) {
+        state = damagePlayer(state, pi, amount);
+      }
       state = addLog(state, controller, `Deals ${amount} damage to each player.`);
       return { state, resolved: true, description: `${amount} damage to each player` };
     },
@@ -356,7 +359,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, targets, m) => {
       const count = parseNumber(m[1]);
       const playerTarget = getTargetPlayer(targets);
-      const targetIdx = playerTarget ?? (controller === 0 ? 1 : 0);
+      const targetIdx = playerTarget ?? getFirstOpponent(state, controller);
       state = drawCards(state, targetIdx, count);
       state = addLog(state, controller, `${state.players[targetIdx].name} draws ${count} card(s).`);
       return { state, resolved: true, description: `target draws ${count}` };
@@ -550,7 +553,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, targets, m) => {
       const amount = parseInt(m[1]);
-      const opponent: number = controller === 0 ? 1 : 0;
+      const opponent: number = getFirstOpponent(state, controller);
       const targetPlayer = getTargetPlayer(targets) ?? opponent;
       state = damagePlayer(state, targetPlayer, amount); // lose life = life reduction
       state = addLog(state, controller, `${state.players[targetPlayer].name} loses ${amount} life.`);
@@ -608,7 +611,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: true,
     apply: (state, controller, targets, m) => {
       const count = parseNumber(m[1]);
-      const opponent = (controller === 0 ? 1 : 0);
+      const opponent = getFirstOpponent(state, controller);
       const playerTarget = targets.find(t => t.type === 'player');
       const targetPlayer = playerTarget ? parseInt(playerTarget.id, 10) : opponent;
       const player = state.players[targetPlayer];
@@ -944,7 +947,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, _targets, m) => {
       const loseAmount = parseInt(m[1]);
       const gainAmount = parseInt(m[2]);
-      const opponent: number = controller === 0 ? 1 : 0;
+      const opponent: number = getFirstOpponent(state, controller);
       state = damagePlayer(state, opponent, loseAmount);
       state = gainLife(state, controller, gainAmount);
       state = addLog(state, controller, `Each opponent loses ${loseAmount} life. You gain ${gainAmount} life.`);
@@ -1410,7 +1413,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const count = parseNumber(m[1]);
-      const opponent = (controller === 0 ? 1 : 0);
+      const opponent = getFirstOpponent(state, controller);
       const oppPlayer = state.players[opponent];
       const actualCount = Math.min(count, oppPlayer.hand.length);
       if (actualCount === 0) {
@@ -1563,8 +1566,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const amount = parseInt(m[1]);
-      const opponent: number = controller === 0 ? 1 : 0;
-      state = damagePlayer(state, opponent, amount);
+      for (const opp of getOpponents(state, controller)) {
+        state = damagePlayer(state, opp, amount);
+      }
       state = addLog(state, controller, `Each opponent loses ${amount} life.`);
       return { state, resolved: true, description: `each opponent loses ${amount} life` };
     },
@@ -1854,7 +1858,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m, source) => {
       const amount = parseInt(m[1]);
-      const opp = controller === 0 ? 1 : 0;
+      const opp = getFirstOpponent(state, controller);
       const sourceColors = source?.colors || [];
       let count = 0;
       const player = state.players[opp];
@@ -2262,7 +2266,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       // Exile from opponent's graveyard
-      const opp = controller === 0 ? 1 : 0;
+      const opp = getFirstOpponent(state, controller);
       const player = state.players[opp];
       const countStr = m[1].toLowerCase();
       const count = countStr === 'all' ? player.graveyard.length : Math.min(parseInt(countStr), player.graveyard.length);
@@ -2303,7 +2307,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /(?:target\s+)?(?:player|opponent)\s+loses\s+life\s+equal\s+to\s+the\s+number\s+of\s+creatures\s+(?:you|they)\s+control/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      const opp = controller === 0 ? 1 : 0;
+      const opp = getFirstOpponent(state, controller);
       const creatureCount = state.players[controller].battlefield.filter(
         p => p.typeLine.toLowerCase().includes('creature')
       ).length;
@@ -2352,7 +2356,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const count = parseNumber(m[1]);
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       const player = state.players[opp];
       const milled = player.library.slice(0, count);
       const remaining = player.library.slice(count);
@@ -2573,8 +2577,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const amount = parseInt(m[1]);
-      const opp: number = controller === 0 ? 1 : 0;
-      state = damagePlayer(state, opp, amount);
+      for (const opp of getOpponents(state, controller)) {
+        state = damagePlayer(state, opp, amount);
+      }
       state = addLog(state, controller, `Dealt ${amount} damage to each opponent.`);
       return { state, resolved: true, description: `${amount} damage to each opponent` };
     },
@@ -2601,7 +2606,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const amount = parseNumber(m[1]);
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       state = damagePlayer(state, opp, amount);
       state = addLog(state, controller, `Each opponent loses ${amount} life.`);
       return { state, resolved: true, description: `opponents lose ${amount} life` };
@@ -2866,7 +2871,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, _targets, m) => {
       const drawCount = parseNumber(m[1]);
       const discardCount = parseNumber(m[2]);
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       state = drawCards(state, opp, drawCount);
       // Discard from end of hand
       const player = state.players[opp];
@@ -3027,18 +3032,21 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const count = parseNumber(m[1]);
-      const opponent: number = controller === 0 ? 1 : 0;
-      const oppPlayer = state.players[opponent];
-      const discarded = oppPlayer.hand.slice(0, count);
-      if (discarded.length === 0) return { state, resolved: true, description: 'opponent has no cards to discard' };
-      const players = [...state.players];
-      players[opponent] = {
-        ...oppPlayer,
-        hand: oppPlayer.hand.slice(count),
-        graveyard: [...oppPlayer.graveyard, ...discarded],
-      };
-      state = { ...state, players };
-      state = addLog(state, controller, `${oppPlayer.name} discards ${discarded.map(c => c.name).join(', ')}.`);
+      const isEach = /^each/i.test(m[0]);
+      const opponentsToAffect = isEach ? getOpponents(state, controller) : [getFirstOpponent(state, controller)];
+      for (const opponent of opponentsToAffect) {
+        const oppPlayer = state.players[opponent];
+        const discarded = oppPlayer.hand.slice(0, count);
+        if (discarded.length === 0) continue;
+        const players = [...state.players];
+        players[opponent] = {
+          ...oppPlayer,
+          hand: oppPlayer.hand.slice(count),
+          graveyard: [...oppPlayer.graveyard, ...discarded],
+        };
+        state = { ...state, players };
+        state = addLog(state, controller, `${oppPlayer.name} discards ${discarded.map(c => c.name).join(', ')}.`);
+      }
       return { state, resolved: true, description: `opponent discards ${count}` };
     },
   },
@@ -3277,7 +3285,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, targets, m) => {
       const lossAmount = parseInt(m[1]);
       const gainAmount = parseInt(m[2]);
-      const targetIdx = getTargetPlayer(targets) ?? (controller === 0 ? 1 : 0);
+      const targetIdx = getTargetPlayer(targets) ?? getFirstOpponent(state, controller);
       state = damagePlayer(state, targetIdx, lossAmount);
       state = gainLife(state, controller, gainAmount);
       state = addLog(state, controller, `${state.players[targetIdx].name} loses ${lossAmount} life, you gain ${gainAmount} life.`);
@@ -3292,10 +3300,12 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const amount = parseInt(m[1]);
-      const opponent: number = controller === 0 ? 1 : 0;
-      state = damagePlayer(state, opponent, amount);
-      state = gainLife(state, controller, amount);
-      state = addLog(state, controller, `Each opponent loses ${amount} life, you gain ${amount} life.`);
+      const opponents = getOpponents(state, controller);
+      for (const opp of opponents) {
+        state = damagePlayer(state, opp, amount);
+      }
+      state = gainLife(state, controller, amount * opponents.length);
+      state = addLog(state, controller, `Each opponent loses ${amount} life, you gain ${amount * opponents.length} life.`);
       return { state, resolved: true, description: `drain ${amount}` };
     },
   },
@@ -3644,7 +3654,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /each\s+opponent\s+sacrifices?\s+a\s+creature/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       const player = state.players[opp];
       const creatures = player.battlefield.filter(p => p.typeLine?.toLowerCase().includes('creature'));
       if (creatures.length === 0) {
@@ -3711,7 +3721,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
         return { state, resolved: true, description: `${amount} damage to player` };
       }
       // Fallback: damage opponent
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       state = damagePlayer(state, opp, amount);
       state = addLog(state, controller, `Chooses to deal ${amount} damage to opponent.`);
       return { state, resolved: true, description: `${amount} damage to opponent` };
@@ -3756,7 +3766,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, targets, m, source) => {
       const damage = parseInt(m[1]);
       const lifeOrDraw = m[2] ? parseInt(m[2]) : 0;
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       const sourceColors = source?.colors || [];
       // Do both effects
       const permTarget = getTargetPermanent(state, targets);
@@ -3786,7 +3796,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const count = parseNumber(m[1]);
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       const player = state.players[opp];
       const milled = player.library.slice(0, count);
       const remaining = player.library.slice(count);
@@ -3805,7 +3815,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: true,
     apply: (state, controller, targets, m) => {
       const count = parseNumber(m[1]);
-      const targetIdx = getTargetPlayer(targets) ?? (controller === 0 ? 1 : 0);
+      const targetIdx = getTargetPlayer(targets) ?? getFirstOpponent(state, controller);
       const player = state.players[targetIdx];
       const milled = player.library.slice(0, count);
       const remaining = player.library.slice(count);
@@ -3905,7 +3915,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       // Apply restriction to all creatures on the opposing side by tapping them
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       const player = state.players[opp];
       const updatedBf = player.battlefield.map(perm => {
         if (perm.typeLine?.toLowerCase().includes('creature')) {
@@ -4006,7 +4016,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /exchange\s+life\s+totals?\s+with\s+target\s+(?:player|opponent)/i,
     requiresTarget: true,
     apply: (state, controller, targets) => {
-      const targetIdx = getTargetPlayer(targets) ?? (controller === 0 ? 1 : 0);
+      const targetIdx = getTargetPlayer(targets) ?? getFirstOpponent(state, controller);
       const myLife = state.players[controller].life;
       const theirLife = state.players[targetIdx].life;
       const players = [...state.players];
@@ -4053,7 +4063,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const amount = parseInt(m[1]);
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       state = damagePlayer(state, opp, amount);
       state = gainLife(state, controller, amount);
       state = addLog(state, controller, `Opponent loses ${amount} life, ${state.players[controller].name} gains ${amount} life.`);
@@ -4188,7 +4198,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, _targets, m) => {
       const powerMod = parseInt(m[1]);
       const toughMod = parseInt(m[2]);
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       const player = state.players[opp];
       let count = 0;
       const updatedBf = player.battlefield.map(perm => {
@@ -4372,7 +4382,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /creatures?\s+your\s+opponents?\s+controls?\s+can'?t\s+block\s+this\s+turn/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       const player = state.players[opp];
       const updatedBf = player.battlefield.map(perm => {
         if (perm.typeLine?.toLowerCase().includes('creature')) {
@@ -4937,7 +4947,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /deals?\s+damage\s+to\s+(?:target\s+)?(?:player|opponent)\s+equal\s+to\s+the\s+number\s+of\s+creatures?\s+you\s+control/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       const creatureCount = state.players[controller].battlefield.filter(
         p => p.typeLine?.toLowerCase().includes('creature')
       ).length;
@@ -4953,7 +4963,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /deals?\s+damage\s+to\s+each\s+opponent\s+equal\s+to\s+the\s+number\s+of\s+creatures?\s+you\s+control/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       const creatureCount = state.players[controller].battlefield.filter(
         p => p.typeLine?.toLowerCase().includes('creature')
       ).length;
@@ -5106,7 +5116,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /target\s+(?:player|opponent)\s+reveals?\s+(?:their|his\s+or\s+her)\s+hand/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       const hand = state.players[opp].hand;
       const cardNames = hand.map(c => c.name).join(', ') || 'empty hand';
       state = addLog(state, controller, `${state.players[opp].name} reveals hand: ${cardNames}.`);
@@ -5144,7 +5154,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /target\s+(?:player|opponent)\s+discards?\s+(?:their|his\s+or\s+her)\s+hand\s*(?:,|\.)?\s*(?:then\s+)?draws?\s+(?:that\s+many|cards?\s+equal)/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       const player = state.players[opp];
       const handSize = player.hand.length;
       const players = [...state.players];
@@ -5777,7 +5787,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: true,
     apply: (state, controller, targets) => {
       // Auto-resolve: swap the weakest controller permanent with the strongest opponent permanent
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       const myPerms = state.players[controller].battlefield.filter(p => !p.typeLine.toLowerCase().includes('land'));
       const oppPerms = state.players[opp].battlefield.filter(p => !p.typeLine.toLowerCase().includes('land'));
       if (myPerms.length === 0 || oppPerms.length === 0) {
@@ -6015,7 +6025,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, targets) => {
       // Try to determine whose graveyard — default to opponent
       const targetPlayer = getTargetPlayer(targets);
-      const targetIdx = targetPlayer ?? (controller === 0 ? 1 : 0);
+      const targetIdx = targetPlayer ?? getFirstOpponent(state, controller);
       const player = state.players[targetIdx];
       const exiledCount = player.graveyard.length;
       const players = [...state.players];
@@ -6033,7 +6043,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: true,
     apply: (state, controller) => {
       // Auto-exile the highest CMC card from opponent's graveyard (most impactful removal)
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       // Try opponent's graveyard first, then controller's
       for (const pi of [opp, controller]) {
         const gy = state.players[pi].graveyard;
@@ -6184,7 +6194,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: true,
     apply: (state, controller, targets) => {
       const targetPlayer = getTargetPlayer(targets);
-      const targetIdx = targetPlayer ?? (controller === 0 ? 1 : 0);
+      const targetIdx = targetPlayer ?? getFirstOpponent(state, controller);
       state = addLog(state, controller, `${state.players[targetIdx].name} skips their next draw step.`);
       return { state, resolved: true, description: 'skip draw step' };
     },
@@ -6578,12 +6588,14 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /^\s*extort\s*$/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      const opponent: number = controller === 0 ? 1 : 0;
+      const opponents = getOpponents(state, controller);
       const players = [...state.players];
-      players[opponent] = { ...players[opponent], life: players[opponent].life - 1 };
-      players[controller] = { ...players[controller], life: players[controller].life + 1 };
+      for (const opp of opponents) {
+        players[opp] = { ...players[opp], life: players[opp].life - 1 };
+      }
+      players[controller] = { ...players[controller], life: players[controller].life + opponents.length };
       state = { ...state, players };
-      state = addLog(state, controller, `Extort: ${players[opponent].name} loses 1 life, ${players[controller].name} gains 1 life.`);
+      state = addLog(state, controller, `Extort: each opponent loses 1 life, ${players[controller].name} gains ${opponents.length} life.`);
       return { state, resolved: true, description: 'extort: drain 1' };
     },
   },
@@ -6639,7 +6651,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
         return { state, resolved: true, description: `${damage} damage (power) to player` };
       }
       // No explicit target — deal damage to opponent by default
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       state = damagePlayer(state, opp, damage);
       state = addLog(state, controller, `${sourcePerm.name} deals ${damage} damage (equal to its power) to ${state.players[opp].name}.`);
       return { state, resolved: true, description: `${damage} damage (power) to opponent` };
@@ -6743,8 +6755,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const amount = parseInt(m[1]);
-      const opponent: number = controller === 0 ? 1 : 0;
-      state = damagePlayer(state, opponent, amount);
+      for (const opp of getOpponents(state, controller)) {
+        state = damagePlayer(state, opp, amount);
+      }
       state = addLog(state, controller, `Each opponent loses ${amount} life.`);
       return { state, resolved: true, description: `opponent loses ${amount} life` };
     },
@@ -7064,7 +7077,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       if (dmgMatch) {
         const baseDamage = parseInt(dmgMatch[1]);
         const totalExtraDamage = baseDamage * stormCount;
-        const opp: number = controller === 0 ? 1 : 0;
+        const opp: number = getFirstOpponent(state, controller);
         const permTarget = getTargetPermanent(state, targets);
         const playerTarget = getTargetPlayer(targets);
         if (permTarget) {
@@ -7101,7 +7114,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       if (drainMatch) {
         const baseDrain = parseInt(drainMatch[1]);
         const totalDrain = baseDrain * stormCount;
-        const opp: number = controller === 0 ? 1 : 0;
+        const opp: number = getFirstOpponent(state, controller);
         state = damagePlayer(state, opp, totalDrain);
         return { state, resolved: true, description: `storm: ${stormCount} copies, opponent loses ${totalDrain} life` };
       }
@@ -7151,7 +7164,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       if (discardMatch) {
         const baseDiscard = parseNumber(discardMatch[1]) || 1;
         const totalDiscard = baseDiscard * stormCount;
-        const opp: number = controller === 0 ? 1 : 0;
+        const opp: number = getFirstOpponent(state, controller);
         const oppPlayer = state.players[opp];
         const discarded = oppPlayer.hand.slice(0, totalDiscard);
         if (discarded.length > 0) {
@@ -7172,7 +7185,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       if (millMatch) {
         const baseMill = parseInt(millMatch[1]);
         const totalMill = baseMill * stormCount;
-        const opp: number = controller === 0 ? 1 : 0;
+        const opp: number = getFirstOpponent(state, controller);
         state = millCards(state, opp, totalMill);
         state = addLog(state, controller, `Storm: opponent mills ${totalMill} cards.`);
         return { state, resolved: true, description: `storm: ${stormCount} copies, mill ${totalMill}` };
@@ -7315,7 +7328,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       // Do both: damage + draw
       const damage = parseInt(m[1]);
       const draw = parseNumber(m[2]) || 1;
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       const sourceColors = source?.colors || [];
       const permTarget = getTargetPermanent(state, targets);
       if (permTarget) {
@@ -7351,7 +7364,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       // When overloaded, destroy all matching permanents (simplified: destroy all opponent creatures)
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       const players = [...state.players];
       const dying = players[opp].battlefield.filter(p => p.typeLine?.toLowerCase().includes('creature'));
       const surviving = players[opp].battlefield.filter(p => !p.typeLine?.toLowerCase().includes('creature'));
@@ -7473,7 +7486,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /if\s+an?\s+opponent\s+controls?\s+more\s+creatures?\s+than\s+you/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       const myCreatures = state.players[controller].battlefield.filter(p => p.typeLine?.toLowerCase().includes('creature')).length;
       const oppCreatures = state.players[opp].battlefield.filter(p => p.typeLine?.toLowerCase().includes('creature')).length;
       if (oppCreatures <= myCreatures) {
@@ -7867,9 +7880,10 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       const creatureCount = state.players[controller].battlefield.filter(p => p.currentPower !== undefined).length;
-      const opponent: number = controller === 0 ? 1 : 0;
       const players = [...state.players];
-      players[opponent] = { ...players[opponent], life: players[opponent].life - creatureCount };
+      for (const opp of getOpponents(state, controller)) {
+        players[opp] = { ...players[opp], life: players[opp].life - creatureCount };
+      }
       state = { ...state, players };
       state = addLog(state, controller, `Each opponent loses ${creatureCount} life (creature count).`);
       return { state, resolved: true, description: `opponent loses ${creatureCount} life` };
@@ -8020,7 +8034,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /goad (?:all|each)\s+creature[s]?\s+(?:your\s+opponents?\s+control|an?\s+opponent\s+controls?)/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       const players = [...state.players];
       const bf = players[opp].battlefield.map(p =>
         p.currentPower !== undefined ? { ...p, goaded: true } : p
@@ -8062,7 +8076,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       const players = [...state.players];
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       const oppBf = players[opp].battlefield;
       const nonlands = oppBf.filter(p => !p.typeLine.toLowerCase().includes('land'));
       const lands = oppBf.filter(p => p.typeLine.toLowerCase().includes('land'));
@@ -8180,12 +8194,14 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _t, m) => {
       const amount = parseInt(m[1], 10) || 1;
-      const opp: number = controller === 0 ? 1 : 0;
+      const opponents = getOpponents(state, controller);
       const players = [...state.players];
-      players[opp] = { ...players[opp], life: players[opp].life - amount };
-      players[controller] = { ...players[controller], life: players[controller].life + amount };
+      for (const opp of opponents) {
+        players[opp] = { ...players[opp], life: players[opp].life - amount };
+      }
+      players[controller] = { ...players[controller], life: players[controller].life + amount * opponents.length };
       state = { ...state, players };
-      state = addLog(state, controller, `Drained: opponent loses ${amount} life, you gain ${amount} life.`);
+      state = addLog(state, controller, `Drained: each opponent loses ${amount} life, you gain ${amount * opponents.length} life.`);
       return { state, resolved: true, description: `drain ${amount}` };
     },
   },
@@ -8518,7 +8534,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const dmg = victim.currentPower ?? 0;
       state = sacrificePermanent(state, victim.id);
       // Deal damage to opponent
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       state = damagePlayer(state, opp, dmg);
       state = addLog(state, controller, `Sacrifices ${victim.name}, deals ${dmg} damage.`);
       return { state, resolved: true, description: `sacrifice ${victim.name}, ${dmg} damage` };
@@ -8531,19 +8547,20 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /each\s+opponent\s+sacrifices?\s+a\s+(?:nonland\s+)?permanent/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      const opp: number = controller === 0 ? 1 : 0;
-      const oppPlayer = state.players[opp];
-      const perms = oppPlayer.battlefield.filter(p => !p.typeLine?.toLowerCase().includes('land'));
-      if (perms.length === 0) {
-        state = addLog(state, controller, `Opponent has no nonland permanents to sacrifice.`);
-        return { state, resolved: true, description: 'opponent has no permanents' };
+      for (const opp of getOpponents(state, controller)) {
+        const oppPlayer = state.players[opp];
+        const perms = oppPlayer.battlefield.filter(p => !p.typeLine?.toLowerCase().includes('land'));
+        if (perms.length === 0) {
+          state = addLog(state, controller, `${oppPlayer.name} has no nonland permanents to sacrifice.`);
+          continue;
+        }
+        // Sacrifice least valuable (lowest CMC nonland)
+        const sorted = [...perms].sort((a, b) => (a.cmc ?? 0) - (b.cmc ?? 0));
+        const victim = sorted[0];
+        state = sacrificePermanent(state, victim.id);
+        state = addLog(state, controller, `${oppPlayer.name} sacrifices ${victim.name}.`);
       }
-      // Sacrifice least valuable (lowest CMC nonland)
-      const sorted = [...perms].sort((a, b) => (a.cmc ?? 0) - (b.cmc ?? 0));
-      const victim = sorted[0];
-      state = sacrificePermanent(state, victim.id);
-      state = addLog(state, controller, `${oppPlayer.name} sacrifices ${victim.name}.`);
-      return { state, resolved: true, description: `opponent sacrifices ${victim.name}` };
+      return { state, resolved: true, description: 'each opponent sacrifices a permanent' };
     },
   },
 
@@ -8887,7 +8904,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, _m, _card) => {
       // Auto-choose: pick the color of the opponent's most dangerous creature
-      const opp = controller === 0 ? 1 : 0;
+      const opp = getFirstOpponent(state, controller);
       const oppCreatures = state.players[opp].battlefield.filter(p => p.currentPower !== undefined);
       const strongest = oppCreatures.sort((a, b) => (b.currentPower ?? 0) - (a.currentPower ?? 0))[0];
       const color = strongest?.colors?.[0]?.toLowerCase() || 'black';
@@ -8939,7 +8956,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const dmgMatch = text.match(/deal(?:s)?\s+(\d+)\s+damage/i);
       if (dmgMatch) {
         const amount = parseInt(dmgMatch[1]);
-        const opp: number = controller === 0 ? 1 : 0;
+        const opp: number = getFirstOpponent(state, controller);
         state = damagePlayer(state, opp, amount);
         state = addLog(state, controller, `Modal: deal ${amount} damage to opponent.`);
         return { state, resolved: true, description: `modal: ${amount} damage` };
@@ -9086,7 +9103,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const taxAmount = parseInt(m[1] || '1');
-      const opponent = (controller === 0 ? 1 : 0);
+      const opponent = getFirstOpponent(state, controller);
       const oppPlayer = state.players[opponent];
 
       // Check if opponent can pay
@@ -9123,7 +9140,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /you may draw a card unless (?:that player|they) pays? \{1\}/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      const opponent = (controller === 0 ? 1 : 0);
+      const opponent = getFirstOpponent(state, controller);
       const oppMana = Object.values(state.players[opponent].manaPool).reduce((a: number, b: number) => a + b, 0);
       if (oppMana >= 1) {
         state = addLog(state, opponent, `${state.players[opponent].name} pays {1}.`);
@@ -9159,12 +9176,14 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const count = parseNumber(m[1]) || 1;
       const isEachPlayer = /each player/i.test(m[0]);
       if (isEachPlayer) {
-        state = drawCards(state, 0, count);
-        state = drawCards(state, 1, count);
+        for (let pi = 0; pi < state.players.length; pi++) {
+          state = drawCards(state, pi, count);
+        }
         state = addLog(state, controller, `Each player draws ${count} card(s).`);
       } else {
-        const opp = (controller === 0 ? 1 : 0);
-        state = drawCards(state, opp, count);
+        for (const opp of getOpponents(state, controller)) {
+          state = drawCards(state, opp, count);
+        }
         state = addLog(state, controller, `Each opponent draws ${count} card(s).`);
       }
       return { state, resolved: true, description: `each draws ${count}` };
@@ -9178,8 +9197,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const amount = parseInt(m[1]);
-      const opp = (controller === 0 ? 1 : 0);
-      state = damagePlayer(state, opp, amount);
+      for (const opp of getOpponents(state, controller)) {
+        state = damagePlayer(state, opp, amount);
+      }
       state = addLog(state, controller, `Each opponent loses ${amount} life.`);
       return { state, resolved: true, description: `each opp loses ${amount} life` };
     },
@@ -9253,7 +9273,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /return (?:each|all) nonland permanents?\s+(?:you don'?t control|your opponents? control)\s+to\s+(?:their|its)\s+owner'?s?\s+hands?/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      const opponent = (controller === 0 ? 1 : 0);
+      const opponent = getFirstOpponent(state, controller);
       const players = [...state.players];
       const oppBf = [...players[opponent].battlefield];
       const nonlands = oppBf.filter(p => !p.typeLine.toLowerCase().includes('land'));
@@ -9691,7 +9711,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, targets, m) => {
       const amount = parseInt(m[1]); const targetText = m[2].toLowerCase();
       if (targetText.includes('opponent') || targetText.includes('player')) {
-        const opponent = (controller === 0 ? 1 : 0);
+        const opponent = getFirstOpponent(state, controller);
         const players = [...state.players];
         players[opponent] = { ...players[opponent], life: players[opponent].life - amount };
         state = { ...state, players };
@@ -9745,7 +9765,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const amount = parseInt(m[1]);
-      const opponent = (controller === 0 ? 1 : 0);
+      const opponent = getFirstOpponent(state, controller);
       const players = [...state.players];
       players[opponent] = { ...players[opponent], life: players[opponent].life - amount };
       state = { ...state, players };
@@ -10473,7 +10493,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, _m, source) => {
       if (!source) return { state, resolved: true, description: 'extort' };
-      const opponent = (controller === 0 ? 1 : 0);
+      const opponent = getFirstOpponent(state, controller);
       // Auto-pay extort if possible (simplified: always trigger)
       state = damagePlayer(state, opponent, 1);
       state = gainLife(state, controller, 1);
@@ -10909,7 +10929,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
         return { state, resolved: true, description: `controller loses ${amount} life` };
       }
       // Fallback: damage opponent (most common case)
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       state = damagePlayer(state, opp, amount);
       state = addLog(state, controller, `Opponent loses ${amount} life.`);
       return { state, resolved: true, description: `opponent loses ${amount} life` };
@@ -10924,7 +10944,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, targets, m) => {
       const count = parseNumber(m[1]);
       const permTarget = getTargetPermanent(state, targets);
-      const targetPlayer = permTarget ? permTarget.playerIdx : (controller === 0 ? 1 : 0);
+      const targetPlayer = permTarget ? permTarget.playerIdx : getFirstOpponent(state, controller);
       state = drawCards(state, targetPlayer, count);
       state = addLog(state, controller, `${state.players[targetPlayer].name} draws ${count} card(s).`);
       return { state, resolved: true, description: `controller draws ${count}` };
@@ -10954,7 +10974,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, targets, m) => {
       const filter = m[1].toLowerCase();
       const permTarget = getTargetPermanent(state, targets);
-      const targetPlayer = permTarget ? permTarget.playerIdx : (controller === 0 ? 1 : 0);
+      const targetPlayer = permTarget ? permTarget.playerIdx : getFirstOpponent(state, controller);
       return {
         state: {
           ...state,
@@ -11121,7 +11141,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, _targets, m) => {
       const powerMod = parseInt(m[1]);
       const toughMod = parseInt(m[2]);
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       const player = state.players[opp];
       let count = 0;
       const updatedBf = player.battlefield.map(perm => {
@@ -11219,7 +11239,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: true,
     apply: (state, controller, targets, m) => {
       const count = parseNumber(m[1]);
-      const targetIdx = getTargetPlayer(targets) ?? (controller === 0 ? 1 : 0);
+      const targetIdx = getTargetPlayer(targets) ?? getFirstOpponent(state, controller);
       state = millCards(state, targetIdx, count);
       state = addLog(state, controller, `${state.players[targetIdx].name} mills ${count} card(s).`);
       return { state, resolved: true, description: `${state.players[targetIdx].name} mills ${count}` };
@@ -11261,7 +11281,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const count = parseNumber(m[1]);
-      const opp: number = controller === 0 ? 1 : 0;
+      const opp: number = getFirstOpponent(state, controller);
       state = millCards(state, opp, count);
       state = addLog(state, controller, `Each opponent mills ${count} card(s).`);
       return { state, resolved: true, description: `opponent mills ${count}` };
@@ -11757,7 +11777,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller) => {
       const shields = [...(state.damageShields || [])];
       shields.push({ targetId: `player-${controller}`, amount: 999999, source: 'fog-combat', turn: state.turn, untilEndOfTurn: true });
-      const opponent = controller === 0 ? 1 : 0;
+      const opponent = getFirstOpponent(state, controller);
       shields.push({ targetId: `player-${opponent}`, amount: 999999, source: 'fog-combat', turn: state.turn, untilEndOfTurn: true });
       for (const player of state.players) {
         for (const perm of player.battlefield) {
@@ -11858,7 +11878,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const qty = parseNumber(m[1]);
-      const opponent = controller === 0 ? 1 : 0;
+      const opponent = getFirstOpponent(state, controller);
       const player = state.players[opponent];
       const actualDiscard = Math.min(qty, player.hand.length);
       if (actualDiscard > 0) {
@@ -11903,7 +11923,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /target\s+(?:player|opponent)\s+reveals?\s+(?:their|his\s+or\s+her)\s+hand.*(?:you\s+choose|choose).*(?:discard|exile)/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      const opponent = controller === 0 ? 1 : 0;
+      const opponent = getFirstOpponent(state, controller);
       const player = state.players[opponent];
       if (player.hand.length === 0) {
         state = addLog(state, controller, `Opponent reveals empty hand.`);
@@ -12004,7 +12024,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /exile\s+(?:target|a)\s+card\s+from\s+(?:a|target\s+(?:player's|opponent's))\s+graveyard/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      const opponent = controller === 0 ? 1 : 0;
+      const opponent = getFirstOpponent(state, controller);
       const player = state.players[opponent];
       if (player.graveyard.length === 0) {
         state = addLog(state, controller, `No cards in opponent's graveyard to exile.`);
@@ -12152,7 +12172,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /exile\s+all\s+cards\s+(?:from\s+)?target\s+player's\s+graveyard/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      const opponent = controller === 0 ? 1 : 0;
+      const opponent = getFirstOpponent(state, controller);
       const count = state.players[opponent].graveyard.length;
       const players = [...state.players];
       players[opponent] = { ...state.players[opponent], graveyard: [] };
@@ -12565,7 +12585,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
 function fallbackGenericResolve(state: GameState, controller: number, text: string, targets: Target[]): EffectResult {
   let anyApplied = false;
   const descriptions: string[] = [];
-  const opponent = (controller === 0 ? 1 : 0);
+  const opponent = getFirstOpponent(state, controller);
 
   // gain life
   const lifeMatch = text.match(/(?:you\s+)?gain\s+(\d+)\s+life/i);
