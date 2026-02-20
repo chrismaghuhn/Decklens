@@ -146,7 +146,7 @@ export function resolveCombatDamage(
         // ─── Planeswalker combat damage ───
         // Find the planeswalker permanent on any player's battlefield
         let pwFound = false;
-        for (let pi = 0; pi < 2; pi++) {
+        for (let pi = 0; pi < players.length; pi++) {
           const bfKey = pi === activePlayer ? 'attackerBattlefield' : 'defenderBattlefield';
           const bf = pi === activePlayer ? attackerBattlefield : defenderBattlefield;
           const pwIdx = bf.findIndex(p => p.id === attacker.defenderId);
@@ -342,7 +342,7 @@ export function resolveCombatDamage(
       if (remainingPower > 0 && hasKeyword(attackerPerm, 'trample')) {
         if (typeof attacker.defenderId === 'string') {
           // Trample excess goes to the planeswalker (CR 702.19c)
-          for (let pi = 0; pi < 2; pi++) {
+          for (let pi = 0; pi < players.length; pi++) {
             const bf = pi === activePlayer ? attackerBattlefield : defenderBattlefield;
             const pwIdx = bf.findIndex(p => p.id === attacker.defenderId);
             if (pwIdx !== -1) {
@@ -461,7 +461,7 @@ export function resolveCombatDamage(
 export function endCombat(state: GameState): GameState {
   const players = [...state.players];
 
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < players.length; i++) {
     players[i] = {
       ...players[i],
       battlefield: players[i].battlefield.map((p) => {

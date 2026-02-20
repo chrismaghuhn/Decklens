@@ -189,7 +189,7 @@ function findPermanentById(
   state: GameState,
   id: string,
 ): { perm: Permanent; playerIdx: number; permIdx: number } | null {
-  for (let pi = 0; pi < 2; pi++) {
+  for (let pi = 0; pi < state.players.length; pi++) {
     const player = state.players[pi];
     const idx = player.battlefield.findIndex(p => p.id === id);
     if (idx !== -1) return { perm: player.battlefield[idx], playerIdx: pi, permIdx: idx };
@@ -849,7 +849,7 @@ function executeClause(
       if (clause.targetScope === 'all') {
         const filter = normalizeFilter(clause.targetFilter || 'creature');
         const toRemove: string[] = [];
-        for (let pi = 0; pi < 2; pi++) {
+        for (let pi = 0; pi < s.players.length; pi++) {
           for (const perm of s.players[pi].battlefield) {
             if (perm.typeLine.toLowerCase().includes(filter)) {
               toRemove.push(perm.id);
@@ -884,7 +884,7 @@ function executeClause(
       if (clause.targetScope === 'all') {
         const filter = normalizeFilter(clause.targetFilter || 'creature');
         const toRemove: string[] = [];
-        for (let pi = 0; pi < 2; pi++) {
+        for (let pi = 0; pi < s.players.length; pi++) {
           for (const perm of s.players[pi].battlefield) {
             if (perm.typeLine.toLowerCase().includes(filter)) {
               toRemove.push(perm.id);
@@ -1033,7 +1033,7 @@ function executeClause(
         const toZone = /to\s+(?:the\s+)?battlefield\b/i.test(clause.raw) ? 'battlefield' : 'hand';
 
         // Find the card
-        for (let pi = 0; pi < 2; pi++) {
+        for (let pi = 0; pi < s.players.length; pi++) {
           const player = s.players[pi];
           const zoneCards = fromZone === 'graveyard' ? player.graveyard
             : fromZone === 'exile' ? player.exile
@@ -1260,7 +1260,7 @@ function executeClause(
       if (clause.targetScope === 'all' || /\ball\b/i.test(clause.raw)) {
         let s = state;
         const filter = clause.targetFilter || 'permanent';
-        for (let pi = 0; pi < 2; pi++) {
+        for (let pi = 0; pi < s.players.length; pi++) {
           const shouldAffect =
             (clause.targetScope === 'controller' || clause.targetScope === 'all') ? pi === controller
             : true;
@@ -1512,7 +1512,7 @@ function executeClause(
       let s = state;
 
       // For each permanent with counters, add one of each counter type
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < s.players.length; pi++) {
         const player = s.players[pi];
         const updatedBf = player.battlefield.map(perm => {
           const counterKeys = Object.keys(perm.counters).filter(k => perm.counters[k] > 0);
@@ -1537,7 +1537,7 @@ function executeClause(
 
       // Also proliferate player counters (poison, energy, experience)
       const players = [...s.players];
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < players.length; pi++) {
         const p = players[pi];
         let updated = false;
         const updatedP = { ...p };

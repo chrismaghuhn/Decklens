@@ -6,6 +6,7 @@ import type { ManaPayment } from '../types/mana.ts';
 import type { PlayerState } from '../types/player.ts';
 import { giveActivePlayerPriority } from './priority.ts';
 import { resolveEffect } from './effects.ts';
+import { getFirstOpponent } from './n-player.ts';
 import { parseAbilities } from './abilities.ts';
 import { checkETBTriggers } from './triggers.ts';
 import { isAura, getAuraBonuses } from './equipment.ts';
@@ -239,7 +240,7 @@ export function addAbilityToStack(
  */
 /** Find a permanent by ID for mutate targeting (CR 702.139) */
 function findPermanentForMutate(state: GameState, id: string): { perm: Permanent; playerIdx: number; permIdx: number } | null {
-  for (let pi = 0; pi < 2; pi++) {
+  for (let pi = 0; pi < state.players.length; pi++) {
     const player = state.players[pi];
     const idx = player.battlefield.findIndex(p => p.id === id);
     if (idx !== -1) return { perm: player.battlefield[idx], playerIdx: pi, permIdx: idx };
@@ -498,7 +499,7 @@ export function resolveTopOfStack(state: GameState): GameState {
         if (bestowTarget.type === 'permanent') {
           // Find target creature on any battlefield
           let targetFound = false;
-          for (let pi = 0; pi < 2; pi++) {
+          for (let pi = 0; pi < newState.players.length; pi++) {
             const pIdx = pi;
             const targetIdx = newState.players[pIdx].battlefield.findIndex(p => p.id === bestowTarget.id);
             if (targetIdx !== -1 && newState.players[pIdx].battlefield[targetIdx].currentPower !== undefined) {
@@ -771,7 +772,7 @@ function attachAuraOnResolution(
     const target = resolving.targets[0];
     if (target.type === 'permanent') {
       // Verify target still exists on the battlefield
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         if (state.players[pi].battlefield.some(p => p.id === target.id)) {
           targetId = target.id;
           break;
@@ -795,7 +796,7 @@ function attachAuraOnResolution(
       }
     } else {
       // Harmful aura → enchant opponent's strongest creature
-      const opp = (controller === 0 ? 1 : 0);
+      const opp = getFirstOpponent(state, controller);
       const oppCreatures = state.players[opp].battlefield
         .filter(p => p.currentPower !== undefined);
       if (oppCreatures.length > 0) {
@@ -811,7 +812,7 @@ function attachAuraOnResolution(
   }
 
   // Find which player controls the target creature and attach the aura
-  for (let pi = 0; pi < 2; pi++) {
+  for (let pi = 0; pi < state.players.length; pi++) {
     const playerIdx = pi;
     const player = state.players[playerIdx];
     const targetIdx = player.battlefield.findIndex(p => p.id === targetId);

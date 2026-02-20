@@ -1391,7 +1391,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, _targets, m) => {
       const type = (m[1] || 'creature').toLowerCase();
       const isCreature = type === 'creature';
-      for (let p = 0; p < 2; p++) {
+      for (let p = 0; p < state.players.length; p++) {
         const pi = p;
         const player = state.players[pi];
         const candidates = isCreature
@@ -2645,7 +2645,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /each\s+(?:player|opponent)\s+sacrifices?\s+a\s+creature/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      for (let p = 0; p < 2; p++) {
+      for (let p = 0; p < state.players.length; p++) {
         const pi = p;
         const player = state.players[pi];
         const creatures = player.battlefield.filter(perm => perm.currentPower !== undefined);
@@ -3051,26 +3051,38 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     },
   },
 
-  // 4. "each player discards a card"
+  // 4. "each player discards a card" — sets up a queue so each player chooses
   {
     name: 'each-player-discards',
     match: /each\s+player\s+discards?\s+(a|an|one|two|three|\d+)\s+cards?/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const count = parseNumber(m[1]);
-      const players = [...state.players];
-      for (let i = 0; i < 2; i++) {
-        const p = players[i];
-        const discarded = p.hand.slice(0, count);
-        players[i] = {
-          ...p,
-          hand: p.hand.slice(count),
-          graveyard: [...p.graveyard, ...discarded],
-        };
-      }
-      state = { ...state, players };
       state = addLog(state, controller, `Each player discards ${count} card(s).`);
-      return { state, resolved: true, description: `each player discards ${count}` };
+      // Build a queue of players who need to discard, skipping players with empty hands
+      const queue: { player: number; count: number }[] = [];
+      for (let i = 0; i < state.players.length; i++) {
+        const p = state.players[i];
+        const actualCount = Math.min(count, p.hand.length);
+        if (actualCount > 0) {
+          queue.push({ player: i, count: actualCount });
+        }
+      }
+      if (queue.length === 0) {
+        return { state, resolved: true, description: `each player discards ${count} (no cards)` };
+      }
+      // Set first player as pendingDiscard, rest go in the queue
+      const first = queue.shift()!;
+      return {
+        state: {
+          ...state,
+          pendingDiscard: first.player,
+          pendingDiscardCount: first.count,
+          pendingDiscardQueue: queue.length > 0 ? queue : undefined,
+        },
+        resolved: false,
+        description: `each player discards ${count}`,
+      };
     },
   },
 
@@ -3319,7 +3331,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const cardTarget = targets.find(t => t.type === 'card-in-zone' && t.zone === 'graveyard');
       if (!cardTarget) return { state, resolved: false };
       const players = [...state.players];
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < players.length; i++) {
         const player = players[i];
         const cardIdx = player.graveyard.findIndex(c => c.id === cardTarget.id);
         if (cardIdx !== -1) {
@@ -5132,7 +5144,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, _targets, m) => {
       const drawCount = parseNumber(m[1]);
       const players = [...state.players];
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < players.length; i++) {
         const p = players[i];
         players[i] = {
           ...p,
@@ -6141,29 +6153,37 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
   // ── H. Player Effects ──
   // ══════════════════════════════════════════════════════════════
 
-  // 77. each-player-discards — each player discards N cards
+  // 77. each-player-discards — each player discards N cards (queue-based, player choice)
   {
     name: 'each-player-discards',
     match: /each player discards? (\d+|a|an|one|two|three) cards?/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
       const count = parseNumber(m[1]);
-      for (let p = 0; p < 2; p++) {
-        const pi = p;
-        const player = state.players[pi];
-        const actualCount = Math.min(count, player.hand.length);
+      state = addLog(state, controller, `Each player discards ${count} card(s).`);
+      // Build a queue so each player chooses which cards to discard
+      const queue: { player: number; count: number }[] = [];
+      for (let i = 0; i < state.players.length; i++) {
+        const p = state.players[i];
+        const actualCount = Math.min(count, p.hand.length);
         if (actualCount > 0) {
-          const sorted = [...player.hand].sort((a, b) => (b.cmc ?? 0) - (a.cmc ?? 0));
-          const discarded = sorted.slice(0, actualCount);
-          const discardIds = new Set(discarded.map(c => c.id));
-          const remaining = player.hand.filter(c => !discardIds.has(c.id));
-          const players = [...state.players];
-          players[pi] = { ...player, hand: remaining, graveyard: [...player.graveyard, ...discarded] };
-          state = { ...state, players };
-          state = addLog(state, pi, `${state.players[pi].name} discards ${discarded.map(c => c.name).join(', ')}.`);
+          queue.push({ player: i, count: actualCount });
         }
       }
-      return { state, resolved: true, description: `each player discards ${count}` };
+      if (queue.length === 0) {
+        return { state, resolved: true, description: `each player discards ${count} (no cards)` };
+      }
+      const first = queue.shift()!;
+      return {
+        state: {
+          ...state,
+          pendingDiscard: first.player,
+          pendingDiscardCount: first.count,
+          pendingDiscardQueue: queue.length > 0 ? queue : undefined,
+        },
+        resolved: false,
+        description: `each player discards ${count}`,
+      };
     },
   },
 
@@ -6173,7 +6193,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /each player sacrifices/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      for (let p = 0; p < 2; p++) {
+      for (let p = 0; p < state.players.length; p++) {
         const pi = p;
         const player = state.players[pi];
         const creatures = player.battlefield.filter(perm => perm.currentPower !== undefined);
@@ -9078,7 +9098,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /each player discards (?:their|his or her) hand,?\s*then draws?\s+(?:cards? equal to|that many|(\d+|seven|six|five))/i,
     requiresTarget: false,
     apply: (state, controller, _targets, m) => {
-      for (let p = 0; p < 2; p++) {
+      for (let p = 0; p < state.players.length; p++) {
         const pi = p;
         const player = state.players[pi];
         const discardCount = player.hand.length;

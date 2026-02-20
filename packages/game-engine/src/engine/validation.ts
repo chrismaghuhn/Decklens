@@ -649,7 +649,7 @@ function validateCastSpell(
   let wardDiscardCost = 0;
   for (const target of action.targets) {
     if (target.type !== 'permanent') continue;
-    for (let pi = 0; pi < 2; pi++) {
+    for (let pi = 0; pi < state.players.length; pi++) {
       const targetPerm = state.players[pi].battlefield.find(p => p.id === target.id);
       if (!targetPerm) continue;
       if (targetPerm.controller === action.player) continue;
@@ -720,7 +720,7 @@ function validateTargetLegality(
     if (target.type !== 'permanent') continue;
 
     // Find the targeted permanent
-    for (let pi = 0; pi < 2; pi++) {
+    for (let pi = 0; pi < state.players.length; pi++) {
       const player = state.players[pi];
       const perm = player.battlefield.find(p => p.id === target.id);
       if (!perm) continue;

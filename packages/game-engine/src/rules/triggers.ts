@@ -828,7 +828,7 @@ export function checkTriggers(
 ): GameState {
   const triggeredAbilities: StackObject[] = [];
 
-  for (let playerIdx = 0; playerIdx < 2; playerIdx++) {
+  for (let playerIdx = 0; playerIdx < state.players.length; playerIdx++) {
     const player = state.players[playerIdx];
 
     for (const perm of player.battlefield) {
@@ -956,7 +956,7 @@ function applyETBCopyEffect(state: GameState, permanent: Permanent): GameState {
   // Auto-pick the highest-power creature on either battlefield (excluding self)
   let bestTarget: Permanent | null = null;
   let bestPower = -1;
-  for (let pi = 0; pi < 2; pi++) {
+  for (let pi = 0; pi < state.players.length; pi++) {
     for (const candidate of state.players[pi].battlefield) {
       if (candidate.id === permanent.id) continue;
       if (!candidate.typeLine?.toLowerCase().includes('creature')) continue;
@@ -970,7 +970,7 @@ function applyETBCopyEffect(state: GameState, permanent: Permanent): GameState {
   if (!bestTarget) return state;
 
   // Find the permanent on the battlefield so we can update it immutably
-  for (let pi = 0; pi < 2; pi++) {
+  for (let pi = 0; pi < state.players.length; pi++) {
     const player = state.players[pi];
     const idx = player.battlefield.findIndex(p => p.id === permanent.id);
     if (idx === -1) continue;

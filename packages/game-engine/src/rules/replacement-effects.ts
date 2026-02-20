@@ -539,7 +539,7 @@ export const REPLACEMENT_EFFECTS: ReplacementEffectDef[] = [
 // ─── Helper ───
 
 function findPermOnBoard(state: GameState, id: string): { perm: Permanent; playerIdx: number; permIdx: number } | null {
-  for (let pi = 0; pi < 2; pi++) {
+  for (let pi = 0; pi < state.players.length; pi++) {
     const player = state.players[pi];
     const idx = player.battlefield.findIndex(p => p.id === id);
     if (idx !== -1) return { perm: player.battlefield[idx], playerIdx: pi, permIdx: idx };

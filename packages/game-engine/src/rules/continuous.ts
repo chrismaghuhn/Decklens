@@ -457,7 +457,7 @@ export function getStaticBonuses(
   const keywords: string[] = [];
 
   // Gather all static effects from both players' battlefields
-  for (let p = 0; p < 2; p++) {
+  for (let p = 0; p < state.players.length; p++) {
     const player = state.players[p];
 
     for (const perm of player.battlefield) {
@@ -703,7 +703,7 @@ export function applyContinuousEffects(state: GameState): GameState {
   // Pre-parse Layer 7b static "set P/T" effects (e.g. Humility: "creatures ... have base power and toughness 1/1")
   const allStaticSetPtEffects: ParsedStaticEffect[] = [];
 
-  for (let p = 0; p < 2; p++) {
+  for (let p = 0; p < state.players.length; p++) {
     const player = state.players[p];
     for (const perm of player.battlefield) {
       if (!perm.oracleText) continue;
@@ -716,7 +716,7 @@ export function applyContinuousEffects(state: GameState): GameState {
 
   // Pre-parse static "loses all abilities" effects (Humility-type, Layer 6)
   const allStaticLoseAbilities: ParsedStaticLoseAbilities[] = [];
-  for (let p = 0; p < 2; p++) {
+  for (let p = 0; p < state.players.length; p++) {
     const player = state.players[p];
     for (const perm of player.battlefield) {
       if (!perm.oracleText) continue;
@@ -728,7 +728,7 @@ export function applyContinuousEffects(state: GameState): GameState {
   // Build a lookup map of all permanents by ID across both battlefields
   // for fast attachment resolution
   const allPermsById = new Map<string, Permanent>();
-  for (let p = 0; p < 2; p++) {
+  for (let p = 0; p < state.players.length; p++) {
     for (const perm of state.players[p].battlefield) {
       allPermsById.set(perm.id, perm);
     }
@@ -742,7 +742,7 @@ export function applyContinuousEffects(state: GameState): GameState {
   // --- Layer 1: Copy Effects ---
   // If a permanent has a copyEffect, its copiable values become those of the copied card.
   // This affects name, types, oracle text, P/T, colors, mana cost.
-  for (let p = 0; p < 2; p++) {
+  for (let p = 0; p < state.players.length; p++) {
     const playerIdx = p;
     const player = newPlayers[playerIdx];
     for (let i = 0; i < player.battlefield.length; i++) {
@@ -791,7 +791,7 @@ export function applyContinuousEffects(state: GameState): GameState {
 
   // --- Layer 4: Type-Changing Effects ---
   // Apply type modifications (e.g., "creatures you control are Zombies in addition to their other types")
-  for (let p = 0; p < 2; p++) {
+  for (let p = 0; p < state.players.length; p++) {
     const playerIdx = p;
     const player = newPlayers[playerIdx];
     let bfChanged = false;
@@ -831,7 +831,7 @@ export function applyContinuousEffects(state: GameState): GameState {
   }
 
   // --- Layer 5: Color-Changing Effects ---
-  for (let p = 0; p < 2; p++) {
+  for (let p = 0; p < state.players.length; p++) {
     const playerIdx = p;
     const player = newPlayers[playerIdx];
     let bfChanged = false;
@@ -869,7 +869,7 @@ export function applyContinuousEffects(state: GameState): GameState {
   // Each frame: first restore oracle text for creatures whose static source is gone,
   // then re-apply for creatures still under a static "lose abilities" effect.
   // This allows correct behavior when Humility enters/leaves the battlefield.
-  for (let p = 0; p < 2; p++) {
+  for (let p = 0; p < state.players.length; p++) {
     const playerIdx = p;
     const player = newPlayers[playerIdx];
     let bfChanged = false;
@@ -933,7 +933,7 @@ export function applyContinuousEffects(state: GameState): GameState {
 
   // === CR 613.4: Layer 7 — P/T Modifications ===
 
-  for (let p = 0; p < 2; p++) {
+  for (let p = 0; p < state.players.length; p++) {
     const playerIdx = p;
     const player = newPlayers[playerIdx];
     let bfChanged = false;

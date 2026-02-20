@@ -111,6 +111,8 @@ export interface GameState {
   pendingDiscard?: number | null;
   /** How many cards the pending discard player must discard */
   pendingDiscardCount?: number;
+  /** Queue of players still waiting to discard (for "each player discards" effects) */
+  pendingDiscardQueue?: { player: number; count: number }[];
 
   /** Which player is the monarch, or null if no one (CR 721) */
   monarch?: number | null;

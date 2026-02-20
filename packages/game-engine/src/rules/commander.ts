@@ -230,7 +230,7 @@ export function processCommanderZoneReplacements(state: GameState): GameState {
 
   let current = state;
 
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < current.players.length; i++) {
     const player = current.players[i];
 
     // Check graveyard for commander

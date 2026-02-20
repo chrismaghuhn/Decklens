@@ -204,7 +204,7 @@ export function handleAttachmentCleanup(state: GameState): GameState {
   const players = [...state.players];
   const logs: string[] = [];
 
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < players.length; i++) {
     const player = players[i];
     let bf = [...player.battlefield];
     const dyingAuras: Card[] = [];

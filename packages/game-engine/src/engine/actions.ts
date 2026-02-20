@@ -223,8 +223,10 @@ export function executeAction(
     actionHistory: [...newState.actionHistory, action],
   };
 
-  // Non-pass, non-concede actions: retain priority for the acting player
-  if (action.type !== 'concede') {
+  // Non-pass, non-concede actions: retain priority for the acting player.
+  // Exception: 'discard' fulfills a forced discard — priority stays with active player,
+  // not the player who just discarded (CR 117.3b).
+  if (action.type !== 'concede' && action.type !== 'discard') {
     newState = retainPriorityAfterAction(newState);
   }
 
@@ -1084,7 +1086,7 @@ function executeManualDamage(
     };
   } else {
     // Damage to permanent
-    for (let pi = 0; pi < 2; pi++) {
+    for (let pi = 0; pi < state.players.length; pi++) {
       const player = state.players[pi];
       const permIndex = player.battlefield.findIndex((p) => p.id === action.targetId);
       if (permIndex !== -1) {
@@ -1252,11 +1254,16 @@ function executeDiscard(
 
   const cardNames = discarded.map((c) => c.name).join(', ');
 
+  // Advance the pendingDiscardQueue: if more players are waiting, set next as pendingDiscard
+  const queue = state.pendingDiscardQueue ? [...state.pendingDiscardQueue] : [];
+  const next = queue.shift(); // remove first entry (next player to discard)
+
   return {
     ...state,
     players,
-    pendingDiscard: null,
-    pendingDiscardCount: 0,
+    pendingDiscard: next != null ? next.player : null,
+    pendingDiscardCount: next != null ? next.count : 0,
+    pendingDiscardQueue: queue.length > 0 ? queue : undefined,
     log: [...state.log, {
       timestamp: Date.now(), turn: state.turn, phase: state.phase, step: state.step,
       player: action.player,
