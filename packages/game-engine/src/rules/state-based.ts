@@ -118,11 +118,10 @@ export function checkStateBasedActions(state: GameState): GameState {
     if (r7.changed) { current = r7.state; changed = true; }
 
     // Attachment cleanup: unattached auras die, equipment becomes unattached
-    const preAttachBf0 = current.players[0].battlefield.length;
-    const preAttachBf1 = current.players[1].battlefield.length;
+    const totalBfBefore = current.players.reduce((sum, p) => sum + p.battlefield.length, 0);
     current = handleAttachmentCleanup(current);
-    if (current.players[0].battlefield.length !== preAttachBf0 ||
-        current.players[1].battlefield.length !== preAttachBf1) {
+    const totalBfAfter = current.players.reduce((sum, p) => sum + p.battlefield.length, 0);
+    if (totalBfBefore !== totalBfAfter) {
       changed = true;
     }
 

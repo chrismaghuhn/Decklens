@@ -261,7 +261,7 @@ export function validateTarget(
   if (target.type === 'player') {
     // Player targeting is not handled by TargetFilter
     const playerIndex = parseInt(target.id, 10);
-    if (playerIndex !== 0 && playerIndex !== 1) return false;
+    if (playerIndex < 0 || playerIndex >= state.players.length || state.players[playerIndex]?.eliminated) return false;
     return state.players[playerIndex].life > 0 && !state.gameOver;
   }
 

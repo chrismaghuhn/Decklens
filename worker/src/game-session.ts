@@ -642,6 +642,7 @@ export class GameSession {
   private async startGame(): Promise<void> {
     if (this.sessionPhase !== 'lobby') return;
 
+    await this.preloadDeckJsons();
     await loadGameEngine();
 
     if (!_setupNewGameN) {

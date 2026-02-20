@@ -65,7 +65,7 @@ export function nextEffectTimestamp(): number {
 // ─── Helper Functions ───
 
 function findPermanentById(state: GameState, id: string): { perm: Permanent; playerIdx: number; permIdx: number } | null {
-  for (let pi = 0; pi < 2; pi++) {
+  for (let pi = 0; pi < state.players.length; pi++) {
     const player = state.players[pi];
     const idx = player.battlefield.findIndex(p => p.id === id);
     if (idx !== -1) return { perm: player.battlefield[idx], playerIdx: pi, permIdx: idx };
@@ -397,7 +397,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       let count = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const creatures = player.battlefield.filter(p => p.currentPower !== undefined);
         for (const c of creatures) {
@@ -415,7 +415,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       let count = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const nonlands = player.battlefield.filter(p => !p.typeLine.toLowerCase().includes('land'));
         for (const c of nonlands) {
@@ -926,7 +926,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       let count = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const creatures = player.battlefield.filter(p => p.currentPower !== undefined);
         for (const c of creatures) {
@@ -1499,7 +1499,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       if (!cardTarget) return { state, resolved: false };
 
       // Search both players' graveyards
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const gyIdx = player.graveyard.findIndex(c => c.id === cardTarget.id);
         if (gyIdx !== -1) {
@@ -1526,7 +1526,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       let count = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const artifacts = player.battlefield.filter(p => p.typeLine.toLowerCase().includes('artifact'));
         for (const a of artifacts) {
@@ -1546,7 +1546,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       let count = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const enchantments = player.battlefield.filter(p => p.typeLine.toLowerCase().includes('enchantment'));
         for (const e of enchantments) {
@@ -1584,7 +1584,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const sourceColors = source?.colors || [];
       let count = 0;
       let prevented = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const creatures = player.battlefield.filter(p => p.currentPower !== undefined);
         for (const c of creatures) {
@@ -1685,7 +1685,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       let count = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const updatedBf = player.battlefield.map(p => {
           if (p.typeLine.toLowerCase().includes('creature') && !p.tapped) {
@@ -1731,7 +1731,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       let count = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const creatures = player.battlefield.filter(p => p.typeLine.toLowerCase().includes('creature'));
         const nonCreatures = player.battlefield.filter(p => !p.typeLine.toLowerCase().includes('creature'));
@@ -1760,7 +1760,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       let count = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const lands = player.battlefield.filter(p => p.typeLine.toLowerCase().includes('land'));
         const nonlands = player.battlefield.filter(p => !p.typeLine.toLowerCase().includes('land'));
@@ -2237,7 +2237,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const powerDelta = parseInt(m[1]);
       const toughnessDelta = parseInt(m[2]);
       let count = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const updatedBf = player.battlefield.map(p => {
           if (p.typeLine.toLowerCase().includes('creature')) {
@@ -2288,7 +2288,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       let total = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         total += player.graveyard.length;
         const updatedPlayer = { ...player, exile: [...player.exile, ...player.graveyard], graveyard: [] };
@@ -2463,7 +2463,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       let count = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const lands = player.battlefield.filter(p => p.typeLine.toLowerCase().includes('land'));
         const nonlands = player.battlefield.filter(p => !p.typeLine.toLowerCase().includes('land'));
@@ -2905,7 +2905,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const powerMod = parseInt(m[1]);
       const toughMod = parseInt(m[2]);
       let count = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const updatedBf = player.battlefield.map(perm => {
           if (perm.currentPower === undefined) return perm;
@@ -3587,7 +3587,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       const sacrificed: string[] = [];
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const creatures = player.battlefield.filter(p => p.typeLine?.toLowerCase().includes('creature'));
         if (creatures.length === 0) continue;
@@ -4545,7 +4545,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       let count = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const targets = player.battlefield.filter(p => {
           const tl = p.typeLine.toLowerCase();
@@ -4614,7 +4614,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const cardTarget = targets.find(t => t.type === 'card-in-zone' && t.zone === 'graveyard');
       if (!cardTarget) {
         // Fallback: grab the top creature from any graveyard
-        for (let pi = 0; pi < 2; pi++) {
+        for (let pi = 0; pi < state.players.length; pi++) {
           const player = state.players[pi];
           const creatureIdx = player.graveyard.findIndex(c => c.typeLine?.toLowerCase().includes('creature'));
           if (creatureIdx !== -1) {
@@ -4633,7 +4633,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
         return { state, resolved: false };
       }
       // Find the card in any graveyard
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const gyIdx = player.graveyard.findIndex(c => c.id === cardTarget.id);
         if (gyIdx !== -1) {
@@ -4910,7 +4910,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const amount = parseInt(m[1]);
       const sourceColors = source?.colors || [];
       let creatureCount = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const creatures = player.battlefield.filter(p => p.typeLine?.toLowerCase().includes('creature'));
         for (const c of creatures) {
@@ -5331,7 +5331,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       let count = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const nonlands = player.battlefield.filter(p => !p.typeLine.toLowerCase().includes('land'));
         for (const nl of nonlands) {
@@ -5633,7 +5633,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const newToughness = parseInt(m[2]);
       const ts = nextEffectTimestamp();
       const players = [...state.players];
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const updatedBf = player.battlefield.map(p => {
           if (p.currentPower !== undefined) {
@@ -6501,7 +6501,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
         state = addLog(state, controller, `${cardName} transforms — no source found.`);
         return { state, resolved: true, description: `transform ${cardName} (no source)` };
       }
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const bf = state.players[pi].battlefield;
         const idx = bf.findIndex(p => p.id === source.id);
         if (idx !== -1) {
@@ -6534,7 +6534,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
         return { state, resolved: true, description: 'transform target (no target)' };
       }
       const targetId = targets[0].id;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const bf = state.players[pi].battlefield;
         const idx = bf.findIndex(p => p.id === targetId);
         if (idx !== -1) {
@@ -6563,7 +6563,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller, _targets, _m, source) => {
       if (!source) return { state, resolved: true, description: 'prowess (no source)' };
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const bf = state.players[pi].battlefield;
         const idx = bf.findIndex(p => p.id === source.id);
         if (idx !== -1) {
@@ -6669,7 +6669,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       if (!target) {
         // Fallback: copy the strongest creature on the battlefield
         let bestPerm: Permanent | null = null;
-        for (let pi = 0; pi < 2; pi++) {
+        for (let pi = 0; pi < state.players.length; pi++) {
           for (const p of state.players[pi].battlefield) {
             if (p.currentPower !== undefined) {
               if (!bestPerm || ((p.currentPower ?? 0) + (p.currentToughness ?? 0)) > ((bestPerm.currentPower ?? 0) + (bestPerm.currentToughness ?? 0))) {
@@ -7541,7 +7541,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       if (!targets.length || targets[0].type !== 'permanent') {
         return { state, resolved: true, description: 'destroy land (no target)' };
       }
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const bf = state.players[pi].battlefield;
         const idx = bf.findIndex(p => p.id === targets[0].id);
         if (idx !== -1 && bf[idx].typeLine.toLowerCase().includes('land')) {
@@ -7567,7 +7567,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       if (!targets.length || targets[0].type !== 'permanent') {
         return { state, resolved: true, description: 'destroy planeswalker (no target)' };
       }
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const bf = state.players[pi].battlefield;
         const idx = bf.findIndex(p => p.id === targets[0].id);
         if (idx !== -1 && bf[idx].typeLine.toLowerCase().includes('planeswalker')) {
@@ -7593,7 +7593,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       if (!targets.length || targets[0].type !== 'permanent') {
         return { state, resolved: true, description: 'gain control (no target)' };
       }
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const bf = state.players[pi].battlefield;
         const idx = bf.findIndex(p => p.id === targets[0].id);
         if (idx !== -1 && (pi) !== controller) {
@@ -7619,7 +7619,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, targets) => {
       if (!targets.length) return { state, resolved: true, description: 'reanimate (no target)' };
       const targetId = targets[0].id;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const gy = state.players[pi].graveyard;
         const idx = gy.findIndex(c => c.id === targetId);
         if (idx !== -1 && gy[idx].typeLine.toLowerCase().includes('creature')) {
@@ -7647,7 +7647,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       if (!targets.length || targets[0].type !== 'permanent') {
         return { state, resolved: true, description: 'double strike grant (no target)' };
       }
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const bf = state.players[pi].battlefield;
         const idx = bf.findIndex(p => p.id === targets[0].id);
         if (idx !== -1) {
@@ -7686,7 +7686,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, _targets, m) => {
       const drawCount = parseInt(m[1]) || 1;
       const discardCount = parseInt(m[2]) || 1;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         state = drawCards(state, pi, drawCount);
         // Discard: remove last N drawn cards (heuristic: highest CMC)
         const hand = [...state.players[pi].hand];
@@ -7776,7 +7776,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       if (!targets.length || targets[0].type !== 'permanent') {
         return { state, resolved: true, description: 'flicker (no target)' };
       }
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const bf = state.players[pi].battlefield;
         const idx = bf.findIndex(p => p.id === targets[0].id);
         if (idx !== -1) {
@@ -7853,7 +7853,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       let count = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const bf = state.players[pi].battlefield;
         const tapped = bf.filter(p => p.tapped && p.currentPower !== undefined);
         const remaining = bf.filter(p => !p.tapped || p.currentPower === undefined);
@@ -8013,12 +8013,12 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       if (!targets.length) return { state, resolved: true, description: 'goad (no target)' };
       const targetId = targets[0].id;
       const players = [...state.players];
-      for (let pi = 0; pi < 2; pi++) {
-        const idx = players[pi as 0|1].battlefield.findIndex(p => p.id === targetId);
+      for (let pi = 0; pi < state.players.length; pi++) {
+        const idx = players[pi].battlefield.findIndex(p => p.id === targetId);
         if (idx !== -1) {
-          const bf = [...players[pi as 0|1].battlefield];
+          const bf = [...players[pi].battlefield];
           bf[idx] = { ...bf[idx], goaded: true };
-          players[pi as 0|1] = { ...players[pi as 0|1], battlefield: bf };
+          players[pi] = { ...players[pi], battlefield: bf };
           state = { ...state, players };
           state = addLog(state, controller, `${bf[idx].name} is goaded.`);
           break;
@@ -8102,12 +8102,12 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       if (!targets.length) return { state, resolved: true, description: 'protection grant (no target)' };
       const color = m[1]?.toLowerCase() || 'chosen color';
       const players = [...state.players];
-      for (let pi = 0; pi < 2; pi++) {
-        const idx = players[pi as 0|1].battlefield.findIndex(p => p.id === targets[0].id);
+      for (let pi = 0; pi < state.players.length; pi++) {
+        const idx = players[pi].battlefield.findIndex(p => p.id === targets[0].id);
         if (idx !== -1) {
-          const bf = [...players[pi as 0|1].battlefield];
+          const bf = [...players[pi].battlefield];
           bf[idx] = { ...bf[idx], temporaryKeywords: [...(bf[idx].temporaryKeywords || []), { keyword: `protection from ${color}`, until: 'end-of-turn' }] };
-          players[pi as 0|1] = { ...players[pi as 0|1], battlefield: bf };
+          players[pi] = { ...players[pi], battlefield: bf };
           state = { ...state, players };
           state = addLog(state, controller, `${bf[idx].name} gains protection from ${color} until end of turn.`);
           break;
@@ -8125,12 +8125,12 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, targets) => {
       if (!targets.length) return { state, resolved: true, description: 'indestructible grant (no target)' };
       const players = [...state.players];
-      for (let pi = 0; pi < 2; pi++) {
-        const idx = players[pi as 0|1].battlefield.findIndex(p => p.id === targets[0].id);
+      for (let pi = 0; pi < state.players.length; pi++) {
+        const idx = players[pi].battlefield.findIndex(p => p.id === targets[0].id);
         if (idx !== -1) {
-          const bf = [...players[pi as 0|1].battlefield];
+          const bf = [...players[pi].battlefield];
           bf[idx] = { ...bf[idx], temporaryKeywords: [...(bf[idx].temporaryKeywords || []), { keyword: 'indestructible', until: 'end-of-turn' }] };
-          players[pi as 0|1] = { ...players[pi as 0|1], battlefield: bf };
+          players[pi] = { ...players[pi], battlefield: bf };
           state = { ...state, players };
           state = addLog(state, controller, `${bf[idx].name} gains indestructible until end of turn.`);
           break;
@@ -8148,12 +8148,12 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, targets) => {
       if (!targets.length) return { state, resolved: true, description: 'hexproof grant (no target)' };
       const players = [...state.players];
-      for (let pi = 0; pi < 2; pi++) {
-        const idx = players[pi as 0|1].battlefield.findIndex(p => p.id === targets[0].id);
+      for (let pi = 0; pi < state.players.length; pi++) {
+        const idx = players[pi].battlefield.findIndex(p => p.id === targets[0].id);
         if (idx !== -1) {
-          const bf = [...players[pi as 0|1].battlefield];
+          const bf = [...players[pi].battlefield];
           bf[idx] = { ...bf[idx], temporaryKeywords: [...(bf[idx].temporaryKeywords || []), { keyword: 'hexproof', until: 'end-of-turn' }] };
-          players[pi as 0|1] = { ...players[pi as 0|1], battlefield: bf };
+          players[pi] = { ...players[pi], battlefield: bf };
           state = { ...state, players };
           state = addLog(state, controller, `${bf[idx].name} gains hexproof until end of turn.`);
           break;
@@ -8215,8 +8215,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const players = [...state.players];
       let count = 0;
       // Auto-resolve: add one of each counter type to all permanents/players with counters
-      for (let pi = 0; pi < 2; pi++) {
-        const bf = players[pi as 0|1].battlefield.map(p => {
+      for (let pi = 0; pi < state.players.length; pi++) {
+        const bf = players[pi].battlefield.map(p => {
           const counterTypes = Object.keys(p.counters || {}).filter(k => (p.counters?.[k] || 0) > 0);
           if (counterTypes.length === 0) return p;
           count++;
@@ -8226,18 +8226,18 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
           }
           return { ...p, counters: newCounters };
         });
-        players[pi as 0|1] = { ...players[pi as 0|1], battlefield: bf };
+        players[pi] = { ...players[pi], battlefield: bf };
         // Player counters (poison, energy, experience)
-        if (players[pi as 0|1].poisonCounters > 0 && pi !== controller) {
-          players[pi as 0|1] = { ...players[pi as 0|1], poisonCounters: players[pi as 0|1].poisonCounters + 1 };
+        if (players[pi].poisonCounters > 0 && pi !== controller) {
+          players[pi] = { ...players[pi], poisonCounters: players[pi].poisonCounters + 1 };
           count++;
         }
-        if (players[pi as 0|1].energyCounters > 0 && pi === controller) {
-          players[pi as 0|1] = { ...players[pi as 0|1], energyCounters: players[pi as 0|1].energyCounters + 1 };
+        if (players[pi].energyCounters > 0 && pi === controller) {
+          players[pi] = { ...players[pi], energyCounters: players[pi].energyCounters + 1 };
           count++;
         }
-        if (players[pi as 0|1].experienceCounters > 0 && pi === controller) {
-          players[pi as 0|1] = { ...players[pi as 0|1], experienceCounters: players[pi as 0|1].experienceCounters + 1 };
+        if (players[pi].experienceCounters > 0 && pi === controller) {
+          players[pi] = { ...players[pi], experienceCounters: players[pi].experienceCounters + 1 };
           count++;
         }
       }
@@ -9307,7 +9307,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const proliferated: string[] = [];
 
       // Add one of each existing counter type to each permanent with counters
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const bf = [...players[pi].battlefield];
         let changed = false;
         for (let i = 0; i < bf.length; i++) {
@@ -9335,7 +9335,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       }
 
       // Add poison counters to players that already have them
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const p = players[pi];
         if ((p as any).poisonCounters && (p as any).poisonCounters > 0) {
           players[pi] = { ...p, poisonCounters: ((p as any).poisonCounters || 0) + 1 } as PlayerState;
@@ -10999,7 +10999,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, _targets, m) => {
       const typeDesc = m[1].toLowerCase();
       let count = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         for (const perm of player.battlefield) {
           const tl = perm.typeLine.toLowerCase();
@@ -11034,7 +11034,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, _targets, m) => {
       const typeDesc = m[1].toLowerCase();
       let count = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         for (const perm of player.battlefield) {
           const tl = perm.typeLine.toLowerCase();
@@ -11500,7 +11500,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const { playerIdx, permIdx, perm } = found;
       let bestTarget: { perm: Permanent; playerIdx: number; permIdx: number } | null = null;
       let bestPower = -1;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const p = state.players[pi];
         for (let i = 0; i < p.battlefield.length; i++) {
           const candidate = p.battlefield[i];
@@ -11703,7 +11703,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const colorMap: Record<string, string> = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' };
       const colorCode = colorMap[colorName] || colorName[0].toUpperCase();
       const ts = nextEffectTimestamp();
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const updatedBf = player.battlefield.map(perm => ({
           ...perm,
@@ -12046,7 +12046,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       let bounced = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         if (pi === controller) continue; // Only opponent's permanents
         const player = state.players[pi];
         const nonlands = player.battlefield.filter(p => !p.typeLine.toLowerCase().includes('land'));
@@ -12078,7 +12078,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, _targets, m) => {
       const threshold = parseInt(m[1]);
       let destroyed = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         for (const perm of [...player.battlefield]) {
           if (perm.basePower !== undefined && (perm.currentPower ?? perm.basePower ?? 0) >= threshold) {
@@ -12244,7 +12244,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       const ts = nextEffectTimestamp();
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const updatedBf = player.battlefield.map(perm => {
           if (perm.basePower === undefined) return perm;
@@ -12360,7 +12360,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       let destroyed = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         for (const perm of [...player.battlefield]) {
           if (perm.typeLine.toLowerCase().includes('enchantment')) {
@@ -12381,7 +12381,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     requiresTarget: false,
     apply: (state, controller) => {
       let destroyed = 0;
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         for (const perm of [...player.battlefield]) {
           if (perm.typeLine.toLowerCase().includes('artifact')) {
@@ -12401,7 +12401,7 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /each\s+(?:player|opponent)\s+sacrifices?\s+(?:a|one)\s+creature/i,
     requiresTarget: false,
     apply: (state, controller) => {
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         const creatures = player.battlefield.filter(p => p.basePower !== undefined);
         if (creatures.length > 0) {

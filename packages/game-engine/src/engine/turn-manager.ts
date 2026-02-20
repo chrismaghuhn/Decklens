@@ -133,8 +133,9 @@ export function startNewTurn(state: GameState): GameState {
     }
   }
 
-  // Turn number increments when we wrap back to player 0 (completed a full round)
-  const newTurn = nextActivePlayer === 0 ? state.turn + 1 : state.turn;
+  // Turn number increments when we wrap back to the first active player (completed a full round)
+  const firstActivePlayer = state.players.findIndex(p => !p.eliminated);
+  const newTurn = nextActivePlayer === firstActivePlayer ? state.turn + 1 : state.turn;
 
   // Reset all players' mana pools; only reset land plays for the next active player
   const players = state.players.map((p, i) => {
@@ -291,7 +292,7 @@ export function applyStepEffects(state: GameState): GameState {
       };
       // Transform all daybound creatures to nightbound face
       const players = [...state.players];
-      for (let pi = 0; pi < 2; pi++) {
+      for (let pi = 0; pi < state.players.length; pi++) {
         const player = players[pi];
         const updatedBf = player.battlefield.map(perm => {
           if ((perm.oracleText || '').toLowerCase().includes('daybound')) {

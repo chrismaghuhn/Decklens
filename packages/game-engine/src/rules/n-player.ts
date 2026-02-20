@@ -10,7 +10,7 @@ export function getOpponents(state: GameState, player: number): number[] {
 /** Returns the first opponent (for migration from binary flip) */
 export function getFirstOpponent(state: GameState, player: number): number {
   const opponents = getOpponents(state, player);
-  if (opponents.length === 0) throw new Error('No opponents found');
+  if (opponents.length === 0) return player; // safe fallback: no opponents
   return opponents[0];
 }
 
