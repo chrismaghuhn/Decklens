@@ -57,6 +57,16 @@ export interface StackObject {
   mutateOnTop?: boolean;
   /** Whether this was cast with bestow (enters as Aura, becomes creature if enchanted creature leaves) */
   isBestow?: boolean;
+  /** Whether this spell can't be countered (set from oracle text at cast time) */
+  uncounterable?: boolean;
+  /** Whether this spell has split second (no spells/non-mana abilities while on stack, CR 702.61) */
+  splitSecond?: boolean;
+  /** How many times replicate was paid (CR 702.56) — this spell has N copies put on the stack */
+  replicateCount?: number;
+  /** Whether this spell was cast with retrace (exiled after resolution) */
+  isRetrace?: boolean;
+  /** Whether this modal spell was cast with entwine (choose ALL modes, CR 702.39) */
+  isEntwined?: boolean;
 }
 
 /** All possible game actions a player can take */
@@ -118,6 +128,12 @@ export type GameAction =
       mutateOnTop?: boolean;
       /** Bestow — cast as Aura enchantment for bestow cost (CR 702.102) */
       bestowPaid?: boolean;
+      /** Replicate — how many times the replicate cost was paid (each adds a copy) (CR 702.56) */
+      replicateCount?: number;
+      /** Retrace — cast from graveyard by discarding a land as additional cost (CR 702.80) */
+      castWithRetrace?: boolean;
+      /** Entwine — pay additional cost to choose ALL modes instead of just one (CR 702.39) */
+      entwineePaid?: boolean;
     }
   | {
       type: 'activate-ability';

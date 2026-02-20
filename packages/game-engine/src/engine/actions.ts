@@ -299,10 +299,10 @@ function executeCastSpell(
 ): GameState {
   let player = state.players[action.player];
 
-  // ─── Find the card (hand, graveyard for flashback/escape/jump-start, exile for adventure/foretell) ───
+  // ─── Find the card (hand, graveyard for flashback/escape/jump-start/retrace, exile for adventure/foretell) ───
   let card: import('../types/card.ts').Card | undefined;
   let castFromExile = false;
-  if (action.castWithFlashback || action.escapePaid || action.jumpStartPaid) {
+  if (action.castWithFlashback || action.escapePaid || action.jumpStartPaid || action.castWithRetrace) {
     card = player.graveyard.find((c) => c.id === action.cardId);
   } else if (action.foretellCast) {
     card = player.exile.find((c) => c.id === action.cardId);
@@ -324,6 +324,9 @@ function executeCastSpell(
   if (action.castWithFlashback) {
     // Flashback uses flashback cost instead of normal cost
     manaCostStr = getFlashbackCost(card) || card.manaCost;
+  } else if (action.castWithRetrace) {
+    // Retrace: use the normal mana cost (the land discard is the additional cost) (CR 702.80)
+    manaCostStr = card.manaCost;
   } else if (action.castAsAdventure) {
     // Adventure uses adventure cost
     manaCostStr = card.adventureCost || card.manaCost;
@@ -472,6 +475,22 @@ function executeCastSpell(
     };
   }
 
+  // ─── Retrace: discard a land from hand as additional cost (CR 702.80) ───
+  if (action.castWithRetrace) {
+    const landIndex = updatedPlayer.hand.findIndex(c => isLand(c));
+    if (landIndex !== -1) {
+      const discardedLand = updatedPlayer.hand[landIndex];
+      updatedPlayer = {
+        ...updatedPlayer,
+        hand: [
+          ...updatedPlayer.hand.slice(0, landIndex),
+          ...updatedPlayer.hand.slice(landIndex + 1),
+        ],
+        graveyard: [...updatedPlayer.graveyard, discardedLand],
+      };
+    }
+  }
+
   const players = [...state.players] as [PlayerState, PlayerState];
   players[action.player] = updatedPlayer;
 
@@ -499,6 +518,12 @@ function executeCastSpell(
       isBestow: action.bestowPaid,
       // MDFC: pass back face oracle text so effects resolve from back face
       oracleTextOverride: action.castBackFace && card.backFace ? card.backFace.oracleText : undefined,
+      // Replicate: how many times the replicate cost was paid (CR 702.56)
+      replicateCount: action.replicateCount,
+      // Retrace: cast from graveyard by discarding a land (CR 702.80)
+      isRetrace: action.castWithRetrace,
+      // Entwine: pay additional cost to choose ALL modes (CR 702.39)
+      isEntwined: action.entwineePaid,
     }
   );
 
@@ -1368,7 +1393,7 @@ function executeCommanderZoneChoice(
 }
 
 /**
- * Turn a face-down creature face-up (morph, CR 702.36).
+ * Turn a face-down creature face-up (morph CR 702.36, or manifest CR 702.111).
  * This is a special action that doesn't use the stack.
  */
 function executeTurnFaceUp(
@@ -1383,12 +1408,66 @@ function executeTurnFaceUp(
   const perm = ps.battlefield[idx];
   if (!perm.faceDown) return state;
 
+  let updatedPlayer = ps;
+
+  // ─── Manifest turn-face-up (CR 702.111c): pay the card's mana cost ───
+  if (perm.manifestedCardId) {
+    // The underlying card data is embedded in the permanent (manaCost from original card).
+    // Per CR 702.111c, you can turn a manifested card face-up by paying its mana cost
+    // only if it's a creature card. We allow it (player controls their own info).
+    const underlyingManaCost = perm.manaCost;
+    const cost = parseManaCost(underlyingManaCost);
+    if (!canPayCost(updatedPlayer.manaPool, cost, updatedPlayer.life)) {
+      const tapResult = autoTapLandsForCost(updatedPlayer, cost);
+      if (!tapResult) return state;
+      updatedPlayer = tapResult.updatedPlayer;
+    }
+    const payment = autoPayCost(updatedPlayer.manaPool, cost, updatedPlayer.life);
+    if (!payment) return state;
+    const newPool = payCost(updatedPlayer.manaPool, cost, payment);
+    updatedPlayer = { ...updatedPlayer, manaPool: newPool };
+
+    // Restore the actual card's characteristics (P/T were stored from the original card)
+    const basePower = perm.power ? parseInt(perm.power, 10) || 0 : undefined;
+    const baseToughness = perm.toughness ? parseInt(perm.toughness, 10) || 0 : undefined;
+    const revealedPerm: Permanent = {
+      ...perm,
+      faceDown: false,
+      basePower,
+      baseToughness,
+      currentPower: basePower,
+      currentToughness: baseToughness,
+      manifestedCardId: undefined,
+      abilities: parseAbilities(perm as unknown as import('../types/card.ts').Card),
+    };
+
+    const newBf = [...updatedPlayer.battlefield];
+    newBf[idx] = revealedPerm;
+    updatedPlayer = { ...updatedPlayer, battlefield: newBf };
+
+    const players = [...state.players] as [PlayerState, PlayerState];
+    players[player] = updatedPlayer;
+
+    return {
+      ...state,
+      players,
+      log: [...state.log, {
+        timestamp: Date.now(),
+        turn: state.turn,
+        phase: state.phase,
+        step: state.step,
+        player,
+        message: `Manifested card is turned face-up (paid ${underlyingManaCost}).`,
+      }],
+    };
+  }
+
+  // ─── Morph turn-face-up (CR 702.36) ───
   // Parse morph cost and pay it
   const morphMatch = perm.oracleText?.match(/morph\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
   if (!morphMatch) return state;
 
   const cost = parseManaCost(morphMatch[1]);
-  let updatedPlayer = ps;
   if (!canPayCost(updatedPlayer.manaPool, cost, updatedPlayer.life)) {
     const tapResult = autoTapLandsForCost(updatedPlayer, cost);
     if (!tapResult) return state;

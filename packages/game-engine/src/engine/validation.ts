@@ -42,7 +42,8 @@ export function validateAction(
   // players can't cast spells or activate non-mana abilities.
   if (state.stack.length > 0 && action.type !== 'tap-for-mana') {
     const hasSplitSecond = state.stack.some(
-      (obj) => obj.card?.oracleText?.toLowerCase().includes('split second') ||
+      (obj) => obj.splitSecond === true ||
+               obj.card?.oracleText?.toLowerCase().includes('split second') ||
                obj.text?.toLowerCase().includes('split second')
     );
     if (hasSplitSecond && (
@@ -160,7 +161,8 @@ export function getLegalActionTypes(state: GameState): GameAction['type'][] {
 
   // CR 702.61: Split Second blocks spells and non-mana abilities
   const hasSplitSecond = state.stack.some(
-    (obj) => obj.card?.oracleText?.toLowerCase().includes('split second') ||
+    (obj) => obj.splitSecond === true ||
+             obj.card?.oracleText?.toLowerCase().includes('split second') ||
              obj.text?.toLowerCase().includes('split second')
   );
   if (hasSplitSecond) {
@@ -503,6 +505,28 @@ function validateCastSpell(
       if (state.step !== 'main') return 'Can only jump-start sorcery-speed spells during main phase.';
       if (state.activePlayer !== action.player) return 'Can only jump-start on your turn.';
       if (state.stack.length > 0) return 'Cannot jump-start while stack is not empty.';
+    }
+    return validateTargetLegality(state, action.player, action.targets, card);
+  }
+
+  // ─── Retrace: cast from graveyard by discarding a land as additional cost (CR 702.80) ───
+  if (action.castWithRetrace) {
+    const card = player.graveyard.find((c) => c.id === action.cardId);
+    if (!card) return 'Card not in graveyard.';
+    if (!card.oracleText?.match(/\bretrace\b/i)) return 'Card does not have retrace.';
+    // Retrace requires discarding a land from hand
+    const hasLandInHand = player.hand.some(c => isLand(c));
+    if (!hasLandInHand) return 'No land card in hand to discard for retrace.';
+    const cost = parseManaCost(card.manaCost);
+    if (!canPayCost(player.manaPool, cost, player.life)) {
+      const tapResult = autoTapLandsForCost(player, cost);
+      if (!tapResult) return 'Not enough mana to pay retrace cost.';
+    }
+    // Retrace is sorcery speed
+    if (!isInstant(card) && !hasFlash(card)) {
+      if (state.step !== 'main') return 'Can only use retrace during main phase.';
+      if (state.activePlayer !== action.player) return 'Can only use retrace on your turn.';
+      if (state.stack.length > 0) return 'Cannot use retrace while stack is not empty.';
     }
     return validateTargetLegality(state, action.player, action.targets, card);
   }
@@ -964,6 +988,21 @@ function canCastAnySpell(state: GameState, player: 0 | 1): boolean {
     const cost = parseManaCost(fbCost);
     if (canPayCost(ps.manaPool, cost, ps.life)) return true;
     if (autoTapLandsForCost(ps, cost) !== null) return true;
+  }
+
+  // Check graveyard for retrace spells (CR 702.80)
+  const hasLandInHand = ps.hand.some(c => isLand(c));
+  if (hasLandInHand) {
+    for (const card of ps.graveyard) {
+      if (!card.oracleText?.match(/\bretrace\b/i)) continue;
+      // Retrace is sorcery speed
+      if (!isInstant(card) && !hasFlash(card)) {
+        if (state.step !== 'main' || state.activePlayer !== player || state.stack.length > 0) continue;
+      }
+      const cost = parseManaCost(card.manaCost);
+      if (canPayCost(ps.manaPool, cost, ps.life)) return true;
+      if (autoTapLandsForCost(ps, cost) !== null) return true;
+    }
   }
 
   // Check exile for adventure creatures (CR 715.4)

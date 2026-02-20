@@ -8665,27 +8665,63 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     },
   },
 
-  // P4-16. manifest — top card of library as 2/2 face-down creature
+  // P4-16. manifest — top card(s) of library as 2/2 face-down creature(s) (CR 702.111)
   {
     name: 'manifest',
-    match: /\bmanifest\b/i,
+    match: /\bmanifest(?:s)?\s+(?:the\s+top\s+)?(\d+|a)\s+card|\bmanifest\b/i,
     requiresTarget: false,
-    apply: (state, controller) => {
+    apply: (state, controller, _t, m) => {
       const player = state.players[controller];
+      // Determine how many cards to manifest
+      const countStr = m[1] || '1';
+      const count = (countStr === 'a' || !countStr) ? 1 : parseInt(countStr, 10) || 1;
       if (player.library.length === 0) {
         state = addLog(state, controller, 'Manifest: library is empty.');
         return { state, resolved: true, description: 'manifest (empty library)' };
       }
-      const topCard = player.library[0];
-      const manifestPerm: any = {
-        ...cardToPermanent({ ...topCard, name: 'Manifest', typeLine: 'Creature', oracleText: '', power: '2', toughness: '2' }, controller, state.turn),
-        faceDown: true, basePower: 2, baseToughness: 2, currentPower: 2, currentToughness: 2,
-      };
+      const toManifest = Math.min(count, player.library.length);
+      const topCards = player.library.slice(0, toManifest);
+      const newLibrary = player.library.slice(toManifest);
+      const newPerms: Permanent[] = topCards.map(topCard => {
+        // Create a face-down 2/2 colorless creature permanent (CR 702.111b)
+        // The underlying card's identity is hidden; we track it via manifestedCardId
+        const faceDownCard: Card = {
+          id: topCard.id,
+          oracleId: topCard.oracleId,
+          name: 'Manifest',
+          manaCost: topCard.manaCost,
+          cmc: topCard.cmc,
+          typeLine: 'Creature',
+          oracleText: topCard.oracleText,
+          power: '2',
+          toughness: '2',
+          colors: [],
+          colorIdentity: [],
+          rarity: topCard.rarity,
+          tags: [],
+          imageUrl: topCard.imageUrl,
+          owner: controller,
+        };
+        const perm = cardToPermanent(faceDownCard, controller, state.turn);
+        return {
+          ...perm,
+          faceDown: true,
+          basePower: 2,
+          baseToughness: 2,
+          currentPower: 2,
+          currentToughness: 2,
+          manifestedCardId: topCard.id,
+        } as Permanent;
+      });
       const players = [...state.players] as [PlayerState, PlayerState];
-      players[controller] = { ...player, library: player.library.slice(1), battlefield: [...player.battlefield, manifestPerm] };
+      players[controller] = {
+        ...player,
+        library: newLibrary,
+        battlefield: [...player.battlefield, ...newPerms],
+      };
       state = { ...state, players };
-      state = addLog(state, controller, `Manifests the top card of library as a 2/2 face-down creature.`);
-      return { state, resolved: true, description: 'manifest (2/2 face-down)' };
+      state = addLog(state, controller, `Manifests ${toManifest} card(s) from library as 2/2 face-down creature(s).`);
+      return { state, resolved: true, description: `manifest (${toManifest} face-down)` };
     },
   },
 
@@ -10319,17 +10355,31 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     },
   },
 
-  // ── Aftermath — cast this half only from graveyard (CR 702.127a) ──
+  // ── Aftermath — cast this half only from graveyard; exile after resolution (CR 702.127) ──
   {
     name: 'aftermath',
     match: /\baftermath\b/i,
     requiresTarget: false,
     apply: (state, controller, _targets, _m, source) => {
       if (!source) return { state, resolved: true, description: 'aftermath' };
-      // Aftermath allows casting the second half of a split card from the graveyard
-      // After it resolves, it goes to exile instead of graveyard
-      state = addLog(state, controller, `${source.name} cast via aftermath from graveyard — will be exiled after resolution.`);
-      return { state, resolved: true, description: 'aftermath: cast from GY' };
+      // Aftermath spells are cast from the graveyard; after resolution, exile the card (CR 702.127b)
+      // Find the card in the controller's graveyard and exile it
+      const player = state.players[controller];
+      const gyIdx = player.graveyard.findIndex(c => c.id === source.id);
+      if (gyIdx !== -1) {
+        const card = player.graveyard[gyIdx];
+        const players = [...state.players] as [PlayerState, PlayerState];
+        players[controller] = {
+          ...player,
+          graveyard: [...player.graveyard.slice(0, gyIdx), ...player.graveyard.slice(gyIdx + 1)],
+          exile: [...player.exile, card],
+        };
+        state = { ...state, players };
+        state = addLog(state, controller, `${source.name} (aftermath): exiled after resolution.`);
+      } else {
+        state = addLog(state, controller, `${source.name} cast via aftermath from graveyard — will be exiled after resolution.`);
+      }
+      return { state, resolved: true, description: 'aftermath: exiled after resolution' };
     },
   },
 
@@ -12476,6 +12526,35 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       stateAfter = { ...stateAfter, players };
       stateAfter = addLog(stateAfter, controller, `${component1.name} and ${component2.name} meld into ${result.name}!`);
       return { state: stateAfter, resolved: true, description: `meld: ${result.name}` };
+    },
+  },
+
+  // ── Replicate — when you cast this spell, you may copy it for its replicate cost (CR 702.56) ──
+  // The actual copies are put on the stack at cast time (in addSpellToStack via replicateCount).
+  // This pattern handles the replicate keyword appearing in oracle text so it auto-resolves.
+  {
+    name: 'replicate',
+    match: /\breplicate\b/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      // Replicate copies are created at cast time; this pattern just acknowledges the keyword.
+      const cardName = source?.name || 'spell';
+      state = addLog(state, controller, `Replicate: copies of ${cardName} were placed on the stack when it was cast.`);
+      return { state, resolved: true, description: 'replicate: copies on stack' };
+    },
+  },
+
+  // ── Retrace — cast from graveyard by discarding a land (CR 702.80) ──
+  // The actual graveyard casting + land discard is handled in executeCastSpell.
+  // This pattern handles retrace keyword in oracle text so it auto-resolves.
+  {
+    name: 'retrace',
+    match: /\bretrace\b(?!\s+[—–-])/i,
+    requiresTarget: false,
+    apply: (state, controller, _targets, _m, source) => {
+      const cardName = source?.name || 'spell';
+      state = addLog(state, controller, `Retrace: ${cardName} can be cast from graveyard by discarding a land.`);
+      return { state, resolved: true, description: 'retrace: available' };
     },
   },
 ];

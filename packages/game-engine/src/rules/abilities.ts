@@ -141,6 +141,39 @@ function detectManaAbilities(oracleText: string, typeLine: string): ManaAbilityM
   return results;
 }
 
+// ─── Adapt Ability Detection (CR 701.43) ───
+
+/**
+ * Detect adapt abilities from oracle text.
+ * Format: "{cost}: Adapt N. (...)"
+ * Adapt N = activated ability: pay cost; if this creature has no +1/+1 counters,
+ * put N +1/+1 counters on it. (CR 701.43)
+ *
+ * Cards: Zegana Utopian Speaker, Sharktocrab, Aeromunculus, Galloping Lizrog
+ *
+ * Returns adapt entries as ActivatedAbilityMatch so they are registered as
+ * proper activated abilities (sorcery speed per CR 701.43).
+ */
+function detectAdaptAbilities(oracleText: string): { cost: string; effect: string; isInstantSpeed: boolean }[] {
+  const results: { cost: string; effect: string; isInstantSpeed: boolean }[] = [];
+
+  // Pattern: "{cost}: Adapt N" — adapt abilities have a mana cost before the colon
+  // The "activate only as a sorcery" restriction is implicit in adapt (CR 701.43)
+  const adaptLinePattern = /^((?:\{[^}]+\})+):\s*(adapt\s+\d+)/i;
+  const paragraphs = oracleText.split('\n').map(p => p.trim()).filter(Boolean);
+
+  for (const paragraph of paragraphs) {
+    const m = paragraph.match(adaptLinePattern);
+    if (!m) continue;
+    const cost = m[1].trim();
+    // Effect text: just "Adapt N" (the condition check is handled in effects.ts)
+    const effect = m[2].trim();
+    results.push({ cost, effect, isInstantSpeed: false }); // Adapt is sorcery speed (CR 701.43)
+  }
+
+  return results;
+}
+
 // ─── Activated Ability Patterns ───
 
 interface ActivatedAbilityMatch {
@@ -297,10 +330,26 @@ export function parseAbilities(card: Card): Ability[] {
     });
   }
 
-  // 2b. Activated abilities (skip if planeswalker — loyalty abilities already handled)
+  // 2b. Adapt abilities (CR 701.43) — parse before generic activated to avoid duplicates
+  const adaptAbilities = detectAdaptAbilities(oracleText);
+  const adaptCosts = new Set<string>();
+  for (const aa of adaptAbilities) {
+    adaptCosts.add(aa.cost);
+    abilities.push({
+      id: nextAbilityId(),
+      type: 'activated',
+      cost: aa.cost,
+      text: `${aa.cost}: ${aa.effect}`,
+      instantSpeed: aa.isInstantSpeed, // false — adapt is sorcery speed (CR 701.43)
+    });
+  }
+
+  // 2c. Activated abilities (skip if planeswalker — loyalty abilities already handled)
   if (!typeLine.toLowerCase().includes('planeswalker')) {
     const activatedAbilities = detectActivatedAbilities(oracleText);
     for (const aa of activatedAbilities) {
+      // Skip adapt abilities (already parsed above)
+      if (adaptCosts.has(aa.cost) && /^adapt\s+\d+/i.test(aa.effect)) continue;
       abilities.push({
         id: nextAbilityId(),
         type: 'activated',

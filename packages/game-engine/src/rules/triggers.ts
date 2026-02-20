@@ -697,13 +697,8 @@ const TRIGGER_PATTERNS: TriggerPattern[] = [
     selfOnly: true,
   },
 
-  // Riot — when this creature enters the battlefield (CR 702.135)
-  {
-    name: 'riot-etb',
-    match: /\briot\b/i,
-    eventType: 'etb',
-    selfOnly: true,
-  },
+  // Riot — handled directly in checkETBTriggers (CR 702.136)
+  // (Not in trigger pattern list — applied immediately on ETB, not via stack)
 
   // Blitz — when this creature dies (draw a card) (CR 702.152)
   {
@@ -1035,6 +1030,62 @@ export function checkETBTriggers(state: GameState, permanent: Permanent, meta?: 
   // Apply ETB copy replacement effect before queueing normal triggers (CR 706.10a)
   // Clone-type cards set their copyEffect immediately on ETB so Layer 1 sees it.
   let newState = applyETBCopyEffect(state, permanent);
+
+  // ── Riot (CR 702.136) — direct ETB application (not via trigger stack) ──
+  // When a creature with riot enters, immediately apply haste or +1/+1 counter.
+  // Bot heuristic: choose haste if the creature has power >= 3, otherwise +1/+1 counter.
+  if (/\briot\b/i.test(permanent.oracleText || '')) {
+    const ctrl = permanent.controller;
+    const players = [...newState.players] as [PlayerState, PlayerState];
+    const player = { ...players[ctrl] };
+    const bf = [...player.battlefield];
+    const permIdx = bf.findIndex(p => p.id === permanent.id);
+    if (permIdx !== -1) {
+      const perm = bf[permIdx];
+      const power = perm.currentPower ?? perm.basePower ?? 0;
+      if (power >= 3) {
+        // Choose haste
+        bf[permIdx] = {
+          ...perm,
+          summoningSick: false,
+          temporaryKeywords: [...(perm.temporaryKeywords || []), { keyword: 'haste', source: 'riot', turn: newState.turn }],
+        };
+        player.battlefield = bf;
+        players[ctrl] = player;
+        newState = { ...newState, players };
+        newState = {
+          ...newState,
+          log: [...newState.log, {
+            timestamp: Date.now(), turn: newState.turn, phase: newState.phase,
+            step: newState.step, player: ctrl,
+            message: `Riot: ${permanent.name} chooses haste.`,
+            cardName: permanent.name,
+          }],
+        };
+      } else {
+        // Choose +1/+1 counter
+        const counters = { ...perm.counters, '+1/+1': (perm.counters['+1/+1'] || 0) + 1 };
+        bf[permIdx] = {
+          ...perm,
+          counters,
+          currentPower: (perm.currentPower ?? perm.basePower ?? 0) + 1,
+          currentToughness: (perm.currentToughness ?? perm.baseToughness ?? 0) + 1,
+        };
+        player.battlefield = bf;
+        players[ctrl] = player;
+        newState = { ...newState, players };
+        newState = {
+          ...newState,
+          log: [...newState.log, {
+            timestamp: Date.now(), turn: newState.turn, phase: newState.phase,
+            step: newState.step, player: ctrl,
+            message: `Riot: ${permanent.name} enters with a +1/+1 counter.`,
+            cardName: permanent.name,
+          }],
+        };
+      }
+    }
+  }
 
   newState = checkTriggers(newState, {
     type: 'etb',

@@ -35,7 +35,7 @@ export function addSpellToStack(
   targets: Target[],
   _manaPayment: ManaPayment,
   xValue?: number,
-  opts?: { isFlashback?: boolean; isKicked?: boolean; isAdventure?: boolean; isFaceDown?: boolean; isEvoked?: boolean; isDashed?: boolean; isBlitzed?: boolean; isOverloaded?: boolean; isBuyback?: boolean; isEscape?: boolean; isJumpStart?: boolean; isForetold?: boolean; isMutate?: boolean; mutateTargetId?: string; mutateOnTop?: boolean; isBestow?: boolean; oracleTextOverride?: string }
+  opts?: { isFlashback?: boolean; isKicked?: boolean; isAdventure?: boolean; isFaceDown?: boolean; isEvoked?: boolean; isDashed?: boolean; isBlitzed?: boolean; isOverloaded?: boolean; isBuyback?: boolean; isEscape?: boolean; isJumpStart?: boolean; isForetold?: boolean; isMutate?: boolean; mutateTargetId?: string; mutateOnTop?: boolean; isBestow?: boolean; oracleTextOverride?: string; replicateCount?: number; isRetrace?: boolean; isEntwined?: boolean; }
 ): GameState {
   const playerState = state.players[player];
 
@@ -43,7 +43,7 @@ export function addSpellToStack(
   let card: Card | undefined;
   let updatedPlayer: PlayerState;
 
-  if (opts?.isFlashback || opts?.isEscape || opts?.isJumpStart) {
+  if (opts?.isFlashback || opts?.isEscape || opts?.isJumpStart || opts?.isRetrace) {
     // Card from graveyard
     const gyIndex = playerState.graveyard.findIndex((c) => c.id === cardId);
     if (gyIndex === -1) return state;
@@ -82,6 +82,12 @@ export function addSpellToStack(
     }
   }
 
+  // Detect "can't be countered" from oracle text (CR 702.61 adjacent)
+  const cardOracleText = card.oracleText || '';
+  const isUncounterable = /\bcan't be countered\b/i.test(cardOracleText);
+  // Detect split second from oracle text (CR 702.61)
+  const hasSplitSecond = /\bsplit second\b/i.test(cardOracleText);
+
   const stackObject: StackObject = {
     id: generateStackId(),
     type: 'spell',
@@ -107,6 +113,11 @@ export function addSpellToStack(
     mutateTargetId: opts?.mutateTargetId,
     mutateOnTop: opts?.mutateOnTop,
     isBestow: opts?.isBestow,
+    uncounterable: isUncounterable || undefined,
+    splitSecond: hasSplitSecond || undefined,
+    replicateCount: opts?.replicateCount,
+    isRetrace: opts?.isRetrace,
+    isEntwined: opts?.isEntwined,
   };
 
   const players = [...state.players] as [PlayerState, PlayerState];
@@ -126,13 +137,25 @@ export function addSpellToStack(
   if (opts?.isForetold) castMessage += ' (foretold)';
   if (opts?.isMutate) castMessage += ' (mutate)';
   if (opts?.isBestow) castMessage += ' (bestow)';
+  if (opts?.isRetrace) castMessage += ' (retrace)';
+  if (opts?.isEntwined) castMessage += ' (entwined)';
+  if (opts?.replicateCount && opts.replicateCount > 0) castMessage += ` (replicate x${opts.replicateCount})`;
   if (xValue !== undefined && xValue > 0) castMessage += ` (X=${xValue})`;
   castMessage += '.';
+
+  // Build the stack with the original spell + replicate copies (CR 702.56)
+  // Copies go on top of the original (above it in the stack array means resolved last)
+  const replicateCopies: StackObject[] = [];
+  if (opts?.replicateCount && opts.replicateCount > 0) {
+    for (let i = 0; i < opts.replicateCount; i++) {
+      replicateCopies.push(copyStackObject(stackObject, player));
+    }
+  }
 
   return {
     ...state,
     players,
-    stack: [...state.stack, stackObject],
+    stack: [...state.stack, stackObject, ...replicateCopies],
     log: [
       ...state.log,
       {
@@ -275,6 +298,38 @@ export function resolveTopOfStack(state: GameState): GameState {
   const resolvingOracleText = resolving.oracleText || resolving.card?.oracleText || '';
   const modalInfo = parseModalSpell(resolvingOracleText);
   if (modalInfo && modalInfo.modes.length > 0) {
+    // Entwine (CR 702.39): if entwine cost was paid, choose ALL modes
+    if (resolving.isEntwined) {
+      const allModeChoices = modalInfo.modes.map(m => m.index);
+      newState = resolveModalChoices(newState, resolving, allModeChoices);
+
+      // Move instant/sorcery to destination zone after entwine resolution
+      if (resolving.type === 'spell' && resolving.card && !isPermanentType(resolving.card)) {
+        const ctrl = resolving.controller;
+        const players = [...newState.players] as [PlayerState, PlayerState];
+        players[ctrl] = { ...players[ctrl], graveyard: [...players[ctrl].graveyard, resolving.card] };
+        newState = { ...newState, players };
+      }
+
+      newState = {
+        ...newState,
+        log: [
+          ...newState.log,
+          {
+            timestamp: Date.now(),
+            turn: newState.turn,
+            phase: newState.phase,
+            step: newState.step,
+            player: resolving.controller,
+            message: `${resolving.card?.name ?? resolving.text} resolves (entwined — all modes: ${allModeChoices.map(i => modalInfo.modes[i]?.text ?? i).join(', ')}).`,
+            cardName: resolving.card?.name ?? resolving.source?.name,
+            actionType: 'effect',
+          },
+        ],
+      };
+      return giveActivePlayerPriority(newState);
+    }
+
     if (resolving.controller === 0 && !newState.pendingModalChoice) {
       // Human player — pause resolution and ask for mode choices via UI
       // Put the resolving object back on the stack so it can be resolved later
@@ -285,8 +340,8 @@ export function resolveTopOfStack(state: GameState): GameState {
           stackObjectId: resolving.id,
           controller: 0,
           modes: modalInfo.modes.map(m => ({ index: m.index, text: m.text, oracleText: m.oracleText })),
-          minChoices: modalInfo.minChoices,
-          maxChoices: modalInfo.maxChoices,
+          minChoices: resolving.isEntwined ? modalInfo.modes.length : modalInfo.minChoices,
+          maxChoices: resolving.isEntwined ? modalInfo.modes.length : modalInfo.maxChoices,
           cardName: resolving.card?.name ?? resolving.source?.name ?? resolving.text,
         },
       };
@@ -305,7 +360,7 @@ export function resolveTopOfStack(state: GameState): GameState {
         const players = [...newState.players] as [PlayerState, PlayerState];
         if (resolving.isBuyback) {
           players[ctrl] = { ...players[ctrl], hand: [...players[ctrl].hand, resolving.card] };
-        } else if (resolving.isFlashback || resolving.isEscape || resolving.isJumpStart) {
+        } else if (resolving.isFlashback || resolving.isEscape || resolving.isJumpStart || resolving.isRetrace) {
           players[ctrl] = { ...players[ctrl], exile: [...players[ctrl].exile, resolving.card] };
         } else {
           players[ctrl] = { ...players[ctrl], graveyard: [...players[ctrl].graveyard, resolving.card] };
@@ -595,7 +650,7 @@ export function resolveTopOfStack(state: GameState): GameState {
           ...players[controller],
           hand: [...players[controller].hand, card],
         };
-      } else if (resolving.isFlashback || resolving.isEscape || resolving.isJumpStart) {
+      } else if (resolving.isFlashback || resolving.isEscape || resolving.isJumpStart || resolving.isRetrace) {
         players[controller] = {
           ...players[controller],
           exile: [...players[controller].exile, card],

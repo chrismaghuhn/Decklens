@@ -162,6 +162,8 @@ export interface Permanent extends Card {
   mutateStack?: { id: string; name: string; oracleText: string; power?: string | number; toughness?: string | number }[];
   /** Whether this permanent was cast with bestow and is currently an Aura (CR 702.102) */
   bestowed?: boolean;
+  /** When this permanent was created via Manifest, the ID of the underlying card (CR 702.111) */
+  manifestedCardId?: string;
   /** Whether this permanent should skip untapping during its controller's next untap step */
   skipNextUntap?: boolean;
 }

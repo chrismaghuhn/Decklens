@@ -78,6 +78,13 @@ export interface Card {
   /** True when this card was exiled via rebound (cast again at next upkeep for free) */
   reboundExile?: boolean;
 
+  /** Aftermath data — present on split cards where the second half can only be cast from the graveyard (CR 702.127) */
+  aftermath?: {
+    name: string;
+    manaCost: string;
+    oracleText: string;
+  };
+
   /** Meld pair data — present on cards that can meld (CR 701.36) */
   meldPair?: string;    // Name of the other card in the meld pair
   meldResult?: {        // The melded creature's characteristics
