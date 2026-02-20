@@ -30,12 +30,17 @@ dataset = "decklens_events"
 # Collaborative editing Durable Objects
 [durable_objects]
 bindings = [
-  { name = "COLLAB_SESSION", class_name = "CollabSession" }
+  { name = "COLLAB_SESSION", class_name = "CollabSession" },
+  { name = "GAME_SESSION", class_name = "GameSession" }
 ]
 
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["CollabSession"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["GameSession"]
 
 # Scheduled Cron Triggers
 [triggers]

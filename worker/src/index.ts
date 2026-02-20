@@ -13,6 +13,7 @@ import {
 } from '../../src/shared/report-card.js';
 import { getEDHRECClient } from './edhrec-client.js';
 import { CollabSession } from './collab-session.js';
+import { GameSession } from './game-session.js';
 import {
   type ComboRecord,
   type ComboLookupResult,
@@ -181,6 +182,7 @@ interface Env {
   COMMUNITY_DB?: WorkerD1Database;
   ANALYTICS?: AnalyticsEngineDataset;
   COLLAB_SESSION?: DurableObjectNamespace;
+  GAME_SESSION?: DurableObjectNamespace;
   // Auth (GitHub + Google OAuth)
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
@@ -7366,6 +7368,31 @@ export default {
       if (request.method === 'PUT') return handleUpdateSideboardPlan(dId, pId, request, env);
       if (request.method === 'DELETE') return handleDeleteSideboardPlan(dId, pId, env);
       return new Response('Method not allowed', { status: 405, headers: CORS_HEADERS });
+    }
+
+    // ──── Game Session Routes (Multiplayer) ────
+
+    if (path === '/api/game-sessions' && request.method === 'POST') {
+      if (!env.GAME_SESSION) {
+        return Response.json({ ok: false, error: 'Multiplayer not available' }, { status: 503, headers: CORS_HEADERS });
+      }
+      const sessionId = crypto.randomUUID().slice(0, 8).toUpperCase();
+      const id = env.GAME_SESSION.idFromName(sessionId);
+      const stub = env.GAME_SESSION.get(id);
+      // Ping the DO to initialize it
+      await stub.fetch(new Request('https://game-session/init', { method: 'POST' }));
+      return Response.json({ sessionId, wsUrl: `/api/game-sessions/${sessionId}/ws` }, { headers: CORS_HEADERS });
+    }
+
+    const gameSessionWsMatch = path.match(/^\/api\/game-sessions\/([A-Z0-9]+)\/ws$/);
+    if (gameSessionWsMatch) {
+      if (!env.GAME_SESSION) {
+        return new Response('Multiplayer not available', { status: 503 });
+      }
+      const sessionId = gameSessionWsMatch[1];
+      const id = env.GAME_SESSION.idFromName(sessionId);
+      const stub = env.GAME_SESSION.get(id);
+      return stub.fetch(request);
     }
 
     // ──── Collaborative Editing Routes ────
