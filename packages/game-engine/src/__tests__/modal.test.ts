@@ -221,3 +221,19 @@ describe('resolveModalChoices', () => {
     expect(result).toBe(state); // Same reference — unchanged
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// bot modal handling
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('bot modal handling', () => {
+  it('resolveModalChoices picks mode 0 correctly for bot', () => {
+    const state = createTestState();
+    const oracleText = `Choose one —\n• Draw two cards.\n• Deal 3 damage to any target.`;
+    const stackObj = makeStackObj(oracleText, 1); // bot is controller 1
+
+    const resolved = resolveModalChoices(state, stackObj, [0]);
+    // After "Draw two cards", bot's hand (player 1) should have grown
+    expect(resolved.players[1].hand.length).toBeGreaterThan(state.players[1].hand.length);
+  });
+});

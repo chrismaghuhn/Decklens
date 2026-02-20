@@ -43,6 +43,7 @@ import {
   animateNewCards, resetAnimationTracking,
 } from './board-renderer.ts';
 import { logAction, logPhaseChange, logGameOver, logMessage } from './game-log.ts';
+import { renderManaCost } from './mana-symbols.ts';
 import { generateCoachTips, getSuggestedPlays, type CoachTip } from './ai-coach.ts';
 import { analyzeGame, renderAnalysisOverlay, type GameAnalysis } from './post-game-analysis.ts';
 
@@ -68,7 +69,8 @@ interface TargetingState {
 export class GameLoop {
   private game: Game;
   private bot: BotInterface;
-  private humanPlayer: 0 | 1 = 0;
+  private bot2: BotInterface | null = null; // Second bot for player 0 (bot vs bot mode)
+  private humanPlayer: 0 | 1 | null = 0;
   private botPlayer: 0 | 1 = 1;
   private actionResolver: ActionResolver | null = null;
   private running = false;
@@ -93,12 +95,24 @@ export class GameLoop {
   private suggestTimer: ReturnType<typeof setTimeout> | null = null;
   private lastSuggestTime = 0;
 
-  constructor(playerDeck: Card[], botDeck: Card[], playerCommander: Card, botCommander: Card, bot?: BotInterface) {
+  constructor(
+    playerDeck: Card[],
+    botDeck: Card[],
+    playerCommander: Card,
+    botCommander: Card,
+    bot?: BotInterface,
+    bot2?: BotInterface | null,
+  ) {
     const playerState = createPlayerState(0, 'You', playerDeck, playerCommander);
     const botState = createPlayerState(1, 'Bot', botDeck, botCommander);
     const initial = createInitialGameState(playerState, botState);
     this.game = new Game(initial);
     this.bot = bot ?? new HeuristicBot(this.botPlayer);
+    this.bot2 = bot2 ?? null;
+    // If a bot2 is provided, no human player — spectator/bot-vs-bot mode
+    if (this.bot2 !== null) {
+      this.humanPlayer = null;
+    }
   }
 
   /** Get the current game state */
@@ -148,17 +162,18 @@ export class GameLoop {
       this.render();
 
       // ─── Discard Pending (Human) ───
-      if (state.pendingDiscard === this.humanPlayer && state.pendingDiscardCount && state.pendingDiscardCount > 0) {
+      if (this.humanPlayer !== null && state.pendingDiscard === this.humanPlayer && state.pendingDiscardCount && state.pendingDiscardCount > 0) {
+        const humanPlayer = this.humanPlayer;
         logMessage(`You must discard ${state.pendingDiscardCount} card(s).`);
         const cardIds = await this.showDiscardPicker(state.pendingDiscardCount);
-        
+
         if (cardIds.length > 0) {
           // Use the engine's action system instead of manual state mutation!
           // This ensures validation, SBAs, and correct state transitions occur.
-          const success = this.game.submitAction({ 
-            type: 'discard', 
-            player: this.humanPlayer, 
-            cardIds 
+          const success = this.game.submitAction({
+            type: 'discard',
+            player: humanPlayer,
+            cardIds
           });
 
           if (!success) {
@@ -201,13 +216,14 @@ export class GameLoop {
       }
 
       // ─── Sacrifice Pending (Human) ───
-      if (state.pendingSacrifice && state.pendingSacrifice.player === this.humanPlayer) {
+      if (this.humanPlayer !== null && state.pendingSacrifice && state.pendingSacrifice.player === this.humanPlayer) {
+        const humanPlayer = this.humanPlayer;
         const { filter, count, sourceName } = state.pendingSacrifice;
         const permIds = await this.showSacrificePicker(filter, count);
         if (permIds.length > 0) {
           // Move permanents to graveyard
           const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
-          const p = players[this.humanPlayer];
+          const p = players[humanPlayer];
           const sacrificed: Permanent[] = [];
           const remainingBF = p.battlefield.filter(perm => {
             if (permIds.includes(perm.id) && sacrificed.length < count) {
@@ -216,29 +232,39 @@ export class GameLoop {
             }
             return true;
           });
-          players[this.humanPlayer] = {
+          players[humanPlayer] = {
             ...p,
             battlefield: remainingBF,
             graveyard: [...p.graveyard, ...sacrificed.map(perm => perm.card)],
           };
+          // Advance sacrifice queue (for "each player sacrifices" effects)
+          const sacQueue = state.pendingSacrificeQueue ? [...state.pendingSacrificeQueue] : [];
+          const nextSac = sacQueue.shift();
           this.game.setState({
             ...state,
             players,
-            pendingSacrifice: null,
+            pendingSacrifice: nextSac ? { player: nextSac.player, filter: nextSac.filter, count: nextSac.count } : null,
+            pendingSacrificeQueue: sacQueue.length > 0 ? sacQueue : undefined,
             log: [...state.log, {
               timestamp: Date.now(),
               turn: state.turn,
               phase: state.phase,
               step: state.step,
-              player: this.humanPlayer,
+              player: humanPlayer,
               message: `Sacrificed ${sacrificed.map(s => s.name).join(', ')}${sourceName ? ` (${sourceName})` : ''}.`,
               actionType: 'effect',
             }],
           });
           logMessage(`Sacrificed: ${sacrificed.map(s => `<span style="color:#ef4444">${s.name}</span>`).join(', ')}`);
         } else {
-          // No valid targets or empty selection — clear pending
-          this.game.setState({ ...state, pendingSacrifice: null });
+          // No valid targets or empty selection — advance queue or clear pending
+          const sacQueue = state.pendingSacrificeQueue ? [...state.pendingSacrificeQueue] : [];
+          const nextSac = sacQueue.shift();
+          this.game.setState({
+            ...state,
+            pendingSacrifice: nextSac ? { player: nextSac.player, filter: nextSac.filter, count: nextSac.count } : null,
+            pendingSacrificeQueue: sacQueue.length > 0 ? sacQueue : undefined,
+          });
         }
         continue;
       }
@@ -269,10 +295,14 @@ export class GameLoop {
           battlefield: pp.battlefield.filter(perm => !sacIds.has(perm.id)),
           graveyard: [...pp.graveyard, ...toSacrifice.map(perm => perm.card)],
         };
+        // Advance sacrifice queue (for "each player sacrifices" effects)
+        const sacQueue = state.pendingSacrificeQueue ? [...state.pendingSacrificeQueue] : [];
+        const nextSac = sacQueue.shift();
         this.game.setState({
           ...state,
           players,
-          pendingSacrifice: null,
+          pendingSacrifice: nextSac ? { player: nextSac.player, filter: nextSac.filter, count: nextSac.count } : null,
+          pendingSacrificeQueue: sacQueue.length > 0 ? sacQueue : undefined,
           log: [...state.log, {
             timestamp: Date.now(),
             turn: state.turn,
@@ -288,154 +318,253 @@ export class GameLoop {
       }
 
       // ─── Library Search Pending (Human) ───
-      if (state.pendingSearch && state.pendingSearch.player === this.humanPlayer) {
-        const { filter, count, destination, sourceName } = state.pendingSearch;
-        const cardIds = await this.showLibrarySearch(filter, count, destination);
+      if (this.humanPlayer !== null && state.pendingSearch && state.pendingSearch.player === this.humanPlayer) {
+        const humanPlayer = this.humanPlayer;
+        const { filter, count, destination, sourceName, count2, destination2, tapped } = state.pendingSearch;
         const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
-        const p = players[this.humanPlayer];
 
-        if (cardIds.length > 0) {
-          const selected = cardIds.map(id => p.library.find(c => c.id === id)!).filter(Boolean);
-          const remainingLib = p.library.filter(c => !cardIds.includes(c.id));
-
-          // Shuffle remaining library
-          for (let i = remainingLib.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [remainingLib[i], remainingLib[j]] = [remainingLib[j], remainingLib[i]];
-          }
-
-          if (destination === 'hand') {
-            players[this.humanPlayer] = { ...p, library: remainingLib, hand: [...p.hand, ...selected] };
-          } else if (destination === 'battlefield') {
-            // For battlefield, need to create Permanents
-            const newPerms = selected.map(card => ({
-              id: card.id + '-perm',
-              name: card.name,
-              card,
-              typeLine: card.typeLine,
-              oracleText: card.oracleText ?? '',
-              controller: this.humanPlayer as 0 | 1,
-              tapped: false,
-              summoningSick: !card.typeLine.toLowerCase().includes('land'),
-              damage: 0,
-              counters: {},
-              attachedTo: null,
-              attachments: [],
-              temporaryEffects: [],
-            }));
-            players[this.humanPlayer] = {
-              ...p,
-              library: remainingLib,
-              battlefield: [...p.battlefield, ...newPerms as any],
-            };
+        // Helper: place selected cards into a destination
+        const placeCards = (
+          p: typeof players[0],
+          ids: string[],
+          dest: string,
+          enterTapped: boolean,
+        ) => {
+          const selected = ids.map(id => p.library.find(c => c.id === id)!).filter(Boolean);
+          if (dest === 'hand') {
+            return { hand: [...p.hand, ...selected], battlefield: p.battlefield };
+          } else if (dest === 'battlefield') {
+            const newPerms = selected.map(card => {
+              const isLand = card.typeLine.toLowerCase().includes('land');
+              return {
+                ...card,
+                id: card.id,
+                controller: humanPlayer,
+                tapped: enterTapped,
+                summoningSick: !isLand,
+                damage: 0,
+                counters: {},
+                attachments: [],
+                temporaryPtMods: [],
+                attacking: false,
+                blocking: null,
+                flipped: false,
+                faceDown: false,
+                x: 0,
+                y: 0,
+                enteredBattlefieldTurn: state.turn,
+                abilities: [],
+              };
+            });
+            return { hand: p.hand, battlefield: [...p.battlefield, ...newPerms as any] };
           } else {
-            // top-of-library
-            players[this.humanPlayer] = { ...p, library: [...selected, ...remainingLib] };
+            // top-of-library — handled separately
+            return { hand: p.hand, battlefield: p.battlefield };
           }
+        };
 
-          this.game.setState({
-            ...state, players, pendingSearch: null,
-            log: [...state.log, {
-              timestamp: Date.now(), turn: state.turn, phase: state.phase, step: state.step,
-              player: this.humanPlayer,
-              message: `Searched library${sourceName ? ` (${sourceName})` : ''}, found ${selected.map(c => c.name).join(', ')}. Library shuffled.`,
-              actionType: 'effect',
-            }],
-          });
-          logMessage(`Found: ${selected.map(c => `<span style="color:var(--gold)">${c.name}</span>`).join(', ')}`);
-        } else {
-          // Failed to find / cancelled — just shuffle
-          const shuffled = [...p.library];
-          for (let i = shuffled.length - 1; i > 0; i--) {
+        // Helper: shuffle array in place
+        const shuffleArr = <T>(arr: T[]): T[] => {
+          for (let i = arr.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
-            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            [arr[i], arr[j]] = [arr[j], arr[i]];
           }
-          players[this.humanPlayer] = { ...p, library: shuffled };
-          this.game.setState({ ...state, players, pendingSearch: null });
-          logMessage('Search cancelled. Library shuffled.');
+          return arr;
+        };
+
+        if (count2 !== undefined && destination2 !== undefined) {
+          // ── Split-destination (Cultivate): choose up to count cards → dest1, count2 cards → dest2 ──
+          const cardIds1 = await this.showLibrarySearch(filter, count, destination, sourceName, `onto the battlefield tapped`);
+          let p = players[humanPlayer];
+
+          if (cardIds1.length > 0) {
+            const result1 = placeCards(p, cardIds1, destination, tapped ?? false);
+            const lib1 = p.library.filter(c => !cardIds1.includes(c.id));
+            p = { ...p, library: lib1, hand: result1.hand, battlefield: result1.battlefield };
+            players[humanPlayer] = p;
+
+            // Second pick from remaining library
+            const cardIds2 = await this.showLibrarySearch(filter, count2, destination2, sourceName, `into your hand`);
+            if (cardIds2.length > 0) {
+              const result2 = placeCards(p, cardIds2, destination2, false);
+              const lib2 = shuffleArr(p.library.filter(c => !cardIds2.includes(c.id)));
+              p = { ...p, library: lib2, hand: result2.hand, battlefield: result2.battlefield };
+            } else {
+              p = { ...p, library: shuffleArr([...p.library]) };
+            }
+            players[humanPlayer] = p;
+
+            const names1 = cardIds1.map(id => state.players[humanPlayer].library.find(c => c.id === id)?.name ?? '?');
+            const names2 = cardIds2.map(id => state.players[humanPlayer].library.find(c => c.id === id)?.name ?? '?');
+            const allNames = [...names1, ...names2].filter(Boolean).join(', ');
+            this.game.setState({
+              ...state, players, pendingSearch: null,
+              log: [...state.log, {
+                timestamp: Date.now(), turn: state.turn, phase: state.phase, step: state.step,
+                player: humanPlayer,
+                message: `Searched library${sourceName ? ` (${sourceName})` : ''}, found ${allNames}. Library shuffled.`,
+                actionType: 'effect',
+              }],
+            });
+            logMessage(`Found: ${[...names1, ...names2].map(n => `<span style="color:var(--gold)">${n}</span>`).join(', ')}`);
+          } else {
+            // Cancelled first pick — shuffle and clear
+            players[humanPlayer] = { ...p, library: shuffleArr([...p.library]) };
+            this.game.setState({ ...state, players, pendingSearch: null });
+            logMessage('Search cancelled. Library shuffled.');
+          }
+        } else {
+          // ── Single destination ──
+          const cardIds = await this.showLibrarySearch(filter, count, destination, sourceName);
+          const p = players[humanPlayer];
+
+          if (cardIds.length > 0) {
+            const result = placeCards(p, cardIds, destination, tapped ?? false);
+            const remainingLib = shuffleArr(p.library.filter(c => !cardIds.includes(c.id)));
+            const selected = cardIds.map(id => p.library.find(c => c.id === id)?.name ?? '?');
+
+            if (destination === 'top-of-library') {
+              const selectedCards = cardIds.map(id => p.library.find(c => c.id === id)!).filter(Boolean);
+              players[humanPlayer] = { ...p, library: [...selectedCards, ...remainingLib] };
+            } else {
+              players[humanPlayer] = { ...p, library: remainingLib, hand: result.hand, battlefield: result.battlefield };
+            }
+
+            this.game.setState({
+              ...state, players, pendingSearch: null,
+              log: [...state.log, {
+                timestamp: Date.now(), turn: state.turn, phase: state.phase, step: state.step,
+                player: humanPlayer,
+                message: `Searched library${sourceName ? ` (${sourceName})` : ''}, found ${selected.join(', ')}. Library shuffled.`,
+                actionType: 'effect',
+              }],
+            });
+            logMessage(`Found: ${selected.map(n => `<span style="color:var(--gold)">${n}</span>`).join(', ')}`);
+          } else {
+            // Cancelled — shuffle
+            players[humanPlayer] = { ...p, library: shuffleArr([...p.library]) };
+            this.game.setState({ ...state, players, pendingSearch: null });
+            logMessage('Search cancelled. Library shuffled.');
+          }
         }
         continue;
       }
 
       // ─── Library Search Pending (Bot) ───
       if (state.pendingSearch && state.pendingSearch.player === this.botPlayer) {
-        const { filter, count, destination } = state.pendingSearch;
-        const p = state.players[this.botPlayer];
-        const filtered = filter
-          ? p.library.filter(c => c.typeLine.toLowerCase().includes(filter.toLowerCase()))
-          : p.library;
-        // Bot picks highest CMC cards matching filter
-        const sorted = [...filtered].sort((a, b) => b.cmc - a.cmc);
-        const picked = sorted.slice(0, count);
-        const pickedIds = new Set(picked.map(c => c.id));
-        const remainingLib = p.library.filter(c => !pickedIds.has(c.id));
+        const { filter, count, destination, count2, destination2, tapped } = state.pendingSearch;
+        let p = state.players[this.botPlayer];
 
-        // Shuffle
-        for (let i = remainingLib.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [remainingLib[i], remainingLib[j]] = [remainingLib[j], remainingLib[i]];
-        }
+        // Helper: pick cards from library by filter, sorted by highest CMC
+        const botPick = (lib: typeof p.library, f: string, n: number) => {
+          const filtered = f
+            ? lib.filter(c => c.typeLine.toLowerCase().includes(f.toLowerCase()))
+            : lib;
+          return [...filtered].sort((a, b) => b.cmc - a.cmc).slice(0, n);
+        };
+
+        // Helper: place cards into destination, returns updated player state fields
+        const botPlace = (
+          curP: typeof p,
+          pickedCards: typeof p.library,
+          dest: string,
+          enterTapped: boolean,
+        ) => {
+          if (dest === 'hand') {
+            return { hand: [...curP.hand, ...pickedCards], battlefield: curP.battlefield };
+          } else if (dest === 'battlefield') {
+            const newPerms = pickedCards.map(card => {
+              const isLand = card.typeLine.toLowerCase().includes('land');
+              return {
+                ...card,
+                id: card.id,
+                controller: this.botPlayer,
+                tapped: enterTapped,
+                summoningSick: !isLand,
+                damage: 0,
+                counters: {},
+                attachments: [],
+                temporaryPtMods: [],
+                attacking: false,
+                blocking: null,
+                flipped: false,
+                faceDown: false,
+                x: 0,
+                y: 0,
+                enteredBattlefieldTurn: state.turn,
+                abilities: [],
+              };
+            });
+            return { hand: curP.hand, battlefield: [...curP.battlefield, ...newPerms as any] };
+          }
+          return { hand: curP.hand, battlefield: curP.battlefield };
+        };
+
+        // Helper: shuffle in place
+        const shuffleArr = <T>(arr: T[]): T[] => {
+          for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+          }
+          return arr;
+        };
 
         const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
-        if (destination === 'hand') {
-          players[this.botPlayer] = { ...p, library: remainingLib, hand: [...p.hand, ...picked] };
-        } else if (destination === 'battlefield') {
-          const newPerms = picked.map(card => ({
-            id: card.id + '-perm',
-            name: card.name,
-            card,
-            typeLine: card.typeLine,
-            oracleText: card.oracleText ?? '',
-            controller: this.botPlayer as 0 | 1,
-            tapped: false,
-            summoningSick: !card.typeLine.toLowerCase().includes('land'),
-            damage: 0,
-            counters: {},
-            attachedTo: null,
-            attachments: [],
-            temporaryEffects: [],
-          }));
-          players[this.botPlayer] = {
-            ...p,
-            library: remainingLib,
-            battlefield: [...p.battlefield, ...newPerms as any],
-          };
+        const logParts: string[] = [];
+
+        // First pick
+        const picked1 = botPick(p.library, filter, count);
+        const pickedIds1 = new Set(picked1.map(c => c.id));
+        const lib1 = p.library.filter(c => !pickedIds1.has(c.id));
+        const result1 = botPlace(p, picked1, destination, tapped ?? false);
+        p = { ...p, library: lib1, hand: result1.hand, battlefield: result1.battlefield };
+        if (picked1.length) logParts.push(picked1.map(c => c.name).join(', '));
+
+        // Second pick (split-destination, e.g. Cultivate)
+        if (count2 !== undefined && destination2 !== undefined) {
+          const picked2 = botPick(p.library, filter, count2);
+          const pickedIds2 = new Set(picked2.map(c => c.id));
+          const lib2 = shuffleArr(p.library.filter(c => !pickedIds2.has(c.id)));
+          const result2 = botPlace(p, picked2, destination2, false);
+          p = { ...p, library: lib2, hand: result2.hand, battlefield: result2.battlefield };
+          if (picked2.length) logParts.push(picked2.map(c => c.name).join(', '));
         } else {
-          // top-of-library
-          players[this.botPlayer] = { ...p, library: [...picked, ...remainingLib] };
+          p = { ...p, library: shuffleArr([...p.library]) };
         }
 
+        players[this.botPlayer] = p;
         this.game.setState({
           ...state, players, pendingSearch: null,
           log: [...state.log, {
             timestamp: Date.now(), turn: state.turn, phase: state.phase, step: state.step,
             player: this.botPlayer,
-            message: `Bot searches library.`,
+            message: `Bot searches library: ${logParts.join(', ') || 'nothing found'}.`,
             actionType: 'effect',
           }],
         });
-        logMessage('Bot searches library.');
+        logMessage(`Bot searches library: ${logParts.join(', ') || 'nothing found'}.`);
         continue;
       }
 
       // ─── Scry Pending (Human) ───
-      if (state.pendingScry && state.pendingScry.player === this.humanPlayer) {
+      if (this.humanPlayer !== null && state.pendingScry && state.pendingScry.player === this.humanPlayer) {
+        const humanPlayer = this.humanPlayer;
         const { count } = state.pendingScry;
         const result = await this.showScryUI(count);
         const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
-        const p = players[this.humanPlayer];
+        const p = players[humanPlayer];
 
         const topCards = result.top.map(id => p.library.find(c => c.id === id)!).filter(Boolean);
         const bottomCards = result.bottom.map(id => p.library.find(c => c.id === id)!).filter(Boolean);
         const allScryIds = new Set([...result.top, ...result.bottom]);
         const restOfLibrary = p.library.filter(c => !allScryIds.has(c.id));
 
-        players[this.humanPlayer] = { ...p, library: [...topCards, ...restOfLibrary, ...bottomCards] };
+        players[humanPlayer] = { ...p, library: [...topCards, ...restOfLibrary, ...bottomCards] };
         this.game.setState({
           ...state, players, pendingScry: null,
           log: [...state.log, {
             timestamp: Date.now(), turn: state.turn, phase: state.phase, step: state.step,
-            player: this.humanPlayer,
+            player: humanPlayer,
             message: `Scry ${count}: put ${topCards.length} on top, ${bottomCards.length} on bottom.`,
             actionType: 'effect',
           }],
@@ -470,7 +599,7 @@ export class GameLoop {
 
       // ─── Modal Choice Pending ───
       // If a modal spell is waiting for mode selection, show the modal UI
-      if (state.pendingModalChoice && state.pendingModalChoice.controller === this.humanPlayer) {
+      if (this.humanPlayer !== null && state.pendingModalChoice && state.pendingModalChoice.controller === this.humanPlayer) {
         const chosenModes = await this.showModalChoicePrompt(state);
         // Find the stack object and resolve chosen modes
         const stackObj = state.stack.find(s => s.id === state.pendingModalChoice!.stackObjectId);
@@ -516,9 +645,66 @@ export class GameLoop {
         continue;
       }
 
+      // ─── Modal Choice Pending (Bot) ───
+      if (state.pendingModalChoice && state.pendingModalChoice.controller === this.botPlayer) {
+        const pending = state.pendingModalChoice;
+        const stackObj = state.stack.find(s => s.id === pending.stackObjectId);
+        if (stackObj) {
+          // Bot picks the mode(s) with the most "useful" text heuristic:
+          // prefer modes containing 'destroy', 'exile', 'damage', 'draw', 'gain' in that order.
+          const scoredModes = pending.modes.map(m => {
+            const t = m.oracleText.toLowerCase();
+            let score = 0;
+            if (t.includes('destroy') || t.includes('exile')) score = 4;
+            else if (t.includes('damage')) score = 3;
+            else if (t.includes('draw')) score = 2;
+            else if (t.includes('gain')) score = 1;
+            return { index: m.index, score };
+          });
+          scoredModes.sort((a, b) => b.score - a.score);
+
+          const needed = pending.minChoices;
+          const chosenIndices = scoredModes.slice(0, needed).map(m => m.index);
+
+          const stackWithout = state.stack.filter(s => s.id !== stackObj.id);
+          let resolvedState: GameState = { ...state, stack: stackWithout, pendingModalChoice: null };
+          resolvedState = resolveModalChoices(resolvedState, stackObj, chosenIndices);
+
+          const card = stackObj.card;
+          if (card && !card.typeLine.toLowerCase().match(/creature|artifact|enchantment|planeswalker|battle/)) {
+            const ctrl = stackObj.controller;
+            const players = [...resolvedState.players] as typeof resolvedState.players;
+            if (stackObj.isFlashback) {
+              players[ctrl] = { ...players[ctrl], exile: [...players[ctrl].exile, card] };
+            } else {
+              players[ctrl] = { ...players[ctrl], graveyard: [...players[ctrl].graveyard, card] };
+            }
+            resolvedState = { ...resolvedState, players };
+          }
+
+          const modeTexts = chosenIndices.map(i => pending.modes.find(m => m.index === i)?.text ?? String(i));
+          resolvedState = {
+            ...resolvedState,
+            log: [...resolvedState.log, {
+              timestamp: Date.now(), turn: resolvedState.turn,
+              phase: resolvedState.phase, step: resolvedState.step,
+              player: this.botPlayer,
+              message: `${pending.cardName ?? 'Modal spell'} resolves (chose: ${modeTexts.join(', ')}).`,
+              cardName: stackObj.card?.name, actionType: 'effect',
+            }],
+          };
+          this.game.setState(resolvedState);
+          logMessage(`<span style="color:var(--gold)">${pending.cardName ?? 'Modal spell'}: ${modeTexts.join(', ')}</span>`);
+        } else {
+          // Stack object disappeared — just clear
+          this.game.setState({ ...state, pendingModalChoice: null });
+        }
+        continue;
+      }
+
       // ─── Manual Resolution (Smart Parser fallback) ───
       if (state.needsManualResolution) {
-        if (state.manualResolutionController === this.humanPlayer) {
+        if (this.humanPlayer !== null && state.manualResolutionController === this.humanPlayer) {
           // Human player: show manual resolution panel
           if (!this.inManualResolution) {
             this.inManualResolution = true;
@@ -539,7 +725,8 @@ export class GameLoop {
       }
 
       // ─── Fix 5: Combat Damage Assignment Pending ───
-      if (state.pendingDamageAssignment && state.pendingDamageAssignment.player === this.humanPlayer) {
+      if (this.humanPlayer !== null && state.pendingDamageAssignment && state.pendingDamageAssignment.player === this.humanPlayer) {
+        const humanPlayer = this.humanPlayer;
         const pending = state.pendingDamageAssignment;
         const attackerPerm = state.players[state.activePlayer].battlefield.find(
           p => p.id === pending.attackerId
@@ -567,7 +754,7 @@ export class GameLoop {
               this.game.setState(newState);
               this.executeAction({
                 type: 'assign-damage',
-                player: this.humanPlayer,
+                player: humanPlayer,
                 assignments: result.assignments,
                 trampleDamage: result.trampleDamage,
               });
@@ -590,7 +777,7 @@ export class GameLoop {
             this.game.setState(newState);
             this.executeAction({
               type: 'assign-damage',
-              player: this.humanPlayer,
+              player: humanPlayer,
               assignments: autoAssignments,
               trampleDamage: 0,
             });
@@ -600,7 +787,7 @@ export class GameLoop {
       }
 
       // Also check for multi-blocker assignment at combat-damage step
-      if (state.step === 'combat-damage' && state.activePlayer === this.humanPlayer &&
+      if (this.humanPlayer !== null && state.step === 'combat-damage' && state.activePlayer === this.humanPlayer &&
           state.combat && state.combat.attackers.length > 0 && !state.pendingDamageAssignment) {
         const pending = checkMultiBlockerAssignment(state);
         if (pending) {
@@ -610,7 +797,10 @@ export class GameLoop {
         }
       }
 
-      if (state.priorityPlayer === this.humanPlayer) {
+      if (this.humanPlayer === null) {
+        // Bot vs Bot mode — both players are bots
+        await this.botTurn(state.priorityPlayer as 0 | 1);
+      } else if (state.priorityPlayer === this.humanPlayer) {
         // If the stack has items and we're not in a main phase, show response prompt
         if (state.stack.length > 0 && state.step !== 'main') {
           const action = await this.showResponsePrompt(state);
@@ -622,7 +812,7 @@ export class GameLoop {
         }
       } else {
         // Bot turn
-        await this.botTurn();
+        await this.botTurn(this.botPlayer);
       }
     }
 
@@ -636,7 +826,7 @@ export class GameLoop {
     // Game over
     if (this.game.isOver()) {
       this.render();
-      logGameOver(this.game.getWinner(), this.humanPlayer);
+      logGameOver(this.game.getWinner(), this.humanPlayer ?? null);
       this.showGameOver();
     }
   }
@@ -653,14 +843,25 @@ export class GameLoop {
   private shouldAutoPass(state: GameState): boolean {
     const { step, activePlayer, priorityPlayer } = state;
 
-    // Never auto-pass when there's a pending discard, sacrifice, search, or scry choice
+    // Never auto-pass when there's a pending choice requiring player input
     if (state.pendingDiscard != null && state.pendingDiscardCount && state.pendingDiscardCount > 0) return false;
     if (state.pendingSacrifice) return false;
     if (state.pendingSearch) return false;
     if (state.pendingScry) return false;
+    if (state.pendingDamageAssignment) return false;
 
-    // Main phases — always stop
-    if (step === 'main') return false;
+    // Bot vs Bot mode — bots handle combat themselves, so only stop for bot mandatory steps
+    if (this.humanPlayer === null) {
+      // Declare attackers/blockers — stop so the bot can decide
+      if (step === 'declare-attackers' && activePlayer === priorityPlayer) return false;
+      if (step === 'declare-blockers' && activePlayer !== priorityPlayer) return false;
+      // Main phase — stop so the bot can play cards
+      if (step === 'main') return false;
+      // Stack non-empty — stop so the bot can respond
+      if (state.stack.length > 0) return false;
+      // Everything else auto-passes
+      return true;
+    }
 
     // Declare attackers — stop for the active player
     if (step === 'declare-attackers' && activePlayer === priorityPlayer) return false;
@@ -668,18 +869,24 @@ export class GameLoop {
     // Declare blockers — stop for the defending player
     if (step === 'declare-blockers' && activePlayer !== priorityPlayer) return false;
 
-    // Stack is non-empty and human has priority — show response window
-    // so the player can cast instants/flash spells in response
-    if (state.stack.length > 0 && priorityPlayer === this.humanPlayer) {
+    // Stack is non-empty and human has priority — check if they can respond
+    // (humanPlayer is never null here, early return above handles null case)
+    const humanPlayerSlot = this.humanPlayer as 0 | 1;
+    if (state.stack.length > 0 && priorityPlayer === humanPlayerSlot) {
       // Check if human has any instant-speed cards they could cast
-      const hand = state.players[this.humanPlayer].hand;
+      const hand = state.players[humanPlayerSlot].hand;
       const hasResponse = hand.some(card => {
         if (!isInstant(card) && !hasFlash(card)) return false;
         const cost = parseManaCost(card.manaCost);
-        return autoTapLandsForCost(state.players[this.humanPlayer], cost) !== null;
+        return autoTapLandsForCost(state.players[humanPlayerSlot], cost) !== null;
       });
-      if (hasResponse) return false; // Stop to show response prompt
+      if (hasResponse) return false; // Stop so player can cast response
+      // No responses available — auto-pass even in main phase
+      return true;
     }
+
+    // Main phases with empty stack — always stop so player can play cards
+    if (step === 'main') return false;
 
     // Everything else auto-passes: untap, upkeep, draw, begin-combat,
     // first-strike-damage, combat-damage, end-combat, end, cleanup
@@ -706,6 +913,8 @@ export class GameLoop {
       this.inCombatSelection = false;
       this.cancelTargeting();
       clearCombatArrows();
+      // Clear floated mana tracking — the engine will consume/clear the pool
+      this._clearManualManaNoRender();
       resolver(action);
     }
   }
@@ -716,36 +925,42 @@ export class GameLoop {
     const accepted = this.game.submitAction(action);
     if (accepted) {
       logAction(state, action, this.humanPlayer);
+      // Clear floated mana — action was submitted, mana is consumed
+      this._clearManualManaNoRender();
     }
   }
 
   /** Bot takes its turn */
-  private async botTurn(): Promise<void> {
+  private async botTurn(player?: 0 | 1): Promise<void> {
+    const activePlayer = player ?? this.botPlayer;
+    // For bot2 (player 0), use bot2; otherwise use the regular bot
+    const activeBot = (activePlayer === 0 && this.bot2) ? this.bot2 : this.bot;
+
     this.showBotThinking(true);
-    // Small delay for UX
-    await sleep(200 + Math.random() * 300);
+    // Small delay for UX (faster in bot vs bot mode)
+    await sleep(this.humanPlayer === null ? 100 : 200 + Math.random() * 300);
 
     let state = this.game.getState();
 
     // If no legal actions, just pass
     const legalTypes = getLegalActionTypes(state);
     if (legalTypes.length === 0) {
-      this.game.submitAction({ type: 'pass', player: this.botPlayer });
+      this.game.submitAction({ type: 'pass', player: activePlayer });
       this.showBotThinking(false);
       return;
     }
 
     // Auto-tap all bot's untapped lands to fill mana pool before decision
-    state = this.autoTapAllLands(state, this.botPlayer);
+    state = this.autoTapAllLands(state, activePlayer);
     this.game.setState(state);
 
     try {
-      const action = this.bot.chooseAction(state);
+      const action = activeBot.chooseAction(state);
       this.executeAction(action);
     } catch (error) {
       console.error('Bot decision error:', error);
       // Fallback to pass if bot encounters unexpected state
-      this.game.submitAction({ type: 'pass', player: this.botPlayer });
+      this.game.submitAction({ type: 'pass', player: activePlayer });
     }
 
     this.showBotThinking(false);
@@ -782,11 +997,19 @@ export class GameLoop {
   /** Render the full board */
   render(): void {
     const state = this.game.getState();
+
+    // When a new turn begins (untap step), forget manual tap tracking —
+    // the engine already untapped permanents, so our ID set is stale.
+    if (state.step === 'untap' && this.manuallyTappedIds.size > 0) {
+      this._clearManualManaNoRender();
+    }
+
     renderBoard(state, this.humanPlayer, this.getCallbacks());
 
     // ─── Visual Effects ───
-    const me = state.players[this.humanPlayer];
-    const opp = state.players[this.humanPlayer === 0 ? 1 : 0];
+    const viewAs = this.humanPlayer ?? 0;
+    const me = state.players[viewAs];
+    const opp = state.players[viewAs === 0 ? 1 : 0];
 
     // Life change popups (floating +/- numbers)
     trackLifeChanges(me.life, opp.life);
@@ -808,8 +1031,8 @@ export class GameLoop {
       clearCombatArrows();
     }
 
-    // Coach tips
-    if (this.coachEnabled && state.priorityPlayer === this.humanPlayer && !state.gameOver) {
+    // Coach tips (disabled in bot vs bot mode)
+    if (this.coachEnabled && this.humanPlayer !== null && state.priorityPlayer === this.humanPlayer && !state.gameOver) {
       this.coachTips = generateCoachTips(state, this.humanPlayer);
       this.renderCoachTips();
     } else {
@@ -828,6 +1051,7 @@ export class GameLoop {
     return {
       onHandCardClick: (card, index) => this.onHandCardClick(card, index),
       onBattlefieldCardClick: (perm, controller) => this.onBattlefieldClick(perm, controller),
+      onCommanderClick: (card) => this.onCommanderClick(card),
       onExileClick: (_player) => this.showExileBrowser(),
       onGraveyardClick: (player) => this.showGraveyardViewer(player),
       canUndo: () => this.game.canUndo(),
@@ -886,7 +1110,7 @@ export class GameLoop {
     // Normal cast
     if (tapResult) {
       options.push({
-        label: `Cast (${card.manaCost})`,
+        label: `Cast ${renderManaCost(card.manaCost, 'sm')}`,
         action: () => {
           const updatedState = {
             ...state,
@@ -954,7 +1178,7 @@ export class GameLoop {
       const kickerTap = autoTapLandsForCost(playerState, totalCost);
       if (kickerTap) {
         options.push({
-          label: `Cast with Kicker (${card.manaCost}+${kickerExtra})`,
+          label: `Cast with Kicker ${renderManaCost(card.manaCost + kickerExtra, 'sm')}`,
           action: () => {
             const updatedState = {
               ...state,
@@ -1028,7 +1252,7 @@ export class GameLoop {
       const bbTap = autoTapLandsForCost(playerState, totalCost);
       if (bbTap) {
         options.push({
-          label: `Cast with Buyback (${card.manaCost}+${bbExtra})`,
+          label: `Cast with Buyback ${renderManaCost(card.manaCost + bbExtra, 'sm')}`,
           action: () => {
             const updatedState = {
               ...state,
@@ -1251,6 +1475,54 @@ export class GameLoop {
     }
   }
 
+  /** Handle clicking the commander in the command zone */
+  private onCommanderClick(card: Card): void {
+    const humanPlayer = this.humanPlayer;
+    if (humanPlayer === null) return;
+
+    const state = this.game.getState();
+    if (state.priorityPlayer !== humanPlayer) {
+      logMessage(`<span style="color:var(--warning)">It's not your priority</span>`);
+      return;
+    }
+    if (state.step !== 'main' || state.activePlayer !== humanPlayer || state.stack.length > 0) {
+      logMessage(`<span style="color:var(--warning)">Can only cast your commander during your main phase with an empty stack</span>`);
+      return;
+    }
+
+    const me = state.players[humanPlayer];
+    const tax = (me.commanderTax ?? 0) * 2;
+    const baseCostStr = card.manaCost ?? '{0}';
+    const taxStr = tax > 0 ? `{${tax}}` : '';
+    const totalCostStr = baseCostStr + taxStr;
+    const cost = parseManaCost(totalCostStr);
+
+    const tapResult = autoTapLandsForCost(me, cost);
+    if (!tapResult) {
+      const taxNote = tax > 0 ? ` (includes {${tax}} commander tax)` : '';
+      logMessage(`<span style="color:var(--warning)">Not enough mana to cast ${card.name}${taxNote}</span>`);
+      return;
+    }
+
+    // Apply tapped lands
+    const updatedState = {
+      ...state,
+      players: state.players.map((p, i) =>
+        i === humanPlayer ? tapResult.updatedPlayer : p,
+      ),
+    };
+    this.game.setState(updatedState);
+
+    this.submitAction({
+      type: 'cast-spell',
+      player: humanPlayer,
+      cardId: card.id,
+      targets: [],
+      manaPayment: tapResult.payment,
+      castFromCommandZone: true,
+    });
+  }
+
   /**
    * Handle casting an X-cost spell asynchronously.
    * Shows the X-cost modal, then casts the spell with the chosen X value.
@@ -1432,9 +1704,11 @@ export class GameLoop {
           if (controller === this.humanPlayer && perm.typeLine.toLowerCase().includes('creature') && !perm.tapped) {
             this.pendingBlocker = perm.id;
             this.render();
+            this.updateCombatOverlay();
           } else {
             this.pendingBlocker = null;
             this.render();
+            this.updateCombatOverlay();
           }
         }
       } else {
@@ -1451,8 +1725,8 @@ export class GameLoop {
             this.updateCombatOverlay();
           } else {
             this.pendingBlocker = perm.id;
-            logMessage(`<span style="color:var(--accent)">Select an attacking creature to block</span>`);
             this.render();
+            this.updateCombatOverlay();
           }
         }
       }
@@ -1729,14 +2003,30 @@ export class GameLoop {
     overlay.classList.toggle('hidden', !show);
     if (titleEl && title) titleEl.textContent = title;
 
+    const hintEl = document.getElementById('combat-hint');
+
     if (actionsEl && show) {
       actionsEl.innerHTML = '';
 
       const state = this.game.getState();
       if (state.step === 'declare-attackers') {
+        // Count eligible attackers
+        const eligible = state.players[this.humanPlayer].battlefield.filter(
+          p => p.currentPower !== undefined && !p.tapped && !p.summoningSick,
+        );
+
+        if (hintEl) {
+          if (eligible.length === 0) {
+            hintEl.textContent = 'No creatures can attack this turn.';
+          } else {
+            hintEl.textContent = `Click your creatures below to select attackers, then press Attack.`;
+          }
+        }
+
+        const n = this.attackerSelection.length;
         const confirmBtn = document.createElement('button');
         confirmBtn.className = 'pvb-btn primary';
-        confirmBtn.textContent = `Attack (${this.attackerSelection.length})`;
+        confirmBtn.textContent = n > 0 ? `Attack with ${n} creature${n !== 1 ? 's' : ''}` : 'Skip Combat';
         confirmBtn.addEventListener('click', () => {
           this.submitAction({
             type: 'declare-attackers',
@@ -1746,26 +2036,28 @@ export class GameLoop {
         });
         actionsEl.appendChild(confirmBtn);
 
-        const noAttackBtn = document.createElement('button');
-        noAttackBtn.className = 'pvb-btn';
-        noAttackBtn.textContent = 'No Attackers';
-        noAttackBtn.addEventListener('click', () => {
-          this.submitAction({
-            type: 'declare-attackers',
-            player: this.humanPlayer,
-            attackers: [],
-          });
-        });
-        actionsEl.appendChild(noAttackBtn);
       } else if (state.step === 'declare-blockers') {
+        const attackerCount = state.combat?.attackers.length ?? 0;
         const blocks = Array.from(this.blockerAssignment.entries()).map(([blocker, attacker]) => ({
           blocker,
           attacker,
         }));
 
+        if (hintEl) {
+          if (attackerCount === 0) {
+            hintEl.textContent = 'No attackers — nothing to block.';
+          } else if (this.pendingBlocker) {
+            hintEl.textContent = 'Now click an attacking creature (above) to assign it as the target.';
+          } else {
+            hintEl.textContent = `Bot attacks with ${attackerCount} creature${attackerCount !== 1 ? 's' : ''}. Click your creature to block, then click the attacker it blocks.`;
+          }
+        }
+
         const confirmBtn = document.createElement('button');
         confirmBtn.className = 'pvb-btn primary';
-        confirmBtn.textContent = `Confirm Blockers (${blocks.length})`;
+        confirmBtn.textContent = blocks.length > 0
+          ? `Confirm ${blocks.length} blocker${blocks.length !== 1 ? 's' : ''}`
+          : 'Take Damage (no blocks)';
         confirmBtn.addEventListener('click', () => {
           this.submitAction({
             type: 'declare-blockers',
@@ -1774,19 +2066,9 @@ export class GameLoop {
           });
         });
         actionsEl.appendChild(confirmBtn);
-
-        const noBlockBtn = document.createElement('button');
-        noBlockBtn.className = 'pvb-btn';
-        noBlockBtn.textContent = 'No Blockers';
-        noBlockBtn.addEventListener('click', () => {
-          this.submitAction({
-            type: 'declare-blockers',
-            player: this.humanPlayer,
-            blocks: [],
-          });
-        });
-        actionsEl.appendChild(noBlockBtn);
       }
+    } else if (hintEl && !show) {
+      hintEl.textContent = '';
     }
   }
 
@@ -2300,7 +2582,7 @@ export class GameLoop {
       for (const card of instantSpeedCards) {
         const btn = document.createElement('button');
         btn.className = 'response-card-btn';
-        btn.textContent = `${card.name} (${card.manaCost})`;
+        btn.innerHTML = `${card.name} ${renderManaCost(card.manaCost, 'sm')}`;
         btn.addEventListener('click', () => {
           overlay.remove();
 
@@ -2401,33 +2683,52 @@ export class GameLoop {
     if (!overlay || !panel) return;
 
     overlay.classList.remove('hidden');
-    const won = this.game.getWinner() === this.humanPlayer;
     const state = this.game.getState();
-    const advantage = evaluateBoardPosition(state, this.humanPlayer);
+    const winner = this.game.getWinner();
 
-    panel.className = `pvb-gameover ${won ? 'win' : 'loss'}`;
-    panel.innerHTML = `
-      <h2>${won ? 'Victory!' : 'Defeat'}</h2>
-      <div class="pvb-gameover-stats">
-        Game lasted ${state.turn} turns<br>
-        Your life: ${state.players[this.humanPlayer].life} | Bot life: ${state.players[this.botPlayer].life}<br>
-        Final board advantage: ${advantage > 0 ? '+' : ''}${advantage.toFixed(1)}
-      </div>
-      <div class="pvb-gameover-actions">
-        <button class="pvb-btn gold" id="btn-analysis">📊 Game Analysis</button>
-        <button class="pvb-btn primary" onclick="location.reload()">Play Again</button>
-        <button class="pvb-btn" onclick="location.href='/'">Home</button>
-      </div>
-    `;
+    if (this.humanPlayer === null) {
+      // Bot vs Bot mode — show which bot won
+      const winnerName = winner === 0 ? 'Bot A' : winner === 1 ? 'Bot B' : 'Draw';
+      panel.className = 'pvb-gameover win';
+      panel.innerHTML = `
+        <h2>${winnerName === 'Draw' ? 'Draw!' : `${winnerName} Wins!`}</h2>
+        <div class="pvb-gameover-stats">
+          Game lasted ${state.turn} turns<br>
+          Bot A life: ${state.players[0].life} | Bot B life: ${state.players[1].life}
+        </div>
+        <div class="pvb-gameover-actions">
+          <button class="pvb-btn primary" onclick="location.reload()">Watch Again</button>
+          <button class="pvb-btn" onclick="location.href='/'">Home</button>
+        </div>
+      `;
+    } else {
+      const won = winner === this.humanPlayer;
+      const advantage = evaluateBoardPosition(state, this.humanPlayer);
+      const viewAs = this.humanPlayer;
+      panel.className = `pvb-gameover ${won ? 'win' : 'loss'}`;
+      panel.innerHTML = `
+        <h2>${won ? 'Victory!' : 'Defeat'}</h2>
+        <div class="pvb-gameover-stats">
+          Game lasted ${state.turn} turns<br>
+          Your life: ${state.players[viewAs].life} | Bot life: ${state.players[this.botPlayer].life}<br>
+          Final board advantage: ${advantage > 0 ? '+' : ''}${advantage.toFixed(1)}
+        </div>
+        <div class="pvb-gameover-actions">
+          <button class="pvb-btn gold" id="btn-analysis">📊 Game Analysis</button>
+          <button class="pvb-btn primary" onclick="location.reload()">Play Again</button>
+          <button class="pvb-btn" onclick="location.href='/'">Home</button>
+        </div>
+      `;
 
-    // Bind analysis button
-    const analysisBtn = document.getElementById('btn-analysis');
-    if (analysisBtn) {
-      analysisBtn.addEventListener('click', () => {
-        const analysis = analyzeGame(state, this.humanPlayer);
-        const analysisOverlay = renderAnalysisOverlay(analysis);
-        document.body.appendChild(analysisOverlay);
-      });
+      // Bind analysis button
+      const analysisBtn = document.getElementById('btn-analysis');
+      if (analysisBtn) {
+        analysisBtn.addEventListener('click', () => {
+          const analysis = analyzeGame(state, viewAs);
+          const analysisOverlay = renderAnalysisOverlay(analysis);
+          document.body.appendChild(analysisOverlay);
+        });
+      }
     }
   }
 
@@ -2442,22 +2743,30 @@ export class GameLoop {
     state = drawOpeningHand(state, 1);
     this.game.setState(state);
 
-    // Show mulligan UI for human player
-    overlay.classList.remove('hidden');
-    await this.showMulliganUI();
-    overlay.classList.add('hidden');
-
-    // Bot mulligan (auto-keep)
-    const botState = this.game.getState();
-    const botHand = botState.players[this.botPlayer].hand;
-    const landCount = botHand.filter(c => c.typeLine.toLowerCase().includes('land')).length;
-    if (landCount < 2 || landCount > 5) {
-      logMessage('<span class="pvb-log-bot">Bot mulliganed</span>');
+    if (this.humanPlayer === null) {
+      // Bot vs Bot mode — auto-keep for both bots
+      logMessage('<span class="pvb-log-you">Bot A kept hand</span>');
+      logMessage('<span class="pvb-log-bot">Bot B kept hand</span>');
+      this.game.submitAction({ type: 'mulligan', player: 0, toBottom: [] });
+      this.game.submitAction({ type: 'mulligan', player: 1, toBottom: [] });
     } else {
-      logMessage('<span class="pvb-log-bot">Bot kept hand</span>');
+      // Show mulligan UI for human player
+      overlay.classList.remove('hidden');
+      await this.showMulliganUI();
+      overlay.classList.add('hidden');
+
+      // Bot mulligan (auto-keep)
+      const botState = this.game.getState();
+      const botHand = botState.players[this.botPlayer].hand;
+      const landCount = botHand.filter(c => c.typeLine.toLowerCase().includes('land')).length;
+      if (landCount < 2 || landCount > 5) {
+        logMessage('<span class="pvb-log-bot">Bot mulliganed</span>');
+      } else {
+        logMessage('<span class="pvb-log-bot">Bot kept hand</span>');
+      }
+      // Submit bot mulligan action (keep hand)
+      this.game.submitAction({ type: 'mulligan', player: this.botPlayer, toBottom: [] });
     }
-    // Submit bot mulligan action (keep hand)
-    this.game.submitAction({ type: 'mulligan', player: this.botPlayer, toBottom: [] });
 
     // End mulligan phase
     this.game.endMulliganPhase();
@@ -2546,8 +2855,8 @@ export class GameLoop {
             mullBtn.className = 'pvb-btn';
             mullBtn.textContent = `Mulligan to ${hand.length - 1}`;
             mullBtn.addEventListener('click', () => {
-              const toBottom = hand.slice(-1).map(c => c.id);
-              this.game.submitAction({ type: 'mulligan', player: this.humanPlayer, toBottom });
+              // MULLIGAN sentinel → engine shuffles hand back and draws 7 new cards
+              this.game.submitAction({ type: 'mulligan', player: this.humanPlayer, toBottom: ['MULLIGAN'] });
               logMessage(`<span class="pvb-log-you">You mulliganed to ${hand.length - 1}</span>`);
               this.showMulliganUI().then(resolve);
             });
@@ -2570,8 +2879,8 @@ export class GameLoop {
             mullBtn.className = 'pvb-btn';
             mullBtn.textContent = `Mulligan to ${hand.length - 1}`;
             mullBtn.addEventListener('click', () => {
-              const toBottom = hand.slice(-1).map(c => c.id);
-              this.game.submitAction({ type: 'mulligan', player: this.humanPlayer, toBottom });
+              // MULLIGAN sentinel → engine shuffles hand back and draws 7 new cards
+              this.game.submitAction({ type: 'mulligan', player: this.humanPlayer, toBottom: ['MULLIGAN'] });
               logMessage(`<span class="pvb-log-you">You mulliganed to ${hand.length - 1}</span>`);
               this.showMulliganUI().then(resolve);
             });
@@ -2886,13 +3195,14 @@ export class GameLoop {
     // Already manually tapped — untap it
     if (this.manuallyTappedIds.has(perm.id)) {
       this.manuallyTappedIds.delete(perm.id);
-      // Remove the mana this land contributed
+      // Remove the mana this permanent contributed
       const manaColor = this.getManaColorFromPerm(perm);
+      const amount = this.getManaAmountFromPerm(perm);
       if (manaColor) {
         if (manaColor === 'generic') {
-          this.manualManaPool.generic = Math.max(0, this.manualManaPool.generic - 1);
+          this.manualManaPool.generic = Math.max(0, this.manualManaPool.generic - amount);
         } else {
-          this.manualManaPool[manaColor] = Math.max(0, this.manualManaPool[manaColor] - 1);
+          this.manualManaPool[manaColor] = Math.max(0, this.manualManaPool[manaColor] - amount);
         }
       }
       // Untap the permanent in state
@@ -2920,11 +3230,12 @@ export class GameLoop {
     const manaColor = this.getManaColorFromPerm(perm);
     if (!manaColor) return false;
 
+    const amount = this.getManaAmountFromPerm(perm);
     this.manuallyTappedIds.add(perm.id);
     if (manaColor === 'generic') {
-      this.manualManaPool.generic++;
+      this.manualManaPool.generic += amount;
     } else {
-      this.manualManaPool[manaColor]++;
+      this.manualManaPool[manaColor] += amount;
     }
 
     // Tap the permanent in state
@@ -2969,10 +3280,21 @@ export class GameLoop {
     if (typeLine.includes('plains') || text.includes('add {w}')) return 'W';
     if (typeLine.includes('swamp') || text.includes('add {b}')) return 'B';
     if (typeLine.includes('mountain') || text.includes('add {r}')) return 'R';
-    if (text.includes('add {c}{c}')) return 'C'; // Sol Ring, etc.
     if (text.includes('add {c}')) return 'C';
     if (text.includes('any color')) return 'generic'; // handled by color choice modal
     return null;
+  }
+
+  /** How many mana pips a permanent produces when tapped */
+  private getManaAmountFromPerm(perm: Permanent): number {
+    const text = (perm.oracleText ?? '').toLowerCase();
+    // Count repeated {c} or {1} symbols: e.g. "{t}: add {c}{c}" → 2
+    const match = text.match(/\{t\}:\s*add\s*((?:\{[^}]+\})+)/);
+    if (match) {
+      const symbols = match[1].match(/\{[^}]+\}/g);
+      return symbols ? symbols.length : 1;
+    }
+    return 1;
   }
 
   /** Render the floating mana pool display */
@@ -3031,7 +3353,7 @@ export class GameLoop {
     }
   }
 
-  /** Clear all manual mana tapping */
+  /** Clear all manual mana tapping (with render) */
   private clearManualMana(): void {
     if (this.manuallyTappedIds.size === 0) return;
 
@@ -3047,6 +3369,17 @@ export class GameLoop {
     this.game.setState({ ...state, players });
     this.renderManaPoolDisplay();
     this.render();
+  }
+
+  /**
+   * Clear manual mana tracking only (no render, no state mutation).
+   * Called after a spell is cast — the engine already consumed the mana from state.
+   * We just need to forget which lands were "manually" tapped so they don't
+   * appear untappable next turn.
+   */
+  private _clearManualManaNoRender(): void {
+    this.manuallyTappedIds.clear();
+    this.manualManaPool = emptyPool();
   }
 
   // ==================== Fix 3: Mana Color Choice Modal ====================
@@ -3378,7 +3711,7 @@ export class GameLoop {
 
           const costEl = document.createElement('span');
           costEl.className = 'discard-card-cost';
-          costEl.textContent = card.manaCost || '';
+          costEl.innerHTML = renderManaCost(card.manaCost, 'sm');
 
           const typeEl = document.createElement('span');
           typeEl.className = 'discard-card-type';
@@ -3581,7 +3914,7 @@ export class GameLoop {
    * and select up to `count` cards.
    * Returns array of selected card IDs (empty if cancelled).
    */
-  private showLibrarySearch(filter: string, count: number, destination: string): Promise<string[]> {
+  private showLibrarySearch(filter: string, count: number, destination: string, sourceName?: string, destOverrideLabel?: string): Promise<string[]> {
     this.injectPhase8Styles();
     const state = this.game.getState();
     const library = state.players[this.humanPlayer].library;
@@ -3607,15 +3940,17 @@ export class GameLoop {
 
       // Header
       const title = document.createElement('h3');
-      title.textContent = 'Search Your Library';
+      title.textContent = sourceName ? `Search — ${sourceName}` : 'Search Your Library';
       content.appendChild(title);
 
       const subtitle = document.createElement('p');
-      const destLabel = destination === 'hand' ? 'to your hand'
+      const destLabel = destOverrideLabel ?? (destination === 'hand' ? 'to your hand'
         : destination === 'battlefield' ? 'onto the battlefield'
-        : 'on top of your library';
+        : 'on top of your library');
       const filterLabel = filter ? `for ${/^[aeiou]/i.test(filter) ? 'an' : 'a'} ${filter} card` : '';
-      subtitle.textContent = `Search ${filterLabel} and put it ${destLabel}.`;
+      subtitle.textContent = count > 1
+        ? `Search ${filterLabel} and put up to ${count} cards ${destLabel}.`
+        : `Search ${filterLabel} and put it ${destLabel}.`;
       content.appendChild(subtitle);
 
       // Text search input
@@ -3693,7 +4028,7 @@ export class GameLoop {
           if (card.manaCost) {
             const costEl = document.createElement('span');
             costEl.className = 'search-lib-card-cost';
-            costEl.textContent = card.manaCost;
+            costEl.innerHTML = renderManaCost(card.manaCost, 'sm');
             row.appendChild(costEl);
           }
 
@@ -3842,7 +4177,7 @@ export class GameLoop {
           if (card.manaCost) {
             const costEl = document.createElement('span');
             costEl.className = 'scry-card-cost';
-            costEl.textContent = card.manaCost;
+            costEl.innerHTML = renderManaCost(card.manaCost, 'sm');
             row.appendChild(costEl);
           }
 
@@ -3936,12 +4271,13 @@ export class GameLoop {
           <div class="manual-res-card-info">
             <div class="manual-res-card-name">${card.name}</div>
             <div class="manual-res-type">${card.typeLine}</div>
-            <div class="manual-res-mana">${card.manaCost || ''}</div>
+            <div class="manual-res-mana">${renderManaCost(card.manaCost, 'sm')}</div>
             <div class="manual-res-oracle">${card.oracleText || 'No oracle text'}</div>
           </div>
         </div>
         <p class="manual-res-hint">Auto-resolve couldn't handle this effect. Use the actions below, then click Done.</p>
         <div class="manual-res-actions-grid">
+          <button class="manual-res-btn" data-action="search"><span class="manual-res-btn-icon">&#128270;</span>Search Library</button>
           <button class="manual-res-btn" data-action="draw"><span class="manual-res-btn-icon">&#127183;</span>Draw Cards</button>
           <button class="manual-res-btn" data-action="damage"><span class="manual-res-btn-icon">&#9889;</span>Deal Damage</button>
           <button class="manual-res-btn" data-action="life"><span class="manual-res-btn-icon">&#128154;</span>Gain Life</button>
@@ -3969,6 +4305,68 @@ export class GameLoop {
 
     const getState = () => this.game.getState();
     const setState = (s: GameState) => this.game.setState(s);
+
+    // Search Library — picks card type filter from oracle text, puts card onto battlefield or hand
+    overlay.querySelector('[data-action="search"]')!.addEventListener('click', async () => {
+      const oracle = (card.oracleText ?? '').toLowerCase();
+
+      // Parse "Search your library for a X card" → extract card type filter
+      const typeMatch = oracle.match(/search your library for (?:a |an )?([a-z ,/]+?)(?:\s+card|\s+land|\s+permanent)/i);
+      const rawFilter = typeMatch ? typeMatch[1].trim() : '';
+      // For Fetch lands: "swamp or mountain" → use the first type only for library filter
+      const filter = rawFilter.split(/\s+or\s+/i)[0].trim();
+
+      // Parse destination: "put it onto the battlefield" or "put it into your hand"
+      const destination = oracle.includes('onto the battlefield') ? 'battlefield' : 'hand';
+
+      const selectedIds = await this.showLibrarySearch(filter, 1, destination);
+      if (selectedIds.length === 0) return;
+
+      const st = getState();
+      const player = st.players[controller];
+      const cardToFetch = player.library.find(c => c.id === selectedIds[0]);
+      if (!cardToFetch) { addLogMsg('Card not found in library'); return; }
+
+      const newLib = player.library.filter(c => c.id !== cardToFetch.id);
+      const players = [...st.players] as [typeof st.players[0], typeof st.players[1]];
+
+      if (destination === 'battlefield') {
+        // Put land/permanent directly onto battlefield (tapped for fetch lands)
+        const isFetch = oracle.includes('sacrifice this land') || oracle.includes('fetch');
+        const perm: any = {
+          id: cardToFetch.id, oracleId: cardToFetch.oracleId, name: cardToFetch.name,
+          manaCost: cardToFetch.manaCost, cmc: cardToFetch.cmc,
+          typeLine: cardToFetch.typeLine, oracleText: cardToFetch.oracleText,
+          power: cardToFetch.power, toughness: cardToFetch.toughness,
+          colors: cardToFetch.colors, colorIdentity: cardToFetch.colorIdentity,
+          rarity: cardToFetch.rarity, tags: cardToFetch.tags, imageUrl: cardToFetch.imageUrl,
+          owner: controller, controller,
+          tapped: isFetch, // Fetch lands come in tapped
+          flipped: false, faceDown: false,
+          currentPower: Number(cardToFetch.power) || 0,
+          currentToughness: Number(cardToFetch.toughness) || 0,
+          basePower: Number(cardToFetch.power) || 0, baseToughness: Number(cardToFetch.toughness) || 0,
+          damage: 0, summoningSick: false, attacking: false, blocking: null,
+          abilities: [], counters: {}, temporaryPtMods: [], temporaryKeywords: [],
+          attachments: [], x: 0, y: 0, enteredBattlefieldTurn: st.turn,
+        };
+        players[controller] = { ...player, library: newLib, battlefield: [...player.battlefield, perm] };
+        // Shuffle library (Fisher-Yates)
+        const lib = [...players[controller].library];
+        for (let i = lib.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [lib[i], lib[j]] = [lib[j], lib[i]];
+        }
+        players[controller] = { ...players[controller], library: lib };
+        setState({ ...st, players });
+        addLogMsg(`Fetched ${cardToFetch.name} onto the battlefield${isFetch ? ' (tapped)' : ''}`);
+      } else {
+        // Put card into hand
+        players[controller] = { ...player, library: newLib, hand: [...player.hand, cardToFetch] };
+        setState({ ...st, players });
+        addLogMsg(`Fetched ${cardToFetch.name} into hand`);
+      }
+    });
 
     // Draw Cards
     overlay.querySelector('[data-action="draw"]')!.addEventListener('click', () => {
@@ -4614,7 +5012,7 @@ export class GameLoop {
         if (card.manaCost) {
           const costSpan = document.createElement('span');
           costSpan.className = 'gy-card-cost';
-          costSpan.textContent = card.manaCost;
+          costSpan.innerHTML = renderManaCost(card.manaCost, 'sm');
           nameRow.appendChild(costSpan);
         }
         info.appendChild(nameRow);
