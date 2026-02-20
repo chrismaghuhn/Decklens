@@ -67,6 +67,7 @@ import {
 } from './edhrec-json-api.js';
 
 export { CollabSession };
+export { GameSession };
 
 /**
  * DeckLens API Proxy — Cloudflare Worker
