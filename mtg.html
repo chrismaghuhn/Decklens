@@ -2898,6 +2898,33 @@ body { font-size: 15px; line-height: 1.65; }
   margin-bottom: 1rem;
 }
 
+/* ── HOVER ORACLE TEXT ───────────────────────────── */
+.hover-oracle {
+  display: none;
+  padding: 0.6rem 0.75rem;
+  background: rgba(8, 7, 18, 0.97);
+  border-top: 1px solid var(--glass-border);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--text);
+  max-height: 120px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.hover-oracle:not(:empty) { display: block; }
+.hover-oracle-type {
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.3rem;
+}
+.hover-oracle-mana {
+  color: var(--gold);
+  font-size: 0.7rem;
+  margin-bottom: 0.25rem;
+}
+
 /* ── ONBOARDING EMPTY STATE ───────────────────────── */
 .onboard-shell {
   padding: 2rem 1.5rem;
@@ -3734,7 +3761,7 @@ Sideboard:
 
 <div class="analysis-spotlight-backdrop" id="flowAnalysisBackdrop" aria-hidden="true"></div>
 
-<div class="hover-preview" id="hoverPreview"><img id="hoverImg" src="" alt=""></div>
+<div class="hover-preview" id="hoverPreview"><img id="hoverImg" src="" alt=""><div class="hover-oracle" id="hoverOracle"></div></div>
 <div class="symbol-tooltip" id="symbolTooltip" role="tooltip"></div>
 <div class="modal-overlay" id="modal">
  <div class="modal"><button class="modal-close">&times;</button>

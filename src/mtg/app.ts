@@ -3059,6 +3059,15 @@ export function showPreview(cardName: string, e: MouseEvent): void {
       hoverImg.src = sanitizeUrl(img);
       hoverImg.alt = card.name;
     }
+    // Populate oracle text panel (safe: Scryfall data, not user input)
+    const oracleEl = $('hoverOracle');
+    if (oracleEl) {
+      const lines: string[] = [];
+      if (card.mana_cost) lines.push(`<div class="hover-oracle-mana">${card.mana_cost}</div>`);
+      if (card.type_line) lines.push(`<div class="hover-oracle-type">${card.type_line}</div>`);
+      if (card.oracle_text) lines.push(card.oracle_text.replace(/\n/g, '<br>'));
+      oracleEl.innerHTML = lines.join('');
+    }
     hoverPreviewCardName = cardName;
   }
 
@@ -3070,6 +3079,8 @@ export function hidePreview(): void {
   const preview = $('hoverPreview');
   preview?.classList.remove('visible');
   hoverPreviewCardName = '';
+  const oracleEl = $('hoverOracle');
+  if (oracleEl) oracleEl.innerHTML = '';
 }
 
 export function movePreview(e: MouseEvent): void {
