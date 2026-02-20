@@ -44,7 +44,7 @@ export interface Card {
   tags: CardTag[];
   imageUrl: string;
   /** Which player owns this card (in their deck) */
-  owner: 0 | 1;
+  owner: number;
 
   // ─── Special Card Layouts ───
 

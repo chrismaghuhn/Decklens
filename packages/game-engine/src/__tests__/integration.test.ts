@@ -70,7 +70,7 @@ function buildTestDeck(owner: 0 | 1): { deck: Card[]; commander: Card } {
 }
 
 /** Simple bot that picks legal actions heuristically */
-function simpleBot(state: GameState, player: 0 | 1): GameAction {
+function simpleBot(state: GameState, player: number): GameAction {
   const legalTypes = getLegalActionTypes(state);
   const me = state.players[player];
 

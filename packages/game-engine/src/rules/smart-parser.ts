@@ -59,7 +59,7 @@ interface EffectResult {
  */
 interface ClauseContext {
   /** Controller of the last affected permanent (for "its controller" resolution) */
-  lastTargetController?: 0 | 1;
+  lastTargetController?: number;
   /** ID of the last affected permanent (for "it" resolution) */
   lastTargetPermanentId?: string;
   /** Name of the last affected permanent (for logging) */
@@ -101,7 +101,7 @@ function normalizeFilter(f: string): string {
   return s || 'creature'; // Default to creature if nothing left
 }
 
-function addLogEntry(state: GameState, player: 0 | 1, message: string): GameState {
+function addLogEntry(state: GameState, player: number, message: string): GameState {
   const entry: GameLogEntry = {
     timestamp: Date.now(),
     turn: state.turn,
@@ -117,23 +117,23 @@ function addLogEntry(state: GameState, player: 0 | 1, message: string): GameStat
   };
 }
 
-function gainLife(state: GameState, playerIdx: 0 | 1, amount: number): GameState {
+function gainLife(state: GameState, playerIdx: number, amount: number): GameState {
   const player = state.players[playerIdx];
   const updatedPlayer = { ...player, life: player.life + amount };
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[playerIdx] = updatedPlayer;
   return { ...state, players };
 }
 
-function loseLife(state: GameState, playerIdx: 0 | 1, amount: number): GameState {
+function loseLife(state: GameState, playerIdx: number, amount: number): GameState {
   const player = state.players[playerIdx];
   const updatedPlayer = { ...player, life: player.life - amount };
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[playerIdx] = updatedPlayer;
   return { ...state, players };
 }
 
-function drawCards(state: GameState, player: 0 | 1, count: number): GameState {
+function drawCards(state: GameState, player: number, count: number): GameState {
   let currentState = state;
   for (let i = 0; i < count; i++) {
     const p = currentState.players[player];
@@ -144,14 +144,14 @@ function drawCards(state: GameState, player: 0 | 1, count: number): GameState {
       library: p.library.slice(1),
       hand: [...p.hand, drawn],
     };
-    const players = [...currentState.players] as [PlayerState, PlayerState];
+    const players = [...currentState.players];
     players[player] = updatedPlayer;
     currentState = { ...currentState, players };
   }
   return currentState;
 }
 
-function millCards(state: GameState, player: 0 | 1, count: number): GameState {
+function millCards(state: GameState, player: number, count: number): GameState {
   const p = state.players[player];
   const toMill = Math.min(count, p.library.length);
   const milled = p.library.slice(0, toMill);
@@ -160,7 +160,7 @@ function millCards(state: GameState, player: 0 | 1, count: number): GameState {
     library: p.library.slice(toMill),
     graveyard: [...p.graveyard, ...milled],
   };
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[player] = updatedPlayer;
   return { ...state, players };
 }
@@ -174,13 +174,13 @@ function shuffleArray<T>(arr: T[]): T[] {
   return result;
 }
 
-function shuffleLibrary(state: GameState, player: 0 | 1): GameState {
+function shuffleLibrary(state: GameState, player: number): GameState {
   const p = state.players[player];
   const updatedPlayer: PlayerState = {
     ...p,
     library: shuffleArray(p.library),
   };
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[player] = updatedPlayer;
   return { ...state, players };
 }
@@ -188,11 +188,11 @@ function shuffleLibrary(state: GameState, player: 0 | 1): GameState {
 function findPermanentById(
   state: GameState,
   id: string,
-): { perm: Permanent; playerIdx: 0 | 1; permIdx: number } | null {
+): { perm: Permanent; playerIdx: number; permIdx: number } | null {
   for (let pi = 0; pi < 2; pi++) {
-    const player = state.players[pi as 0 | 1];
+    const player = state.players[pi];
     const idx = player.battlefield.findIndex(p => p.id === id);
-    if (idx !== -1) return { perm: player.battlefield[idx], playerIdx: pi as 0 | 1, permIdx: idx };
+    if (idx !== -1) return { perm: player.battlefield[idx], playerIdx: pi, permIdx: idx };
   }
   return null;
 }
@@ -222,7 +222,7 @@ function removePermanent(
     tags: perm.tags, imageUrl: perm.imageUrl, owner: perm.owner,
   };
 
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   // Remove from battlefield of the controller
   players[playerIdx] = { ...player, battlefield: updatedBf };
 
@@ -237,7 +237,7 @@ function removePermanent(
   return { ...state, players };
 }
 
-function opponent(p: 0 | 1): 0 | 1 {
+function opponent(p: number): number {
   return p === 0 ? 1 : 0;
 }
 
@@ -647,7 +647,7 @@ function parseTokenSpec(text: string): TokenSpec | null {
 function resolveDynamicQuantity(
   text: string,
   state: GameState,
-  controller: 0 | 1,
+  controller: number,
 ): number {
   const lower = text.toLowerCase();
 
@@ -755,7 +755,7 @@ function resolveItsControllerClause(
 function executeClause(
   clause: ParsedClause,
   state: GameState,
-  controller: 0 | 1,
+  controller: number,
   targets: Target[],
   source?: Card,
 ): EffectResult {
@@ -779,7 +779,7 @@ function executeClause(
         descriptions.push(`${opponentName} draws ${qty} card(s)`);
       } else if (clause.targetScope === 'target' && clause.targetFilter === 'player') {
         const targetPlayer = targets.find(t => t.type === 'player');
-        const tp = targetPlayer ? (parseInt(targetPlayer.id) as 0 | 1) : controller;
+        const tp = targetPlayer ? (parseInt(targetPlayer.id)) : controller;
         s = drawCards(s, tp, qty);
         descriptions.push(`Target player draws ${qty} card(s)`);
       } else {
@@ -817,7 +817,7 @@ function executeClause(
           const updatedBf = [...player.battlefield];
           updatedBf[permIdx] = updatedPerm;
           const updatedPlayer = { ...player, battlefield: updatedBf };
-          const players = [...s.players] as [PlayerState, PlayerState];
+          const players = [...s.players];
           players[playerIdx] = updatedPlayer;
           s = { ...s, players };
           return { state: s, resolved: true, description: `Deals ${amount} damage to ${perm.name}` };
@@ -827,7 +827,7 @@ function executeClause(
       // Try targeting a player
       const playerTarget = targets.find(t => t.type === 'player');
       if (playerTarget) {
-        const tp = parseInt(playerTarget.id) as 0 | 1;
+        const tp = parseInt(playerTarget.id);
         s = loseLife(s, tp, amount);
         return { state: s, resolved: true, description: `Deals ${amount} damage to ${s.players[tp].name}` };
       }
@@ -850,7 +850,7 @@ function executeClause(
         const filter = normalizeFilter(clause.targetFilter || 'creature');
         const toRemove: string[] = [];
         for (let pi = 0; pi < 2; pi++) {
-          for (const perm of s.players[pi as 0 | 1].battlefield) {
+          for (const perm of s.players[pi].battlefield) {
             if (perm.typeLine.toLowerCase().includes(filter)) {
               toRemove.push(perm.id);
             }
@@ -885,7 +885,7 @@ function executeClause(
         const filter = normalizeFilter(clause.targetFilter || 'creature');
         const toRemove: string[] = [];
         for (let pi = 0; pi < 2; pi++) {
-          for (const perm of s.players[pi as 0 | 1].battlefield) {
+          for (const perm of s.players[pi].battlefield) {
             if (perm.typeLine.toLowerCase().includes(filter)) {
               toRemove.push(perm.id);
             }
@@ -951,7 +951,7 @@ function executeClause(
       // "you lose" vs "target player loses"
       if (clause.targetScope === 'target') {
         const playerTarget = targets.find(t => t.type === 'player');
-        const tp = playerTarget ? (parseInt(playerTarget.id) as 0 | 1) : opp;
+        const tp = playerTarget ? (parseInt(playerTarget.id)) : opp;
         s = loseLife(s, tp, qty);
         return { state: s, resolved: true, description: `Target player loses ${qty} life` };
       }
@@ -1011,7 +1011,7 @@ function executeClause(
           ...player,
           battlefield: [...player.battlefield, finalPerm],
         };
-        const players = [...s.players] as [PlayerState, PlayerState];
+        const players = [...s.players];
         players[controller] = updatedPlayer;
         s = { ...s, players };
       }
@@ -1034,7 +1034,7 @@ function executeClause(
 
         // Find the card
         for (let pi = 0; pi < 2; pi++) {
-          const player = s.players[pi as 0 | 1];
+          const player = s.players[pi];
           const zoneCards = fromZone === 'graveyard' ? player.graveyard
             : fromZone === 'exile' ? player.exile
             : player.hand;
@@ -1051,12 +1051,12 @@ function executeClause(
             if (toZone === 'hand') {
               updatedPlayer.hand = [...player.hand, card];
             } else if (toZone === 'battlefield') {
-              const perm = cardToPermanent(card, pi as 0 | 1, s.turn);
+              const perm = cardToPermanent(card, pi, s.turn);
               updatedPlayer.battlefield = [...player.battlefield, perm];
             }
 
-            const players = [...s.players] as [PlayerState, PlayerState];
-            players[pi as 0 | 1] = updatedPlayer;
+            const players = [...s.players];
+            players[pi] = updatedPlayer;
             s = { ...s, players };
             return { state: s, resolved: true, description: `Returns ${card.name} from ${fromZone} to ${toZone}` };
           }
@@ -1153,7 +1153,7 @@ function executeClause(
       }
       if (clause.targetScope === 'target') {
         const playerTarget = targets.find(t => t.type === 'player');
-        const tp = playerTarget ? (parseInt(playerTarget.id) as 0 | 1) : opp;
+        const tp = playerTarget ? (parseInt(playerTarget.id)) : opp;
         s = millCards(s, tp, qty);
         return { state: s, resolved: true, description: `Target player mills ${qty} card(s)` };
       }
@@ -1213,7 +1213,7 @@ function executeClause(
           return updatedPerm;
         });
         const updatedPlayer = { ...player, battlefield: updatedBf };
-        const players = [...s.players] as [PlayerState, PlayerState];
+        const players = [...s.players];
         players[controller] = updatedPlayer;
         s = { ...s, players };
         return { state: s, resolved: true, description: `Puts ${counterQty} ${counterType} counter(s) on each creature you control` };
@@ -1240,7 +1240,7 @@ function executeClause(
           const updatedBf = [...player.battlefield];
           updatedBf[permIdx] = updatedPerm;
           const updatedPlayer = { ...player, battlefield: updatedBf };
-          const players = [...s.players] as [PlayerState, PlayerState];
+          const players = [...s.players];
           players[playerIdx] = updatedPlayer;
           s = { ...s, players };
           return { state: s, resolved: true, description: `Puts ${counterQty} ${counterType} counter(s) on ${perm.name}` };
@@ -1265,14 +1265,14 @@ function executeClause(
             (clause.targetScope === 'controller' || clause.targetScope === 'all') ? pi === controller
             : true;
           if (!shouldAffect && clause.targetScope !== 'all') continue;
-          const player = s.players[pi as 0 | 1];
+          const player = s.players[pi];
           const updatedBf = player.battlefield.map(perm => {
             if (filter !== 'permanent' && !perm.typeLine.toLowerCase().includes(filter)) return perm;
             return { ...perm, tapped: isTapping };
           });
           const updatedPlayer = { ...player, battlefield: updatedBf };
-          const players = [...s.players] as [PlayerState, PlayerState];
-          players[pi as 0 | 1] = updatedPlayer;
+          const players = [...s.players];
+          players[pi] = updatedPlayer;
           s = { ...s, players };
         }
         return { state: s, resolved: true, description: `${isTapping ? 'Taps' : 'Untaps'} all ${filter}s` };
@@ -1287,7 +1287,7 @@ function executeClause(
           const updatedBf = [...player.battlefield];
           updatedBf[permIdx] = updatedPerm;
           const updatedPlayer = { ...player, battlefield: updatedBf };
-          const players = [...state.players] as [PlayerState, PlayerState];
+          const players = [...state.players];
           players[playerIdx] = updatedPlayer;
           return {
             state: { ...state, players },
@@ -1321,7 +1321,7 @@ function executeClause(
       } else if (clause.targetScope === 'target') {
         const playerTarget = targets.find(t => t.type === 'player');
         if (playerTarget) {
-          discardPlayer = parseInt(playerTarget.id) as 0 | 1;
+          discardPlayer = parseInt(playerTarget.id);
         }
       }
 
@@ -1345,7 +1345,7 @@ function executeClause(
           hand: handCopy,
           graveyard: [...player.graveyard, ...discarded],
         };
-        const players = [...s.players] as [PlayerState, PlayerState];
+        const players = [...s.players];
         players[discardPlayer] = updatedPlayer;
         s = { ...s, players };
         return {
@@ -1403,7 +1403,7 @@ function executeClause(
         const bf = [...player.battlefield];
         const idx = bf.findIndex(p => p.id === upd.id);
         if (idx !== -1) bf[idx] = upd;
-        const players = [...s.players] as [PlayerState, PlayerState];
+        const players = [...s.players];
         players[found2.playerIdx] = { ...player, battlefield: bf };
         s = { ...s, players };
       }
@@ -1416,7 +1416,7 @@ function executeClause(
           const bf = [...player.battlefield];
           const idx = bf.findIndex(p => p.id === upd.id);
           if (idx !== -1) bf[idx] = upd;
-          const players = [...s.players] as [PlayerState, PlayerState];
+          const players = [...s.players];
           players[refound1.playerIdx] = { ...player, battlefield: bf };
           s = { ...s, players };
         }
@@ -1456,7 +1456,7 @@ function executeClause(
         tags: perm.tags, imageUrl: perm.imageUrl, owner: perm.owner,
       };
 
-      const players = [...s.players] as [PlayerState, PlayerState];
+      const players = [...s.players];
       players[playerIdx] = { ...controllerPlayer, battlefield: updatedBf };
       // Add to owner's hand
       const ownerPlayer = playerIdx === ownerIdx ? players[ownerIdx] : { ...s.players[ownerIdx] };
@@ -1500,7 +1500,7 @@ function executeClause(
       if (!anyAdded) return { state, resolved: false };
 
       const updatedPlayer = { ...player, manaPool: pool };
-      const players = [...s.players] as [PlayerState, PlayerState];
+      const players = [...s.players];
       players[controller] = updatedPlayer;
       s = { ...s, players };
 
@@ -1513,7 +1513,7 @@ function executeClause(
 
       // For each permanent with counters, add one of each counter type
       for (let pi = 0; pi < 2; pi++) {
-        const player = s.players[pi as 0 | 1];
+        const player = s.players[pi];
         const updatedBf = player.battlefield.map(perm => {
           const counterKeys = Object.keys(perm.counters).filter(k => perm.counters[k] > 0);
           if (counterKeys.length === 0) return perm;
@@ -1530,21 +1530,21 @@ function executeClause(
           return updatedPerm;
         });
         const updatedPlayer = { ...player, battlefield: updatedBf };
-        const players = [...s.players] as [PlayerState, PlayerState];
-        players[pi as 0 | 1] = updatedPlayer;
+        const players = [...s.players];
+        players[pi] = updatedPlayer;
         s = { ...s, players };
       }
 
       // Also proliferate player counters (poison, energy, experience)
-      const players = [...s.players] as [PlayerState, PlayerState];
+      const players = [...s.players];
       for (let pi = 0; pi < 2; pi++) {
-        const p = players[pi as 0 | 1];
+        const p = players[pi];
         let updated = false;
         const updatedP = { ...p };
         if (p.poisonCounters > 0) { updatedP.poisonCounters = p.poisonCounters + 1; updated = true; }
         if (p.energyCounters > 0) { updatedP.energyCounters = p.energyCounters + 1; updated = true; }
         if (p.experienceCounters > 0) { updatedP.experienceCounters = p.experienceCounters + 1; updated = true; }
-        if (updated) players[pi as 0 | 1] = updatedP;
+        if (updated) players[pi] = updatedP;
       }
       s = { ...s, players };
 
@@ -1596,7 +1596,7 @@ function executeClause(
           library: player.library.slice(1),
           hand: [...player.hand, topCard],
         };
-        const players = [...s.players] as [PlayerState, PlayerState];
+        const players = [...s.players];
         players[controller] = updatedPlayer;
         s = { ...s, players };
         return { state: s, resolved: true, description: `Explores: reveals ${topCard.name} (land), puts it into hand` };
@@ -1625,7 +1625,7 @@ function executeClause(
           graveyard: [...player.graveyard, topCard],
           battlefield: updatedBf,
         };
-        const players = [...s.players] as [PlayerState, PlayerState];
+        const players = [...s.players];
         players[controller] = updatedPlayer;
         s = { ...s, players };
         return { state: s, resolved: true, description: `Explores: reveals ${topCard.name} (nonland), gets +1/+1 counter` };
@@ -1672,7 +1672,7 @@ function executeClause(
         ...player,
         battlefield: [...player.battlefield, perm],
       };
-      const players = [...state.players] as [PlayerState, PlayerState];
+      const players = [...state.players];
       players[controller] = updatedPlayer;
 
       return {
@@ -1709,7 +1709,7 @@ function executeClause(
         ...player,
         battlefield: [...player.battlefield, perm],
       };
-      const players = [...state.players] as [PlayerState, PlayerState];
+      const players = [...state.players];
       players[controller] = updatedPlayer;
 
       return {
@@ -1762,7 +1762,7 @@ function executeClause(
         const updatedBf = [...player.battlefield];
         updatedBf[armyIdx] = updatedArmy;
         const updatedPlayer = { ...player, battlefield: updatedBf };
-        const players = [...s.players] as [PlayerState, PlayerState];
+        const players = [...s.players];
         players[controller] = updatedPlayer;
         s = { ...s, players };
         return { state: s, resolved: true, description: `Amass ${qty} (adds ${qty} +1/+1 counters to Army)` };
@@ -1801,7 +1801,7 @@ function executeClause(
         ...player,
         battlefield: [...player.battlefield, finalPerm],
       };
-      const players = [...s.players] as [PlayerState, PlayerState];
+      const players = [...s.players];
       players[controller] = updatedPlayer;
       s = { ...s, players };
 
@@ -1822,7 +1822,7 @@ function executeClause(
       const updatedBf = [...player.battlefield];
       updatedBf[permIdx] = updatedPerm;
       const updatedPlayer = { ...player, battlefield: updatedBf };
-      const players = [...state.players] as [PlayerState, PlayerState];
+      const players = [...state.players];
       players[playerIdx] = updatedPlayer;
 
       return {
@@ -1837,7 +1837,7 @@ function executeClause(
       // Find the source permanent on the battlefield and flip it
       let s = state;
       let targetPerm: Permanent | null = null;
-      let targetPlayerIdx: 0 | 1 = controller;
+      let targetPlayerIdx: number = controller;
       let targetPermIdx = -1;
 
       const permTarget = targets.find(t => t.type === 'permanent');
@@ -1870,7 +1870,7 @@ function executeClause(
       const updatedBf = [...player.battlefield];
       updatedBf[targetPermIdx] = flipped;
       const updatedPlayer = { ...player, battlefield: updatedBf };
-      const players = [...s.players] as [PlayerState, PlayerState];
+      const players = [...s.players];
       players[targetPlayerIdx] = updatedPlayer;
       s = { ...s, players };
 
@@ -1909,7 +1909,7 @@ function executeClause(
       const updatedBf = [...player.battlefield];
       updatedBf[permIdx] = updatedPerm;
       const updatedPlayer = { ...player, battlefield: updatedBf };
-      const players = [...state.players] as [PlayerState, PlayerState];
+      const players = [...state.players];
       players[controller] = updatedPlayer;
 
       return {
@@ -1949,7 +1949,7 @@ function executeClause(
       const updatedBf = [...player.battlefield];
       updatedBf[permIdx] = updatedPerm;
       const updatedPlayer = { ...player, battlefield: updatedBf };
-      const players = [...state.players] as [PlayerState, PlayerState];
+      const players = [...state.players];
       players[controller] = updatedPlayer;
 
       return {
@@ -1982,7 +1982,7 @@ function executeClause(
               ...player,
               graveyard: [...player.graveyard, countered.card],
             };
-            const players = [...s.players] as [PlayerState, PlayerState];
+            const players = [...s.players];
             players[owner] = updatedPlayer;
             s = { ...s, players };
           }
@@ -2013,7 +2013,7 @@ function executeClause(
 
 export function smartParserResolve(
   state: GameState,
-  controller: 0 | 1,
+  controller: number,
   oracleText: string,
   targets: Target[],
   source?: Card,

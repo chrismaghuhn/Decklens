@@ -50,7 +50,7 @@ export function executeAction(
               mulliganPhase: false,
               step: 'draw',
               priorityPlayer: newState.activePlayer,
-              bothPlayersPassed: false,
+              playersPassed: new Set(),
             };
             newState = applyStepEffects(newState);
         }
@@ -122,7 +122,7 @@ export function executeAction(
           step: 'draw',
           // Active player gets priority in draw step
           priorityPlayer: newState.activePlayer,
-          bothPlayersPassed: false,
+          playersPassed: new Set(),
         };
         // Apply draw step effects (draw a card for active player)
         newState = applyStepEffects(newState);
@@ -252,7 +252,7 @@ function executePlayLand(
     landsPlayedThisTurn: player.landsPlayedThisTurn + 1,
   };
 
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[action.player] = updatedPlayer;
 
   let newState: GameState = {
@@ -491,7 +491,7 @@ function executeCastSpell(
     }
   }
 
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[action.player] = updatedPlayer;
 
   let newState: GameState = { ...state, players };
@@ -529,7 +529,7 @@ function executeCastSpell(
 
   // If cast from command zone, increment commander tax (CR 903.8)
   if (action.castFromCommandZone) {
-    const updPlayers = [...newState.players] as [PlayerState, PlayerState];
+    const updPlayers = [...newState.players];
     updPlayers[action.player] = {
       ...updPlayers[action.player],
       commanderTax: updPlayers[action.player].commanderTax + 1,
@@ -576,7 +576,7 @@ function executeDeclareAttackers(
   action: Extract<GameAction, { type: 'declare-attackers' }>
 ): GameState {
   const player = state.players[action.player];
-  const defaultDefenderId: 0 | 1 = action.player === 0 ? 1 : 0;
+  const defaultDefenderId: number = action.player === 0 ? 1 : 0;
 
   const updatedBattlefield = player.battlefield.map((perm) => {
     if (action.attackers.includes(perm.id)) {
@@ -593,7 +593,7 @@ function executeDeclareAttackers(
   });
 
   const updatedPlayer = { ...player, battlefield: updatedBattlefield };
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[action.player] = updatedPlayer;
 
   const attackers = action.attackers.map((id) => ({
@@ -664,7 +664,7 @@ function executeDeclareBlockers(
   });
 
   const updatedPlayer = { ...player, battlefield: updatedBattlefield };
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[action.player] = updatedPlayer;
 
   const blockers = action.blocks.map((b) => ({ permanentId: b.blocker, blockingId: b.attacker }));
@@ -778,7 +778,7 @@ function executeTapForMana(
     manaPool: updatedPool,
   };
 
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[action.player] = updatedPlayer;
 
   return {
@@ -830,7 +830,7 @@ function executeManualMove(
   }
 
   const updatedPlayer = { ...player, [zoneKey]: updatedFrom, [toKey]: toArr };
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[action.player] = updatedPlayer;
 
   return {
@@ -848,7 +848,7 @@ function executeManualLife(
 ): GameState {
   const player = state.players[action.targetPlayer];
   const updatedPlayer = { ...player, life: player.life + action.delta };
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[action.targetPlayer] = updatedPlayer;
 
   const word = action.delta >= 0 ? 'gains' : 'loses';
@@ -881,7 +881,7 @@ function executeManualCounter(
   updatedBf[permIndex] = updatedPerm;
 
   const updatedPlayer = { ...player, battlefield: updatedBf };
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[action.player] = updatedPlayer;
 
   return {
@@ -913,7 +913,7 @@ function executeManualPT(
   updatedBf[permIndex] = updatedPerm;
 
   const updatedPlayer = { ...player, battlefield: updatedBf };
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[action.player] = updatedPlayer;
 
   return {
@@ -1027,7 +1027,7 @@ function executeManualToken(
   }
 
   const updatedPlayer = { ...player, battlefield: [...player.battlefield, ...tokens] };
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[action.player] = updatedPlayer;
 
   return {
@@ -1068,10 +1068,10 @@ function executeManualDamage(
     // UI sends targetId as "player-0" or "player-1" — extract the numeric index
     const parsed = parseInt(action.targetId.replace('player-', ''));
     if (isNaN(parsed) || (parsed !== 0 && parsed !== 1)) return state;
-    const targetIdx = parsed as 0 | 1;
+    const targetIdx = parsed;
     const player = state.players[targetIdx];
     const updatedPlayer = { ...player, life: player.life - action.amount };
-    const players = [...state.players] as [PlayerState, PlayerState];
+    const players = [...state.players];
     players[targetIdx] = updatedPlayer;
     return {
       ...state, players,
@@ -1085,7 +1085,7 @@ function executeManualDamage(
   } else {
     // Damage to permanent
     for (let pi = 0; pi < 2; pi++) {
-      const player = state.players[pi as 0 | 1];
+      const player = state.players[pi];
       const permIndex = player.battlefield.findIndex((p) => p.id === action.targetId);
       if (permIndex !== -1) {
         const perm = player.battlefield[permIndex];
@@ -1093,8 +1093,8 @@ function executeManualDamage(
         const updatedBf = [...player.battlefield];
         updatedBf[permIndex] = updatedPerm;
         const updatedPlayer = { ...player, battlefield: updatedBf };
-        const players = [...state.players] as [PlayerState, PlayerState];
-        players[pi as 0 | 1] = updatedPlayer;
+        const players = [...state.players];
+        players[pi] = updatedPlayer;
         return {
           ...state, players,
           log: [...state.log, {
@@ -1140,7 +1140,7 @@ function executeActivateLoyalty(
   const updatedBf = [...player.battlefield];
   updatedBf[permIndex] = updatedPerm;
   const updatedPlayer = { ...player, battlefield: updatedBf };
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[action.player] = updatedPlayer;
 
   let newState: GameState = { ...state, players };
@@ -1198,7 +1198,7 @@ function executeEquip(
     if (!payment) return state; // shouldn't happen since we already checked
     const newPool = payCost(currentPlayer.manaPool, cost, payment);
     const updatedPlayer = { ...currentPlayer, manaPool: newPool };
-    const players = [...state.players] as [PlayerState, PlayerState];
+    const players = [...state.players];
     players[action.player] = updatedPlayer;
     state = { ...state, players };
   }
@@ -1212,7 +1212,7 @@ function executeConcede(
   state: GameState,
   action: Extract<GameAction, { type: 'concede' }>
 ): GameState {
-  const winner: 0 | 1 = action.player === 0 ? 1 : 0;
+  const winner: number = action.player === 0 ? 1 : 0;
 
   return {
     ...state,
@@ -1247,7 +1247,7 @@ function executeDiscard(
     hand: remaining,
     graveyard: [...player.graveyard, ...discarded],
   };
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[action.player] = updatedPlayer;
 
   const cardNames = discarded.map((c) => c.name).join(', ');
@@ -1302,7 +1302,7 @@ function executeLegendChoice(
   const dying = playerState.battlefield.filter(p => toRemove.includes(p.id));
   const surviving = playerState.battlefield.filter(p => !toRemove.includes(p.id));
 
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[player] = {
     ...playerState,
     battlefield: surviving,
@@ -1310,7 +1310,7 @@ function executeLegendChoice(
 
   // Move dying legends to owner's graveyard (CR 400.3)
   for (const perm of dying) {
-    const ownerIdx: 0 | 1 = perm.owner ?? player;
+    const ownerIdx: number = perm.owner ?? player;
     const card = permanentToCard(perm);
     players[ownerIdx] = {
       ...players[ownerIdx],
@@ -1445,7 +1445,7 @@ function executeTurnFaceUp(
     newBf[idx] = revealedPerm;
     updatedPlayer = { ...updatedPlayer, battlefield: newBf };
 
-    const players = [...state.players] as [PlayerState, PlayerState];
+    const players = [...state.players];
     players[player] = updatedPlayer;
 
     return {
@@ -1494,7 +1494,7 @@ function executeTurnFaceUp(
   newBf[idx] = flippedPerm;
   updatedPlayer = { ...updatedPlayer, battlefield: newBf };
 
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[player] = updatedPlayer;
 
   return {
@@ -1554,7 +1554,7 @@ function executeCycle(
     manaPool: newPool,
   };
 
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[action.player] = updatedPlayer;
 
   return {
@@ -1647,7 +1647,7 @@ function executeNinjutsu(
     battlefield: finalBattlefield,
   };
 
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[action.player] = updatedPlayer;
 
   // 6. Update combat state: replace old attacker with ninja
@@ -1722,13 +1722,13 @@ function executeCompanion(
     hand: [...player.hand, companionCard],
   };
 
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[action.player] = updatedPlayer;
 
   // Mark companion as used and remove from companion zone
-  const companion = [...(state.companion || [null, null])] as [import('../types/card.ts').Card | null, import('../types/card.ts').Card | null];
+  const companion = [...(state.companion || [null, null])];
   companion[action.player] = null;
-  const companionUsed = [...(state.companionUsed || [false, false])] as [boolean, boolean];
+  const companionUsed = [...(state.companionUsed || [false, false])];
   companionUsed[action.player] = true;
 
   return {

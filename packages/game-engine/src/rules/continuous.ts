@@ -52,7 +52,7 @@ interface ParsedStaticEffect {
   /** The permanent providing this effect */
   sourceId: string;
   /** Controller of the source permanent */
-  sourceController: 0 | 1;
+  sourceController: number;
   /** Whether the effect excludes the source permanent ("Other ...") */
   excludeSelf: boolean;
   /** Applies to the controller's creatures (true) or opponent's (false) */
@@ -327,7 +327,7 @@ function parseStaticSetPtEffects(perm: Permanent): ParsedStaticEffect[] {
 /** Parsed static "loses all abilities" effect from a permanent */
 interface ParsedStaticLoseAbilities {
   sourceId: string;
-  sourceController: 0 | 1;
+  sourceController: number;
   appliesToController: boolean;
   excludeSelf: boolean;
   typeFilter: string;
@@ -450,7 +450,7 @@ export function matchesTypeFilter(creature: Permanent, filter: string): boolean 
 export function getStaticBonuses(
   state: GameState,
   creature: Permanent,
-  playerIdx: 0 | 1
+  playerIdx: number
 ): StaticBonus {
   let power = 0;
   let toughness = 0;
@@ -458,7 +458,7 @@ export function getStaticBonuses(
 
   // Gather all static effects from both players' battlefields
   for (let p = 0; p < 2; p++) {
-    const player = state.players[p as 0 | 1];
+    const player = state.players[p];
 
     for (const perm of player.battlefield) {
       // Only parse permanents that have oracle text (optimization)
@@ -491,7 +491,7 @@ export function getStaticBonuses(
 function doesEffectApply(
   effect: ParsedStaticEffect,
   creature: Permanent,
-  creatureController: 0 | 1
+  creatureController: number
 ): boolean {
   // "Exclude self" check — "Other creatures..." doesn't apply to the source
   if (effect.excludeSelf && creature.id === effect.sourceId) {
@@ -704,7 +704,7 @@ export function applyContinuousEffects(state: GameState): GameState {
   const allStaticSetPtEffects: ParsedStaticEffect[] = [];
 
   for (let p = 0; p < 2; p++) {
-    const player = state.players[p as 0 | 1];
+    const player = state.players[p];
     for (const perm of player.battlefield) {
       if (!perm.oracleText) continue;
       const effects = parseStaticEffects(perm);
@@ -717,7 +717,7 @@ export function applyContinuousEffects(state: GameState): GameState {
   // Pre-parse static "loses all abilities" effects (Humility-type, Layer 6)
   const allStaticLoseAbilities: ParsedStaticLoseAbilities[] = [];
   for (let p = 0; p < 2; p++) {
-    const player = state.players[p as 0 | 1];
+    const player = state.players[p];
     for (const perm of player.battlefield) {
       if (!perm.oracleText) continue;
       const loseAbilityEffects = parseStaticLoseAbilitiesEffects(perm);
@@ -729,13 +729,13 @@ export function applyContinuousEffects(state: GameState): GameState {
   // for fast attachment resolution
   const allPermsById = new Map<string, Permanent>();
   for (let p = 0; p < 2; p++) {
-    for (const perm of state.players[p as 0 | 1].battlefield) {
+    for (const perm of state.players[p].battlefield) {
       allPermsById.set(perm.id, perm);
     }
   }
 
   let stateChanged = false;
-  const newPlayers = [...state.players] as [PlayerState, PlayerState];
+  const newPlayers = [...state.players];
 
   // === CR 613: Layers 1-6 (applied before P/T modifications) ===
 
@@ -743,7 +743,7 @@ export function applyContinuousEffects(state: GameState): GameState {
   // If a permanent has a copyEffect, its copiable values become those of the copied card.
   // This affects name, types, oracle text, P/T, colors, mana cost.
   for (let p = 0; p < 2; p++) {
-    const playerIdx = p as 0 | 1;
+    const playerIdx = p;
     const player = newPlayers[playerIdx];
     for (let i = 0; i < player.battlefield.length; i++) {
       const perm = player.battlefield[i];
@@ -792,7 +792,7 @@ export function applyContinuousEffects(state: GameState): GameState {
   // --- Layer 4: Type-Changing Effects ---
   // Apply type modifications (e.g., "creatures you control are Zombies in addition to their other types")
   for (let p = 0; p < 2; p++) {
-    const playerIdx = p as 0 | 1;
+    const playerIdx = p;
     const player = newPlayers[playerIdx];
     let bfChanged = false;
     const updatedBf = [...player.battlefield];
@@ -832,7 +832,7 @@ export function applyContinuousEffects(state: GameState): GameState {
 
   // --- Layer 5: Color-Changing Effects ---
   for (let p = 0; p < 2; p++) {
-    const playerIdx = p as 0 | 1;
+    const playerIdx = p;
     const player = newPlayers[playerIdx];
     let bfChanged = false;
     const updatedBf = [...player.battlefield];
@@ -870,7 +870,7 @@ export function applyContinuousEffects(state: GameState): GameState {
   // then re-apply for creatures still under a static "lose abilities" effect.
   // This allows correct behavior when Humility enters/leaves the battlefield.
   for (let p = 0; p < 2; p++) {
-    const playerIdx = p as 0 | 1;
+    const playerIdx = p;
     const player = newPlayers[playerIdx];
     let bfChanged = false;
     const updatedBf = [...player.battlefield];
@@ -934,7 +934,7 @@ export function applyContinuousEffects(state: GameState): GameState {
   // === CR 613.4: Layer 7 — P/T Modifications ===
 
   for (let p = 0; p < 2; p++) {
-    const playerIdx = p as 0 | 1;
+    const playerIdx = p;
     const player = newPlayers[playerIdx];
     let bfChanged = false;
     const newBattlefield = [...player.battlefield];
@@ -1120,7 +1120,7 @@ function applyRingBearerEffects(state: GameState): GameState {
 
   const updatedBf = [...playerState.battlefield];
   updatedBf[bearerIdx] = updatedBearer;
-  const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+  const players = [...state.players];
   players[player] = { ...playerState, battlefield: updatedBf };
   return { ...state, players };
 }
@@ -1141,7 +1141,7 @@ function applyRingBearerEffects(state: GameState): GameState {
 export function getGrantedKeywords(
   state: GameState,
   creature: Permanent,
-  playerIdx: 0 | 1
+  playerIdx: number
 ): string[] {
   const bonuses = getStaticBonuses(state, creature, playerIdx);
   return bonuses.keywords;
@@ -1163,7 +1163,7 @@ export function getGrantedKeywords(
 export function hasKeywordWithContinuous(
   state: GameState,
   creature: Permanent,
-  playerIdx: 0 | 1,
+  playerIdx: number,
   keyword: string
 ): boolean {
   const lowerKw = keyword.toLowerCase();

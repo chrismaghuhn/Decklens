@@ -56,7 +56,7 @@ export interface GameLogEntry {
   turn: number;
   phase: Phase;
   step: Step;
-  player: 0 | 1 | null;
+  player: number | null;
   message: string;
   cardName?: string;
   actionType?: GameAction['type'] | 'effect';
@@ -64,13 +64,13 @@ export interface GameLogEntry {
 
 /** Complete game state at any point in time */
 export interface GameState {
-  /** The two players: index 0 = human, index 1 = bot */
-  players: [PlayerState, PlayerState];
+  /** All players: index 0 = human, index 1 = bot (extensible for N-player) */
+  players: PlayerState[];
 
   /** Whose turn it is */
-  activePlayer: 0 | 1;
+  activePlayer: number;
   /** Who currently has priority to act */
-  priorityPlayer: 0 | 1;
+  priorityPlayer: number;
 
   /** Current turn number (starts at 1) */
   turn: number;
@@ -84,7 +84,7 @@ export interface GameState {
   combat: CombatState | null;
 
   /** Winner (null if game in progress) */
-  winner: 0 | 1 | null;
+  winner: number | null;
   gameOver: boolean;
 
   /** Game log for display */
@@ -92,44 +92,44 @@ export interface GameState {
   /** Full action history for replay */
   actionHistory: GameAction[];
 
-  /** Whether both players have passed priority in sequence (for stack resolution) */
-  bothPlayersPassed: boolean;
+  /** Set of player indices who have passed priority in sequence (for stack resolution) */
+  playersPassed: Set<number>;
 
   /** Mulligan phase tracking */
   mulliganPhase: boolean;
   /** How many times each player has mulliganed */
-  mulliganCount: [number, number];
+  mulliganCount: number[];
 
   /** Manual resolution state — set when a spell/ability can't be auto-resolved */
   needsManualResolution?: boolean;
   /** The card whose effect needs manual resolution */
   manualResolutionCard?: Card;
   /** Controller of the spell needing manual resolution */
-  manualResolutionController?: 0 | 1;
+  manualResolutionController?: number;
 
   /** Hand size enforcement — which player needs to discard (null if none) */
-  pendingDiscard?: 0 | 1 | null;
+  pendingDiscard?: number | null;
   /** How many cards the pending discard player must discard */
   pendingDiscardCount?: number;
 
   /** Which player is the monarch, or null if no one (CR 721) */
-  monarch?: 0 | 1 | null;
+  monarch?: number | null;
 
   /** Queue of extra turns to be taken (CR 500.7). Shift from front when starting a new turn. */
-  extraTurns?: { player: 0 | 1 }[];
+  extraTurns?: { player: number }[];
   /** Number of extra combat phases remaining this turn (CR 506.1). Decremented after each extra combat. */
   extraCombats?: number;
 
   /** Legend Rule choice pending — player must choose which legendary permanent to keep */
   pendingLegendChoice?: {
-    player: 0 | 1;
+    player: number;
     legendName: string;
     permanentIds: string[]; // IDs of the duplicate legendaries
   } | null;
 
   /** Commander zone replacement pending — player must choose whether to move commander to command zone */
   pendingCommanderChoice?: {
-    player: 0 | 1;
+    player: number;
     commanderName: string;
     /** Where the commander currently is (graveyard or exile) */
     currentZone: 'graveyard' | 'exile';
@@ -144,7 +144,7 @@ export interface GameState {
    */
   pendingDamageAssignment?: {
     /** The attacking player who must assign damage */
-    player: 0 | 1;
+    player: number;
     /** The attacking permanent that needs damage assigned */
     attackerId: string;
     /** The attacker's power (total damage to distribute) */
@@ -160,7 +160,7 @@ export interface GameState {
   /** Modal choice pending — player must choose modes for a modal spell */
   pendingModalChoice?: {
     stackObjectId: string;
-    controller: 0 | 1;
+    controller: number;
     modes: { index: number; text: string; oracleText: string }[];
     minChoices: number;
     maxChoices: number;
@@ -169,7 +169,7 @@ export interface GameState {
 
   /** Sacrifice choice pending — player must choose permanents to sacrifice */
   pendingSacrifice?: {
-    player: 0 | 1;
+    player: number;
     filter: string; // 'creature', 'artifact', 'enchantment', 'permanent'
     count: number;
     sourceId?: string; // The card that caused the sacrifice
@@ -178,7 +178,7 @@ export interface GameState {
 
   /** Library search pending — player must choose cards from their library */
   pendingSearch?: {
-    player: 0 | 1;
+    player: number;
     filter: string; // 'creature', 'land', 'basic land', 'artifact', 'enchantment', 'instant', 'sorcery', '' (any)
     count: number; // how many cards to choose
     destination: 'hand' | 'battlefield' | 'top-of-library';
@@ -187,7 +187,7 @@ export interface GameState {
 
   /** Scry pending — player must arrange top N cards */
   pendingScry?: {
-    player: 0 | 1;
+    player: number;
     count: number;
     cards: string[]; // card IDs of the top N cards
   } | null;
@@ -202,7 +202,7 @@ export interface GameState {
   spellsCastThisTurn?: number;
 
   /** Cards exiled with time counters for Suspend mechanic */
-  suspendedCards?: Array<{ cardId: string; ownerId: 0 | 1; counters: number }>;
+  suspendedCards?: Array<{ cardId: string; ownerId: number; counters: number }>;
 
   /** Card IDs that were foretold (exiled face-down, can be cast for foretell cost) */
   foretoldCards?: string[];
@@ -216,13 +216,13 @@ export interface GameState {
   theRing?: {
     ringBearerId: string | null;  // Permanent ID of ring-bearer on battlefield
     ringTemptedCount: number;     // 0=none, 1=menace added, 2=+lifelink, 3=unblockable except by legends, 4=drain on attack
-    player: 0 | 1;                // Which player the ring has tempted
+    player: number;               // Which player the ring has tempted
   } | null;
 
   /** Companion card revealed at game start (CR 702.138). One per player; null if no companion. */
-  companion?: [Card | null, Card | null];
+  companion?: (Card | null)[];
   /** Whether each player has already moved their companion to hand this game */
-  companionUsed?: [boolean, boolean];
+  companionUsed?: boolean[];
 
   /** Damage prevention shields — "prevent the next N damage" effects (CR 615.7) */
   damageShields?: Array<{

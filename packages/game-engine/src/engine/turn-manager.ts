@@ -38,7 +38,7 @@ export function advanceStep(state: GameState): GameState {
 
   if (nextStep !== null) {
     // CR 106.4: Empty mana pools when moving between steps
-    const players = [...state.players] as [PlayerState, PlayerState];
+    const players = [...state.players];
     players[0] = { ...players[0], manaPool: emptyManaPool() };
     players[1] = { ...players[1], manaPool: emptyManaPool() };
 
@@ -47,7 +47,7 @@ export function advanceStep(state: GameState): GameState {
       ...state,
       players,
       step: nextStep,
-      bothPlayersPassed: false,
+      playersPassed: new Set(),
     });
   }
 
@@ -65,7 +65,7 @@ export function advancePhase(state: GameState): GameState {
   // Extra combat phases: if leaving combat and extra combats remain,
   // go back to another combat phase instead of advancing normally
   if (state.phase === 'combat' && (state.extraCombats ?? 0) > 0) {
-    const players = [...state.players] as [PlayerState, PlayerState];
+    const players = [...state.players];
     players[0] = { ...players[0], manaPool: emptyManaPool() };
     players[1] = { ...players[1], manaPool: emptyManaPool() };
 
@@ -75,7 +75,7 @@ export function advancePhase(state: GameState): GameState {
       players,
       phase: 'combat',
       step: firstStep,
-      bothPlayersPassed: false,
+      playersPassed: new Set(),
       extraCombats: (state.extraCombats ?? 0) - 1,
       combat: {
         attackers: [],
@@ -89,7 +89,7 @@ export function advancePhase(state: GameState): GameState {
 
   if (nextPhase !== null) {
     // CR 106.4: Empty mana pools when moving between phases
-    const players = [...state.players] as [PlayerState, PlayerState];
+    const players = [...state.players];
     players[0] = { ...players[0], manaPool: emptyManaPool() };
     players[1] = { ...players[1], manaPool: emptyManaPool() };
 
@@ -99,7 +99,7 @@ export function advancePhase(state: GameState): GameState {
       players,
       phase: nextPhase,
       step: firstStep,
-      bothPlayersPassed: false,
+      playersPassed: new Set(),
       combat: nextPhase === 'combat' ? {
         attackers: [],
         blockers: [],
@@ -119,7 +119,7 @@ export function advancePhase(state: GameState): GameState {
  * is taken by the player at the front of the queue instead of alternating.
  */
 export function startNewTurn(state: GameState): GameState {
-  let nextActivePlayer: 0 | 1;
+  let nextActivePlayer: number;
   let updatedExtraTurns = state.extraTurns ? [...state.extraTurns] : [];
 
   if (updatedExtraTurns.length > 0) {
@@ -134,7 +134,7 @@ export function startNewTurn(state: GameState): GameState {
   const newTurn = state.activePlayer === 1 ? state.turn + 1 : state.turn;
 
   // Reset active player's turn state
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
 
   // CR 702.26d: Phasing — During the untap step, BEFORE untapping,
   // all phased-out permanents controlled by the active player phase back in.
@@ -170,7 +170,7 @@ export function startNewTurn(state: GameState): GameState {
   };
 
   // Empty the other player's mana pool too
-  const otherPlayer: 0 | 1 = nextActivePlayer === 0 ? 1 : 0;
+  const otherPlayer: number = nextActivePlayer === 0 ? 1 : 0;
   players[otherPlayer] = {
     ...players[otherPlayer],
     manaPool: emptyManaPool(),
@@ -186,7 +186,7 @@ export function startNewTurn(state: GameState): GameState {
     step: 'untap',
     stack: [],
     combat: null,
-    bothPlayersPassed: false,
+    playersPassed: new Set(),
     mulliganPhase: false, // Ensure mulligan phase is over for new turns
     extraTurns: updatedExtraTurns.length > 0 ? updatedExtraTurns : undefined,
     extraCombats: 0, // Reset extra combats for the new turn
@@ -200,7 +200,7 @@ export function startNewTurn(state: GameState): GameState {
  * Extra turns are queued in LIFO order: the most recently created extra turn
  * is taken first. Push to the front of the queue.
  */
-export function grantExtraTurn(state: GameState, player: 0 | 1): GameState {
+export function grantExtraTurn(state: GameState, player: number): GameState {
   const extraTurns = state.extraTurns ? [...state.extraTurns] : [];
   // Most recently granted extra turn is taken first (LIFO), so unshift to front
   extraTurns.unshift({ player });
@@ -253,7 +253,7 @@ export function applyStepEffects(state: GameState): GameState {
     const ap = state.activePlayer;
     const reboundCards = state.players[ap].exile.filter(c => (c as any).reboundExile);
     if (reboundCards.length > 0) {
-      const players = [...state.players] as [PlayerState, PlayerState];
+      const players = [...state.players];
       const remainingExile = players[ap].exile.filter(c => !(c as any).reboundExile);
       players[ap] = { ...players[ap], exile: remainingExile };
       state = { ...state, players };
@@ -298,9 +298,9 @@ export function applyStepEffects(state: GameState): GameState {
         }],
       };
       // Transform all daybound creatures to nightbound face
-      const players = [...state.players] as [PlayerState, PlayerState];
+      const players = [...state.players];
       for (let pi = 0; pi < 2; pi++) {
-        const player = players[pi as 0 | 1];
+        const player = players[pi];
         const updatedBf = player.battlefield.map(perm => {
           if ((perm.oracleText || '').toLowerCase().includes('daybound')) {
             return { ...perm, temporaryKeywords: [...(perm.temporaryKeywords || []), { keyword: 'night-transformed', source: 'day-night', turn: state.turn }] };
@@ -308,7 +308,7 @@ export function applyStepEffects(state: GameState): GameState {
           return perm;
         });
         if (updatedBf !== player.battlefield) {
-          players[pi as 0 | 1] = { ...player, battlefield: updatedBf };
+          players[pi] = { ...player, battlefield: updatedBf };
         }
       }
       state = { ...state, players };
@@ -335,7 +335,7 @@ export function applyStepEffects(state: GameState): GameState {
 
     // First player skips their first draw
     if (state.turn === 1 && state.activePlayer === 0 && !activePlayer.hasDrawnThisGame) {
-      const players = [...state.players] as [PlayerState, PlayerState];
+      const players = [...state.players];
       players[state.activePlayer] = {
         ...players[state.activePlayer],
         hasDrawnThisGame: true,
@@ -360,7 +360,7 @@ export function applyStepEffects(state: GameState): GameState {
     // Normal draw
     if (activePlayer.library.length > 0) {
       const drawnCard = activePlayer.library[0];
-      const players = [...state.players] as [PlayerState, PlayerState];
+      const players = [...state.players];
       players[state.activePlayer] = {
         ...players[state.activePlayer],
         library: players[state.activePlayer].library.slice(1),
@@ -411,7 +411,7 @@ export function applyStepEffects(state: GameState): GameState {
       return perm;
     });
     if (sagaChanged) {
-      const players = [...state.players] as [PlayerState, PlayerState];
+      const players = [...state.players];
       players[ap] = { ...players[ap], battlefield: updatedBf };
       state = { ...state, players };
 
@@ -448,7 +448,7 @@ export function applyStepEffects(state: GameState): GameState {
     state = checkEndStepTriggers(state);
 
     const ap = state.activePlayer;
-    const players = [...state.players] as [PlayerState, PlayerState];
+    const players = [...state.players];
     const endLogs: string[] = [];
 
     // ─── Monarch (CR 721): Monarch draws an extra card at end step ───
@@ -536,7 +536,7 @@ export function applyStepEffects(state: GameState): GameState {
         turn: state.turn,
         phase: state.phase,
         step: state.step,
-        player: ap as 0 | 1 | null,
+        player: ap,
         message,
       }));
       state = { ...state, players, log: [...state.log, ...logEntries] };
@@ -558,20 +558,20 @@ export function applyStepEffects(state: GameState): GameState {
   // likewise retained. A subsequent cleanup step will then follow naturally as the
   // turn progresses.
   if (state.step === 'cleanup') {
-    const players = [...state.players] as [PlayerState, PlayerState];
+    const players = [...state.players];
     const logs: string[] = [];
 
     // ── Phase 1: Return temporarily stolen permanents ──
     // Collect all permanents that need to move back to their original controller
-    const stealsToReturn: { perm: (typeof players)[0]['battlefield'][0]; fromPlayer: 0 | 1 }[] = [];
+    const stealsToReturn: { perm: (typeof players)[0]['battlefield'][0]; fromPlayer: number }[] = [];
 
     for (let i = 0; i < 2; i++) {
-      const player = players[i as 0 | 1];
+      const player = players[i];
       const keeping: typeof player.battlefield = [];
 
       for (const perm of player.battlefield) {
         if (perm.temporaryControlChange) {
-          stealsToReturn.push({ perm, fromPlayer: i as 0 | 1 });
+          stealsToReturn.push({ perm, fromPlayer: i });
           logs.push(`${perm.name} returns to ${state.players[perm.temporaryControlChange.originalController].name}'s control.`);
         } else {
           keeping.push(perm);
@@ -579,7 +579,7 @@ export function applyStepEffects(state: GameState): GameState {
       }
 
       if (keeping.length !== player.battlefield.length) {
-        players[i as 0 | 1] = { ...player, battlefield: keeping };
+        players[i] = { ...player, battlefield: keeping };
       }
     }
 
@@ -600,8 +600,8 @@ export function applyStepEffects(state: GameState): GameState {
 
     // ── Phase 2: Clean up per-permanent temporary effects ──
     for (let i = 0; i < 2; i++) {
-      const player = players[i as 0 | 1];
-      players[i as 0 | 1] = {
+      const player = players[i];
+      players[i] = {
         ...player,
         battlefield: player.battlefield.map((p) => {
           let updated = { ...p, damage: 0 };
@@ -714,7 +714,7 @@ export function applyStepEffects(state: GameState): GameState {
       turn: state.turn,
       phase: state.phase,
       step: state.step,
-      player: null as 0 | 1 | null,
+      player: null,
       message,
     }));
 
@@ -876,7 +876,7 @@ export function createInitialGameState(
       },
     ],
     actionHistory: [],
-    bothPlayersPassed: false,
+    playersPassed: new Set(),
     mulliganPhase: true,
     mulliganCount: [0, 0],
   };

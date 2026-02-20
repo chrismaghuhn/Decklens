@@ -64,7 +64,7 @@ export class Game {
   }
 
   /** Get the winner (null if not over) */
-  getWinner(): 0 | 1 | null {
+  getWinner(): number | null {
     return this.state.winner;
   }
 
@@ -106,10 +106,10 @@ export class Game {
       };
 
       // Check if both players passed and stack needs resolution
-      // CRITICAL FIX: Check if bothPlayersPassed is TRUE (not false)
+      // CRITICAL FIX: Check if playersPassed.size >= 2 (not false)
       // The logic was inverted - both players must have passed to resolve
       if (
-        this.state.bothPlayersPassed &&
+        this.state.playersPassed.size >= 2 &&
         beforeStack > 0 &&
         this.state.stack.length === beforeStack
       ) {
@@ -194,12 +194,12 @@ export class Game {
   }
 
   /** Get the current priority player */
-  getPriorityPlayer(): 0 | 1 {
+  getPriorityPlayer(): number {
     return this.state.priorityPlayer;
   }
 
   /** Get the active (turn) player */
-  getActivePlayer(): 0 | 1 {
+  getActivePlayer(): number {
     return this.state.activePlayer;
   }
 
@@ -293,10 +293,10 @@ export class Game {
 
   /** Apply commander damage tracking from combat results */
   private applyCommanderDamage(
-    damages: { commanderId: string; damage: number; defenderId: 0 | 1 | string }[]
+    damages: { commanderId: string; damage: number; defenderId: number | string }[]
   ): void {
     for (const { commanderId, damage, defenderId } of damages) {
-      // Commander damage only applies to players (0 | 1), not planeswalkers
+      // Commander damage only applies to players (number), not planeswalkers
       if (typeof defenderId === 'number') {
         this.state = trackCommanderDamage(this.state, commanderId, damage, defenderId);
       }

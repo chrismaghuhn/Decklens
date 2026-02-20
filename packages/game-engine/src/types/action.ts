@@ -18,7 +18,7 @@ export interface StackObject {
   card?: Card;
   /** The permanent that is the source (if ability) */
   source?: Permanent;
-  controller: 0 | 1;
+  controller: number;
   targets: Target[];
   text: string;
   /** Oracle text for effect resolution (full text for spells, effect portion for triggered abilities) */
@@ -71,11 +71,11 @@ export interface StackObject {
 
 /** All possible game actions a player can take */
 export type GameAction =
-  | { type: 'pass'; player: 0 | 1 }
-  | { type: 'play-land'; player: 0 | 1; cardId: string }
+  | { type: 'pass'; player: number }
+  | { type: 'play-land'; player: number; cardId: string }
   | {
       type: 'cast-spell';
-      player: 0 | 1;
+      player: number;
       cardId: string;
       targets: Target[];
       manaPayment: ManaPayment;
@@ -137,37 +137,37 @@ export type GameAction =
     }
   | {
       type: 'activate-ability';
-      player: 0 | 1;
+      player: number;
       sourceId: string;
       abilityIndex: number;
       targets: Target[];
     }
   | {
       type: 'declare-attackers';
-      player: 0 | 1;
+      player: number;
       attackers: string[];
       /** Optional per-attacker defender map: creatureId -> defenderId.
        *  defenderId is 0|1 for a player, or a string permanent ID for a planeswalker.
        *  If omitted, all attackers target the opponent player. */
-      defenderMap?: Record<string, 0 | 1 | string>;
+      defenderMap?: Record<string, number | string>;
     }
   | {
       type: 'declare-blockers';
-      player: 0 | 1;
+      player: number;
       blocks: { blocker: string; attacker: string }[];
     }
   | {
       type: 'mulligan';
-      player: 0 | 1;
+      player: number;
       /** Cards to put on bottom of library (London mulligan) */
       toBottom: string[];
     }
-  | { type: 'concede'; player: 0 | 1 }
+  | { type: 'concede'; player: number }
   // ─── Rules Engine Actions ───
   | {
       /** Tap a permanent to activate its mana ability */
       type: 'tap-for-mana';
-      player: 0 | 1;
+      player: number;
       permanentId: string;
       /** Index into the permanent's abilities[] array (for multi-mana-ability permanents) */
       abilityIndex: number;
@@ -175,19 +175,19 @@ export type GameAction =
       chosenColor?: 'W' | 'U' | 'B' | 'R' | 'G';
     }
   // ─── Manual Resolution Actions (for effects the engine can't auto-resolve) ───
-  | { type: 'manual-move'; player: 0 | 1; cardId: string; from: Zone; to: Zone }
-  | { type: 'manual-life'; player: 0 | 1; targetPlayer: 0 | 1; delta: number }
-  | { type: 'manual-counter'; player: 0 | 1; permanentId: string; counterType: string; delta: number }
-  | { type: 'manual-pt'; player: 0 | 1; permanentId: string; powerDelta: number; toughnessDelta: number }
-  | { type: 'manual-token'; player: 0 | 1; name: string; power: number; toughness: number; typeLine: string; qty: number }
-  | { type: 'manual-draw'; player: 0 | 1; targetPlayer: 0 | 1; count: number }
-  | { type: 'manual-damage'; player: 0 | 1; targetId: string; targetType: 'permanent' | 'player'; amount: number }
-  | { type: 'manual-done'; player: 0 | 1 }
+  | { type: 'manual-move'; player: number; cardId: string; from: Zone; to: Zone }
+  | { type: 'manual-life'; player: number; targetPlayer: number; delta: number }
+  | { type: 'manual-counter'; player: number; permanentId: string; counterType: string; delta: number }
+  | { type: 'manual-pt'; player: number; permanentId: string; powerDelta: number; toughnessDelta: number }
+  | { type: 'manual-token'; player: number; name: string; power: number; toughness: number; typeLine: string; qty: number }
+  | { type: 'manual-draw'; player: number; targetPlayer: number; count: number }
+  | { type: 'manual-damage'; player: number; targetId: string; targetType: 'permanent' | 'player'; amount: number }
+  | { type: 'manual-done'; player: number }
   // ─── Planeswalker ───
   | {
       /** Activate a planeswalker loyalty ability */
       type: 'activate-loyalty';
-      player: 0 | 1;
+      player: number;
       /** The planeswalker permanent's ID */
       permanentId: string;
       /** Index into the permanent's abilities[] array */
@@ -199,33 +199,33 @@ export type GameAction =
   | {
       /** Attach an equipment to a target creature (sorcery speed, costs mana) */
       type: 'equip';
-      player: 0 | 1;
+      player: number;
       /** The equipment permanent's ID */
       equipmentId: string;
       /** The target creature permanent's ID */
       targetCreatureId: string;
     }
   // ─── Hand Size Enforcement ───
-  | { type: 'discard'; player: 0 | 1; cardIds: string[] }
+  | { type: 'discard'; player: number; cardIds: string[] }
   // ─── Legend Rule Choice ───
-  | { type: 'legend-choice'; player: 0 | 1; keepPermanentId: string }
+  | { type: 'legend-choice'; player: number; keepPermanentId: string }
   // ─── Commander Zone Replacement (2020 Rule Change) ───
-  | { type: 'commander-zone-choice'; player: 0 | 1; moveToCommandZone: boolean }
+  | { type: 'commander-zone-choice'; player: number; moveToCommandZone: boolean }
   // ─── Morph: Turn Face-Up (CR 702.36) ───
-  | { type: 'turn-face-up'; player: 0 | 1; permanentId: string }
+  | { type: 'turn-face-up'; player: number; permanentId: string }
   // ─── Cycling (CR 702.28) ───
-  | { type: 'cycle'; player: 0 | 1; cardId: string }
+  | { type: 'cycle'; player: number; cardId: string }
   // ─── Companion (CR 702.138) ───
   | {
       /** Pay {3} to move companion from outside the game to hand */
       type: 'companion';
-      player: 0 | 1;
+      player: number;
     }
   // ─── Combat Damage Assignment (CR 510.1) ───
   | {
       /** Assign damage from an attacker to multiple blockers in DAO order */
       type: 'assign-damage';
-      player: 0 | 1;
+      player: number;
       /** Damage assignment: blockerId → damage amount */
       assignments: Record<string, number>;
       /** Remaining damage to defending player (trample) */
@@ -235,7 +235,7 @@ export type GameAction =
   | {
       /** Activate ninjutsu from hand — swap unblocked attacker for ninja (CR 702.48) */
       type: 'ninjutsu';
-      player: 0 | 1;
+      player: number;
       /** The ninja card ID (in hand) */
       cardId: string;
       /** The unblocked attacking creature to return to hand */
@@ -259,8 +259,8 @@ export interface CombatState {
 
 export interface AttackingCreature {
   permanentId: string;
-  /** 0 | 1 = attacking a player, string = attacking a planeswalker (permanent ID) */
-  defenderId: 0 | 1 | string;
+  /** number = attacking a player (by index), string = attacking a planeswalker (permanent ID) */
+  defenderId: number | string;
 }
 
 export interface BlockingCreature {

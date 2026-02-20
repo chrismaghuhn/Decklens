@@ -31,7 +31,7 @@ function generateStackId(): string {
 export function addSpellToStack(
   state: GameState,
   cardId: string,
-  player: 0 | 1,
+  player: number,
   targets: Target[],
   _manaPayment: ManaPayment,
   xValue?: number,
@@ -120,7 +120,7 @@ export function addSpellToStack(
     isEntwined: opts?.isEntwined,
   };
 
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[player] = updatedPlayer;
 
   let castMessage = `${playerState.name} casts ${card.name}`;
@@ -179,7 +179,7 @@ export function addAbilityToStack(
   state: GameState,
   sourceId: string,
   abilityIndex: number,
-  player: 0 | 1,
+  player: number,
   targets: Target[]
 ): GameState {
   const playerState = state.players[player];
@@ -238,11 +238,11 @@ export function addAbilityToStack(
  * After resolution, active player gets priority.
  */
 /** Find a permanent by ID for mutate targeting (CR 702.139) */
-function findPermanentForMutate(state: GameState, id: string): { perm: Permanent; playerIdx: 0 | 1; permIdx: number } | null {
+function findPermanentForMutate(state: GameState, id: string): { perm: Permanent; playerIdx: number; permIdx: number } | null {
   for (let pi = 0; pi < 2; pi++) {
-    const player = state.players[pi as 0 | 1];
+    const player = state.players[pi];
     const idx = player.battlefield.findIndex(p => p.id === id);
-    if (idx !== -1) return { perm: player.battlefield[idx], playerIdx: pi as 0 | 1, permIdx: idx };
+    if (idx !== -1) return { perm: player.battlefield[idx], playerIdx: pi, permIdx: idx };
   }
   return null;
 }
@@ -263,7 +263,7 @@ export function resolveTopOfStack(state: GameState): GameState {
     if (resolving.type === 'spell' && resolving.card && !isPermanentType(resolving.card)) {
       // Instant/Sorcery spell fizzles → move card to graveyard without resolving effects
       const controller = resolving.controller;
-      const players = [...newState.players] as [PlayerState, PlayerState];
+      const players = [...newState.players];
       players[controller] = {
         ...players[controller],
         graveyard: [...players[controller].graveyard, resolving.card],
@@ -306,7 +306,7 @@ export function resolveTopOfStack(state: GameState): GameState {
       // Move instant/sorcery to destination zone after entwine resolution
       if (resolving.type === 'spell' && resolving.card && !isPermanentType(resolving.card)) {
         const ctrl = resolving.controller;
-        const players = [...newState.players] as [PlayerState, PlayerState];
+        const players = [...newState.players];
         players[ctrl] = { ...players[ctrl], graveyard: [...players[ctrl].graveyard, resolving.card] };
         newState = { ...newState, players };
       }
@@ -357,7 +357,7 @@ export function resolveTopOfStack(state: GameState): GameState {
       // Move instant/sorcery to destination zone after modal resolution
       if (resolving.type === 'spell' && resolving.card && !isPermanentType(resolving.card)) {
         const ctrl = resolving.controller;
-        const players = [...newState.players] as [PlayerState, PlayerState];
+        const players = [...newState.players];
         if (resolving.isBuyback) {
           players[ctrl] = { ...players[ctrl], hand: [...players[ctrl].hand, resolving.card] };
         } else if (resolving.isFlashback || resolving.isEscape || resolving.isJumpStart || resolving.isRetrace) {
@@ -433,7 +433,7 @@ export function resolveTopOfStack(state: GameState): GameState {
       if (resolving.isMutate && resolving.mutateTargetId) {
         const targetIdx = findPermanentForMutate(newState, resolving.mutateTargetId);
         if (targetIdx && !targetIdx.perm.typeLine?.toLowerCase().includes('human')) {
-          const players = [...newState.players] as [PlayerState, PlayerState];
+          const players = [...newState.players];
           const tgtPlayer = { ...players[targetIdx.playerIdx] };
           const updatedBf = [...tgtPlayer.battlefield];
 
@@ -499,7 +499,7 @@ export function resolveTopOfStack(state: GameState): GameState {
           // Find target creature on any battlefield
           let targetFound = false;
           for (let pi = 0; pi < 2; pi++) {
-            const pIdx = pi as 0 | 1;
+            const pIdx = pi;
             const targetIdx = newState.players[pIdx].battlefield.findIndex(p => p.id === bestowTarget.id);
             if (targetIdx !== -1 && newState.players[pIdx].battlefield[targetIdx].currentPower !== undefined) {
               targetFound = true;
@@ -516,7 +516,7 @@ export function resolveTopOfStack(state: GameState): GameState {
                 currentToughness: undefined,
               };
 
-              const bestowPlayers = [...newState.players] as [PlayerState, PlayerState];
+              const bestowPlayers = [...newState.players];
               bestowPlayers[controller] = {
                 ...bestowPlayers[controller],
                 battlefield: [...bestowPlayers[controller].battlefield, bestowAura],
@@ -556,7 +556,7 @@ export function resolveTopOfStack(state: GameState): GameState {
       if ((card.oracleText || '').match(/enters the battlefield tapped/i)) {
         permanent = { ...permanent, tapped: true };
       }
-      const players = [...newState.players] as [PlayerState, PlayerState];
+      const players = [...newState.players];
       players[controller] = {
         ...players[controller],
         battlefield: [...players[controller].battlefield, permanent],
@@ -578,7 +578,7 @@ export function resolveTopOfStack(state: GameState): GameState {
         if (!auraAttachResult.attached) {
           // CR 303.4g: Aura with no legal target goes to graveyard
           // Remove the aura from the battlefield and put it in the graveyard
-          const playersGy = [...newState.players] as [PlayerState, PlayerState];
+          const playersGy = [...newState.players];
           const bfWithoutAura = playersGy[controller].battlefield.filter(p => p.id !== permanent.id);
           const auraAsCard: Card = {
             id: permanent.id, oracleId: permanent.oracleId, name: permanent.name,
@@ -643,7 +643,7 @@ export function resolveTopOfStack(state: GameState): GameState {
       // - Adventure: exile with onAdventure flag (CR 715.4)
       // - Rebound: exile with reboundExile flag (CR 702.87)
       // - Normal: graveyard
-      const players = [...newState.players] as [PlayerState, PlayerState];
+      const players = [...newState.players];
       if (resolving.isBuyback) {
         // Buyback: return to hand instead of graveyard (CR 702.26)
         players[controller] = {
@@ -762,7 +762,7 @@ function attachAuraOnResolution(
   state: GameState,
   auraPermanent: Permanent,
   resolving: StackObject,
-  controller: 0 | 1
+  controller: number
 ): { state: GameState; attached: boolean } {
   let targetId: string | null = null;
 
@@ -772,7 +772,7 @@ function attachAuraOnResolution(
     if (target.type === 'permanent') {
       // Verify target still exists on the battlefield
       for (let pi = 0; pi < 2; pi++) {
-        if (state.players[pi as 0 | 1].battlefield.some(p => p.id === target.id)) {
+        if (state.players[pi].battlefield.some(p => p.id === target.id)) {
           targetId = target.id;
           break;
         }
@@ -795,7 +795,7 @@ function attachAuraOnResolution(
       }
     } else {
       // Harmful aura → enchant opponent's strongest creature
-      const opp = (controller === 0 ? 1 : 0) as 0 | 1;
+      const opp = (controller === 0 ? 1 : 0);
       const oppCreatures = state.players[opp].battlefield
         .filter(p => p.currentPower !== undefined);
       if (oppCreatures.length > 0) {
@@ -812,7 +812,7 @@ function attachAuraOnResolution(
 
   // Find which player controls the target creature and attach the aura
   for (let pi = 0; pi < 2; pi++) {
-    const playerIdx = pi as 0 | 1;
+    const playerIdx = pi;
     const player = state.players[playerIdx];
     const targetIdx = player.battlefield.findIndex(p => p.id === targetId);
 
@@ -821,7 +821,7 @@ function attachAuraOnResolution(
       const bonuses = getAuraBonuses(auraPermanent);
 
       // Build updated battlefield for the controller (where the aura is)
-      const players = [...state.players] as [PlayerState, PlayerState];
+      const players = [...state.players];
 
       // Update the aura: set attachedTo
       const controllerBf = [...players[controller].battlefield];
@@ -995,7 +995,7 @@ function isPermanentType(card: Card): boolean {
 /** Create a Permanent from a Card (inline to avoid circular import with permanent.ts) */
 function createPermanentFromCard(
   card: Card,
-  controller: 0 | 1,
+  controller: number,
   turn: number
 ): Permanent {
   const basePower = card.power ? parseInt(card.power, 10) || 0 : undefined;
@@ -1048,7 +1048,7 @@ export function peekStack(state: GameState): StackObject | null {
  */
 export function copyStackObject(
   original: StackObject,
-  newController: 0 | 1,
+  newController: number,
   newTargets?: Target[]
 ): StackObject {
   return {

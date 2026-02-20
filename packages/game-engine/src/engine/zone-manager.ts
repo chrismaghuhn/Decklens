@@ -23,7 +23,7 @@ function shuffle<T>(array: T[]): T[] {
 export function getCardsInZone(
   state: GameState,
   zone: Zone,
-  player: 0 | 1
+  player: number
 ): Card[] {
   const playerState = state.players[player];
 
@@ -56,7 +56,7 @@ export function getCardsInZone(
 export function findCard(
   state: GameState,
   cardId: string,
-  player: 0 | 1
+  player: number
 ): { zone: Zone; index: number; card: Card } | null {
   const playerState = state.players[player];
   const zones: { zone: Zone; cards: Card[] }[] = [
@@ -88,7 +88,7 @@ export function moveCard(
   cardId: string,
   fromZone: Zone,
   toZone: Zone,
-  player: 0 | 1
+  player: number
 ): GameState {
   const playerState = state.players[player];
 
@@ -189,7 +189,7 @@ export function moveCard(
       return state;
   }
 
-  const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+  const players = [...state.players];
   players[player] = updatedPlayer;
 
   return { ...state, players };
@@ -200,7 +200,7 @@ export function moveCard(
  * Returns updated state. If library is empty, returns state unchanged
  * (state-based actions will handle the loss condition).
  */
-export function drawCard(state: GameState, player: 0 | 1): GameState {
+export function drawCard(state: GameState, player: number): GameState {
   // Track first draw this turn for Miracle
   if (!state.firstDrawThisTurn) {
     state = { ...state, firstDrawThisTurn: true };
@@ -217,7 +217,7 @@ export function drawCard(state: GameState, player: 0 | 1): GameState {
     hasDrawnThisGame: true, // CR 704.5b: track draw attempts for empty-library SBA
   };
 
-  const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+  const players = [...state.players];
   players[player] = updatedPlayer;
 
   return {
@@ -243,7 +243,7 @@ export function drawCard(state: GameState, player: 0 | 1): GameState {
  */
 export function drawCards(
   state: GameState,
-  player: 0 | 1,
+  player: number,
   count: number
 ): GameState {
   let currentState = state;
@@ -259,14 +259,14 @@ export function drawCards(
 /**
  * Shuffle a player's library.
  */
-export function shuffleLibrary(state: GameState, player: 0 | 1): GameState {
+export function shuffleLibrary(state: GameState, player: number): GameState {
   const playerState = state.players[player];
   const updatedPlayer = {
     ...playerState,
     library: shuffle(playerState.library),
   };
 
-  const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+  const players = [...state.players];
   players[player] = updatedPlayer;
 
   return { ...state, players };
@@ -277,7 +277,7 @@ export function shuffleLibrary(state: GameState, player: 0 | 1): GameState {
  */
 export function millCards(
   state: GameState,
-  player: 0 | 1,
+  player: number,
   count: number
 ): GameState {
   const playerState = state.players[player];
@@ -290,7 +290,7 @@ export function millCards(
     graveyard: [...playerState.graveyard, ...milledCards],
   };
 
-  const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+  const players = [...state.players];
   players[player] = updatedPlayer;
 
   return {
@@ -315,7 +315,7 @@ export function millCards(
  */
 export function drawOpeningHand(
   state: GameState,
-  player: 0 | 1,
+  player: number,
   count: number = 7
 ): GameState {
   return drawCards(state, player, count);

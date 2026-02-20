@@ -79,20 +79,20 @@ export function initializeCombat(state: GameState): GameState {
 export function resolveCombatDamage(
   state: GameState,
   firstStrikeOnly: boolean = false
-): { state: GameState; commanderDamageDealt: { commanderId: string; damage: number; defenderId: 0 | 1 | string }[] } {
+): { state: GameState; commanderDamageDealt: { commanderId: string; damage: number; defenderId: number | string }[] } {
   if (!state.combat || state.combat.attackers.length === 0) {
     return { state, commanderDamageDealt: [] };
   }
 
   const activePlayer = state.activePlayer;
-  const defendingPlayer: 0 | 1 = activePlayer === 0 ? 1 : 0;
+  const defendingPlayer: number = activePlayer === 0 ? 1 : 0;
 
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   const attackerBattlefield = [...players[activePlayer].battlefield];
   const defenderBattlefield = [...players[defendingPlayer].battlefield];
   let defenderLife = players[defendingPlayer].life;
   const logs: string[] = [];
-  const commanderDamageDealt: { commanderId: string; damage: number; defenderId: 0 | 1 | string }[] = [];
+  const commanderDamageDealt: { commanderId: string; damage: number; defenderId: number | string }[] = [];
 
   // Track damage shields throughout combat resolution (mutable copy)
   let currentShields = state.damageShields ? [...state.damageShields.map(s => ({ ...s }))] : [];
@@ -440,7 +440,7 @@ export function resolveCombatDamage(
     turn: state.turn,
     phase: state.phase as GameState['phase'],
     step: state.step as GameState['step'],
-    player: null as 0 | 1 | null,
+    player: null | null,
     message,
   }));
 
@@ -459,12 +459,12 @@ export function resolveCombatDamage(
 
 /** Clean up combat state at end of combat */
 export function endCombat(state: GameState): GameState {
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
 
   for (let i = 0; i < 2; i++) {
-    players[i as 0 | 1] = {
-      ...players[i as 0 | 1],
-      battlefield: players[i as 0 | 1].battlefield.map((p) => {
+    players[i] = {
+      ...players[i],
+      battlefield: players[i].battlefield.map((p) => {
         const cleaned = { ...p, attacking: false, blocking: null };
         // Clear deathtouched flag after combat
         delete (cleaned as any).deathtouched;
@@ -485,7 +485,7 @@ export function hasFirstStrikeCombatants(state: GameState): boolean {
   if (!state.combat) return false;
 
   const activePlayer = state.activePlayer;
-  const defendingPlayer: 0 | 1 = activePlayer === 0 ? 1 : 0;
+  const defendingPlayer: number = activePlayer === 0 ? 1 : 0;
 
   for (const attacker of state.combat.attackers) {
     const perm = state.players[activePlayer].battlefield.find((p) => p.id === attacker.permanentId);
@@ -754,7 +754,7 @@ export function getEligibleAttackers(state: GameState): Permanent[] {
  * Checks: is creature, untapped, flying/reach restrictions.
  */
 export function getEligibleBlockers(state: GameState, attackerPerm?: Permanent): Permanent[] {
-  const defendingPlayer: 0 | 1 = state.activePlayer === 0 ? 1 : 0;
+  const defendingPlayer: number = state.activePlayer === 0 ? 1 : 0;
   const player = state.players[defendingPlayer];
   const defenderBattlefield = player.battlefield;
   return defenderBattlefield.filter((p) => {
@@ -924,7 +924,7 @@ export function validateDamageAssignment(
   const pending = state.pendingDamageAssignment;
   if (!pending) return 'No pending damage assignment';
 
-  const defendingPlayer: 0 | 1 = state.activePlayer === 0 ? 1 : 0;
+  const defendingPlayer: number = state.activePlayer === 0 ? 1 : 0;
   const defenderBf = state.players[defendingPlayer].battlefield;
 
   // Total damage assigned must equal attacker's power
@@ -999,7 +999,7 @@ export function applyDamageAssignment(
 export function processAnnihilator(
   state: GameState,
   attackerPerm: Permanent,
-  defendingPlayer: 0 | 1
+  defendingPlayer: number
 ): GameState {
   const oracle = (attackerPerm.oracleText || '').toLowerCase();
   const match = oracle.match(/annihilator\s+(\d+)/i);
@@ -1008,7 +1008,7 @@ export function processAnnihilator(
   const n = parseInt(match[1], 10);
   if (n <= 0) return state;
 
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   const defender = players[defendingPlayer];
   const bf = [...defender.battlefield];
 

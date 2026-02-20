@@ -116,7 +116,7 @@ export function attachEquipment(
   state: GameState,
   equipmentId: string,
   targetCreatureId: string,
-  player: 0 | 1
+  player: number
 ): GameState {
   const playerState = state.players[player];
 
@@ -173,7 +173,7 @@ export function attachEquipment(
   };
 
   const updatedPlayer = { ...playerState, battlefield: updatedBf };
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[player] = updatedPlayer;
 
   return {
@@ -201,11 +201,11 @@ export function attachEquipment(
  */
 export function handleAttachmentCleanup(state: GameState): GameState {
   let changed = false;
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   const logs: string[] = [];
 
   for (let i = 0; i < 2; i++) {
-    const player = players[i as 0 | 1];
+    const player = players[i];
     let bf = [...player.battlefield];
     const dyingAuras: Card[] = [];
     let playerChanged = false;
@@ -317,7 +317,7 @@ export function handleAttachmentCleanup(state: GameState): GameState {
       changed = true;
       // Remove null entries (dead auras)
       bf = bf.filter(p => p !== null);
-      players[i as 0 | 1] = {
+      players[i] = {
         ...player,
         battlefield: bf,
         graveyard: [...player.graveyard, ...dyingAuras],
@@ -332,7 +332,7 @@ export function handleAttachmentCleanup(state: GameState): GameState {
     turn: state.turn,
     phase: state.phase,
     step: state.step,
-    player: null as 0 | 1 | null,
+    player: null | null,
     message,
   }));
 
@@ -346,7 +346,7 @@ export function handleAttachmentCleanup(state: GameState): GameState {
 export function recalculateCreatureStats(
   state: GameState,
   creatureId: string,
-  playerIdx: 0 | 1
+  playerIdx: number
 ): GameState {
   const player = state.players[playerIdx];
   const crIdx = player.battlefield.findIndex(p => p.id === creatureId);
@@ -398,7 +398,7 @@ export function recalculateCreatureStats(
   const updatedBf = [...player.battlefield];
   updatedBf[crIdx] = updatedCreature;
   const updatedPlayer = { ...player, battlefield: updatedBf };
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[playerIdx] = updatedPlayer;
 
   return { ...state, players };

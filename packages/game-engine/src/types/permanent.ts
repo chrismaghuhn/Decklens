@@ -25,7 +25,7 @@ export interface TemporaryPtMod {
 
 /** A temporary control change that expires at end of turn (e.g., Threaten effects) */
 export interface TemporaryControlChange {
-  originalController: 0 | 1;
+  originalController: number;
   source: string; // description of what caused the steal
   turn: number; // turn it was applied
 }
@@ -40,7 +40,7 @@ export interface TemporaryKeyword {
 /** A card on the battlefield */
 export interface Permanent extends Card {
   /** Current controller (may differ from owner due to theft effects) */
-  controller: 0 | 1;
+  controller: number;
   tapped: boolean;
   flipped: boolean;
   faceDown: boolean;
@@ -215,7 +215,7 @@ export function transformPermanent(perm: Permanent): Permanent | null {
 /** Create a Permanent from a Card when it enters the battlefield */
 export function cardToPermanent(
   card: Card,
-  controller: 0 | 1,
+  controller: number,
   turn: number
 ): Permanent {
   const basePower = card.power ? parseInt(card.power, 10) || 0 : undefined;

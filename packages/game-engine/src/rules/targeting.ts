@@ -198,7 +198,7 @@ function compare(actual: number, op: 'leq' | 'geq' | 'eq', value: number): boole
  */
 export function getValidTargets(
   state: GameState,
-  controller: 0 | 1,
+  controller: number,
   filter: TargetFilter,
   sourceId?: string,
 ): Target[] {
@@ -206,7 +206,7 @@ export function getValidTargets(
   const targets: Target[] = [];
 
   // Determine which players' permanents to search
-  const playerIndicesToCheck: (0 | 1)[] =
+  const playerIndicesToCheck: number[] =
     filter.controller === 'you'
       ? [controller]
       : filter.controller === 'opponent'

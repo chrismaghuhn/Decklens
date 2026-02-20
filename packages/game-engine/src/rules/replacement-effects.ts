@@ -43,7 +43,7 @@ export interface ReplacementEvent {
   /** The permanent/card involved */
   source?: Permanent | Card;
   /** Which player is affected */
-  affectedPlayer: 0 | 1;
+  affectedPlayer: number;
   /** Additional data */
   amount?: number;        // damage amount, life amount, etc.
   fromZone?: string;      // where the card is coming from
@@ -170,7 +170,7 @@ export const REPLACEMENT_EFFECTS: ReplacementEffectDef[] = [
       const rest = revealed.filter(c => c.id !== chosen.id);
 
       const newLib = [...lib.slice(count), ...rest]; // rest go to bottom
-      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      const players = [...state.players];
       players[player] = {
         ...players[player],
         library: newLib,
@@ -355,7 +355,7 @@ export const REPLACEMENT_EFFECTS: ReplacementEffectDef[] = [
       }
 
       const drawn = lib[0];
-      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      const players = [...state.players];
       players[controller] = {
         ...players[controller],
         library: lib.slice(1),
@@ -388,7 +388,7 @@ export const REPLACEMENT_EFFECTS: ReplacementEffectDef[] = [
       if (!found) return { replaced: false };
 
       const perm = { ...found.perm, damage: found.perm.damage + (event.amount ?? 0) };
-      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      const players = [...state.players];
       const bf = [...players[found.playerIdx].battlefield];
       bf[found.permIdx] = perm;
       players[found.playerIdx] = { ...players[found.playerIdx], battlefield: bf };
@@ -478,7 +478,7 @@ export const REPLACEMENT_EFFECTS: ReplacementEffectDef[] = [
       const newPerm = cardToPermanent(source as unknown as Card, source.controller, state.turn);
       newPerm.counters = { '+1/+1': 1 };
       newPerm.summoningSick = true;
-      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      const players = [...state.players];
       players[source.controller] = {
         ...players[source.controller],
         battlefield: [...players[source.controller].battlefield, newPerm],
@@ -504,7 +504,7 @@ export const REPLACEMENT_EFFECTS: ReplacementEffectDef[] = [
       const newPerm = cardToPermanent(source as unknown as Card, source.controller, state.turn);
       newPerm.counters = { '-1/-1': 1 };
       newPerm.summoningSick = true;
-      const players = [...state.players] as [typeof state.players[0], typeof state.players[1]];
+      const players = [...state.players];
       players[source.controller] = {
         ...players[source.controller],
         battlefield: [...players[source.controller].battlefield, newPerm],
@@ -538,11 +538,11 @@ export const REPLACEMENT_EFFECTS: ReplacementEffectDef[] = [
 
 // ─── Helper ───
 
-function findPermOnBoard(state: GameState, id: string): { perm: Permanent; playerIdx: 0 | 1; permIdx: number } | null {
+function findPermOnBoard(state: GameState, id: string): { perm: Permanent; playerIdx: number; permIdx: number } | null {
   for (let pi = 0; pi < 2; pi++) {
-    const player = state.players[pi as 0 | 1];
+    const player = state.players[pi];
     const idx = player.battlefield.findIndex(p => p.id === id);
-    if (idx !== -1) return { perm: player.battlefield[idx], playerIdx: pi as 0 | 1, permIdx: idx };
+    if (idx !== -1) return { perm: player.battlefield[idx], playerIdx: pi, permIdx: idx };
   }
   return null;
 }
@@ -561,7 +561,7 @@ export function checkReplacementEffects(
   event: ReplacementEvent,
 ): ReplacementResult {
   // Check controller's permanents first (CR 616.1 — affected player chooses)
-  const playerOrder: (0 | 1)[] = [event.affectedPlayer, event.affectedPlayer === 0 ? 1 : 0];
+  const playerOrder: number[] = [event.affectedPlayer, event.affectedPlayer === 0 ? 1 : 0];
 
   for (const playerIdx of playerOrder) {
     const player = state.players[playerIdx];
@@ -649,7 +649,7 @@ export function applyDeathReplacement(
  */
 export function applyDrawReplacement(
   state: GameState,
-  player: 0 | 1,
+  player: number,
 ): { shouldDraw: boolean; state: GameState; description?: string } {
   const event: ReplacementEvent = {
     type: 'draw',
@@ -685,7 +685,7 @@ export function applyDrawReplacement(
 export function applyDamageReplacement(
   state: GameState,
   target: Permanent | null,
-  targetPlayer: 0 | 1,
+  targetPlayer: number,
   amount: number,
 ): { amount: number; state: GameState; description?: string } {
   const event: ReplacementEvent = {
@@ -723,7 +723,7 @@ export function applyDamageReplacement(
  */
 export function applyLifeGainReplacement(
   state: GameState,
-  player: 0 | 1,
+  player: number,
   amount: number,
 ): { amount: number; state: GameState; description?: string } {
   const event: ReplacementEvent = {
@@ -753,7 +753,7 @@ export function applyGraveyardReplacement(
   state: GameState,
   card: Card,
   fromZone: string,
-  affectedPlayer: 0 | 1,
+  affectedPlayer: number,
 ): { zone: 'graveyard' | 'exile' | 'library'; state: GameState; description?: string } {
   const event: ReplacementEvent = {
     type: 'go-to-graveyard',

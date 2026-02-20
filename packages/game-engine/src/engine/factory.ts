@@ -38,7 +38,7 @@ export function createCard(
     rarity?: string;
     image_uris?: { normal?: string; small?: string };
   },
-  owner: 0 | 1
+  owner: number
 ): Card {
   return {
     id: generateCardId(),
@@ -70,7 +70,7 @@ export function createSimpleCard(
   name: string,
   typeLine: string,
   manaCost: string,
-  owner: 0 | 1,
+  owner: number,
   opts?: Partial<Card>
 ): Card {
   return {
@@ -100,7 +100,7 @@ export function createSimpleCard(
  */
 export function performLondonMulligan(
   state: GameState,
-  player: 0 | 1,
+  player: number,
   bottomCards: string[]
 ): GameState {
   const playerState = state.players[player];
@@ -123,10 +123,10 @@ export function performLondonMulligan(
     library: [...playerState.library, ...toBottom],
   };
 
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[player] = updatedPlayer;
 
-  const mulliganCount = [...state.mulliganCount] as [number, number];
+  const mulliganCount = [...state.mulliganCount];
 
   return {
     ...state,
@@ -152,7 +152,7 @@ export function performLondonMulligan(
  */
 export function startMulligan(
   state: GameState,
-  player: 0 | 1
+  player: number
 ): GameState {
   const playerState = state.players[player];
 
@@ -163,13 +163,13 @@ export function startMulligan(
     hand: [],
   };
 
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[player] = updatedPlayer;
 
   let newState: GameState = { ...state, players };
 
   // Increment mulligan count
-  const mulliganCount = [...state.mulliganCount] as [number, number];
+  const mulliganCount = [...state.mulliganCount];
   mulliganCount[player]++;
   newState.mulliganCount = mulliganCount;
 
@@ -198,7 +198,7 @@ export function startMulligan(
  */
 export function keepHand(
   state: GameState,
-  player: 0 | 1
+  player: number
 ): GameState {
   return {
     ...state,

@@ -112,9 +112,9 @@ function checkPlayerLoss(state: GameState): SBAResult {
   if (state.gameOver) return { state, changed: false };
 
   for (let i = 0; i < 2; i++) {
-    const player = state.players[i as 0 | 1];
+    const player = state.players[i];
     if (player.life <= 0) {
-      const winner: 0 | 1 = i === 0 ? 1 : 0;
+      const winner: number = i === 0 ? 1 : 0;
       return {
         state: {
           ...state,
@@ -127,7 +127,7 @@ function checkPlayerLoss(state: GameState): SBAResult {
               turn: state.turn,
               phase: state.phase,
               step: state.step,
-              player: i as 0 | 1,
+              player: i,
               message: `${player.name} has ${player.life} life and loses the game.`,
             },
           ],
@@ -150,12 +150,12 @@ function checkPlayerLoss(state: GameState): SBAResult {
  */
 function checkCreatureDeath(state: GameState): SBAResult {
   let changed = false;
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   const logs: string[] = [];
-  const allDying: { playerIdx: 0 | 1; dying: Permanent[] }[] = [];
+  const allDying: { playerIdx: number; dying: Permanent[] }[] = [];
 
   for (let i = 0; i < 2; i++) {
-    const player = players[i as 0 | 1];
+    const player = players[i];
     const dying: Permanent[] = [];
     const surviving: Permanent[] = [];
 
@@ -192,11 +192,11 @@ function checkCreatureDeath(state: GameState): SBAResult {
 
     if (dying.length > 0) {
       changed = true;
-      allDying.push({ playerIdx: i as 0 | 1, dying });
+      allDying.push({ playerIdx: i, dying });
 
       // CR 400.3: Dying permanents go to owner's graveyard, not controller's
       // Remove from controller's battlefield
-      players[i as 0 | 1] = {
+      players[i] = {
         ...player,
         battlefield: surviving,
       };
@@ -205,20 +205,20 @@ function checkCreatureDeath(state: GameState): SBAResult {
       // e.g., "If a creature would die, exile it instead" (Rest in Peace, Leyline of the Void)
       // Also check Undying (CR 702.92) and Persist (CR 702.78)
       for (const perm of dying) {
-        const ownerIdx: 0 | 1 = perm.owner ?? (i as 0 | 1);
+        const ownerIdx: number = perm.owner ?? i;
 
         // Undying (CR 702.92): creature with undying and no +1/+1 counters
         // returns to battlefield with a +1/+1 counter instead of dying
         if (hasKeyword(perm, 'undying') && (perm.counters['+1/+1'] ?? 0) === 0) {
           const card = permanentToCard(perm);
-          const returned = cardToPermanent(card, i as 0 | 1, state.turn);
+          const returned = cardToPermanent(card, i, state.turn);
           returned.counters = { ...returned.counters, '+1/+1': 1 };
           if (returned.currentPower !== undefined) returned.currentPower += 1;
           if (returned.currentToughness !== undefined) returned.currentToughness += 1;
           returned.summoningSick = true;
-          players[i as 0 | 1] = {
-            ...players[i as 0 | 1],
-            battlefield: [...players[i as 0 | 1].battlefield, returned],
+          players[i] = {
+            ...players[i],
+            battlefield: [...players[i].battlefield, returned],
           };
           logs.push(`${perm.name} returns to the battlefield with a +1/+1 counter (undying).`);
           continue;
@@ -228,14 +228,14 @@ function checkCreatureDeath(state: GameState): SBAResult {
         // returns to battlefield with a -1/-1 counter instead of dying
         if (hasKeyword(perm, 'persist') && (perm.counters['-1/-1'] ?? 0) === 0) {
           const card = permanentToCard(perm);
-          const returned = cardToPermanent(card, i as 0 | 1, state.turn);
+          const returned = cardToPermanent(card, i, state.turn);
           returned.counters = { ...returned.counters, '-1/-1': 1 };
           if (returned.currentPower !== undefined) returned.currentPower -= 1;
           if (returned.currentToughness !== undefined) returned.currentToughness -= 1;
           returned.summoningSick = true;
-          players[i as 0 | 1] = {
-            ...players[i as 0 | 1],
-            battlefield: [...players[i as 0 | 1].battlefield, returned],
+          players[i] = {
+            ...players[i],
+            battlefield: [...players[i].battlefield, returned],
           };
           logs.push(`${perm.name} returns to the battlefield with a -1/-1 counter (persist).`);
           continue;
@@ -280,7 +280,7 @@ function checkCreatureDeath(state: GameState): SBAResult {
     turn: state.turn,
     phase: state.phase,
     step: state.step,
-    player: null as 0 | 1 | null,
+    player: null | null,
     message,
   }));
 
@@ -300,11 +300,11 @@ function checkCreatureDeath(state: GameState): SBAResult {
 /** Creatures with 0 or less toughness go to graveyard */
 function checkZeroToughness(state: GameState): SBAResult {
   let changed = false;
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   const logs: string[] = [];
 
   for (let i = 0; i < 2; i++) {
-    const player = players[i as 0 | 1];
+    const player = players[i];
     const dying: Permanent[] = [];
     const surviving: Permanent[] = [];
 
@@ -320,27 +320,27 @@ function checkZeroToughness(state: GameState): SBAResult {
     if (dying.length > 0) {
       changed = true;
       // CR 400.3: Remove from controller's battlefield
-      players[i as 0 | 1] = {
+      players[i] = {
         ...player,
         battlefield: surviving,
       };
       // Distribute dying cards — check replacement effects (CR 614)
       // Also check Undying (CR 702.92) and Persist (CR 702.78)
       for (const perm of dying) {
-        const ownerIdx: 0 | 1 = perm.owner ?? (i as 0 | 1);
+        const ownerIdx: number = perm.owner ?? i;
 
         // Undying (CR 702.92): creature with undying and no +1/+1 counters
         // returns to battlefield with a +1/+1 counter instead of dying
         if (hasKeyword(perm, 'undying') && (perm.counters['+1/+1'] ?? 0) === 0) {
           const card = permanentToCard(perm);
-          const returned = cardToPermanent(card, i as 0 | 1, state.turn);
+          const returned = cardToPermanent(card, i, state.turn);
           returned.counters = { ...returned.counters, '+1/+1': 1 };
           if (returned.currentPower !== undefined) returned.currentPower += 1;
           if (returned.currentToughness !== undefined) returned.currentToughness += 1;
           returned.summoningSick = true;
-          players[i as 0 | 1] = {
-            ...players[i as 0 | 1],
-            battlefield: [...players[i as 0 | 1].battlefield, returned],
+          players[i] = {
+            ...players[i],
+            battlefield: [...players[i].battlefield, returned],
           };
           logs.push(`${perm.name} returns to the battlefield with a +1/+1 counter (undying).`);
           continue;
@@ -350,14 +350,14 @@ function checkZeroToughness(state: GameState): SBAResult {
         // returns to battlefield with a -1/-1 counter instead of dying
         if (hasKeyword(perm, 'persist') && (perm.counters['-1/-1'] ?? 0) === 0) {
           const card = permanentToCard(perm);
-          const returned = cardToPermanent(card, i as 0 | 1, state.turn);
+          const returned = cardToPermanent(card, i, state.turn);
           returned.counters = { ...returned.counters, '-1/-1': 1 };
           if (returned.currentPower !== undefined) returned.currentPower -= 1;
           if (returned.currentToughness !== undefined) returned.currentToughness -= 1;
           returned.summoningSick = true;
-          players[i as 0 | 1] = {
-            ...players[i as 0 | 1],
-            battlefield: [...players[i as 0 | 1].battlefield, returned],
+          players[i] = {
+            ...players[i],
+            battlefield: [...players[i].battlefield, returned],
           };
           logs.push(`${perm.name} returns to the battlefield with a -1/-1 counter (persist).`);
           continue;
@@ -400,7 +400,7 @@ function checkZeroToughness(state: GameState): SBAResult {
     turn: state.turn,
     phase: state.phase,
     step: state.step,
-    player: null as 0 | 1 | null,
+    player: null | null,
     message,
   }));
 
@@ -413,11 +413,11 @@ function checkZeroToughness(state: GameState): SBAResult {
 /** Planeswalkers with 0 or less loyalty go to graveyard */
 function checkPlaneswalkerLoyalty(state: GameState): SBAResult {
   let changed = false;
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   const logs: string[] = [];
 
   for (let i = 0; i < 2; i++) {
-    const player = players[i as 0 | 1];
+    const player = players[i];
     const dying: Permanent[] = [];
     const surviving: Permanent[] = [];
 
@@ -433,13 +433,13 @@ function checkPlaneswalkerLoyalty(state: GameState): SBAResult {
     if (dying.length > 0) {
       changed = true;
       // CR 400.3: Remove from controller's battlefield
-      players[i as 0 | 1] = {
+      players[i] = {
         ...player,
         battlefield: surviving,
       };
       // Distribute dying planeswalkers — check replacement effects (CR 614)
       for (const perm of dying) {
-        const ownerIdx: 0 | 1 = perm.owner ?? (i as 0 | 1);
+        const ownerIdx: number = perm.owner ?? i;
         const card = permanentToCard(perm);
 
         const tempState: GameState = { ...state, players };
@@ -468,7 +468,7 @@ function checkPlaneswalkerLoyalty(state: GameState): SBAResult {
     turn: state.turn,
     phase: state.phase,
     step: state.step,
-    player: null as 0 | 1 | null,
+    player: null | null,
     message,
   }));
 
@@ -487,7 +487,7 @@ function checkLegendRule(state: GameState): SBAResult {
   if (state.pendingLegendChoice) return { state, changed: false };
 
   for (let i = 0; i < 2; i++) {
-    const player = state.players[i as 0 | 1];
+    const player = state.players[i];
     const legendaryByName = new Map<string, Permanent[]>();
 
     for (const perm of player.battlefield) {
@@ -505,7 +505,7 @@ function checkLegendRule(state: GameState): SBAResult {
           state: {
             ...state,
             pendingLegendChoice: {
-              player: i as 0 | 1,
+              player: i,
               legendName: name,
               permanentIds: perms.map(p => p.id),
             },
@@ -514,7 +514,7 @@ function checkLegendRule(state: GameState): SBAResult {
               turn: state.turn,
               phase: state.phase,
               step: state.step,
-              player: i as 0 | 1,
+              player: i,
               message: `${name}: Legend rule — choose which copy to keep.`,
             }],
           },
@@ -532,9 +532,9 @@ function checkPoisonCounters(state: GameState): SBAResult {
   if (state.gameOver) return { state, changed: false };
 
   for (let i = 0; i < 2; i++) {
-    const player = state.players[i as 0 | 1];
+    const player = state.players[i];
     if (player.poisonCounters >= 10) {
-      const winner: 0 | 1 = i === 0 ? 1 : 0;
+      const winner: number = i === 0 ? 1 : 0;
       return {
         state: {
           ...state,
@@ -547,7 +547,7 @@ function checkPoisonCounters(state: GameState): SBAResult {
               turn: state.turn,
               phase: state.phase,
               step: state.step,
-              player: i as 0 | 1,
+              player: i,
               message: `${player.name} has ${player.poisonCounters} poison counters and loses the game.`,
             },
           ],
@@ -569,10 +569,10 @@ export function checkCommanderDamageLoss(state: GameState): SBAResult {
   if (state.gameOver) return { state, changed: false };
 
   for (let i = 0; i < 2; i++) {
-    const player = state.players[i as 0 | 1];
+    const player = state.players[i];
     for (const [cmdId, damage] of Object.entries(player.commanderDamage)) {
       if (damage >= 21) {
-        const winner: 0 | 1 = i === 0 ? 1 : 0;
+        const winner: number = i === 0 ? 1 : 0;
         return {
           state: {
             ...state,
@@ -585,7 +585,7 @@ export function checkCommanderDamageLoss(state: GameState): SBAResult {
                 turn: state.turn,
                 phase: state.phase,
                 step: state.step,
-                player: i as 0 | 1,
+                player: i,
                 message: `${player.name} has taken 21+ commander damage and loses the game.`,
               },
             ],
@@ -603,12 +603,12 @@ export function checkCommanderDamageLoss(state: GameState): SBAResult {
  * Check if a player attempted to draw from an empty library.
  * Called after draw attempts.
  */
-export function checkEmptyLibraryLoss(state: GameState, player: 0 | 1): SBAResult {
+export function checkEmptyLibraryLoss(state: GameState, player: number): SBAResult {
   if (state.gameOver) return { state, changed: false };
 
   const ps = state.players[player];
   if (ps.library.length === 0 && ps.hasDrawnThisGame) {
-    const winner: 0 | 1 = player === 0 ? 1 : 0;
+    const winner: number = player === 0 ? 1 : 0;
     return {
       state: {
         ...state,
@@ -639,11 +639,11 @@ export function checkEmptyLibraryLoss(state: GameState, player: 0 | 1): SBAResul
  */
 function checkCounterCancellation(state: GameState): SBAResult {
   let changed = false;
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   const logs: string[] = [];
 
   for (let i = 0; i < 2; i++) {
-    const player = players[i as 0 | 1];
+    const player = players[i];
     let playerChanged = false;
     const updatedBattlefield: Permanent[] = [];
 
@@ -669,7 +669,7 @@ function checkCounterCancellation(state: GameState): SBAResult {
 
     if (playerChanged) {
       changed = true;
-      players[i as 0 | 1] = {
+      players[i] = {
         ...player,
         battlefield: updatedBattlefield,
       };
@@ -683,7 +683,7 @@ function checkCounterCancellation(state: GameState): SBAResult {
     turn: state.turn,
     phase: state.phase,
     step: state.step,
-    player: null as 0 | 1 | null,
+    player: null | null,
     message,
   }));
 
@@ -701,11 +701,11 @@ function checkCounterCancellation(state: GameState): SBAResult {
  */
 function checkTokensInWrongZone(state: GameState): SBAResult {
   let changed = false;
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   const logs: string[] = [];
 
   for (let i = 0; i < 2; i++) {
-    const player = players[i as 0 | 1];
+    const player = players[i];
     let playerChanged = false;
 
     // Check graveyard for tokens
@@ -749,7 +749,7 @@ function checkTokensInWrongZone(state: GameState): SBAResult {
 
     if (playerChanged) {
       changed = true;
-      players[i as 0 | 1] = {
+      players[i] = {
         ...player,
         graveyard: filteredGraveyard,
         exile: filteredExile,
@@ -766,7 +766,7 @@ function checkTokensInWrongZone(state: GameState): SBAResult {
     turn: state.turn,
     phase: state.phase,
     step: state.step,
-    player: null as 0 | 1 | null,
+    player: null | null,
     message,
   }));
 
@@ -782,11 +782,11 @@ function checkTokensInWrongZone(state: GameState): SBAResult {
  */
 function checkSagaSacrifice(state: GameState): SBAResult {
   let changed = false;
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   const logs: string[] = [];
 
   for (let i = 0; i < 2; i++) {
-    const player = players[i as 0 | 1];
+    const player = players[i];
     const surviving: Permanent[] = [];
     const dying: Permanent[] = [];
 
@@ -808,7 +808,7 @@ function checkSagaSacrifice(state: GameState): SBAResult {
     if (dying.length > 0) {
       changed = true;
       const deadCards = dying.map(p => permanentToCard(p));
-      players[i as 0 | 1] = {
+      players[i] = {
         ...player,
         battlefield: surviving,
         graveyard: [...player.graveyard, ...deadCards],
@@ -823,7 +823,7 @@ function checkSagaSacrifice(state: GameState): SBAResult {
     turn: state.turn,
     phase: state.phase,
     step: state.step,
-    player: null as 0 | 1 | null,
+    player: null | null,
     message,
   }));
 
@@ -852,7 +852,7 @@ function checkPlaneswalkerUniqueness(state: GameState): SBAResult {
   if (state.pendingLegendChoice) return { state, changed: false };
 
   for (let i = 0; i < 2; i++) {
-    const player = state.players[i as 0 | 1];
+    const player = state.players[i];
     const pwByName = new Map<string, Permanent[]>();
 
     for (const perm of player.battlefield) {
@@ -873,7 +873,7 @@ function checkPlaneswalkerUniqueness(state: GameState): SBAResult {
           state: {
             ...state,
             pendingLegendChoice: {
-              player: i as 0 | 1,
+              player: i,
               legendName: name,
               permanentIds: perms.map(p => p.id),
             },
@@ -882,7 +882,7 @@ function checkPlaneswalkerUniqueness(state: GameState): SBAResult {
               turn: state.turn,
               phase: state.phase,
               step: state.step,
-              player: i as 0 | 1,
+              player: i,
               message: `${name}: Planeswalker uniqueness rule — choose which copy to keep.`,
             }],
           },
@@ -902,11 +902,11 @@ function checkPlaneswalkerUniqueness(state: GameState): SBAResult {
  */
 function checkEvokeSacrifice(state: GameState): SBAResult {
   let changed = false;
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   const logs: string[] = [];
 
   for (let i = 0; i < 2; i++) {
-    const player = players[i as 0 | 1];
+    const player = players[i];
     const dying: Permanent[] = [];
     const surviving: Permanent[] = [];
 
@@ -921,14 +921,14 @@ function checkEvokeSacrifice(state: GameState): SBAResult {
 
     if (dying.length > 0) {
       changed = true;
-      players[i as 0 | 1] = {
+      players[i] = {
         ...player,
         battlefield: surviving,
       };
 
       // Move to owner's graveyard (check replacement effects)
       for (const perm of dying) {
-        const ownerIdx: 0 | 1 = perm.owner ?? (i as 0 | 1);
+        const ownerIdx: number = perm.owner ?? i;
         const card = permanentToCard(perm);
 
         const tempState: GameState = { ...state, players };
@@ -957,7 +957,7 @@ function checkEvokeSacrifice(state: GameState): SBAResult {
     turn: state.turn,
     phase: state.phase,
     step: state.step,
-    player: null as 0 | 1 | null,
+    player: null | null,
     message,
   }));
 
@@ -965,9 +965,9 @@ function checkEvokeSacrifice(state: GameState): SBAResult {
 
   // Check death triggers for evoked creatures
   for (let i = 0; i < 2; i++) {
-    const dyingPerms = state.players[i as 0 | 1].battlefield.filter(p => p.sacrificeOnETB);
+    const dyingPerms = state.players[i].battlefield.filter(p => p.sacrificeOnETB);
     if (dyingPerms.length > 0) {
-      newState = checkDeathTriggers(newState, dyingPerms, i as 0 | 1);
+      newState = checkDeathTriggers(newState, dyingPerms, i);
     }
   }
 
@@ -981,11 +981,11 @@ function checkEvokeSacrifice(state: GameState): SBAResult {
  */
 function checkEquipmentOnNonCreature(state: GameState): SBAResult {
   let changed = false;
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   const logs: string[] = [];
 
   for (let i = 0; i < 2; i++) {
-    const player = players[i as 0 | 1];
+    const player = players[i];
     let playerChanged = false;
     const updatedBf: Permanent[] = [];
 
@@ -994,7 +994,7 @@ function checkEquipmentOnNonCreature(state: GameState): SBAResult {
         // Find the attached-to permanent
         let attachedCreature: Permanent | undefined;
         for (let j = 0; j < 2; j++) {
-          attachedCreature = players[j as 0 | 1].battlefield.find(p => p.id === perm.attachedTo);
+          attachedCreature = players[j].battlefield.find(p => p.id === perm.attachedTo);
           if (attachedCreature) break;
         }
 
@@ -1003,9 +1003,9 @@ function checkEquipmentOnNonCreature(state: GameState): SBAResult {
           updatedBf.push({ ...perm, attachedTo: undefined });
           // Also remove from the creature's attachments list
           for (let j = 0; j < 2; j++) {
-            players[j as 0 | 1] = {
-              ...players[j as 0 | 1],
-              battlefield: players[j as 0 | 1].battlefield.map(p =>
+            players[j] = {
+              ...players[j],
+              battlefield: players[j].battlefield.map(p =>
                 p.id === attachedCreature!.id
                   ? { ...p, attachments: p.attachments.filter(a => a !== perm.id) }
                   : p
@@ -1024,7 +1024,7 @@ function checkEquipmentOnNonCreature(state: GameState): SBAResult {
 
     if (playerChanged) {
       changed = true;
-      players[i as 0 | 1] = { ...player, battlefield: updatedBf };
+      players[i] = { ...player, battlefield: updatedBf };
     }
   }
 
@@ -1035,7 +1035,7 @@ function checkEquipmentOnNonCreature(state: GameState): SBAResult {
     turn: state.turn,
     phase: state.phase,
     step: state.step,
-    player: null as 0 | 1 | null,
+    player: null | null,
     message,
   }));
 

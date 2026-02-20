@@ -1,5 +1,4 @@
 import type { GameState } from '../types/game-state.ts';
-import type { PlayerState } from '../types/player.ts';
 import type { Card, Color } from '../types/card.ts';
 import type { ManaCost } from '../types/mana.ts';
 import { parseManaCost } from './mana.ts';
@@ -35,14 +34,14 @@ export function trackCommanderDamage(
   state: GameState,
   commanderId: string,
   damage: number,
-  defenderId: 0 | 1
+  defenderId: number
 ): GameState {
   if (damage <= 0) return state;
 
   const player = state.players[defenderId];
   const currentDamage = player.commanderDamage[commanderId] || 0;
 
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[defenderId] = {
     ...player,
     commanderDamage: {
@@ -65,7 +64,7 @@ export function trackCommanderDamage(
 export function handleCommanderDeath(
   state: GameState,
   commanderName: string,
-  owner: 0 | 1
+  owner: number
 ): GameState {
   const player = state.players[owner];
 
@@ -78,7 +77,7 @@ export function handleCommanderDeath(
 
   const commander = player.graveyard[graveyardIdx];
 
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[owner] = {
     ...player,
     graveyard: [
@@ -113,7 +112,7 @@ export function handleCommanderDeath(
 export function handleCommanderExile(
   state: GameState,
   commanderName: string,
-  owner: 0 | 1
+  owner: number
 ): GameState {
   const player = state.players[owner];
 
@@ -125,7 +124,7 @@ export function handleCommanderExile(
 
   const commander = player.exile[exileIdx];
 
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[owner] = {
     ...player,
     exile: [
@@ -161,14 +160,14 @@ export function handleCommanderExile(
  */
 export function takeCommanderFromCommandZone(
   state: GameState,
-  player: 0 | 1
+  player: number
 ): { state: GameState; commander: Card | null } {
   const ps = state.players[player];
   if (ps.commandZone.length === 0) return { state, commander: null };
 
   const commander = ps.commandZone[0];
 
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[player] = {
     ...ps,
     commandZone: ps.commandZone.slice(1),
@@ -232,7 +231,7 @@ export function processCommanderZoneReplacements(state: GameState): GameState {
   let current = state;
 
   for (let i = 0; i < 2; i++) {
-    const player = current.players[i as 0 | 1];
+    const player = current.players[i];
 
     // Check graveyard for commander
     for (const card of player.graveyard) {
@@ -240,7 +239,7 @@ export function processCommanderZoneReplacements(state: GameState): GameState {
         return {
           ...current,
           pendingCommanderChoice: {
-            player: i as 0 | 1,
+            player: i,
             commanderName: card.name,
             currentZone: 'graveyard',
           },
@@ -249,7 +248,7 @@ export function processCommanderZoneReplacements(state: GameState): GameState {
             turn: current.turn,
             phase: current.phase,
             step: current.step,
-            player: i as 0 | 1,
+            player: i,
             message: `${card.name} went to graveyard. Move to command zone?`,
             cardName: card.name,
           }],
@@ -263,7 +262,7 @@ export function processCommanderZoneReplacements(state: GameState): GameState {
         return {
           ...current,
           pendingCommanderChoice: {
-            player: i as 0 | 1,
+            player: i,
             commanderName: card.name,
             currentZone: 'exile',
           },
@@ -272,7 +271,7 @@ export function processCommanderZoneReplacements(state: GameState): GameState {
             turn: current.turn,
             phase: current.phase,
             step: current.step,
-            player: i as 0 | 1,
+            player: i,
             message: `${card.name} was exiled. Move to command zone?`,
             cardName: card.name,
           }],

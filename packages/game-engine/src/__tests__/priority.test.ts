@@ -72,13 +72,13 @@ describe('passPriority', () => {
     const state = createTestState();
     const after = passPriority(state);
     expect(after.priorityPlayer).toBe(1);
-    expect(after.bothPlayersPassed).toBe(true);
+    expect(after.playersPassed.size).toBe(2);
   });
 
   it('should advance step when both pass with empty stack', () => {
     const state = {
       ...createTestState(),
-      bothPlayersPassed: true,
+      playersPassed: new Set([0, 1]) as Set<number>,
       priorityPlayer: 1 as const,
     };
     const after = passPriority(state);
@@ -90,7 +90,7 @@ describe('passPriority', () => {
   it('should signal resolution when both pass with stack', () => {
     const state = {
       ...createTestState(),
-      bothPlayersPassed: true,
+      playersPassed: new Set([0, 1]) as Set<number>,
       priorityPlayer: 1 as const,
       stack: [
         {
@@ -104,9 +104,9 @@ describe('passPriority', () => {
       ],
     };
     const after = passPriority(state);
-    // Both passed with stack → active player gets priority, bothPlayersPassed reset
+    // Both passed with stack → active player gets priority, playersPassed reset
     expect(after.priorityPlayer).toBe(state.activePlayer);
-    expect(after.bothPlayersPassed).toBe(false);
+    expect(after.playersPassed.size).toBe(0);
     // Stack still has the item (resolution happens separately)
     expect(after.stack.length).toBe(1);
   });
@@ -121,9 +121,9 @@ describe('passPriority', () => {
 
 describe('retainPriorityAfterAction', () => {
   it('should reset bothPlayersPassed', () => {
-    const state = { ...createTestState(), bothPlayersPassed: true };
+    const state = { ...createTestState(), playersPassed: new Set([0, 1]) as Set<number> };
     const after = retainPriorityAfterAction(state);
-    expect(after.bothPlayersPassed).toBe(false);
+    expect(after.playersPassed.size).toBe(0);
   });
 });
 
@@ -132,6 +132,6 @@ describe('giveActivePlayerPriority', () => {
     const state = { ...createTestState(), priorityPlayer: 1 as const };
     const after = giveActivePlayerPriority(state);
     expect(after.priorityPlayer).toBe(0);
-    expect(after.bothPlayersPassed).toBe(false);
+    expect(after.playersPassed.size).toBe(0);
   });
 });

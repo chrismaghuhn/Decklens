@@ -15,7 +15,7 @@ import { advanceStep } from '../engine/turn-manager.ts';
  */
 
 /** Get which player currently has priority */
-export function getCurrentPriorityPlayer(state: GameState): 0 | 1 {
+export function getCurrentPriorityPlayer(state: GameState): number {
   return state.priorityPlayer;
 }
 
@@ -27,22 +27,22 @@ export function getCurrentPriorityPlayer(state: GameState): 0 | 1 {
  * - Stack empty → advance to next step/phase
  */
 export function passPriority(state: GameState): GameState {
-  const otherPlayer: 0 | 1 = state.priorityPlayer === 0 ? 1 : 0;
+  const otherPlayer: number = state.priorityPlayer === 0 ? 1 : 0;
 
-  if (state.bothPlayersPassed) {
+  if (state.playersPassed.size >= 2) {
     // Both players have now passed in sequence
     if (state.stack.length > 0) {
       // Signal stack resolution needed — active player gets priority after
       return {
         ...state,
         priorityPlayer: state.activePlayer,
-        bothPlayersPassed: false,
+        playersPassed: new Set(),
       };
     } else {
       // Empty stack, both passed → advance step
       return advanceStep({
         ...state,
-        bothPlayersPassed: false,
+        playersPassed: new Set(),
         priorityPlayer: state.activePlayer,
       });
     }
@@ -52,7 +52,7 @@ export function passPriority(state: GameState): GameState {
   return {
     ...state,
     priorityPlayer: otherPlayer,
-    bothPlayersPassed: true,
+    playersPassed: new Set([0, 1]),
     log: [
       ...state.log,
       {
@@ -70,12 +70,12 @@ export function passPriority(state: GameState): GameState {
 
 /**
  * After a player takes an action (not pass), they retain priority.
- * Reset bothPlayersPassed since an action was taken.
+ * Reset playersPassed since an action was taken.
  */
 export function retainPriorityAfterAction(state: GameState): GameState {
   return {
     ...state,
-    bothPlayersPassed: false,
+    playersPassed: new Set(),
   };
 }
 
@@ -86,7 +86,7 @@ export function giveActivePlayerPriority(state: GameState): GameState {
   return {
     ...state,
     priorityPlayer: state.activePlayer,
-    bothPlayersPassed: false,
+    playersPassed: new Set(),
   };
 }
 
@@ -94,7 +94,7 @@ export function giveActivePlayerPriority(state: GameState): GameState {
  * Check if a player can currently take actions.
  * Only the priority player can act (except during untap/cleanup).
  */
-export function canPlayerAct(state: GameState, player: 0 | 1): boolean {
+export function canPlayerAct(state: GameState, player: number): boolean {
   if (state.gameOver) return false;
   if (state.priorityPlayer !== player) return false;
   if (state.step === 'untap') return false;

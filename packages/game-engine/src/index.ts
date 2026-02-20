@@ -261,5 +261,8 @@ export type { TargetFilter } from './rules/targeting.ts';
 export { parseModalSpell, resolveModalChoices } from './rules/modal.ts';
 export type { ModalSpell, ModalMode } from './rules/modal.ts';
 
+// === N-Player Helpers ===
+export { getOpponents, getFirstOpponent, nextPlayer, updatePlayer } from './rules/n-player.ts';
+
 // === Game ===
 export { Game } from './engine/game.ts';

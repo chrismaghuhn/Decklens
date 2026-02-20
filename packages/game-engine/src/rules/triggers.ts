@@ -24,7 +24,7 @@ export interface TriggerEvent {
   /** The permanent/card that triggered the event */
   source?: Permanent | Card;
   /** Which player controls the source */
-  controller?: 0 | 1;
+  controller?: number;
   /** Additional context (e.g., spell type for cast triggers, damage amount for damage triggers) */
   meta?: Record<string, any>;
 }
@@ -829,14 +829,14 @@ export function checkTriggers(
   const triggeredAbilities: StackObject[] = [];
 
   for (let playerIdx = 0; playerIdx < 2; playerIdx++) {
-    const player = state.players[playerIdx as 0 | 1];
+    const player = state.players[playerIdx];
 
     for (const perm of player.battlefield) {
       // Normalize oracle text: replace card's own name with ~ so patterns can match uniformly
       // Scryfall uses full card name, our patterns use ~
       const rawText = perm.oracleText || '';
       const oracleText = rawText.replace(new RegExp(escapeRegExp(perm.name), 'gi'), '~');
-      const triggers = findMatchingTriggers(oracleText, event, perm, playerIdx as 0 | 1);
+      const triggers = findMatchingTriggers(oracleText, event, perm, playerIdx);
 
       for (const trigger of triggers) {
         // Extract the effect text after the trigger condition
@@ -846,7 +846,7 @@ export function checkTriggers(
           id: nextTriggerId(),
           type: 'ability',
           text: `${perm.name}: ${effectText || trigger.name}`,
-          controller: playerIdx as 0 | 1,
+          controller: playerIdx,
           card: permanentToCard(perm),
           targets: [],
           // Use the extracted effect text for pattern matching, not the full oracle text
@@ -957,7 +957,7 @@ function applyETBCopyEffect(state: GameState, permanent: Permanent): GameState {
   let bestTarget: Permanent | null = null;
   let bestPower = -1;
   for (let pi = 0; pi < 2; pi++) {
-    for (const candidate of state.players[pi as 0 | 1].battlefield) {
+    for (const candidate of state.players[pi].battlefield) {
       if (candidate.id === permanent.id) continue;
       if (!candidate.typeLine?.toLowerCase().includes('creature')) continue;
       const candidatePower = candidate.currentPower ?? candidate.basePower ?? 0;
@@ -971,7 +971,7 @@ function applyETBCopyEffect(state: GameState, permanent: Permanent): GameState {
 
   // Find the permanent on the battlefield so we can update it immutably
   for (let pi = 0; pi < 2; pi++) {
-    const player = state.players[pi as 0 | 1];
+    const player = state.players[pi];
     const idx = player.battlefield.findIndex(p => p.id === permanent.id);
     if (idx === -1) continue;
     const perm = player.battlefield[idx];
@@ -1004,8 +1004,8 @@ function applyETBCopyEffect(state: GameState, permanent: Permanent): GameState {
     };
     const updatedBf = [...player.battlefield];
     updatedBf[idx] = updatedPerm;
-    const players = [...state.players] as [PlayerState, PlayerState];
-    players[pi as 0 | 1] = { ...player, battlefield: updatedBf };
+    const players = [...state.players];
+    players[pi] = { ...player, battlefield: updatedBf };
     state = {
       ...state,
       players,
@@ -1036,7 +1036,7 @@ export function checkETBTriggers(state: GameState, permanent: Permanent, meta?: 
   // Bot heuristic: choose haste if the creature has power >= 3, otherwise +1/+1 counter.
   if (/\briot\b/i.test(permanent.oracleText || '')) {
     const ctrl = permanent.controller;
-    const players = [...newState.players] as [PlayerState, PlayerState];
+    const players = [...newState.players];
     const player = { ...players[ctrl] };
     const bf = [...player.battlefield];
     const permIdx = bf.findIndex(p => p.id === permanent.id);
@@ -1108,7 +1108,7 @@ export function checkETBTriggers(state: GameState, permanent: Permanent, meta?: 
 /**
  * Check for death triggers when creatures die (moved to graveyard from battlefield).
  */
-export function checkDeathTriggers(state: GameState, dying: Permanent[], controller: 0 | 1): GameState {
+export function checkDeathTriggers(state: GameState, dying: Permanent[], controller: number): GameState {
   let current = state;
   for (const perm of dying) {
     current = checkTriggers(current, {
@@ -1133,7 +1133,7 @@ export function checkUpkeepTriggers(state: GameState): GameState {
 /**
  * Check for cast triggers when a player casts a spell.
  */
-export function checkCastTriggers(state: GameState, card: Card, caster: 0 | 1): GameState {
+export function checkCastTriggers(state: GameState, card: Card, caster: number): GameState {
   return checkTriggers(state, {
     type: 'cast',
     source: card as any,
@@ -1145,7 +1145,7 @@ export function checkCastTriggers(state: GameState, card: Card, caster: 0 | 1): 
 /**
  * Check for attack triggers when a creature attacks.
  */
-export function checkAttackTriggers(state: GameState, attackers: Permanent[], controller: 0 | 1): GameState {
+export function checkAttackTriggers(state: GameState, attackers: Permanent[], controller: number): GameState {
   let current = state;
   const loneAttacker = attackers.length === 1;
   for (const attacker of attackers) {
@@ -1173,7 +1173,7 @@ export function checkLeavesBattlefieldTriggers(state: GameState, permanent: Perm
 /**
  * Check for damage triggers when a permanent deals damage.
  */
-export function checkDamageTriggers(state: GameState, source: Permanent, controller: 0 | 1): GameState {
+export function checkDamageTriggers(state: GameState, source: Permanent, controller: number): GameState {
   return checkTriggers(state, {
     type: 'damage',
     source,
@@ -1184,7 +1184,7 @@ export function checkDamageTriggers(state: GameState, source: Permanent, control
 /**
  * Check for draw triggers when a player draws a card.
  */
-export function checkDrawTriggers(state: GameState, controller: 0 | 1): GameState {
+export function checkDrawTriggers(state: GameState, controller: number): GameState {
   return checkTriggers(state, {
     type: 'draw',
     controller,
@@ -1201,7 +1201,7 @@ export function checkEndStepTriggers(state: GameState): GameState {
 /**
  * Check lifegain triggers when a player gains life.
  */
-export function checkLifegainTriggers(state: GameState, player: 0 | 1, amount: number): GameState {
+export function checkLifegainTriggers(state: GameState, player: number, amount: number): GameState {
   return checkTriggers(state, { type: 'lifegain', controller: player, meta: { amount } });
 }
 
@@ -1234,7 +1234,7 @@ function findMatchingTriggers(
   oracleText: string,
   event: TriggerEvent,
   perm: Permanent,
-  controller: 0 | 1,
+  controller: number,
 ): TriggerPattern[] {
   return TRIGGER_PATTERNS.filter((tp) => {
     if (tp.eventType !== event.type) return false;

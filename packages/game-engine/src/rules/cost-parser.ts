@@ -147,7 +147,7 @@ export function parseCost(costString: string): AbilityCost {
  */
 export function canPayAbilityCost(
   state: GameState,
-  player: 0 | 1,
+  player: number,
   permanentId: string,
   cost: AbilityCost,
 ): boolean {
@@ -246,7 +246,7 @@ function permanentToCard(perm: Permanent): Card {
  */
 export function payAbilityCost(
   state: GameState,
-  player: 0 | 1,
+  player: number,
   permanentId: string,
   cost: AbilityCost,
 ): GameState {
@@ -375,7 +375,7 @@ export function payAbilityCost(
   // Apply battlefield changes
   ps = { ...ps, battlefield: bf };
 
-  const players = [...state.players] as [PlayerState, PlayerState];
+  const players = [...state.players];
   players[player] = ps;
 
   return {

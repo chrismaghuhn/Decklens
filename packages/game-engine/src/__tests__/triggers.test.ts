@@ -128,7 +128,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     gameOver: false,
     log: overrides.log || [],
     actionHistory: [],
-    bothPlayersPassed: false,
+    playersPassed: new Set() as Set<number>,
     mulliganPhase: false,
     mulliganCount: [0, 0],
   };

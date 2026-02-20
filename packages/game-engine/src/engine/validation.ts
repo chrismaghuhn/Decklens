@@ -1,5 +1,6 @@
 import type { GameState } from '../types/game-state.ts';
 import type { GameAction } from '../types/action.ts';
+import type { Card } from '../types/card.ts';
 import { isLand, isInstant, hasFlash } from '../types/card.ts';
 import { canPayCost, parseManaCost, autoTapLandsForCost } from '../rules/mana.ts';
 import { canPlayerAct } from '../rules/priority.ts';
@@ -649,7 +650,7 @@ function validateCastSpell(
   for (const target of action.targets) {
     if (target.type !== 'permanent') continue;
     for (let pi = 0; pi < 2; pi++) {
-      const targetPerm = state.players[pi as 0 | 1].battlefield.find(p => p.id === target.id);
+      const targetPerm = state.players[pi].battlefield.find(p => p.id === target.id);
       if (!targetPerm) continue;
       if (targetPerm.controller === action.player) continue;
       const oText = (targetPerm.oracleText || '').toLowerCase();
@@ -710,7 +711,7 @@ function validateCastSpell(
  */
 function validateTargetLegality(
   state: GameState,
-  caster: 0 | 1,
+  caster: number,
   targets: import('../types/action.ts').Target[],
   sourceCard?: import('../types/card.ts').Card,
   sourcePerm?: import('../types/permanent.ts').Permanent,
@@ -720,7 +721,7 @@ function validateTargetLegality(
 
     // Find the targeted permanent
     for (let pi = 0; pi < 2; pi++) {
-      const player = state.players[pi as 0 | 1];
+      const player = state.players[pi];
       const perm = player.battlefield.find(p => p.id === target.id);
       if (!perm) continue;
 
@@ -843,7 +844,7 @@ function validateDeclareAttackers(
   if (state.activePlayer !== action.player) return 'Only active player can declare attackers.';
 
   const player = state.players[action.player];
-  const opponentIdx: 0 | 1 = action.player === 0 ? 1 : 0;
+  const opponentIdx: number = action.player === 0 ? 1 : 0;
 
   for (const attackerId of action.attackers) {
     const creature = player.battlefield.find((p) => p.id === attackerId);
@@ -936,13 +937,13 @@ function validateDeclareBlockers(
 
 // --- Helpers ---
 
-function canPlayLand(state: GameState, player: 0 | 1): boolean {
+function canPlayLand(state: GameState, player: number): boolean {
   if (state.step !== 'main' || state.activePlayer !== player || state.stack.length > 0) return false;
   const ps = state.players[player];
   return ps.landsPlayedThisTurn < ps.maxLandPlays && ps.hand.some((c) => isLand(c));
 }
 
-function canCastAnySpell(state: GameState, player: 0 | 1): boolean {
+function canCastAnySpell(state: GameState, player: number): boolean {
   const ps = state.players[player];
 
   // Check hand for castable spells
@@ -1020,7 +1021,7 @@ function canCastAnySpell(state: GameState, player: 0 | 1): boolean {
   return false;
 }
 
-function canActivateAnyAbility(state: GameState, player: 0 | 1): boolean {
+function canActivateAnyAbility(state: GameState, player: number): boolean {
   const ps = state.players[player];
   for (const perm of ps.battlefield) {
     for (const ability of perm.abilities) {
@@ -1043,7 +1044,7 @@ function canActivateAnyAbility(state: GameState, player: 0 | 1): boolean {
   return false;
 }
 
-function hasUntappedCreatures(state: GameState, player: 0 | 1): boolean {
+function hasUntappedCreatures(state: GameState, player: number): boolean {
   return state.players[player].battlefield.some(
     (p) => p.currentPower !== undefined && !p.tapped &&
            (!p.summoningSick || hasKeyword(p, 'haste')) &&
@@ -1083,7 +1084,7 @@ function validateTapForMana(
   return null;
 }
 
-function canTapAnyForMana(state: GameState, player: 0 | 1): boolean {
+function canTapAnyForMana(state: GameState, player: number): boolean {
   const ps = state.players[player];
   for (const perm of ps.battlefield) {
     if (perm.tapped) continue;
@@ -1140,7 +1141,7 @@ function validateActivateLoyalty(
 }
 
 /** Check if the player can activate any planeswalker loyalty ability */
-function canActivateAnyLoyalty(state: GameState, player: 0 | 1): boolean {
+function canActivateAnyLoyalty(state: GameState, player: number): boolean {
   if (state.step !== 'main' || state.activePlayer !== player || state.stack.length > 0) return false;
 
   const ps = state.players[player];
@@ -1201,7 +1202,7 @@ function validateEquip(
 }
 
 /** Check if the player can equip any equipment to any creature */
-function canEquipAny(state: GameState, player: 0 | 1): boolean {
+function canEquipAny(state: GameState, player: number): boolean {
   if (state.step !== 'main' || state.activePlayer !== player || state.stack.length > 0) return false;
 
   const ps = state.players[player];
@@ -1309,7 +1310,7 @@ function validateCycle(
 }
 
 /** Check if the player can cycle any card in hand */
-function canCycleAny(state: GameState, player: 0 | 1): boolean {
+function canCycleAny(state: GameState, player: number): boolean {
   const ps = state.players[player];
   for (const card of ps.hand) {
     const cycleMatch = card.oracleText?.match(/cycling\s+(\{[^}]+\}(?:\{[^}]+\})*)/i);
@@ -1331,7 +1332,7 @@ function getNinjutsuCost(card: { oracleText?: string }): string | null {
  * Get the list of unblocked attacking creature IDs controlled by the given player.
  * An attacker is "unblocked" if no blocker is assigned to it in state.combat.blockers.
  */
-function getUnblockedAttackers(state: GameState, player: 0 | 1): string[] {
+function getUnblockedAttackers(state: GameState, player: number): string[] {
   if (!state.combat) return [];
   const blockedIds = new Set(state.combat.blockers.map(b => b.blockingId));
   return state.combat.attackers
@@ -1384,7 +1385,7 @@ function validateNinjutsu(
 }
 
 /** Check if the player can activate ninjutsu for any card in hand */
-function canNinjutsuAny(state: GameState, player: 0 | 1): boolean {
+function canNinjutsuAny(state: GameState, player: number): boolean {
   // Must be during declare-blockers or combat-damage step with combat in progress
   if (state.step !== 'declare-blockers' && state.step !== 'combat-damage') return false;
   if (!state.combat) return false;
@@ -1435,7 +1436,7 @@ function validateCompanion(
 }
 
 /** Check if the player can activate their companion (CR 702.138) */
-function canUseCompanion(state: GameState, player: 0 | 1): boolean {
+function canUseCompanion(state: GameState, player: number): boolean {
   if (!state.companion || !state.companion[player]) return false;
   if (state.companionUsed?.[player]) return false;
   if (state.step !== 'main' || state.activePlayer !== player || state.stack.length > 0) return false;

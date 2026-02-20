@@ -4,7 +4,7 @@ import type { ManaPool } from './mana.ts';
 
 /** Complete state for one player */
 export interface PlayerState {
-  id: 0 | 1;
+  id: number;
   name: string;
 
   // --- Zones ---
@@ -52,7 +52,7 @@ export function emptyManaPool(): ManaPool {
 
 /** Create initial player state */
 export function createPlayerState(
-  id: 0 | 1,
+  id: number,
   name: string,
   deck: Card[],
   commander: Card
