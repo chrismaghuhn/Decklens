@@ -8,7 +8,7 @@
  * - Game over → show result screen
  */
 
-import type { GameState, GameAction, Card, Permanent, Target, Ability, ManaPool, TargetFilter } from '@mtg/game-engine';
+import type { GameState, GameAction, Card, Permanent, Target, Ability, ManaPool, TargetFilter, StackObject } from '@mtg/game-engine';
 import {
   Game,
   createInitialGameState,
@@ -594,6 +594,61 @@ export class GameLoop {
         players[this.botPlayer] = { ...p, library: [...top, ...restLib, ...bottom] };
         this.game.setState({ ...state, players, pendingScry: null });
         logMessage(`Bot scries ${count}.`);
+        continue;
+      }
+
+      // ─── Trigger Order Pending (Human) ───
+      if (this.humanPlayer !== null && state.pendingTriggerOrder && state.pendingTriggerOrder.player === this.humanPlayer) {
+        const { triggers } = state.pendingTriggerOrder;
+        const orderedIds = await this.showTriggerOrderUI(triggers);
+
+        // Push in chosen order — triggers[0] goes on stack first (resolves last)
+        const stackObjects = orderedIds
+          .map(id => triggers.find(t => t.id === id)?.stackObject)
+          .filter((s): s is StackObject => s !== undefined);
+
+        this.game.setState({
+          ...state,
+          pendingTriggerOrder: null,
+          stack: [...state.stack, ...stackObjects],
+          log: [...state.log, {
+            timestamp: Date.now(), turn: state.turn, phase: state.phase, step: state.step,
+            player: this.humanPlayer,
+            message: `Ordered ${stackObjects.length} triggers: ${stackObjects.map(s => s.card?.name ?? '?').join(', ')}.`,
+            actionType: 'effect',
+          }],
+        });
+        logMessage(`Trigger order set: ${stackObjects.map(s => s.card?.name ?? '?').join(' \u2192 ')}`);
+        continue;
+      }
+
+      // ─── Trigger Order Pending (Bot) ───
+      if (state.pendingTriggerOrder && state.pendingTriggerOrder.player === this.botPlayer) {
+        const { triggers } = state.pendingTriggerOrder;
+        // Bot heuristic: prefer triggers with draw > damage/destroy > gain > others
+        const scored = triggers.map(t => {
+          const txt = t.oracleText.toLowerCase();
+          let score = 0;
+          if (txt.includes('draw')) score = 3;
+          else if (txt.includes('damage') || txt.includes('destroy')) score = 2;
+          else if (txt.includes('gain')) score = 1;
+          return { ...t, score };
+        });
+        scored.sort((a, b) => b.score - a.score);
+
+        const stackObjects = scored.map(t => t.stackObject);
+        this.game.setState({
+          ...state,
+          pendingTriggerOrder: null,
+          stack: [...state.stack, ...stackObjects],
+          log: [...state.log, {
+            timestamp: Date.now(), turn: state.turn, phase: state.phase, step: state.step,
+            player: this.botPlayer,
+            message: `Bot ordered ${stackObjects.length} triggers.`,
+            actionType: 'effect',
+          }],
+        });
+        logMessage(`Bot ordered ${stackObjects.length} triggers.`);
         continue;
       }
 
@@ -3907,6 +3962,105 @@ export class GameLoop {
   }
 
   // ==================== Library Search / Tutor UI ====================
+
+  /**
+   * Show trigger ordering UI — player reorders with up/down buttons.
+   * Returns trigger IDs in chosen stack order (first in array = pushed first = resolves LAST).
+   */
+  private showTriggerOrderUI(
+    triggers: Array<{ id: string; sourceName: string; oracleText: string }>
+  ): Promise<string[]> {
+    this.injectPhase8Styles();
+    return new Promise<string[]>((resolve) => {
+      document.getElementById('trigger-order-modal')?.remove();
+
+      const overlay = document.createElement('div');
+      overlay.id = 'trigger-order-modal';
+      overlay.className = 'p8-overlay';
+
+      const content = document.createElement('div');
+      content.className = 'p8-content';
+      content.style.maxWidth = '480px';
+
+      const title = document.createElement('h3');
+      title.textContent = 'Choose Trigger Order';
+      content.appendChild(title);
+
+      const hint = document.createElement('p');
+      hint.textContent = 'Arrange triggers — top resolves last (goes on stack first).';
+      hint.style.cssText = 'font-size:0.85em;color:var(--text-muted,#aaa);margin-bottom:12px';
+      content.appendChild(hint);
+
+      let order = [...triggers];
+
+      const listEl = document.createElement('div');
+      listEl.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-bottom:16px';
+      content.appendChild(listEl);
+
+      const confirmBtn = document.createElement('button');
+      confirmBtn.className = 'p8-btn-primary';
+      confirmBtn.textContent = 'Confirm Order';
+      content.appendChild(confirmBtn);
+
+      const renderList = () => {
+        listEl.replaceChildren();
+        order.forEach((trig, idx) => {
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--obsidian,#1a1f2e);border-radius:8px;border:1px solid var(--border,#2a3045)';
+
+          const label = document.createElement('div');
+          label.style.cssText = 'flex:1;min-width:0';
+          const oracleSnippet = trig.oracleText.length > 80 ? trig.oracleText.slice(0, 80) + '\u2026' : trig.oracleText;
+          const nameDiv = document.createElement('div');
+          nameDiv.style.cssText = 'font-weight:600;color:var(--gold,#c9a84c)';
+          nameDiv.textContent = trig.sourceName;
+          const oracleDiv = document.createElement('div');
+          oracleDiv.style.cssText = 'font-size:0.8em;color:#aaa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+          oracleDiv.textContent = oracleSnippet;
+          label.appendChild(nameDiv);
+          label.appendChild(oracleDiv);
+          row.appendChild(label);
+
+          const upBtn = document.createElement('button');
+          upBtn.textContent = '\u2191';
+          upBtn.disabled = idx === 0;
+          upBtn.style.cssText = 'padding:4px 8px;cursor:pointer;border-radius:4px;border:1px solid var(--border,#2a3045);background:var(--bg-2,#0f1623);color:white';
+          upBtn.addEventListener('click', () => {
+            if (idx > 0) { [order[idx - 1], order[idx]] = [order[idx], order[idx - 1]]; renderList(); }
+          });
+
+          const downBtn = document.createElement('button');
+          downBtn.textContent = '\u2193';
+          downBtn.disabled = idx === order.length - 1;
+          downBtn.style.cssText = upBtn.style.cssText;
+          downBtn.addEventListener('click', () => {
+            if (idx < order.length - 1) { [order[idx], order[idx + 1]] = [order[idx + 1], order[idx]]; renderList(); }
+          });
+
+          row.appendChild(upBtn);
+          row.appendChild(downBtn);
+          listEl.appendChild(row);
+        });
+      };
+
+      renderList();
+
+      confirmBtn.addEventListener('click', () => {
+        overlay.remove();
+        resolve(order.map(t => t.id));
+      });
+
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+          overlay.remove();
+          resolve(order.map(t => t.id));
+        }
+      });
+
+      overlay.appendChild(content);
+      document.body.appendChild(overlay);
+    });
+  }
 
   /**
    * Show a library search modal for tutor effects.

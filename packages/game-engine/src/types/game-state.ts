@@ -178,6 +178,9 @@ export interface GameState {
     sourceName?: string;
   } | null;
 
+  /** Queue of players still waiting to sacrifice (for "each player sacrifices" effects) */
+  pendingSacrificeQueue?: { player: number; count: number; filter: string }[];
+
   /** Library search pending — player must choose cards from their library */
   pendingSearch?: {
     player: number;
@@ -185,6 +188,11 @@ export interface GameState {
     count: number; // how many cards to choose
     destination: 'hand' | 'battlefield' | 'top-of-library';
     sourceName?: string;
+    /** For Cultivate-style effects: count2 cards go to a second destination */
+    count2?: number;
+    destination2?: 'hand' | 'battlefield' | 'top-of-library';
+    /** Whether cards going to battlefield enter tapped */
+    tapped?: boolean;
   } | null;
 
   /** Scry pending — player must arrange top N cards */
@@ -194,14 +202,36 @@ export interface GameState {
     cards: string[]; // card IDs of the top N cards
   } | null;
 
+  /**
+   * Trigger ordering pending — when ≥2 triggers fire simultaneously for the same player,
+   * pause and let that player choose the order they resolve (CR 603.3b).
+   * Triggers are pushed onto the stack in chosen order after confirmation.
+   */
+  pendingTriggerOrder?: {
+    player: number;
+    triggers: Array<{
+      id: string;
+      sourceName: string;
+      oracleText: string;
+      /** Pre-built StackObject ready to push once order is confirmed */
+      stackObject: import('./action.ts').StackObject;
+    }>;
+  } | null;
+
   /** Whether a card has been drawn this turn (for Miracle — first draw is special) */
   firstDrawThisTurn?: boolean;
 
   /** Day/Night state (CR 722). null = not yet entered day/night. */
   dayNight?: 'day' | 'night' | null;
 
-  /** Number of spells cast by the active player during their last turn (for day/night flipping) */
+  /** Number of spells cast by the active player during their current turn (for day/night flipping) */
   spellsCastThisTurn?: number;
+
+  /** Spells cast by the active player last turn — preserved across cleanup for day/night upkeep check */
+  spellsCastLastTurn?: number;
+
+  /** Whether a creature died this turn — used for Morbid condition checks (CR 702.109) */
+  creatureDiedThisTurn?: boolean;
 
   /** Cards exiled with time counters for Suspend mechanic */
   suspendedCards?: Array<{ cardId: string; ownerId: number; counters: number }>;

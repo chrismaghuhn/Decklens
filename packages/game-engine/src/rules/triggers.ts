@@ -422,6 +422,11 @@ const TRIGGER_PATTERNS: TriggerPattern[] = [
   // Noncombat damage: "Whenever a source deals noncombat damage"
   { name: 'noncombat-damage', match: /whenever\s+(?:a\s+source|~)\s+deals?\s+noncombat\s+damage/i, eventType: 'noncombat-damage', selfOnly: false },
 
+  // Enrage (CR 702.137): "Whenever ~ is dealt damage" — fires on the DAMAGED permanent
+  { name: 'enrage', match: /whenever\s+~\s+is\s+dealt\s+damage/i, eventType: 'damage', selfOnly: true },
+  // Enrage variant: "Whenever ~ is dealt combat damage"
+  { name: 'enrage-combat', match: /whenever\s+~\s+is\s+dealt\s+combat\s+damage/i, eventType: 'damage', selfOnly: true },
+
   // Counter removed: "Whenever a counter is removed from ~"
   { name: 'counter-removed', match: /whenever\s+(?:a|one\s+or\s+more)\s+counters?\s+(?:is|are)\s+removed\s+from\s+~/i, eventType: 'etb', selfOnly: true },
 
@@ -780,11 +785,11 @@ const TRIGGER_PATTERNS: TriggerPattern[] = [
     selfOnly: true,
   },
 
-  // Ninjutsu — activated from hand (CR 702.48)
+  // Ninjutsu — triggered when an attacking creature goes unblocked (CR 702.48)
   {
     name: 'ninjutsu-activated',
     match: /ninjutsu\s+\{[^}]+\}/i,
-    eventType: 'activated',
+    eventType: 'attack',
     selfOnly: true,
   },
 
@@ -1024,68 +1029,197 @@ function applyETBCopyEffect(state: GameState, permanent: Permanent): GameState {
 }
 
 /**
- * Check for ETB triggers when a permanent enters the battlefield.
+ * Internal helper: apply riot ETB effect (haste or +1/+1 counter) for a single permanent.
+ * Returns updated state. Does not touch the stack.
  */
-export function checkETBTriggers(state: GameState, permanent: Permanent, meta?: Record<string, any>): GameState {
-  // Apply ETB copy replacement effect before queueing normal triggers (CR 706.10a)
-  // Clone-type cards set their copyEffect immediately on ETB so Layer 1 sees it.
-  let newState = applyETBCopyEffect(state, permanent);
+function applyRiotEffect(state: GameState, permanent: Permanent): GameState {
+  if (!/\briot\b/i.test(permanent.oracleText || '')) return state;
+  const ctrl = permanent.controller;
+  const players = [...state.players];
+  const player = { ...players[ctrl] };
+  const bf = [...player.battlefield];
+  const permIdx = bf.findIndex(p => p.id === permanent.id);
+  if (permIdx === -1) return state;
+  const perm = bf[permIdx];
+  const power = perm.currentPower ?? perm.basePower ?? 0;
+  if (power >= 3) {
+    bf[permIdx] = {
+      ...perm,
+      summoningSick: false,
+      temporaryKeywords: [...(perm.temporaryKeywords || []), { keyword: 'haste', source: 'riot', turn: state.turn }],
+    };
+    player.battlefield = bf;
+    players[ctrl] = player;
+    return {
+      ...state,
+      players,
+      log: [...state.log, {
+        timestamp: Date.now(), turn: state.turn, phase: state.phase,
+        step: state.step, player: ctrl,
+        message: `Riot: ${permanent.name} chooses haste.`,
+        cardName: permanent.name,
+      }],
+    };
+  } else {
+    const counters = { ...perm.counters, '+1/+1': (perm.counters['+1/+1'] || 0) + 1 };
+    bf[permIdx] = {
+      ...perm,
+      counters,
+      currentPower: (perm.currentPower ?? perm.basePower ?? 0) + 1,
+      currentToughness: (perm.currentToughness ?? perm.baseToughness ?? 0) + 1,
+    };
+    player.battlefield = bf;
+    players[ctrl] = player;
+    return {
+      ...state,
+      players,
+      log: [...state.log, {
+        timestamp: Date.now(), turn: state.turn, phase: state.phase,
+        step: state.step, player: ctrl,
+        message: `Riot: ${permanent.name} enters with a +1/+1 counter.`,
+        cardName: permanent.name,
+      }],
+    };
+  }
+}
 
-  // ── Riot (CR 702.136) — direct ETB application (not via trigger stack) ──
-  // When a creature with riot enters, immediately apply haste or +1/+1 counter.
-  // Bot heuristic: choose haste if the creature has power >= 3, otherwise +1/+1 counter.
-  if (/\briot\b/i.test(permanent.oracleText || '')) {
-    const ctrl = permanent.controller;
-    const players = [...newState.players];
-    const player = { ...players[ctrl] };
-    const bf = [...player.battlefield];
-    const permIdx = bf.findIndex(p => p.id === permanent.id);
-    if (permIdx !== -1) {
-      const perm = bf[permIdx];
-      const power = perm.currentPower ?? perm.basePower ?? 0;
-      if (power >= 3) {
-        // Choose haste
-        bf[permIdx] = {
-          ...perm,
-          summoningSick: false,
-          temporaryKeywords: [...(perm.temporaryKeywords || []), { keyword: 'haste', source: 'riot', turn: newState.turn }],
-        };
-        player.battlefield = bf;
-        players[ctrl] = player;
-        newState = { ...newState, players };
-        newState = {
-          ...newState,
-          log: [...newState.log, {
-            timestamp: Date.now(), turn: newState.turn, phase: newState.phase,
-            step: newState.step, player: ctrl,
-            message: `Riot: ${permanent.name} chooses haste.`,
-            cardName: permanent.name,
-          }],
-        };
-      } else {
-        // Choose +1/+1 counter
-        const counters = { ...perm.counters, '+1/+1': (perm.counters['+1/+1'] || 0) + 1 };
-        bf[permIdx] = {
-          ...perm,
-          counters,
-          currentPower: (perm.currentPower ?? perm.basePower ?? 0) + 1,
-          currentToughness: (perm.currentToughness ?? perm.baseToughness ?? 0) + 1,
-        };
-        player.battlefield = bf;
-        players[ctrl] = player;
-        newState = { ...newState, players };
-        newState = {
-          ...newState,
-          log: [...newState.log, {
-            timestamp: Date.now(), turn: newState.turn, phase: newState.phase,
-            step: newState.step, player: ctrl,
-            message: `Riot: ${permanent.name} enters with a +1/+1 counter.`,
-            cardName: permanent.name,
-          }],
-        };
+/**
+ * Internal helper: collect all ETB StackObjects for a single permanent entering the battlefield,
+ * WITHOUT modifying state.stack. Returns the list of triggered stack objects.
+ */
+function collectETBStackObjects(
+  state: GameState,
+  permanent: Permanent,
+  meta?: Record<string, any>,
+): StackObject[] {
+  const event: TriggerEvent = { type: 'etb', source: permanent, controller: permanent.controller, meta };
+  const collected: StackObject[] = [];
+
+  for (let playerIdx = 0; playerIdx < state.players.length; playerIdx++) {
+    const player = state.players[playerIdx];
+    for (const perm of player.battlefield) {
+      const rawText = perm.oracleText || '';
+      const oracleText = rawText.replace(new RegExp(escapeRegExp(perm.name), 'gi'), '~');
+      const triggers = findMatchingTriggers(oracleText, event, perm, playerIdx);
+      for (const trigger of triggers) {
+        const effectText = extractEffectText(oracleText, trigger);
+        collected.push({
+          id: nextTriggerId(),
+          type: 'ability',
+          text: `${perm.name}: ${effectText || trigger.name}`,
+          controller: playerIdx,
+          card: permanentToCard(perm),
+          targets: [],
+          oracleText: effectText || perm.oracleText || '',
+        });
       }
     }
   }
+
+  return collected;
+}
+
+/**
+ * Check for ETB triggers when a permanent (or multiple simultaneous permanents) enters the battlefield.
+ *
+ * When called with an array of ≥2 permanents all controlled by the human player (player 0),
+ * their ETB triggers are batched into `pendingTriggerOrder` so the human can choose stack order
+ * (CR 603.3b). For a single permanent or bot-controlled permanents, triggers go directly to stack.
+ */
+export function checkETBTriggers(
+  state: GameState,
+  permanent: Permanent | Permanent[],
+  meta?: Record<string, any>,
+): GameState {
+  // ── Array (multi-permanent) path — simultaneous ETB batching ──
+  if (Array.isArray(permanent)) {
+    const perms = permanent;
+    let newState = state;
+
+    // Apply copy + riot effects for each permanent first
+    for (const p of perms) {
+      newState = applyETBCopyEffect(newState, p);
+      newState = applyRiotEffect(newState, p);
+      // Initialize day/night if needed
+      if (newState.dayNight == null) {
+        const ot = (p.oracleText || '').toLowerCase();
+        if (ot.includes('daybound') || ot.includes('nightbound')) {
+          newState = { ...newState, dayNight: 'day' };
+        }
+      }
+    }
+
+    // Collect all triggered stack objects per permanent
+    const triggeredItems: Array<{ player: number; stackObj: StackObject }> = [];
+    for (const p of perms) {
+      const stackObjs = collectETBStackObjects(newState, p, meta);
+      for (const obj of stackObjs) {
+        triggeredItems.push({ player: obj.controller, stackObj: obj });
+      }
+    }
+
+    if (triggeredItems.length === 0) return newState;
+
+    // Group by player
+    const byPlayer = new Map<number, typeof triggeredItems>();
+    for (const item of triggeredItems) {
+      if (!byPlayer.has(item.player)) byPlayer.set(item.player, []);
+      byPlayer.get(item.player)!.push(item);
+    }
+
+    const triggerLogs: GameState['log'] = [];
+
+    for (const [player, items] of byPlayer.entries()) {
+      if (items.length >= 2 && player === 0) {
+        // Multiple simultaneous triggers for human player — ask for ordering (CR 603.3b)
+        const newTriggers = items.map(i => ({
+          id: i.stackObj.id,
+          sourceName: i.stackObj.source?.name ?? i.stackObj.text?.split(':')[0] ?? 'Unknown',
+          oracleText: i.stackObj.oracleText ?? '',
+          stackObject: i.stackObj,
+        }));
+        const existingTriggers = newState.pendingTriggerOrder?.player === player
+          ? newState.pendingTriggerOrder.triggers
+          : [];
+        newState = {
+          ...newState,
+          pendingTriggerOrder: {
+            player,
+            triggers: [...existingTriggers, ...newTriggers],
+          },
+        };
+        triggerLogs.push({
+          timestamp: Date.now(),
+          turn: newState.turn,
+          phase: newState.phase,
+          step: newState.step,
+          player,
+          message: `${items.length} simultaneous triggers pending order choice.`,
+        });
+      } else {
+        // Single trigger or bot — push directly to stack (APNAP order preserved)
+        const stackObjs = items.map(i => i.stackObj);
+        newState = { ...newState, stack: [...newState.stack, ...stackObjs] };
+        for (const obj of stackObjs) {
+          triggerLogs.push({
+            timestamp: Date.now(),
+            turn: newState.turn,
+            phase: newState.phase,
+            step: newState.step,
+            player: obj.controller,
+            message: `Triggered: ${obj.text}`,
+          });
+        }
+      }
+    }
+
+    newState = { ...newState, log: [...newState.log, ...triggerLogs] };
+    return newState;
+  }
+
+  // ── Single permanent path (original behavior) ──
+  let newState = applyETBCopyEffect(state, permanent);
+  newState = applyRiotEffect(newState, permanent);
 
   newState = checkTriggers(newState, {
     type: 'etb',
@@ -1221,6 +1355,29 @@ export function checkSacrificeTriggers(state: GameState, sacrificedPerm: Permane
  */
 export function checkBeginCombatTriggers(state: GameState): GameState {
   return checkTriggers(state, { type: 'begin-combat', controller: state.activePlayer });
+}
+
+/**
+ * Check cycling triggers when a player cycles a card (CR 702.28).
+ * Fires: "When you cycle ~" and "Whenever you cycle a card" triggers.
+ */
+export function checkCycleTriggers(state: GameState, cycledCard: Card, controller: number): GameState {
+  return checkTriggers(state, {
+    type: 'cycle',
+    source: cycledCard as unknown as import('../types/permanent.ts').Permanent,
+    controller,
+    meta: { cardName: cycledCard.name },
+  });
+}
+
+/**
+ * Check "turned face up" triggers when a morph/manifest permanent is turned face up (CR 702.36).
+ * Fires: "When ~ is turned face up" triggers on the permanent.
+ */
+export function checkTurnFaceUpTriggers(state: GameState, permanent: Permanent): GameState {
+  // Re-use ETB trigger checking since morph-turned-face-up patterns use eventType: 'etb'
+  // This fires "when ~ enters the battlefield" and "when ~ is turned face up" triggers.
+  return checkETBTriggers(state, permanent);
 }
 
 // ─── Helpers ───

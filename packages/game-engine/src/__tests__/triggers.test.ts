@@ -605,6 +605,63 @@ describe('Triggered Abilities', () => {
     });
   });
 
+  describe('simultaneous trigger batching', () => {
+    it('batches ≥2 ETB triggers for human player into pendingTriggerOrder', () => {
+      const permA = makePermanent({
+        id: 'perm_siege_rhino',
+        name: 'Siege Rhino',
+        typeLine: 'Creature — Rhino',
+        controller: 0,
+        oracleText: 'When Siege Rhino enters the battlefield, each opponent loses 3 life and you gain 3 life.',
+      });
+      const permB = makePermanent({
+        id: 'perm_mulldrifter',
+        name: 'Mulldrifter',
+        typeLine: 'Creature — Elemental',
+        controller: 0,
+        oracleText: 'When Mulldrifter enters the battlefield, draw two cards.',
+      });
+
+      const state = makeState({
+        players: [
+          makePlayer({ battlefield: [permA, permB] }),
+          makePlayer({ id: 1 }),
+        ] as [PlayerState, PlayerState],
+      });
+
+      const result = checkETBTriggers(state, [permA, permB]);
+
+      expect(result.pendingTriggerOrder).not.toBeNull();
+      expect(result.pendingTriggerOrder!.player).toBe(0);
+      expect(result.pendingTriggerOrder!.triggers.length).toBe(2);
+      // Stack should NOT have the triggers yet (waiting for ordering)
+      expect(result.stack.length).toBe(0);
+    });
+
+    it('pushes single ETB trigger directly to stack (no ordering needed)', () => {
+      const perm = makePermanent({
+        id: 'perm_eternal_witness',
+        name: 'Eternal Witness',
+        typeLine: 'Creature',
+        controller: 0,
+        oracleText: 'When Eternal Witness enters the battlefield, you may return target card from your graveyard to your hand.',
+      });
+
+      const state = makeState({
+        players: [
+          makePlayer({ battlefield: [perm] }),
+          makePlayer({ id: 1 }),
+        ] as [PlayerState, PlayerState],
+      });
+
+      const result = checkETBTriggers(state, [perm]);
+
+      // Single trigger: goes directly to stack
+      expect(result.pendingTriggerOrder ?? null).toBeNull();
+      expect(result.stack.length).toBe(1);
+    });
+  });
+
   describe('Effect Text Extraction', () => {
     it('should extract effect text correctly from ETB', () => {
       const permanent = makePermanent({
