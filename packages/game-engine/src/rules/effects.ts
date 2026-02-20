@@ -386,6 +386,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, targets, m) => {
       const target = getTargetPermanent(state, targets);
       if (!target) return { state, resolved: false };
+      if (hasKeyword(target.perm, 'indestructible')) {
+        return { state: addLog(state, controller, `${target.perm.name} is indestructible.`), resolved: true, description: `${target.perm.name} is indestructible` };
+      }
       state = removePermanentFromBattlefield(state, target.perm.id, 'graveyard');
       state = addLog(state, controller, `Destroys ${target.perm.name}.`);
       return { state, resolved: true, description: `destroy ${target.perm.name}` };
@@ -675,6 +678,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, targets) => {
       const target = getTargetPermanent(state, targets);
       if (!target) return { state, resolved: false };
+      if (hasKeyword(target.perm, 'indestructible')) {
+        return { state: addLog(state, controller, `${target.perm.name} is indestructible.`), resolved: true, description: `${target.perm.name} is indestructible` };
+      }
       state = removePermanentFromBattlefield(state, target.perm.id, 'graveyard');
       state = addLog(state, controller, `Destroys ${target.perm.name}.`);
       return { state, resolved: true, description: `destroy ${target.perm.name}` };
@@ -891,6 +897,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, targets) => {
       const target = getTargetPermanent(state, targets);
       if (!target) return { state, resolved: false };
+      if (hasKeyword(target.perm, 'indestructible')) {
+        return { state: addLog(state, controller, `${target.perm.name} is indestructible.`), resolved: true, description: `${target.perm.name} is indestructible` };
+      }
       state = removePermanentFromBattlefield(state, target.perm.id, 'graveyard');
       state = addLog(state, controller, `Destroys ${target.perm.name}.`);
       return { state, resolved: true, description: `destroy enchantment ${target.perm.name}` };
@@ -903,6 +912,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, targets) => {
       const target = getTargetPermanent(state, targets);
       if (!target) return { state, resolved: false };
+      if (hasKeyword(target.perm, 'indestructible')) {
+        return { state: addLog(state, controller, `${target.perm.name} is indestructible.`), resolved: true, description: `${target.perm.name} is indestructible` };
+      }
       state = removePermanentFromBattlefield(state, target.perm.id, 'graveyard');
       state = addLog(state, controller, `Destroys ${target.perm.name}.`);
       return { state, resolved: true, description: `destroy artifact ${target.perm.name}` };
@@ -915,6 +927,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, targets) => {
       const target = getTargetPermanent(state, targets);
       if (!target) return { state, resolved: false };
+      if (hasKeyword(target.perm, 'indestructible')) {
+        return { state: addLog(state, controller, `${target.perm.name} is indestructible.`), resolved: true, description: `${target.perm.name} is indestructible` };
+      }
       state = removePermanentFromBattlefield(state, target.perm.id, 'graveyard');
       state = addLog(state, controller, `Destroys ${target.perm.name}.`);
       return { state, resolved: true, description: `destroy ${target.perm.name}` };
@@ -1484,6 +1499,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       if (!target.perm.tapped) {
         state = addLog(state, controller, `${target.perm.name} is not tapped — illegal target.`);
         return { state, resolved: false, description: 'target not tapped' };
+      }
+      if (hasKeyword(target.perm, 'indestructible')) {
+        return { state: addLog(state, controller, `${target.perm.name} is indestructible.`), resolved: true, description: `${target.perm.name} is indestructible` };
       }
       state = removePermanentFromBattlefield(state, target.perm.id, 'graveyard');
       state = addLog(state, controller, `Destroys tapped creature ${target.perm.name}.`);
@@ -2175,6 +2193,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
         state = addLog(state, controller, `${found.perm.name} (power ${power}) doesn't meet power ${threshold} or ${comparison} requirement.`);
         return { state, resolved: true, description: `target doesn't meet power condition` };
       }
+      if (hasKeyword(found.perm, 'indestructible')) {
+        return { state: addLog(state, controller, `${found.perm.name} is indestructible.`), resolved: true, description: `${found.perm.name} is indestructible` };
+      }
       state = removePermanentFromBattlefield(state, target.id, 'graveyard');
       state = addLog(state, controller, `Destroyed ${found.perm.name} (power ${power}).`);
       return { state, resolved: true, description: `destroy ${found.perm.name}` };
@@ -2196,6 +2217,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       if (toughness > threshold) {
         state = addLog(state, controller, `${found.perm.name} (toughness ${toughness}) is above ${threshold}.`);
         return { state, resolved: true, description: `target too tough` };
+      }
+      if (hasKeyword(found.perm, 'indestructible')) {
+        return { state: addLog(state, controller, `${found.perm.name} is indestructible.`), resolved: true, description: `${found.perm.name} is indestructible` };
       }
       state = removePermanentFromBattlefield(state, target.id, 'graveyard');
       state = addLog(state, controller, `Destroyed ${found.perm.name} (toughness ${toughness}).`);
@@ -2725,6 +2749,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
         state = addLog(state, controller, `${target.perm.name} has toughness ${toughness}, doesn't meet threshold.`);
         return { state, resolved: true, description: `${target.perm.name} not destroyed (toughness)` };
       }
+      if (hasKeyword(target.perm, 'indestructible')) {
+        return { state: addLog(state, controller, `${target.perm.name} is indestructible.`), resolved: true, description: `${target.perm.name} is indestructible` };
+      }
       state = removePermanentFromBattlefield(state, target.perm.id, 'graveyard');
       state = addLog(state, controller, `Destroyed ${target.perm.name} (toughness ${toughness}).`);
       return { state, resolved: true, description: `destroy ${target.perm.name}` };
@@ -2763,6 +2790,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, targets) => {
       const target = getTargetPermanent(state, targets);
       if (!target) return { state, resolved: false };
+      if (hasKeyword(target.perm, 'indestructible')) {
+        return { state: addLog(state, controller, `${target.perm.name} is indestructible.`), resolved: true, description: `${target.perm.name} is indestructible` };
+      }
       state = removePermanentFromBattlefield(state, target.perm.id, 'graveyard');
       state = addLog(state, controller, `Destroyed ${target.perm.name}.`);
       return { state, resolved: true, description: `destroy ${target.perm.name}` };
@@ -3491,6 +3521,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, targets, _m) => {
       const target = getTargetPermanent(state, targets);
       if (!target) return { state, resolved: false };
+      if (hasKeyword(target.perm, 'indestructible')) {
+        return { state: addLog(state, controller, `${target.perm.name} is indestructible.`), resolved: true, description: `${target.perm.name} is indestructible` };
+      }
       state = removePermanentFromBattlefield(state, target.perm.id, 'graveyard');
       state = addLog(state, controller, `Destroys ${target.perm.name}.`);
       return { state, resolved: true, description: `destroy ${target.perm.name}` };
@@ -3753,6 +3786,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       // Auto-pick first option: destroy/exile the first target
       const target = getTargetPermanent(state, targets);
       if (!target) return { state, resolved: false };
+      if (hasKeyword(target.perm, 'indestructible')) {
+        return { state: addLog(state, controller, `${target.perm.name} is indestructible.`), resolved: true, description: `${target.perm.name} is indestructible` };
+      }
       state = removePermanentFromBattlefield(state, target.perm.id, 'graveyard');
       state = addLog(state, controller, `Chooses to destroy ${target.perm.name}.`);
       return { state, resolved: true, description: `destroy ${target.perm.name}` };
@@ -3765,9 +3801,21 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /destroy\s+target.*?or.*?return\s+target.*?to.*?(?:its\s+)?owner'?s?\s+hand/i,
     requiresTarget: true,
     apply: (state, controller, targets) => {
-      // Auto-pick: destroy the first target
       const target = getTargetPermanent(state, targets);
       if (!target) return { state, resolved: false };
+      // CR 702.12: indestructible — bounce instead of destroy
+      if (hasKeyword(target.perm, 'indestructible')) {
+        const players = [...state.players];
+        const pi = target.perm.controller;
+        players[pi] = {
+          ...players[pi],
+          battlefield: players[pi].battlefield.filter(p => p.id !== target.perm.id),
+          hand: [...players[pi].hand, { id: target.perm.id, oracleId: target.perm.oracleId, name: target.perm.name, manaCost: target.perm.manaCost, cmc: target.perm.cmc, typeLine: target.perm.typeLine, oracleText: target.perm.oracleText, power: target.perm.power, toughness: target.perm.toughness, loyalty: target.perm.loyalty, colors: target.perm.colors, colorIdentity: target.perm.colorIdentity, rarity: target.perm.rarity, tags: target.perm.tags, imageUrl: target.perm.imageUrl, owner: target.perm.owner }],
+        };
+        state = { ...state, players };
+        state = addLog(state, controller, `${target.perm.name} is indestructible — returned to hand instead.`);
+        return { state, resolved: true, description: `bounce ${target.perm.name} (indestructible)` };
+      }
       state = removePermanentFromBattlefield(state, target.perm.id, 'graveyard');
       state = addLog(state, controller, `Destroys ${target.perm.name}.`);
       return { state, resolved: true, description: `destroy ${target.perm.name}` };
@@ -6024,6 +6072,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
         state = addLog(state, controller, `${perm.name} has protection — destruction prevented.`);
         return { state, resolved: true, description: 'protection prevents destroy' };
       }
+      if (hasKeyword(perm, 'indestructible')) {
+        return { state: addLog(state, controller, `${perm.name} is indestructible.`), resolved: true, description: `${perm.name} is indestructible` };
+      }
       state = removePermanentFromBattlefield(state, perm.id, 'graveyard');
       state = addLog(state, controller, `Destroys ${perm.name}.`);
       return { state, resolved: true, description: `destroy ${perm.name}` };
@@ -6841,6 +6892,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     apply: (state, controller, targets) => {
       const target = getTargetPermanent(state, targets);
       if (!target) return { state, resolved: false };
+      if (hasKeyword(target.perm, 'indestructible')) {
+        return { state: addLog(state, controller, `${target.perm.name} is indestructible.`), resolved: true, description: `${target.perm.name} is indestructible` };
+      }
       state = removePermanentFromBattlefield(state, target.perm.id, 'graveyard');
       state = addLog(state, controller, `Kicked: destroy ${target.perm.name}.`);
       return { state, resolved: true, description: `kicked: destroy ${target.perm.name}` };
@@ -7310,9 +7364,11 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
     match: /choose\s+one\s*[—–-].*?destroy\s+target\s+(?:creature|permanent).*?return\s+target.*?to.*?hand/i,
     requiresTarget: true,
     apply: (state, controller, targets) => {
-      // Auto-pick destroy
       const target = getTargetPermanent(state, targets);
       if (!target) return { state, resolved: false };
+      if (hasKeyword(target.perm, 'indestructible')) {
+        return { state: addLog(state, controller, `${target.perm.name} is indestructible.`), resolved: true, description: `${target.perm.name} is indestructible` };
+      }
       state = removePermanentFromBattlefield(state, target.perm.id, 'graveyard');
       state = addLog(state, controller, `Chooses to destroy ${target.perm.name}.`);
       return { state, resolved: true, description: `modal: destroy ${target.perm.name}` };
@@ -7571,6 +7627,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
         const idx = bf.findIndex(p => p.id === targets[0].id);
         if (idx !== -1 && bf[idx].typeLine.toLowerCase().includes('land')) {
           const name = bf[idx].name;
+          if (hasKeyword(bf[idx], 'indestructible')) {
+            return { state: addLog(state, controller, `${name} is indestructible.`), resolved: true, description: `${name} is indestructible` };
+          }
           const newBf = [...bf.slice(0, idx), ...bf.slice(idx + 1)];
           const players = [...state.players];
           players[pi] = { ...players[pi], battlefield: newBf, graveyard: [...players[pi].graveyard, bf[idx] as any] };
@@ -7597,6 +7656,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
         const idx = bf.findIndex(p => p.id === targets[0].id);
         if (idx !== -1 && bf[idx].typeLine.toLowerCase().includes('planeswalker')) {
           const name = bf[idx].name;
+          if (hasKeyword(bf[idx], 'indestructible')) {
+            return { state: addLog(state, controller, `${name} is indestructible.`), resolved: true, description: `${name} is indestructible` };
+          }
           const newBf = [...bf.slice(0, idx), ...bf.slice(idx + 1)];
           const players = [...state.players];
           players[pi] = { ...players[pi], battlefield: newBf, graveyard: [...players[pi].graveyard, bf[idx] as any] };
@@ -9000,6 +9062,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       if (destroyMatch) {
         const target = getTargetPermanent(state, targets);
         if (target) {
+          if (hasKeyword(target.perm, 'indestructible')) {
+            return { state: addLog(state, controller, `${target.perm.name} is indestructible.`), resolved: true, description: `${target.perm.name} is indestructible` };
+          }
           state = removePermanentFromBattlefield(state, target.perm.id, 'graveyard');
           state = addLog(state, controller, `Modal: destroy ${target.perm.name}.`);
           return { state, resolved: true, description: `modal: destroy ${target.perm.name}` };
@@ -11879,6 +11944,9 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       const target = getTargetPermanent(state, targets);
       if (!target) return { state, resolved: false };
       const { perm } = target;
+      if (hasKeyword(perm, 'indestructible')) {
+        return { state: addLog(state, controller, `${perm.name} is indestructible.`), resolved: true, description: `${perm.name} is indestructible` };
+      }
       const power = parseInt(m[1]) || 3;
       const toughness = parseInt(m[2]) || 3;
       const permController = perm.controller;
@@ -12109,6 +12177,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
         const player = state.players[pi];
         for (const perm of [...player.battlefield]) {
           if (perm.basePower !== undefined && (perm.currentPower ?? perm.basePower ?? 0) >= threshold) {
+            // CR 702.12: indestructible permanents can't be destroyed
+            if (hasKeyword(perm, 'indestructible')) continue;
             state = removePermanentFromBattlefield(state, perm.id, 'graveyard');
             destroyed++;
           }
@@ -12390,7 +12460,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         for (const perm of [...player.battlefield]) {
-          if (perm.typeLine.toLowerCase().includes('enchantment')) {
+          // CR 702.12: indestructible permanents can't be destroyed
+          if (perm.typeLine.toLowerCase().includes('enchantment') && !hasKeyword(perm, 'indestructible')) {
             state = removePermanentFromBattlefield(state, perm.id, 'graveyard');
             destroyed++;
           }
@@ -12411,7 +12482,8 @@ export const EFFECT_PATTERNS: EffectPattern[] = [
       for (let pi = 0; pi < state.players.length; pi++) {
         const player = state.players[pi];
         for (const perm of [...player.battlefield]) {
-          if (perm.typeLine.toLowerCase().includes('artifact')) {
+          // CR 702.12: indestructible permanents can't be destroyed
+          if (perm.typeLine.toLowerCase().includes('artifact') && !hasKeyword(perm, 'indestructible')) {
             state = removePermanentFromBattlefield(state, perm.id, 'graveyard');
             destroyed++;
           }
