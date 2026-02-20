@@ -2846,6 +2846,21 @@ function updateStats(): void {
   const totalCmdr = currentDeck.commander.reduce((a, e) => a + e.qty, 0);
   const totalCards = totalMain + totalSB + totalCmdr;
   
+  // Compute land count, avg CMC, total price for ribbon
+  let landCount = 0;
+  let cmcSum = 0;
+  let cmcCards = 0;
+  let ribbonPrice = 0;
+  for (const entry of [...currentDeck.main, ...currentDeck.commander]) {
+    const card = resolveCard(entry.name);
+    if (card) {
+      if (card.type_line && card.type_line.includes('Land')) landCount += entry.qty;
+      else { cmcSum += (card.cmc ?? 0) * entry.qty; cmcCards += entry.qty; }
+      ribbonPrice += getCardPrice(card) * entry.qty;
+    }
+  }
+  const avgCmc = cmcCards > 0 ? cmcSum / cmcCards : 0;
+
   const statsEl = $('statsRow');
   if (statsEl) {
     const chips: Array<{ label: string; value: number; color: string }> = [
@@ -2854,6 +2869,28 @@ function updateStats(): void {
       { label: 'Commander', value: totalCmdr, color: '#f8d56a' },
       { label: 'Total', value: totalCards, color: '#4ade80' },
     ];
+
+    const extraChips: HTMLElement[] = [];
+    if (landCount > 0) {
+      extraChips.push(h('div', { className: 'stat-chip stat-chip--sm' },
+        h('span', { className: 'stat-dot', style: 'background:var(--land);color:var(--land);' }),
+        h('span', {}, 'Lands:'),
+        h('span', { className: 'num' }, String(landCount))
+      ));
+    }
+    if (cmcCards > 0) {
+      extraChips.push(h('div', { className: 'stat-chip stat-chip--sm' },
+        h('span', { className: 'stat-dot', style: 'background:var(--instant);color:var(--instant);' }),
+        h('span', {}, 'Avg CMC:'),
+        h('span', { className: 'num' }, avgCmc.toFixed(1))
+      ));
+    }
+    if (ribbonPrice > 0) {
+      extraChips.push(h('div', { className: 'stat-chip stat-chip--sm' },
+        h('span', { className: 'stat-dot', style: 'background:var(--planeswalker);color:var(--planeswalker);' }),
+        h('span', { className: 'num' }, `€${ribbonPrice.toFixed(0)}`)
+      ));
+    }
 
     replaceChildren(
       statsEl,
@@ -2867,7 +2904,8 @@ function updateStats(): void {
             h('span', {}, `${chip.label}:`),
             h('span', { className: 'num' }, String(chip.value))
           )
-        )
+        ),
+      ...extraChips
     );
   }
 
