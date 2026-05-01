@@ -9,6 +9,8 @@
  * Pattern copied from collab-session.ts (WebSocketPair, storage, broadcast, alarm).
  */
 
+import { resolveAllowedOrigin } from './cors-config.js';
+
 // ───── Cloudflare Runtime Types ─────
 
 interface DurableObjectState {
@@ -365,7 +367,7 @@ export class GameSession {
     const url = new URL(request.url);
 
     if (url.pathname === '/info' && request.method === 'GET') {
-      return this.handleInfo();
+      return this.handleInfo(request);
     }
 
     return new Response('Not found', { status: 404 });
@@ -433,7 +435,7 @@ export class GameSession {
 
   // ───── HTTP Info Handler ─────
 
-  private handleInfo(): Response {
+  private handleInfo(request: Request): Response {
     return new Response(JSON.stringify({
       ok: true,
       data: {
@@ -446,7 +448,7 @@ export class GameSession {
     }), {
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': resolveAllowedOrigin(request),
       },
     });
   }

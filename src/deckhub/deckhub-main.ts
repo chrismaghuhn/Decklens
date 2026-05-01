@@ -1705,7 +1705,7 @@ function prItemElement(pr: AdaptedPR, showCheckbox = false): HTMLElement {
     'data-pr': String(pr.number),
     role: 'button',
     tabindex: '0',
-    'aria-label': `Pull request #${pr.number}: ${pr.title}`,
+    'aria-label': `Pull request #${pr.number}: ${escapeHtml(pr.title)}`,
     onclick: () => openLivePRModal(pr.number),
     onkeydown: (e: KeyboardEvent) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -1862,9 +1862,13 @@ function openPRModalWithData(pr: AdaptedPR, comments?: PRComment[], diff?: DeckP
   const risk = diff ? computeRiskScore(diff) : null;
   const riskBadgeHTML = risk && risk.score > 0 ? ` ${renderRiskBadge(risk)}` : '';
   const rawPr = rawPRs.find(p => p.number === pr.number);
-  const verifiedBadge = rawPr?.verified ? ` <span class="hub-verified-badge">\u2705 Verified${rawPr.verifiedBy ? ` by @${rawPr.verifiedBy}` : ''}</span>` : '';
+  const verifiedBadge = rawPr?.verified
+    ? ` <span class="hub-verified-badge">\u2705 Verified${rawPr.verifiedBy ? ` by @${escapeHtml(rawPr.verifiedBy)}` : ''}</span>`
+    : '';
   const firstTimeBadge = pr.status === 'open' && isFirstTimeContributor(pr) ? ' <span class="hub-first-time-badge">\u{1F44B} First-time contributor</span>' : '';
-  if (titleEl) titleEl.innerHTML = `${pr.title} <span class="pr-modal__number">#${pr.number}</span>${riskBadgeHTML}${verifiedBadge}${firstTimeBadge}`;
+  if (titleEl) {
+    titleEl.innerHTML = `${escapeHtml(pr.title)} <span class="pr-modal__number">#${pr.number}</span>${riskBadgeHTML}${verifiedBadge}${firstTimeBadge}`;
+  }
   if (metaEl) metaEl.textContent = `${pr.author} wants to merge ${pr.branch} into ${pr.target} \u00B7 ${pr.time}`;
 
   let bodyHTML = '';
@@ -1876,7 +1880,7 @@ function openPRModalWithData(pr: AdaptedPR, comments?: PRComment[], diff?: DeckP
 
   bodyHTML += `<div class="pr-modal__section">
     <div class="pr-modal__section-title">Description</div>
-    <div class="pr-modal__desc">${pr.description || '<em>No description</em>'}</div>
+    <div class="pr-modal__desc">${pr.description?.trim() ? markdownToSafeHtml(pr.description) : '<em>No description</em>'}</div>
   </div>`;
 
   // Deck Diff section with filter + focus mode
@@ -1913,8 +1917,8 @@ function openPRModalWithData(pr: AdaptedPR, comments?: PRComment[], diff?: DeckP
       <div class="checks-list">
         ${pr.checks.map(c => `<div class="check-item">
           <span class="check-item__icon ${c.pass ? 'check-item__icon--pass' : 'check-item__icon--fail'}">${c.pass ? '\u2705' : '\u274C'}</span>
-          <span class="check-item__name">${c.name}</span>
-          ${c.detail ? `<span style="font-size:11px;color:var(--hub-text-muted);margin-left:auto">${c.detail}</span>` : ''}
+          <span class="check-item__name">${escapeHtml(c.name)}</span>
+          ${c.detail ? `<span style="font-size:11px;color:var(--hub-text-muted);margin-left:auto">${escapeHtml(c.detail)}</span>` : ''}
         </div>`).join('')}
       </div>
       ${isLiveMode && pr.status === 'open' ? '<button class="hub-btn hub-btn--sm" style="margin-top:8px" id="btnRerunChecks">\u{1F504} Re-run Checks</button>' : ''}
@@ -1930,10 +1934,10 @@ function openPRModalWithData(pr: AdaptedPR, comments?: PRComment[], diff?: DeckP
             ? '<span class="hub-status hub-status--approved">Approved</span>'
             : '<span class="hub-status hub-status--changes">Changes Requested</span>';
           return `<div class="pr-modal__review">
-            <div class="pr-modal__review-avatar" style="background:${r.color}">${r.initials}</div>
-            <strong style="font-size:13px">${r.user}</strong>
+            <div class="pr-modal__review-avatar" style="background:${r.color}">${escapeHtml(r.initials)}</div>
+            <strong style="font-size:13px">${escapeHtml(r.user)}</strong>
             ${stateLabel}
-            <span style="font-size:12px;color:var(--hub-text-dim)">&ldquo;${r.comment}&rdquo;</span>
+            <span style="font-size:12px;color:var(--hub-text-dim)">&ldquo;${escapeHtml(r.comment)}&rdquo;</span>
           </div>`;
         }).join('')}
       </div>
@@ -2333,10 +2337,10 @@ function renderLiveIssues(): void {
       ${pinHTML}
       <span class="issue-item__icon">${icon}</span>
       <div class="issue-item__body">
-        <div class="issue-item__title">${issue.title} <span style="color:var(--hub-text-muted);font-weight:400">#${issue.number}</span></div>
+        <div class="issue-item__title">${escapeHtml(issue.title)} <span style="color:var(--hub-text-muted);font-weight:400">#${issue.number}</span></div>
         <div class="issue-item__meta">
           ${issue.labels.map(labelHTML).join(' ')}
-          &middot; ${isOpen ? 'opened' : 'closed'} ${issue.time}${issue.author ? ` by ${issue.author}` : ''}
+          &middot; ${isOpen ? 'opened' : 'closed'} ${escapeHtml(issue.time)}${issue.author ? ` by ${escapeHtml(issue.author)}` : ''}
         </div>
       </div>
       ${actionBtn}
@@ -2565,7 +2569,7 @@ function renderLivePrimer(): void {
 
   if (liveDeckMeta?.description) {
     // Convert markdown to HTML
-    const html = markdownToHtml(liveDeckMeta.description);
+    const html = markdownToSafeHtml(liveDeckMeta.description);
     el.innerHTML = `<h3>${escapeHtml(liveDeckMeta.name || 'Deck Primer')}</h3>${html}`;
   } else if (liveDeckMeta?.name) {
     el.innerHTML = `<h3>${escapeHtml(liveDeckMeta.name)}</h3><p style="color:var(--hub-text-muted)">No primer written yet. Click "Edit" to add a README.</p>`;
@@ -2592,7 +2596,7 @@ function renderLiveContributors(collabs: { userId: string; role: string }[]): vo
 
   const adapted = adaptCollaborators(collabs as Collaborator[]);
   el.innerHTML = adapted.map(c =>
-    `<div class="contributor" style="background:${c.color}" title="${c.displayName} (${c.role})">${c.initials}</div>`
+    `<div class="contributor" style="background:${c.color}" title="${escapeHtml(`${c.displayName} (${c.role})`)}">${escapeHtml(c.initials)}</div>`
   ).join('');
 }
 
@@ -2604,7 +2608,7 @@ function renderLiveQuickLinks(): void {
 
   if (livePRs.length > 0) {
     const latestPR = livePRs.find(p => p.status === 'open') || livePRs[0];
-    links.push(`<div class="quick-link">\u{1F501} <a href="#" data-open-tab="pulls">Latest PR: #${latestPR.number} ${latestPR.title}</a></div>`);
+    links.push(`<div class="quick-link">\u{1F501} <a href="#" data-open-tab="pulls">Latest PR: #${latestPR.number} ${escapeHtml(latestPR.title)}</a></div>`);
   }
 
   const openIssueCount = liveIssues.filter(i => i.status === 'open').length;
@@ -2613,7 +2617,7 @@ function renderLiveQuickLinks(): void {
   }
 
   if (liveReleases.length > 0) {
-    links.push(`<div class="quick-link">\u{1F3F7}\u{FE0F} <a href="#" data-open-tab="releases">Latest release: ${liveReleases[0].tag}</a></div>`);
+    links.push(`<div class="quick-link">\u{1F3F7}\u{FE0F} <a href="#" data-open-tab="releases">Latest release: ${escapeHtml(liveReleases[0].tag)}</a></div>`);
   }
 
   if (links.length === 0) {
@@ -3682,7 +3686,8 @@ function renderRiskBadge(risk: RiskResult): string {
     low: 'var(--hub-green)', medium: 'var(--hub-orange)', high: 'var(--hub-red)', critical: '#ff1744',
   };
   const icons: Record<string, string> = { low: '\u{1F7E2}', medium: '\u{1F7E1}', high: '\u{1F7E0}', critical: '\u{1F534}' };
-  return `<span class="pr-modal__risk-badge pr-modal__risk-badge--${risk.level}" style="color:${colors[risk.level]}" title="${risk.reasons.join(', ')}">${icons[risk.level]} ${risk.level.charAt(0).toUpperCase() + risk.level.slice(1)} Risk</span>`;
+  const titleAttr = escapeHtml(risk.reasons.join(', '));
+  return `<span class="pr-modal__risk-badge pr-modal__risk-badge--${risk.level}" style="color:${colors[risk.level]}" title="${titleAttr}">${icons[risk.level]} ${risk.level.charAt(0).toUpperCase() + risk.level.slice(1)} Risk</span>`;
 }
 
 // ───── Diff Filter + Focus Mode ─────
@@ -4188,7 +4193,7 @@ function renderChangelogSection(section: string, entries: ChangelogEntry[]): str
         return `<div class="hub-changelog__entry">
           <span class="hub-changelog__entry-op hub-changelog__entry-op--${opClass}">${opSymbol}</span>
           <span class="hub-changelog__entry-name">${e.qty ? `${e.qty}x ` : ''}${escapeHtml(e.cardName)}</span>
-          <span class="hub-changelog__entry-meta">${e.author} &middot; ${e.time}</span>
+          <span class="hub-changelog__entry-meta">${escapeHtml(e.author)} &middot; ${escapeHtml(e.time)}</span>
         </div>`;
       }).join('')}
     </div>
@@ -5335,7 +5340,7 @@ function chipHTML(tag: string): string {
     flying: 'hub-chip--protection', haste: 'hub-chip--protection',
     planeswalker: 'hub-chip--engine'
   };
-  return `<span class="hub-chip ${cls[t] || ''}">${tag}</span>`;
+  return `<span class="hub-chip ${cls[t] || ''}">${escapeHtml(tag)}</span>`;
 }
 
 function labelHTML(label: string): string {
@@ -5344,7 +5349,7 @@ function labelHTML(label: string): string {
     meta: 'hub-label--meta', rules: 'hub-label--rules',
     budget: 'hub-label--budget', question: 'hub-label--question',
   };
-  return `<span class="hub-label ${cls[label] || 'hub-label--question'}">${label}</span>`;
+  return `<span class="hub-label ${cls[label] || 'hub-label--question'}">${escapeHtml(label)}</span>`;
 }
 
 // Scope label colors for auto-labeling
@@ -5460,13 +5465,13 @@ function renderPRList(): void {
       }
     }
 
-    return `<div class="pr-item" data-pr="${pr.number}" role="button" tabindex="0" aria-label="Pull request #${pr.number}: ${pr.title}">
+    return `<div class="pr-item" data-pr="${pr.number}" role="button" tabindex="0" aria-label="Pull request #${pr.number}: ${escapeHtml(pr.title)}">
       <span class="pr-item__icon ${iconClass[pr.status]}">${icon[pr.status]}</span>
       <div class="pr-item__body">
-        <div class="pr-item__title">${pr.title} <span style="color:var(--hub-text-muted);font-weight:400">#${pr.number}</span></div>
+        <div class="pr-item__title">${escapeHtml(pr.title)} <span style="color:var(--hub-text-muted);font-weight:400">#${pr.number}</span></div>
         <div class="pr-item__meta">
-          ${pr.status === 'merged' ? 'Merged' : 'Opened'} ${pr.time} by ${pr.author}
-          &middot; ${pr.branch} &rarr; ${pr.target}
+          ${pr.status === 'merged' ? 'Merged' : 'Opened'} ${escapeHtml(pr.time)} by ${escapeHtml(pr.author)}
+          &middot; ${escapeHtml(pr.branch)} &rarr; ${escapeHtml(pr.target)}
         </div>
       </div>
       <div class="pr-item__checks">${checksHTML}</div>
@@ -5511,14 +5516,14 @@ function openPRModal(prNumber: number): void {
 
   const titleEl = $('#prModalTitle');
   const metaEl = $('#prModalMeta');
-  if (titleEl) titleEl.innerHTML = `${pr.title} <span class="pr-modal__number">#${pr.number}</span>`;
+  if (titleEl) titleEl.innerHTML = `${escapeHtml(pr.title)} <span class="pr-modal__number">#${pr.number}</span>`;
   if (metaEl) metaEl.textContent = `${pr.author} wants to merge ${pr.branch} into ${pr.target} \u00B7 ${pr.time}`;
 
   let bodyHTML = '';
 
   bodyHTML += `<div class="pr-modal__section">
     <div class="pr-modal__section-title">Description</div>
-    <div class="pr-modal__desc">${pr.description}</div>
+    <div class="pr-modal__desc">${pr.description?.trim() ? markdownToSafeHtml(pr.description) : '<em>No description</em>'}</div>
   </div>`;
 
   bodyHTML += `<div class="pr-modal__section">
@@ -5535,7 +5540,7 @@ function openPRModal(prNumber: number): void {
       <div class="pr-modal__files">
         ${pr.files.map(f => `<div class="pr-modal__file">
           <span class="pr-modal__file-status pr-modal__file-status--${f.status === 'modified' ? 'modified' : 'added'}">${f.status === 'modified' ? 'M' : 'A'}</span>
-          ${f.name}
+          ${escapeHtml(f.name)}
         </div>`).join('')}
       </div>
     </div>`;
@@ -5547,8 +5552,8 @@ function openPRModal(prNumber: number): void {
       <div class="checks-list">
         ${pr.checks.map(c => `<div class="check-item">
           <span class="check-item__icon ${c.pass ? 'check-item__icon--pass' : 'check-item__icon--fail'}">${c.pass ? '\u2705' : '\u274C'}</span>
-          <span class="check-item__name">${c.name}</span>
-          ${c.detail ? `<span style="font-size:11px;color:var(--hub-text-muted);margin-left:auto">${c.detail}</span>` : ''}
+          <span class="check-item__name">${escapeHtml(c.name)}</span>
+          ${c.detail ? `<span style="font-size:11px;color:var(--hub-text-muted);margin-left:auto">${escapeHtml(c.detail)}</span>` : ''}
         </div>`).join('')}
       </div>
     </div>`;
@@ -5563,10 +5568,10 @@ function openPRModal(prNumber: number): void {
             ? '<span class="hub-status hub-status--approved">Approved</span>'
             : '<span class="hub-status hub-status--changes">Changes Requested</span>';
           return `<div class="pr-modal__review">
-            <div class="pr-modal__review-avatar" style="background:${r.color}">${r.initials}</div>
-            <strong style="font-size:13px">${r.user}</strong>
+            <div class="pr-modal__review-avatar" style="background:${r.color}">${escapeHtml(r.initials)}</div>
+            <strong style="font-size:13px">${escapeHtml(r.user)}</strong>
             ${stateLabel}
-            <span style="font-size:12px;color:var(--hub-text-dim)">&ldquo;${r.comment}&rdquo;</span>
+            <span style="font-size:12px;color:var(--hub-text-dim)">&ldquo;${escapeHtml(r.comment)}&rdquo;</span>
           </div>`;
         }).join('')}
       </div>
@@ -5629,10 +5634,10 @@ function renderIssues(): void {
     `<div class="issue-item">
       <span class="issue-item__icon">\u{1F7E2}</span>
       <div class="issue-item__body">
-        <div class="issue-item__title">${issue.title} <span style="color:var(--hub-text-muted);font-weight:400">#${issue.number}</span></div>
+        <div class="issue-item__title">${escapeHtml(issue.title)} <span style="color:var(--hub-text-muted);font-weight:400">#${issue.number}</span></div>
         <div class="issue-item__meta">
           ${issue.labels.map(labelHTML).join(' ')}
-          &middot; opened ${issue.time} by ${issue.author}
+          &middot; opened ${escapeHtml(issue.time)} by ${escapeHtml(issue.author)}
           ${issue.comments ? `&middot; \u{1F4AC} ${issue.comments}` : ''}
         </div>
       </div>
@@ -5648,15 +5653,15 @@ function renderReleases(): void {
   el.innerHTML = RELEASES.map(rel => {
     const notesHTML = rel.notes.map(n => {
       const prefix: Record<string, string> = { add: '\u2795', remove: '\u274C', change: '\u{1F504}', fix: '\u{1F527}' };
-      return `<li>${prefix[n.type] || ''} ${n.text}</li>`;
+      return `<li>${prefix[n.type] || ''} ${escapeHtml(n.text)}</li>`;
     }).join('');
 
     return `<div class="release-item">
       <div class="release-item__header">
-        <span class="release-item__tag">${rel.tag}</span>
-        <span class="release-item__date">${rel.date}</span>
+        <span class="release-item__tag">${escapeHtml(rel.tag)}</span>
+        <span class="release-item__date">${escapeHtml(rel.date)}</span>
       </div>
-      <div class="release-item__title">${rel.title}</div>
+      <div class="release-item__title">${escapeHtml(rel.title)}</div>
       <ul class="release-item__notes">${notesHTML}</ul>
       <div class="release-item__actions">
         <button class="hub-btn hub-btn--sm">\u{1F4E6} Tournament Packet</button>
@@ -5675,8 +5680,8 @@ function renderInsights(): void {
     checksEl.innerHTML = INSIGHTS_CHECKS.map(c =>
       `<div class="insight-row">
         <span class="insight-row__icon">${c.pass ? '\u2705' : '\u274C'}</span>
-        <span class="insight-row__name">${c.name}</span>
-        <span class="insight-row__detail">${c.detail || ''}</span>
+        <span class="insight-row__name">${escapeHtml(c.name)}</span>
+        <span class="insight-row__detail">${escapeHtml(c.detail || '')}</span>
       </div>`
     ).join('');
   }
@@ -5686,7 +5691,7 @@ function renderInsights(): void {
     warningsEl.innerHTML = WARNINGS.map(w =>
       `<div class="warning-item">
         <span class="warning-item__icon">${w.icon}</span>
-        <span>${w.text}</span>
+        <span>${escapeHtml(w.text)}</span>
       </div>`
     ).join('');
   }
@@ -5695,8 +5700,8 @@ function renderInsights(): void {
   if (regressionsEl) {
     regressionsEl.innerHTML = REGRESSIONS.map(r =>
       `<div class="regression-item">
-        <div class="regression-item__label">${r.label}</div>
-        <div class="regression-item__detail">${r.before} \u2192 ${r.after} (<span>${r.delta}</span>)</div>
+        <div class="regression-item__label">${escapeHtml(r.label)}</div>
+        <div class="regression-item__detail">${escapeHtml(r.before)} \u2192 ${escapeHtml(r.after)} (<span>${escapeHtml(r.delta)}</span>)</div>
       </div>`
     ).join('');
   }
@@ -6482,23 +6487,23 @@ async function openNewPRModal(): Promise<void> {
         <div class="hub-modal__body" style="padding:20px">
           <div style="margin-bottom:16px">
             <label style="display:block;font-size:12px;font-weight:600;color:var(--hub-text-muted);margin-bottom:6px">Title</label>
-            <input type="text" id="newPRTitle" class="hub-input" value="${templateData.title}" placeholder="Enter PR title" style="width:100%;font-size:14px">
+            <input type="text" id="newPRTitle" class="hub-input" value="${escapeHtml(templateData.title)}" placeholder="Enter PR title" style="width:100%;font-size:14px">
           </div>
           <div style="margin-bottom:16px">
             <label style="display:block;font-size:12px;font-weight:600;color:var(--hub-text-muted);margin-bottom:6px">Description</label>
-            <textarea id="newPRDesc" class="hub-input" placeholder="Enter PR description" style="width:100%;min-height:120px;font-size:13px;font-family:var(--hub-mono)">${templateData.desc}</textarea>
+            <textarea id="newPRDesc" class="hub-input" placeholder="Enter PR description" style="width:100%;min-height:120px;font-size:13px;font-family:var(--hub-mono)">${escapeHtml(templateData.desc)}</textarea>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
             <div>
               <label style="display:block;font-size:12px;font-weight:600;color:var(--hub-text-muted);margin-bottom:6px">Source Branch</label>
               <select id="newPRSource" class="hub-input" style="width:100%">
-                ${liveBranches.map(b => `<option value="${b.id}" ${b.id === sourceBranch.id ? 'selected' : ''}>${b.name}</option>`).join('')}
+                ${liveBranches.map(b => `<option value="${escapeHtml(b.id)}" ${b.id === sourceBranch.id ? 'selected' : ''}>${escapeHtml(b.name)}</option>`).join('')}
               </select>
             </div>
             <div>
               <label style="display:block;font-size:12px;font-weight:600;color:var(--hub-text-muted);margin-bottom:6px">Target Branch</label>
               <select id="newPRTarget" class="hub-input" style="width:100%">
-                ${liveBranches.map(b => `<option value="${b.id}" ${b.id === targetBranch.id ? 'selected' : ''}>${b.name}</option>`).join('')}
+                ${liveBranches.map(b => `<option value="${escapeHtml(b.id)}" ${b.id === targetBranch.id ? 'selected' : ''}>${escapeHtml(b.name)}</option>`).join('')}
               </select>
             </div>
           </div>
@@ -7173,7 +7178,7 @@ function openIssueModalWithData(issue: AdaptedIssue): void {
         ${issue.labels.map(l => `<span class="hub-badge hub-badge--tag">${escapeHtml(l)}</span>`).join(' ')}
       </div>
       <div style="font-size:13px;color:var(--hub-text-dim);margin-bottom:16px">
-        ${issue.status === 'open' ? 'Opened' : 'Closed'} ${issue.time}${issue.author ? ` by ${issue.author}` : ''} · ${issue.comments} comments
+        ${issue.status === 'open' ? 'Opened' : 'Closed'} ${escapeHtml(issue.time)}${issue.author ? ` by ${escapeHtml(issue.author)}` : ''} · ${issue.comments} comments
       </div>
       <div style="background:var(--hub-raised);padding:16px;border-radius:8px;border:1px solid var(--hub-border)">
         <em style="color:var(--hub-text-muted)">Issue details would appear here...</em>
@@ -7711,7 +7716,7 @@ How do you win the game?
   function previewReadme(): void {
     if (!editor) return;
     const markdown = editor.value;
-    const html = markdownToHtml(markdown);
+    const html = markdownToSafeHtml(markdown);
     
     // Show preview in a temporary div or alert
     const previewDiv = document.createElement('div');
@@ -7898,6 +7903,11 @@ function markdownToHtml(markdown: string): string {
     .replace(/\n\n/g, '</p><p>')
     .replace(/^(?!<[hl])/gm, '<p>$&')
     .replace(/$(?<!<\/p>)/gm, '$&</p>');
+}
+
+/** User-controlled markdown: escape HTML first, then apply simple markdown → HTML. */
+function markdownToSafeHtml(markdown: string): string {
+  return markdownToHtml(escapeHtml(markdown));
 }
 
 // ───── Budget Analysis ─────

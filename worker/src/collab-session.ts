@@ -8,6 +8,8 @@
  * - Last-write-wins conflict resolution per card slot
  */
 
+import { resolveAllowedOrigin } from './cors-config.js';
+
 // ───── Cloudflare Runtime Types (Workers + Durable Objects) ─────
 
 interface DurableObjectState {
@@ -289,12 +291,12 @@ export class CollabSession {
 
     // GET /info — return session info (no auth needed)
     if (url.pathname === '/info' && request.method === 'GET') {
-      return this.handleInfo();
+      return this.handleInfo(request);
     }
 
     // GET /snapshot — return current deck state
     if (url.pathname === '/snapshot' && request.method === 'GET') {
-      return this.handleSnapshot();
+      return this.handleSnapshot(request);
     }
 
     // POST /close — owner closes the session
@@ -332,13 +334,13 @@ export class CollabSession {
       }
 
       await this.persistDeck();
-      return jsonResponse({ ok: true });
+      return jsonResponse({ ok: true }, 200, request);
     } catch {
-      return jsonResponse({ ok: false, error: 'Invalid request body' }, 400);
+      return jsonResponse({ ok: false, error: 'Invalid request body' }, 400, request);
     }
   }
 
-  private handleInfo(): Response {
+  private handleInfo(request: Request): Response {
     const participants = Array.from(this.connections.values());
     return jsonResponse({
       ok: true,
@@ -347,21 +349,21 @@ export class CollabSession {
         participantCount: participants.length,
         participants: participants.map((p) => ({ id: p.id, name: p.name, color: p.color })),
       },
-    });
+    }, 200, request);
   }
 
-  private handleSnapshot(): Response {
+  private handleSnapshot(request: Request): Response {
     return jsonResponse({
       ok: true,
       data: { deck: this.deck },
-    });
+    }, 200, request);
   }
 
   private async handleClose(request: Request): Promise<Response> {
     try {
       const body = await request.json() as { ownerToken?: string };
       if (!this.ownerToken || body.ownerToken !== this.ownerToken) {
-        return jsonResponse({ ok: false, error: 'Unauthorized' }, 403);
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 403, request);
       }
 
       // Notify all clients and close WebSocket connections
@@ -378,9 +380,9 @@ export class CollabSession {
 
       // Clean up storage
       await this.state.storage.deleteAll();
-      return jsonResponse({ ok: true });
+      return jsonResponse({ ok: true }, 200, request);
     } catch {
-      return jsonResponse({ ok: false, error: 'Invalid request' }, 400);
+      return jsonResponse({ ok: false, error: 'Invalid request' }, 400, request);
     }
   }
 
@@ -1594,12 +1596,12 @@ function normalizeCardEntry(raw: unknown): CollabCardEntry | null {
   return { name, qty, set, collectorNumber, tags };
 }
 
-function jsonResponse(body: unknown, status = 200): Response {
+function jsonResponse(body: unknown, status = 200, request?: Request): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': resolveAllowedOrigin(request),
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     },

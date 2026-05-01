@@ -46,6 +46,7 @@ import {
   handleAuthLogout,
   authenticateRequest,
 } from './auth.js';
+import { ALLOWED_ORIGINS, resolveAllowedOrigin } from './cors-config.js';
 import { handleDeckGitRoute } from './deck-git/router.js';
 import { CommitService, BranchService, HealthService, WebhookService } from './deck-git/index.js';
 import { generateId } from './deck-git/types.js';
@@ -81,18 +82,8 @@ export { GameSession };
  *   /api/recommendations/mtg    → Recommendation Engine v1
  */
 
-const ALLOWED_ORIGINS = [
-  'https://decklens.chrisgarkisch.workers.dev',
-  'https://decklens.app',
-  'https://www.decklens.app',
-  'http://localhost:5173',
-  'http://localhost:4173',
-  'http://127.0.0.1:5173',
-];
-
 function getCorsHeaders(request?: Request): Record<string, string> {
-  const origin = request?.headers.get('Origin') || '';
-  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  const allowedOrigin = resolveAllowedOrigin(request);
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
