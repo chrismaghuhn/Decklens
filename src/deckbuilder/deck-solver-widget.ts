@@ -7,6 +7,7 @@
 
 import type { DeckbuilderDeck } from './types.js';
 import type { DeckbuilderSearchCard } from '../shared/api.js';
+import { svgMarkup } from './line-icons.js';
 import {
   solveConstraints,
   getDefaultEDHConstraints,
