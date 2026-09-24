@@ -1,0 +1,91 @@
+/* ═══════════════════════════════════════════════════════════
+   DECKLENS — Swiss Data-Lab Design Tokens (shared)
+   Used by index.html and decks.html
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  /* Paper & Ink */
+  --paper: #FAFAF7;
+  --paper-dim: #F1F1EC;
+  --paper-card: #FFFFFF;
+  --ink: #0A0A0A;
+  --ink-70: rgba(10, 10, 10, 0.70);
+  --ink-50: rgba(10, 10, 10, 0.50);
+  --ink-35: rgba(10, 10, 10, 0.35);
+
+  /* Hairlines */
+  --hairline: rgba(10, 10, 10, 0.18);
+  --hairline-soft: rgba(10, 10, 10, 0.09);
+
+  /* Cobalt accent */
+  --cobalt: #0056D2;
+  --cobalt-dark: #0043A8;
+  --cobalt-tint: rgba(0, 86, 210, 0.07);
+
+  /* Lab contrast blocks */
+  --lab-block: #141414;
+  --lab-block-text: #F5F5F2;
+
+  --danger: #C41E1E;
+
+  /* Type */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+/* ═══ Shared primitives ═══ */
+
+.dl-label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-50);
+}
+
+.dl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.85rem 1.6rem;
+  border: 1px solid var(--ink);
+  background: var(--cobalt);
+  color: #FFFFFF;
+  cursor: pointer;
+  text-decoration: none;
+  border-radius: 0;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.dl-btn:hover { background: var(--cobalt-dark); border-color: var(--cobalt-dark); }
+
+.dl-btn--outline {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.dl-btn--outline:hover { background: var(--ink); color: var(--paper); }
+
+.dl-input {
+  background: var(--paper-card);
+  border: 1px solid var(--hairline);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
+  padding: 10px 14px;
+  border-radius: 0;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.dl-input::placeholder { color: var(--ink-35); }
+.dl-input:focus {
+  outline: none;
+  border-color: var(--cobalt);
+  box-shadow: 0 0 0 1px var(--cobalt);
+}
+
+::selection { background: var(--cobalt); color: #FFFFFF; }
