@@ -25,14 +25,14 @@ export interface CardPackage {
 // ───── Constants ─────
 
 const PACKAGE_CATEGORIES = [
-  { key: 'ramp', label: 'Ramp', icon: '\uD83C\uDF3F' },
-  { key: 'removal', label: 'Removal', icon: '\uD83D\uDCA5' },
-  { key: 'draw', label: 'Card Draw', icon: '\uD83C\uDCCF' },
-  { key: 'combo', label: 'Combo', icon: '\u26A1' },
-  { key: 'manabase', label: 'Manabase', icon: '\uD83D\uDC8E' },
-  { key: 'protection', label: 'Protection', icon: '\uD83D\uDEE1\uFE0F' },
-  { key: 'synergy', label: 'Synergy', icon: '\uD83D\uDD17' },
-  { key: 'other', label: 'Other', icon: '\uD83D\uDCE6' },
+ { key: 'ramp', label: 'Ramp', icon: '⑂' },
+ { key: 'removal', label: 'Removal', icon: '✕' },
+ { key: 'draw', label: 'Card Draw', icon: '■' },
+ { key: 'combo', label: 'Combo', icon: '▲' },
+ { key: 'manabase', label: 'Manabase', icon: '◆' },
+ { key: 'protection', label: 'Protection', icon: '■' },
+ { key: 'synergy', label: 'Synergy', icon: '∞' },
+ { key: 'other', label: 'Other', icon: '▢' },
 ];
 
 // ───── State ─────
@@ -144,10 +144,10 @@ function showPanel(): void {
 
   panelEl = h('div', { className: 'package-panel' },
     h('div', { className: 'package-header' },
-      h('span', { className: 'package-title' }, '\uD83D\uDCE6 Card Packages'),
+ h('span', { className: 'package-title' }, '▢ Card Packages'),
       h('div', { className: 'package-actions-header' },
         h('button', { className: 'package-create-btn', onClick: () => promptCreatePackage(), title: 'Create new package' }, '+ Package'),
-        h('button', { className: 'package-close', onClick: () => togglePackagePanel(), title: 'Close' }, '\u2715'),
+ h('button', { className: 'package-close', onClick: () => togglePackagePanel(), title: 'Close' }, '✕'),
       ),
     ),
     h('div', { className: 'package-categories', id: '_pkgCategories' }),
@@ -233,7 +233,7 @@ function renderPackageCard(pkg: CardPackage): HTMLElement {
             onApplyPackage(cardList);
           }
         },
-      }, '\u2B07 Apply to Deck'),
+ }, ' Apply to Deck'),
       h('button', {
         className: 'package-delete-btn',
         onClick: (e: MouseEvent) => {
@@ -241,7 +241,7 @@ function renderPackageCard(pkg: CardPackage): HTMLElement {
           if (confirm(`Delete package "${pkg.name}"?`)) deletePackage(pkg.id);
         },
         title: 'Delete',
-      }, '\u2715'),
+ }, '✕'),
     ),
   );
 }

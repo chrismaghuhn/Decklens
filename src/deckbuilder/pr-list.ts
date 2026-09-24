@@ -154,9 +154,9 @@ function render(): void {
 }
 
 function renderPRItem(pr: PullRequest): HTMLElement {
-  const statusIcon = pr.status === 'merged' ? '🟣' : pr.status === 'open' ? '🟢' : '🔴';
+  const statusIcon = pr.status === 'merged' ? '●' : pr.status === 'open' ? '●' : '●';
   const checkStatus = state.checkStatus.get(pr.number) || 'unknown';
-  const checkIcon = checkStatus === 'pass' ? '✅' : checkStatus === 'fail' ? '❌' : checkStatus === 'pending' ? '⏳' : '';
+ const checkIcon = checkStatus === 'pass' ? '✓' : checkStatus === 'fail' ? '✕' : checkStatus === 'pending' ? '…' : '';
   const timeAgo = formatTimeAgo(pr.updatedAt || pr.createdAt);
 
   const item = h('div', {

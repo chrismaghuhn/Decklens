@@ -30,7 +30,7 @@ export function renderDeckSolverWidget(
     empty.className = 'solver-widget-empty';
     empty.innerHTML = `
       <p style="text-align:center;padding:2rem 1rem;color:var(--text-dim);">
-        🧮<br>
+        ${svgMarkup('deck-solver')}<br>
         <span style="font-size:0.82rem;">Add cards to analyze deck constraints.</span>
       </p>
     `;
@@ -51,10 +51,10 @@ export function renderDeckSolverWidget(
   const header = document.createElement('div');
   header.className = 'solver-header';
   header.innerHTML = `
-    <span class="solver-icon">🧮</span>
+    <span class="solver-icon">${svgMarkup('deck-solver')}</span>
     <span class="solver-title">Deck Solver</span>
     <span class="solver-status solver-status--${result.isSatisfied ? 'ok' : 'warning'}">
-      ${result.isSatisfied ? '✓ Satisfied' : `⚠ ${result.violations.length} Issues`}
+ ${result.isSatisfied ? ' Satisfied' : `! ${result.violations.length} Issues`}
     </span>
   `;
   container.appendChild(header);
@@ -103,7 +103,7 @@ export function renderDeckSolverWidget(
       const sugCard = document.createElement('div');
       sugCard.className = `solver-suggestion solver-suggestion--${sug.action}`;
 
-      const actionIcon = sug.action === 'add' ? '➕' : sug.action === 'cut' ? '➖' : '🔄';
+      const actionIcon = sug.action === 'add' ? '+' : sug.action === 'cut' ? '−' : '↻';
       sugCard.innerHTML = `
         <span class="solver-action-icon">${actionIcon}</span>
         <div class="solver-suggestion-content">
@@ -122,7 +122,7 @@ export function renderDeckSolverWidget(
     const summary = document.createElement('div');
     summary.className = 'solver-summary-ok';
     summary.innerHTML = `
-      <span style="font-size:1.2rem;">✅</span>
+ <span style="font-size:1.2rem;color:var(--ok);">✓</span>
       <span>All constraints satisfied!</span>
     `;
     container.appendChild(summary);

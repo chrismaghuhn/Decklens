@@ -248,7 +248,7 @@ function updateInfo(): void {
     const needed = state.mulliganCount;
     const picked = state.mulliganPicks.size;
     mulliganInfo.textContent = `Click ${needed - picked} card(s) to put on bottom, then click Mulligan again`;
-    mulliganInfo.style.color = picked >= needed ? 'var(--emerald)' : 'var(--warn)';
+    mulliganInfo.style.color = picked >= needed ? 'var(--cobalt)' : 'var(--warn)';
   } else if (state.mulliganCount > 0) {
     mulliganInfo.textContent = `Mulliganed to ${7 - state.mulliganCount}`;
     mulliganInfo.style.color = '';

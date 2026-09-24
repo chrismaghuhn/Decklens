@@ -165,7 +165,7 @@ export function renderLockIndicator(board: string, cardName: string): HTMLElemen
   return h('span', {
     className: 'lock-indicator',
     title: `Locked by ${lockInfo.by} (${remaining}m remaining)`,
-  }, '\uD83D\uDD12');
+ }, '◆');
 }
 
 /** Clean up on session end */

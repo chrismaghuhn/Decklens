@@ -148,10 +148,10 @@ function showPanel(): void {
 
   panelEl = h('div', { className: 'test-log-panel' },
     h('div', { className: 'test-log-header' },
-      h('span', { className: 'test-log-title' }, '\uD83D\uDCCB Test Protocol'),
+ h('span', { className: 'test-log-title' }, '▤ Test Protocol'),
       h('div', { className: 'test-log-actions-header' },
         h('button', { className: 'test-log-add-btn', onClick: () => promptLogSession(), title: 'Log a test result manually' }, '+ Log Result'),
-        h('button', { className: 'test-log-close', onClick: () => toggleTestLogPanel(), title: 'Close' }, '\u2715'),
+ h('button', { className: 'test-log-close', onClick: () => toggleTestLogPanel(), title: 'Close' }, '✕'),
       ),
     ),
     h('div', { className: 'test-log-body', id: '_testLogBody' }),
@@ -228,7 +228,7 @@ function renderSessionCard(session: TestSession): HTMLElement {
           if (confirm('Delete this test session?')) deleteSession(session.id);
         },
         title: 'Delete',
-      }, '\u2715'),
+ }, '✕'),
     ),
 
     // Result row

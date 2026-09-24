@@ -177,7 +177,7 @@ export function showDetailModal(
 
         // DFC indicator
         isDFC
-          ? h('div', { className: 'detail-section', style: 'padding:4px 8px;background:rgba(201,168,76,0.08);border-radius:6px;font-size:0.75rem;color:var(--gold-dim);' },
+          ? h('div', { className: 'detail-section', style: 'padding:4px 8px;background:rgba(201,168,76,0.08);border-radius:6px;font-size:0.75rem;color:var(--cobalt-dim);' },
               `Double-faced card — ${card.card_faces![0].name || '?'} // ${card.card_faces![1].name || '?'}`,
             )
           : null,

@@ -7,6 +7,7 @@
 import type { DeckbuilderDeck } from './types.js';
 import type { DeckbuilderSearchCard } from '../shared/api.js';
 import { runSimulation, type SimulationConfig, type SimulationResult } from './simulation-runner.js';
+import { svgMarkup } from './line-icons.js';
 
 /**
  * Render the simulation widget
@@ -23,7 +24,7 @@ export function renderSimulationWidget(
     empty.className = 'sim-widget-empty';
     empty.innerHTML = `
       <p style="text-align:center;padding:2rem 1rem;color:var(--text-dim);">
-        🎲<br>
+        ${svgMarkup('simulation')}<br>
         <span style="font-size:0.82rem;">Add cards to run simulations.</span>
       </p>
     `;
@@ -35,7 +36,7 @@ export function renderSimulationWidget(
   const header = document.createElement('div');
   header.className = 'sim-header';
   header.innerHTML = `
-    <span class="sim-icon">🎲</span>
+    <span class="sim-icon">${svgMarkup('simulation')}</span>
     <span class="sim-title">Digital Twin Simulation</span>
   `;
   container.appendChild(header);
@@ -66,7 +67,7 @@ export function renderSimulationWidget(
   resultsContainer.className = 'sim-results';
   resultsContainer.innerHTML = `
     <div class="sim-placeholder">
-      <span style="font-size:2rem;">📊</span>
+      <span class="sim-placeholder-icon">${svgMarkup("summary-bar")}</span>
       <p>Click "Run Simulation" to generate stats</p>
     </div>
   `;

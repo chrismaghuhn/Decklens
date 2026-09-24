@@ -136,12 +136,12 @@ export function renderCollectionPanel(
 
   const importBtn = document.createElement('button');
   importBtn.className = 'btn collection-btn';
-  importBtn.textContent = '📥 Import Collection';
+  importBtn.textContent = 'Import Collection';
   importBtn.addEventListener('click', () => showImportModal(container, callbacks));
 
   const exportBtn = document.createElement('button');
   exportBtn.className = 'btn collection-btn';
-  exportBtn.textContent = '📤 Export Collection';
+  exportBtn.textContent = 'Export Collection';
   exportBtn.addEventListener('click', () => {
     const text = exportCollectionText();
     if (!text) {
@@ -149,8 +149,8 @@ export function renderCollectionPanel(
       return;
     }
     navigator.clipboard.writeText(text).then(() => {
-      exportBtn.textContent = '✓ Copied!';
-      setTimeout(() => { exportBtn.textContent = '📤 Export Collection'; }, 1500);
+ exportBtn.textContent = ' Copied!';
+      setTimeout(() => { exportBtn.textContent = 'Export Collection'; }, 1500);
     }).catch(() => {
       // Fallback: show in a copyable textarea
       const ta = document.createElement('textarea');
@@ -164,7 +164,7 @@ export function renderCollectionPanel(
 
   const markAllBtn = document.createElement('button');
   markAllBtn.className = 'btn collection-btn';
-  markAllBtn.textContent = '✅ Mark All Owned';
+ markAllBtn.textContent = ' Mark All Owned';
   markAllBtn.addEventListener('click', () => {
     const allEntries = [...deck.boards.commander, ...deck.boards.mainboard];
     for (const entry of allEntries) {
@@ -249,7 +249,7 @@ export function renderCollectionPanel(
   } else if (stats.totalUnique > 0) {
     const complete = document.createElement('div');
     complete.className = 'collection-complete';
-    complete.textContent = '🎉 You own every card in this deck!';
+    complete.textContent = 'You own every card in this deck!';
     container.appendChild(complete);
   }
 }
@@ -308,7 +308,7 @@ function showImportModal(parentContainer: HTMLElement, callbacks: CollectionPane
     // Show brief toast
     const toast = document.createElement('div');
     toast.className = 'collection-toast';
-    toast.textContent = `\u2713 Added ${added} cards to collection`;
+ toast.textContent = ` Added ${added} cards to collection`;
     parentContainer.appendChild(toast);
     setTimeout(() => toast.remove(), 2500);
   });

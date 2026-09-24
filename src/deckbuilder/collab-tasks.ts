@@ -133,10 +133,10 @@ function showPanel(): void {
 
   panelEl = h('div', { className: 'task-panel' },
     h('div', { className: 'task-panel-header' },
-      h('span', { className: 'task-panel-title' }, '\u2705 Task Board'),
+ h('span', { className: 'task-panel-title' }, '✓ Task Board'),
       h('div', { className: 'task-panel-actions-header' },
         h('button', { className: 'task-add-btn', onClick: () => promptCreateTask(), title: 'New task' }, '+ Task'),
-        h('button', { className: 'task-panel-close', onClick: () => toggleTaskPanel(), title: 'Close' }, '\u2715'),
+ h('button', { className: 'task-panel-close', onClick: () => toggleTaskPanel(), title: 'Close' }, '✕'),
       ),
     ),
     h('div', { className: 'task-board', id: '_taskBoard' }),
@@ -154,9 +154,9 @@ function renderBoard(): void {
   if (!container) return;
 
   const columns: { key: string; label: string; icon: string }[] = [
-    { key: 'todo', label: 'To Do', icon: '\uD83D\uDCCB' },
-    { key: 'in_progress', label: 'In Progress', icon: '\u23F3' },
-    { key: 'done', label: 'Done', icon: '\u2705' },
+ { key: 'todo', label: 'To Do', icon: '▤' },
+ { key: 'in_progress', label: 'In Progress', icon: '…' },
+ { key: 'done', label: 'Done', icon: '✓' },
   ];
 
   const colEls = columns.map((col) => {
@@ -205,11 +205,11 @@ function renderTaskCard(task: DeckTask, currentColumn: string): HTMLElement {
       h('button', { className: 'task-card-delete', onClick: (e: MouseEvent) => {
         e.stopPropagation();
         if (confirm('Delete this task?')) deleteTask(task.id);
-      }, title: 'Delete' }, '\u2715'),
+ }, title: 'Delete' }, '✕'),
     ),
     task.description ? h('div', { className: 'task-card-desc' }, task.description) : '',
     h('div', { className: 'task-card-footer' },
-      task.assigned_to ? h('span', { className: 'task-assignee' }, `\uD83D\uDC64 ${task.assigned_to}`) : '',
+ task.assigned_to ? h('span', { className: 'task-assignee' }, ` ${task.assigned_to}`) : '',
       task.created_by ? h('span', { className: 'task-created-by' }, `by ${task.created_by}`) : '',
     ),
     h('div', { className: 'task-card-actions' },
@@ -236,7 +236,7 @@ function renderTaskCard(task: DeckTask, currentColumn: string): HTMLElement {
 function getNextStatuses(current: string): Array<{ key: string; label: string }> {
   switch (current) {
     case 'todo': return [{ key: 'in_progress', label: '\u25B6 Start' }];
-    case 'in_progress': return [{ key: 'done', label: '\u2705 Done' }, { key: 'todo', label: '\u25C0 Back' }];
+ case 'in_progress': return [{ key: 'done', label: '✓ Done' }, { key: 'todo', label: '\u25C0 Back' }];
     case 'done': return [{ key: 'todo', label: '\u21BA Reopen' }];
     default: return [];
   }

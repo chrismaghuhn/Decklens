@@ -210,7 +210,7 @@ function renderProgressBar(container: HTMLElement, currentStep: WizardStep): voi
 
     const dot = document.createElement('span');
     dot.className = 'wizard-step-dot';
-    dot.textContent = i < currentIdx ? '\u2713' : String(i + 2);
+ dot.textContent = i < currentIdx ? '✓' : String(i + 2);
 
     const label = document.createElement('span');
     label.className = 'wizard-step-label';
@@ -278,10 +278,10 @@ function renderAnalyzeStep(content: HTMLElement, actions: HTMLElement): void {
   grid.className = 'wizard-stats-grid';
 
   const statItems = [
-    { label: 'Total Cards', value: String(stats.cards), icon: '\uD83C\uDCCF' },
-    { label: 'Avg CMC', value: stats.avgCmc.toFixed(2), icon: '\uD83D\uDCA7' },
-    { label: 'Archetype', value: stats.archetype, icon: '\uD83C\uDFAF' },
-    { label: 'Optimizations Found', value: String(wizardState.moves.length), icon: '\u26A1' },
+ { label: 'Total Cards', value: String(stats.cards), icon: '■' },
+ { label: 'Avg CMC', value: stats.avgCmc.toFixed(2), icon: '◆' },
+ { label: 'Archetype', value: stats.archetype, icon: '◎' },
+ { label: 'Optimizations Found', value: String(wizardState.moves.length), icon: '▲' },
   ];
 
   for (const item of statItems) {
@@ -371,7 +371,7 @@ function renderMovesStep(content: HTMLElement, actions: HTMLElement): void {
     // Apply button
     const applyBtn = document.createElement('button');
     applyBtn.className = isApplied ? 'btn wizard-move-btn wizard-move-btn-applied' : 'btn primary wizard-move-btn';
-    applyBtn.textContent = isApplied ? 'Applied \u2713' : 'Apply';
+ applyBtn.textContent = isApplied ? 'Applied ✓' : 'Apply';
     applyBtn.disabled = isApplied;
     applyBtn.addEventListener('click', () => {
       if (!wizardState || wizardState.applied.has(move.id)) return;
@@ -439,13 +439,13 @@ function renderApplyStep(content: HTMLElement, actions: HTMLElement): void {
 
   if (appliedCount > 0) {
     summary.innerHTML = `
-      <div class="wizard-apply-icon">\u2705</div>
+ <div class="wizard-apply-icon">✓</div>
       <h3 class="wizard-apply-title">${appliedCount} of ${totalCount} Moves Applied!</h3>
       <p class="wizard-apply-desc">Your deck has been updated. You can export it now or continue editing.</p>
     `;
   } else {
     summary.innerHTML = `
-      <div class="wizard-apply-icon">\uD83D\uDCC4</div>
+ <div class="wizard-apply-icon">▤</div>
       <h3 class="wizard-apply-title">No Moves Applied</h3>
       <p class="wizard-apply-desc">You can export your deck as-is or go back to review the suggestions.</p>
     `;
@@ -500,7 +500,7 @@ function renderExportStep(content: HTMLElement, actions: HTMLElement): void {
   const exportInfo = document.createElement('div');
   exportInfo.className = 'wizard-export-info';
   exportInfo.innerHTML = `
-    <div class="wizard-apply-icon">\uD83D\uDCE6</div>
+ <div class="wizard-apply-icon">▢</div>
     <h3 class="wizard-apply-title">Ready to Export</h3>
     <p class="wizard-apply-desc">Close this wizard and head to the <strong>Export</strong> tab to download your optimized deck in any format.</p>
   `;

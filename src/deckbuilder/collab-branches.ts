@@ -51,7 +51,7 @@ export function createBranchSelector(): HTMLElement {
       className: 'branch-selector-btn',
       onClick: () => toggleBranchDropdown(),
       title: 'Switch branch',
-    }, '🌿 main'),
+    }, 'main'),
   );
   return selectorEl;
 }
@@ -140,7 +140,7 @@ function updateSelectorLabel(): void {
   const btn = selectorEl.querySelector('.branch-selector-btn');
   if (!btn) return;
   const current = branches.find((b) => b.id === currentBranchId);
-  btn.textContent = `🌿 ${current?.name || 'main'}`;
+  btn.textContent = `${current?.name || 'main'}`;
 }
 
 function toggleBranchDropdown(): void {
@@ -165,7 +165,7 @@ function toggleBranchDropdown(): void {
         className: 'branch-delete-btn',
         title: 'Delete branch',
         onClick: (e: MouseEvent) => { e.stopPropagation(); dd?.remove(); promptDeleteBranch(branch.id, branch.name); },
-      }, '\uD83D\uDDD1\uFE0F');
+ }, '✕');
       row.appendChild(delBtn);
     }
     dd.appendChild(row);
@@ -212,7 +212,7 @@ function promptCreateBranch(): void {
 function promptDeleteBranch(branchId: string, branchName: string): void {
   const overlay = h('div', { className: 'branch-modal-overlay' },
     h('div', { className: 'branch-modal' },
-      h('h3', { style: 'color:#ef4444;' }, '\uD83D\uDDD1\uFE0F Delete Branch'),
+ h('h3', { style: 'color:#ef4444;' }, ' Delete Branch'),
       h('p', { style: 'margin:8px 0; color:rgba(255,255,255,0.7);' },
         'Are you sure you want to delete branch:'),
       h('p', { style: 'margin:4px 0 12px; font-weight:600; color:#e8e2d6; font-size:1.1rem;' }, branchName),

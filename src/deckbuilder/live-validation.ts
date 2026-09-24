@@ -436,8 +436,8 @@ export function getIssueSeverityColor(severity: ValidationSeverity): string {
 
 export function getIssueSeverityIcon(severity: ValidationSeverity): string {
   switch (severity) {
-    case 'error': return '❌';
-    case 'warning': return '⚠️';
-    case 'info': return 'ℹ️';
+ case 'error': return '✕';
+    case 'warning': return '!';
+    case 'info': return 'ℹ';
   }
 }

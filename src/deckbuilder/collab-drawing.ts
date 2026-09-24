@@ -182,11 +182,11 @@ function resizeCanvas(): void {
 
 function createToolbar(): void {
   const tools: { tool: DrawTool; label: string; icon: string }[] = [
-    { tool: 'pen', label: 'Pen', icon: '\u270F\uFE0F' },
-    { tool: 'line', label: 'Line', icon: '\uD83D\uDCCF' },
-    { tool: 'arrow', label: 'Arrow', icon: '\u27A1\uFE0F' },
-    { tool: 'circle', label: 'Circle', icon: '\u2B55' },
-    { tool: 'eraser', label: 'Eraser', icon: '\uD83E\uDDF9' },
+ { tool: 'pen', label: 'Pen', icon: '✎' },
+ { tool: 'line', label: 'Line', icon: '▭' },
+ { tool: 'arrow', label: 'Arrow', icon: '→' },
+ { tool: 'circle', label: 'Circle', icon: '○' },
+ { tool: 'eraser', label: 'Eraser', icon: '▨' },
   ];
 
   const toolButtons = tools.map(({ tool, label, icon }) =>
@@ -244,7 +244,7 @@ function createToolbar(): void {
     className: 'collab-draw-btn',
     title: 'Clear all drawings',
     onClick: clearAllDrawings,
-  }, '\uD83D\uDDD1\uFE0F');
+ }, '✕');
 
   const separator3 = h('span', { className: 'collab-draw-separator' }, '|');
 
@@ -252,7 +252,7 @@ function createToolbar(): void {
     className: 'collab-draw-btn collab-draw-close',
     title: 'Close drawing mode',
     onClick: () => deactivateDrawing(),
-  }, '\u2715');
+ }, '✕');
 
   toolbar = h('div', { className: 'collab-draw-toolbar' },
     ...toolButtons,

@@ -72,8 +72,8 @@ function showPanel(): void {
 
   panelEl = h('div', { className: 'activity-panel' },
     h('div', { className: 'activity-panel-header' },
-      h('span', { className: 'activity-panel-title' }, '\uD83D\uDCCB Activity Feed'),
-      h('button', { className: 'activity-panel-close', onClick: () => toggleActivityPanel(), title: 'Close' }, '\u2715'),
+ h('span', { className: 'activity-panel-title' }, '▤ Activity Feed'),
+ h('button', { className: 'activity-panel-close', onClick: () => toggleActivityPanel(), title: 'Close' }, '✕'),
     ),
     h('div', { className: 'activity-filter-bar', id: '_activityFilters' }),
     h('div', { className: 'activity-panel-list', id: '_activityList' }),
@@ -153,7 +153,7 @@ function renderList(): void {
       h('div', { className: 'activity-entry-content' },
         h('span', { className: 'activity-user' }, entry.userName),
         ...renderDetailWithPreview(entry),
-        entry.branchName ? h('span', { className: 'activity-branch-tag' }, `\uD83C\uDF3F ${entry.branchName}`) : '',
+ entry.branchName ? h('span', { className: 'activity-branch-tag' }, `⑂ ${entry.branchName}`) : '',
       ),
       h('span', { className: 'activity-time' }, timeStr),
     );
@@ -164,17 +164,17 @@ function renderList(): void {
 
 function getActionIcon(action: string): string {
   const icons: Record<string, string> = {
-    'card-add': '\u2795',
-    'card-remove': '\u2796',
-    'card-update': '\u270F\uFE0F',
-    'deck-meta': '\uD83D\uDCDD',
-    'branch-create': '\uD83C\uDF3F',
-    'branch-switch': '\uD83D\uDD00',
-    'branch-delete': '\uD83D\uDDD1\uFE0F',
-    'snapshot-create': '\uD83D\uDCF8',
-    'snapshot-restore': '\u23EA',
-    'joined': '\uD83D\uDC4B',
-    'left': '\uD83D\uDC4B',
+ 'card-add': '+',
+ 'card-remove': '−',
+ 'card-update': '✎',
+ 'deck-meta': '▥',
+ 'branch-create': '⑂',
+ 'branch-switch': '⑂',
+ 'branch-delete': '✕',
+ 'snapshot-create': '◆',
+ 'snapshot-restore': '↺',
+ 'joined': '▸',
+ 'left': '◂',
   };
   return icons[action] || '\u25CF';
 }

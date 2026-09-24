@@ -192,7 +192,7 @@ function render(): void {
 
   // Header
   const header = h('div', { className: 'conflict-resolver__header' },
-    h('h3', {}, `🔀 Resolve ${state.conflicts.length} Conflict(s)`),
+    h('h3', {}, `Resolve ${state.conflicts.length} Conflict(s)`),
     h('p', { className: 'conflict-resolver__help' },
       'Choose how to resolve each conflict: keep source changes, target changes, or both.'),
   );
@@ -230,7 +230,7 @@ function render(): void {
       className: `conflict-resolver__submit ${resolved === total ? '' : 'conflict-resolver__submit--disabled'}`,
       disabled: resolved !== total,
       onClick: submitResolutions,
-    }, resolved === total ? '✅ Apply Resolution' : `⏳ ${total - resolved} remaining`),
+ }, resolved === total ? ' Apply Resolution' : `${total - resolved} remaining`),
     h('button', {
       className: 'conflict-resolver__cancel',
       onClick: () => callbacks?.onCancel(),
@@ -251,7 +251,7 @@ function renderConflict(conflict: ConflictEntry): HTMLElement {
       h('span', { className: 'conflict-resolver__card-name' }, conflict.cardName),
       h('span', { className: 'conflict-resolver__board' }, conflict.board),
       currentResolution
-        ? h('span', { className: 'conflict-resolver__resolved-badge' }, `✓ ${currentResolution}`)
+ ? h('span', { className: 'conflict-resolver__resolved-badge' }, ` ${currentResolution}`)
         : null,
     ),
     h('div', { className: 'conflict-resolver__sides' },

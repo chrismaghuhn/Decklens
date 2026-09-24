@@ -53,14 +53,14 @@ export function showMultiplayerLaunchModal(
 
   const hotseatBtn = document.createElement('button');
   hotseatBtn.className = 'gf-btn';
-  hotseatBtn.textContent = '🖥 Hotseat';
+  hotseatBtn.textContent = 'Hotseat';
 
   const onlineBtn = document.createElement('button');
   onlineBtn.className = 'gf-btn';
-  onlineBtn.textContent = '🌐 Online';
+  onlineBtn.textContent = 'Online';
 
   function updateModeButtons(): void {
-    const activeStyle = 'background:var(--gold,#c9a84c)!important;color:#000!important;font-weight:700!important;';
+    const activeStyle = 'background:var(--cobalt,#c9a84c)!important;color:#000!important;font-weight:700!important;';
     hotseatBtn.style.cssText = gameMode === 'hotseat' ? activeStyle : '';
     onlineBtn.style.cssText = gameMode === 'online' ? activeStyle : '';
     renderContent();
@@ -120,7 +120,7 @@ export function showMultiplayerLaunchModal(
     // Toggle header
     const header = document.createElement('button');
     header.style.cssText = 'width:100%;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#1a1f2e;border:none;color:#e0e0e0;cursor:pointer;font-size:0.85rem;font-family:inherit;';
-    header.innerHTML = '<span>⚙ House Rules</span><span class="mp-hr-arrow" style="transition:transform 0.2s;">▸</span>';
+    header.innerHTML = '<span>House Rules</span><span class="mp-hr-arrow" style="transition:transform 0.2s;">▸</span>';
     panel.appendChild(header);
 
     const body = document.createElement('div');
@@ -137,12 +137,12 @@ export function showMultiplayerLaunchModal(
 
     // ── Toggle rows ──
     const toggles: { key: keyof HouseRules; label: string; desc: string; invertDisplay?: boolean }[] = [
-      { key: 'landPerTurn', label: '🌍 Land per Turn', desc: 'Only 1 land per turn' },
-      { key: 'summoningSickness', label: '💤 Summoning Sickness', desc: 'Creatures can\'t attack the turn they enter' },
-      { key: 'commanderDamage21', label: '⚔ Commander Damage (21)', desc: 'Players eliminated at 21 commander damage' },
-      { key: 'poisonElimination', label: '☠ Poison (10 counters)', desc: 'Players eliminated at 10 poison counters' },
-      { key: 'maxHandSize', label: '✋ Max Hand Size (7)', desc: 'Show discard warning above 7 cards' },
-      { key: 'freePlay', label: '🎲 Free Play Mode', desc: 'Any player can act at any time, ignore turn order', invertDisplay: true },
+      { key: 'landPerTurn', label: 'Land per Turn', desc: 'Only 1 land per turn' },
+      { key: 'summoningSickness', label: 'Summoning Sickness', desc: 'Creatures can\'t attack the turn they enter' },
+ { key: 'commanderDamage21', label: ' Commander Damage (21)', desc: 'Players eliminated at 21 commander damage' },
+      { key: 'poisonElimination', label: 'Poison (10 counters)', desc: 'Players eliminated at 10 poison counters' },
+      { key: 'maxHandSize', label: 'Max Hand Size (7)', desc: 'Show discard warning above 7 cards' },
+      { key: 'freePlay', label: 'Free Play Mode', desc: 'Any player can act at any time, ignore turn order', invertDisplay: true },
     ];
 
     for (const t of toggles) {
@@ -174,7 +174,7 @@ export function showMultiplayerLaunchModal(
 
     const lifeLabel = document.createElement('span');
     lifeLabel.style.cssText = 'font-size:0.82rem;color:#e0e0e0;font-weight:600;';
-    lifeLabel.textContent = '❤ Starting Life:';
+    lifeLabel.textContent = 'Starting Life:';
 
     const lifeInput = document.createElement('input');
     lifeInput.type = 'number';
@@ -197,11 +197,11 @@ export function showMultiplayerLaunchModal(
 
     const presets: { label: string; apply: () => void }[] = [
       {
-        label: '📋 Default (EDH Rules)',
+        label: 'Default (EDH Rules)',
         apply: () => { Object.assign(houseRules, DEFAULT_HOUSE_RULES); },
       },
       {
-        label: '🎲 Free Play (No Rules)',
+        label: 'Free Play (No Rules)',
         apply: () => {
           houseRules.landPerTurn = false;
           houseRules.summoningSickness = false;
@@ -212,7 +212,7 @@ export function showMultiplayerLaunchModal(
         },
       },
       {
-        label: '⚡ 20 Life (Duel)',
+        label: '20 Life (Duel)',
         apply: () => { Object.assign(houseRules, DEFAULT_HOUSE_RULES); houseRules.startingLife = 20; },
       },
     ];
@@ -265,13 +265,13 @@ export function showMultiplayerLaunchModal(
       btn.className = 'gf-btn';
       btn.textContent = `${n}P`;
       btn.style.cssText = n === playerCount
-        ? 'background:var(--gold,#c9a84c)!important;color:#000!important;font-weight:700!important;'
+        ? 'background:var(--cobalt,#c9a84c)!important;color:#000!important;font-weight:700!important;'
         : '';
       btn.addEventListener('click', () => {
         playerCount = n;
         countBtns.forEach((b, i) => {
           b.style.cssText = i + 2 === n
-            ? 'background:var(--gold,#c9a84c)!important;color:#000!important;font-weight:700!important;'
+            ? 'background:var(--cobalt,#c9a84c)!important;color:#000!important;font-weight:700!important;'
             : '';
         });
         renderPlayerRows(setupContainer);
@@ -324,14 +324,14 @@ export function showMultiplayerLaunchModal(
 
     const hostBtn = document.createElement('button');
     hostBtn.className = 'gf-btn';
-    hostBtn.textContent = '👑 Host Game';
+    hostBtn.textContent = 'Host Game';
 
     const joinBtn = document.createElement('button');
     joinBtn.className = 'gf-btn';
-    joinBtn.textContent = '🎮 Join Game';
+    joinBtn.textContent = 'Join Game';
 
     function updateRoleBtns(): void {
-      const activeStyle = 'background:var(--gold,#c9a84c)!important;color:#000!important;font-weight:700!important;';
+      const activeStyle = 'background:var(--cobalt,#c9a84c)!important;color:#000!important;font-weight:700!important;';
       hostBtn.style.cssText = onlineRole === 'host' ? activeStyle : '';
       joinBtn.style.cssText = onlineRole === 'join' ? activeStyle : '';
       renderOnlineContent();
@@ -381,13 +381,13 @@ export function showMultiplayerLaunchModal(
       btn.className = 'gf-btn';
       btn.textContent = `${n}P`;
       btn.style.cssText = n === playerCount
-        ? 'background:var(--gold,#c9a84c)!important;color:#000!important;font-weight:700!important;'
+        ? 'background:var(--cobalt,#c9a84c)!important;color:#000!important;font-weight:700!important;'
         : '';
       btn.addEventListener('click', () => {
         playerCount = n;
         countBtns.forEach((b, i) => {
           b.style.cssText = i + 2 === n
-            ? 'background:var(--gold,#c9a84c)!important;color:#000!important;font-weight:700!important;'
+            ? 'background:var(--cobalt,#c9a84c)!important;color:#000!important;font-weight:700!important;'
             : '';
         });
       });
@@ -460,7 +460,7 @@ export function showMultiplayerLaunchModal(
 
     const hostStartBtn = document.createElement('button');
     hostStartBtn.className = 'mp-launch-start';
-    hostStartBtn.textContent = '👑 Host & Start';
+    hostStartBtn.textContent = 'Host & Start';
     hostStartBtn.style.cssText = 'background:linear-gradient(135deg,#c9a84c,#34d399)!important;color:#000!important;font-weight:700!important;';
     hostStartBtn.addEventListener('click', () => {
       // Build decks — host starts with their own deck and placeholders for others
@@ -540,7 +540,7 @@ export function showMultiplayerLaunchModal(
 
     const joinStartBtn = document.createElement('button');
     joinStartBtn.className = 'mp-launch-start';
-    joinStartBtn.textContent = '🎮 Join Game';
+    joinStartBtn.textContent = 'Join Game';
     joinStartBtn.style.cssText = 'background:linear-gradient(135deg,#60a5fa,#34d399)!important;color:#000!important;font-weight:700!important;';
     joinStartBtn.addEventListener('click', () => {
       const myName = nameInput.value || 'Player';

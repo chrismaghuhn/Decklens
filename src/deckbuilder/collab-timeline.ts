@@ -112,10 +112,10 @@ function showPanel(): void {
 
   panelEl = h('div', { className: 'timeline-panel' },
     h('div', { className: 'timeline-panel-header' },
-      h('span', { className: 'timeline-panel-title' }, '\u23F3 Timeline'),
+ h('span', { className: 'timeline-panel-title' }, '… Timeline'),
       h('div', { className: 'timeline-panel-actions-header' },
-        h('button', { className: 'timeline-snapshot-btn', onClick: () => promptSnapshot(), title: 'Create snapshot' }, '\uD83D\uDCF8 Snapshot'),
-        h('button', { className: 'timeline-panel-close', onClick: () => toggleTimelinePanel(), title: 'Close' }, '\u2715'),
+ h('button', { className: 'timeline-snapshot-btn', onClick: () => promptSnapshot(), title: 'Create snapshot' }, '◆ Snapshot'),
+ h('button', { className: 'timeline-panel-close', onClick: () => toggleTimelinePanel(), title: 'Close' }, '✕'),
       ),
     ),
     h('div', { className: 'timeline-list', id: '_timelineList' }),
@@ -139,7 +139,7 @@ function renderList(): void {
 
   const items = snapshots.map((snap, i) => {
     const isLatest = i === 0;
-    const typeIcon = snap.snapshotType === 'manual' ? '\uD83D\uDCF8' : '\u26A1';
+ const typeIcon = snap.snapshotType === 'manual' ? '◆' : '▲';
     return h('div', { className: `timeline-entry${isLatest ? ' latest' : ''}` },
       h('div', { className: 'timeline-dot' }),
       h('div', { className: 'timeline-entry-content' },
@@ -154,7 +154,7 @@ function renderList(): void {
         !isLatest ? h('button', {
           className: 'timeline-restore-btn',
           onClick: () => { if (confirm('Restore this snapshot? Current changes will be overwritten.')) restoreSnapshot(snap.id); },
-        }, '\u23EA Restore') : h('span', { className: 'timeline-current-tag' }, 'current'),
+ }, ' Restore') : h('span', { className: 'timeline-current-tag' }, 'current'),
       ),
     );
   });

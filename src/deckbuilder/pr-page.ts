@@ -126,7 +126,7 @@ function render(): void {
     }, '← Back'),
     h('div', { className: 'pr-page__title-row' },
       h('span', { className: `pr-page__status pr-page__status--${pr.status}` },
-        pr.status === 'merged' ? '🟣 Merged' : pr.status === 'open' ? '🟢 Open' : '🔴 Closed'),
+        pr.status === 'merged' ? '● Merged' : pr.status === 'open' ? '● Open' : '● Closed'),
       h('h2', { className: 'pr-page__title' }, `#${pr.number} ${pr.title}`),
     ),
     h('p', { className: 'pr-page__desc' }, pr.description || 'No description'),
@@ -168,8 +168,8 @@ function renderConversation(): HTMLElement {
 
   // Reviews
   for (const review of state.reviews) {
-    const stateIcon = review.state === 'APPROVED' ? '✅' :
-      review.state === 'CHANGES_REQUESTED' ? '🔄' : '💬';
+ const stateIcon = review.state === 'APPROVED' ? '✓' :
+ review.state === 'CHANGES_REQUESTED' ? '↻' : '◆';
 
     container.appendChild(h('div', { className: `pr-page__review pr-page__review--${review.state.toLowerCase()}` },
       h('div', { className: 'pr-page__review-header' },
@@ -228,11 +228,11 @@ function renderConversation(): HTMLElement {
     h('button', {
       className: 'pr-page__review-btn pr-page__review-btn--approve',
       onClick: () => submitReview('APPROVED'),
-    }, '✅ Approve'),
+ }, ' Approve'),
     h('button', {
       className: 'pr-page__review-btn pr-page__review-btn--request-changes',
       onClick: () => submitReview('CHANGES_REQUESTED'),
-    }, '🔄 Request Changes'),
+    }, '↻ Request Changes'),
   ) : null;
 
   container.append(
@@ -339,10 +339,10 @@ function renderChecks(): HTMLElement {
   }
 
   for (const check of state.checks) {
-    const statusIcon = check.status === 'pass' ? '✅' :
-      check.status === 'fail' ? '❌' :
-      check.status === 'running' ? '⏳' :
-      check.status === 'error' ? '⚠️' : '⏸️';
+ const statusIcon = check.status === 'pass' ? '✓' :
+ check.status === 'fail' ? '✕' :
+ check.status === 'running' ? '…' :
+ check.status === 'error' ? '!' : '';
 
     const checkEl = h('div', { className: `pr-page__check pr-page__check--${check.status}` },
       h('div', { className: 'pr-page__check-header' },
@@ -393,8 +393,8 @@ function renderMergeBar(): HTMLElement {
     h('div', { className: 'pr-page__merge-status' },
       h('div', { className: 'pr-page__merge-checks' },
         h('span', {}, `Reviews: ${approvals} approvals`),
-        changesRequested ? h('span', { className: 'pr-page__merge-warning' }, '⚠ Changes requested') : null,
-        h('span', {}, `Checks: ${allChecksPass ? '✅ All passed' : state.checks.length === 0 ? '— None' : '❌ Some failing'}`),
+        changesRequested ? h('span', { className: 'pr-page__merge-warning' }, '! Changes requested') : null,
+ h('span', {}, `Checks: ${allChecksPass ? ' All passed' : state.checks.length === 0 ? '— None' : ' Some failing'}`),
       ),
       !canMerge && reasons.length > 0
         ? h('div', { className: 'pr-page__merge-reasons' },
@@ -419,7 +419,7 @@ function renderMergeBar(): HTMLElement {
             }
           }
         },
-      }, canMerge ? '🔀 Merge PR' : '🚫 Cannot Merge'),
+      }, canMerge ? 'Merge PR' : '⊘ Cannot Merge'),
       h('button', {
         className: 'pr-page__close-btn',
         onClick: async () => {

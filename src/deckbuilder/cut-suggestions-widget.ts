@@ -8,6 +8,7 @@
 import type { DeckbuilderDeck } from './types.js';
 import type { DeckbuilderSearchCard } from '../shared/api.js';
 import { analyzeCuts, type CutAnalysis } from './cut-assistant.js';
+import { svgMarkup } from './line-icons.js';
 
 /**
  * Render the cut suggestions widget
@@ -24,7 +25,7 @@ export function renderCutSuggestionsWidget(
     empty.className = 'cut-widget-empty';
     empty.innerHTML = `
       <p style="text-align:center;padding:2rem 1rem;color:var(--text-dim);">
-        ✂️<br>
+        ${svgMarkup('cut-suggestions')}<br>
         <span style="font-size:0.82rem;">Add cards to see cut suggestions.</span>
       </p>
     `;
@@ -40,10 +41,10 @@ export function renderCutSuggestionsWidget(
   
   const statusClass = analysis.toCut === 0 ? 'ok' : 'warning';
   header.innerHTML = `
-    <span class="cut-icon">✂️</span>
+    <span class="cut-icon">${svgMarkup('cut-suggestions')}</span>
     <span class="cut-title">Cut Suggestions</span>
     <span class="cut-status cut-status--${statusClass}">
-      ${analysis.toCut === 0 ? '✓ Size OK' : `⚠ Cut ${analysis.toCut}`}
+ ${analysis.toCut === 0 ? ' Size OK' : `! Cut ${analysis.toCut}`}
     </span>
   `;
   container.appendChild(header);
@@ -115,7 +116,7 @@ export function renderCutSuggestionsWidget(
     const allGood = document.createElement('div');
     allGood.className = 'cut-all-good';
     allGood.innerHTML = `
-      <span style="font-size:1.2rem;">✅</span>
+ <span style="font-size:1.2rem;color:var(--ok);">✓</span>
       <span>Deck size is perfect!</span>
     `;
     container.appendChild(allGood);

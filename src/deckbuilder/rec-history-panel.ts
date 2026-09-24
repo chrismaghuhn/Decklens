@@ -218,7 +218,7 @@ function createHistoryItem(
     });
     // Disable button after click to prevent double-apply
     applyBtn.disabled = true;
-    applyBtn.textContent = 'Applied \u2713';
+ applyBtn.textContent = 'Applied ';
   });
   item.appendChild(applyBtn);
 

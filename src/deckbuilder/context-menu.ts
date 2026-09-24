@@ -125,7 +125,7 @@ export function showContextMenu(cardName: string, board: DeckBoard, event: Mouse
                 className: 'ctx-color-dot',
                 style: `background: ${cat.color}`,
               }),
-              currentCatId === cat.id ? `${cat.name} ✓` : cat.name,
+ currentCatId === cat.id ? `${cat.name} ✓` : cat.name,
             ),
           ),
           h('button', {
@@ -153,7 +153,7 @@ export function showContextMenu(cardName: string, board: DeckBoard, event: Mouse
       h('button', { className: 'ctx-item ctx-ping', onClick: () => {
         callbacks!.onPingCard!(cardName, board);
         hideContextMenu();
-      }}, '\uD83D\uDCE1 Ping Card'),
+ }}, ' Ping Card'),
     ] : []),
 
     // Discuss Card (collab only, Phase 2)
@@ -161,7 +161,7 @@ export function showContextMenu(cardName: string, board: DeckBoard, event: Mouse
       h('button', { className: 'ctx-item ctx-discuss', onClick: () => {
         callbacks!.onDiscussCard!(cardName, board);
         hideContextMenu();
-      }}, '\uD83D\uDCAC Discuss Card'),
+ }}, '❝ Discuss Card'),
     ] : []),
 
     // Add Decision Note (collab only, Phase 2)
@@ -169,7 +169,7 @@ export function showContextMenu(cardName: string, board: DeckBoard, event: Mouse
       h('button', { className: 'ctx-item ctx-decision', onClick: () => {
         callbacks!.onAddDecision!(cardName, board);
         hideContextMenu();
-      }}, '\uD83D\uDCD6 Add Decision Note'),
+ }}, '▤ Add Decision Note'),
     ] : []),
     h('div', { className: 'ctx-divider' }),
 

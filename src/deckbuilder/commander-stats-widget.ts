@@ -6,6 +6,7 @@
 
 import type { DeckbuilderDeck } from './editor-types.js';
 import { fetchCommanderStats } from '../shared/commander-stats-api.js';
+import { svgMarkup } from './line-icons.js';
 
 /**
  * Render commander stats widget
@@ -21,7 +22,7 @@ export async function renderCommanderStatsWidget(
   if (!commander) {
     container.innerHTML = `
       <div class="commander-stats-empty">
-        <div class="empty-icon">👑</div>
+        <div class="empty-icon">${svgMarkup('commander-stats')}</div>
         <p class="empty-text">No commander detected</p>
         <p class="empty-hint">Add a commander to see statistics</p>
       </div>
@@ -35,7 +36,7 @@ export async function renderCommanderStatsWidget(
   if (!response.ok || !response.stats) {
     container.innerHTML = `
       <div class="commander-stats-error">
-        <div class="error-icon">⚠️</div>
+        <div class="error-icon">${svgMarkup('warning')}</div>
         <p class="error-text">Stats unavailable</p>
         <p class="error-hint">No data found for ${commander.name}</p>
       </div>

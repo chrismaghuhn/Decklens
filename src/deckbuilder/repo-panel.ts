@@ -200,7 +200,7 @@ function renderLanding(): void {
   linkInput.placeholder = 'Existing Repo ID';
 
   rootEl.appendChild(h('div', { className: 'repo-panel__landing' },
-    h('div', { className: 'repo-panel__landing-icon' }, '🔀'),
+    h('div', { className: 'repo-panel__landing-icon' }, '◆'),
     h('h3', { className: 'repo-panel__landing-title' }, 'GitHub for Decks'),
     h('p', { className: 'repo-panel__landing-desc' },
       'Track changes, create branches, open pull requests, and collaborate with version control for your deck.'),
@@ -243,9 +243,9 @@ function renderLanding(): void {
       className: 'repo-panel__auth-hint',
       style: 'margin-top: 12px; padding: 10px; border-radius: 8px; background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.15); font-size: 12px; color: var(--text-dim);',
     },
-      '💡 Works without login. ',
+      'Works without login. ',
       h('span', {
-        style: 'color: var(--gold); cursor: pointer; text-decoration: underline;',
+        style: 'color: var(--cobalt); cursor: pointer; text-decoration: underline;',
         onClick: () => loginWithGoogle(),
       }, 'Sign in with Google'),
       ' to sync across devices.',
@@ -276,7 +276,7 @@ function renderHome(): void {
   for (const branch of state.branches) {
     const opt = document.createElement('option');
     opt.value = branch.id;
-    opt.textContent = `${branch.isProtected ? '🔒 ' : ''}${branch.name}`;
+    opt.textContent = `${branch.isProtected ? '' : ''}${branch.name}`;
     opt.selected = branch.id === state.currentBranch?.id;
     branchSelect.appendChild(opt);
   }
@@ -290,7 +290,7 @@ function renderHome(): void {
   });
 
   const branchBar = h('div', { className: 'repo-panel__branch-bar' },
-    h('span', { className: 'repo-panel__branch-icon' }, '🔀'),
+    h('span', { className: 'repo-panel__branch-icon' }, '⑂'),
     branchSelect,
     h('button', {
       className: 'repo-panel__new-branch-btn',
@@ -303,19 +303,19 @@ function renderHome(): void {
     h('button', {
       className: 'repo-panel__action-btn repo-panel__action-btn--commit',
       onClick: () => commitCurrentState(),
-    }, '💾 Commit'),
+    }, 'Commit'),
     h('button', {
       className: 'repo-panel__action-btn',
       onClick: () => openNewPR(),
-    }, '📋 New PR'),
+    }, 'New PR'),
     h('button', {
       className: 'repo-panel__action-btn',
       onClick: () => { state.view = 'validation'; render(); },
-    }, '✅ Validate'),
+ }, ' Validate'),
     h('button', {
       className: 'repo-panel__action-btn repo-panel__action-btn--deckhub',
       onClick: () => openDeckHub(),
-    }, '🔀 DeckHub'),
+    }, 'DeckHub'),
   );
 
   // Navigation
@@ -366,7 +366,7 @@ function renderHome(): void {
         className: 'repo-panel__pr-item',
         onClick: () => { state.selectedPR = pr.number; state.view = 'pr-detail'; render(); },
       },
-        h('span', { className: 'repo-panel__pr-status' }, '🟢'),
+        h('span', { className: 'repo-panel__pr-status' }, '●'),
         h('span', { className: 'repo-panel__pr-number' }, `#${pr.number}`),
         h('span', { className: 'repo-panel__pr-title' }, pr.title),
         h('span', { className: 'repo-panel__pr-author' }, pr.authorName),
@@ -466,7 +466,7 @@ function renderPRList(): void {
       },
         h('div', { className: 'repo-panel__pr-card-header' },
           h('span', { className: 'repo-panel__pr-status' },
-            pr.status === 'merged' ? '🟣' : pr.status === 'open' ? '🟢' : '🔴'),
+            pr.status === 'merged' ? '●' : pr.status === 'open' ? '●' : '●'),
           h('span', { className: 'repo-panel__pr-number' }, `#${pr.number}`),
           h('span', { className: 'repo-panel__pr-title' }, pr.title),
         ),
@@ -501,7 +501,7 @@ async function renderPRDetail(): Promise<void> {
       onClick: () => { state.view = 'pulls'; render(); },
     }, '← Back to PRs');
 
-    const statusIcon = pr.status === 'merged' ? '🟣 Merged' : pr.status === 'open' ? '🟢 Open' : '🔴 Closed';
+    const statusIcon = pr.status === 'merged' ? '● Merged' : pr.status === 'open' ? '● Open' : '● Closed';
 
     const header = h('div', { className: 'repo-panel__pr-detail-header' },
       h('span', { className: `repo-panel__status repo-panel__status--${pr.status}` }, statusIcon),
@@ -534,7 +534,7 @@ async function renderPRDetail(): Promise<void> {
     const mergeBar = pr.status === 'open' ? h('div', {
       className: `repo-panel__merge-bar ${mergeability.mergeable ? 'repo-panel__merge-bar--ready' : 'repo-panel__merge-bar--blocked'}`,
     },
-      h('span', {}, mergeability.mergeable ? '✅ Ready to merge' : `🚫 ${mergeability.reasons?.join(', ') || 'Cannot merge'}`),
+ h('span', {}, mergeability.mergeable ? ' Ready to merge' : `⊘ ${mergeability.reasons?.join(', ') || 'Cannot merge'}`),
       mergeability.mergeable
         ? h('button', {
             className: 'repo-panel__merge-btn',
@@ -548,7 +548,7 @@ async function renderPRDetail(): Promise<void> {
                 alert(`Merge failed: ${(err as Error).message}`);
               }
             },
-          }, '🔀 Squash & Merge')
+          }, 'Squash & Merge')
         : null,
     ) : null;
 
@@ -597,7 +597,7 @@ function renderSettings(): void {
 
   rootEl.append(
     backBtn,
-    h('h3', { className: 'repo-panel__view-title' }, '⚙️ Settings'),
+    h('h3', { className: 'repo-panel__view-title' }, 'Settings'),
 
     h('div', { className: 'repo-panel__settings-form' },
       h('label', {}, 'Name'),
@@ -621,11 +621,11 @@ function renderSettings(): void {
             alert(`Save failed: ${(err as Error).message}`);
           }
         },
-      }, '💾 Save'),
+      }, 'Save'),
     ),
 
     h('div', { className: 'repo-panel__danger-zone' },
-      h('h4', {}, '⚠️ Danger Zone'),
+      h('h4', {}, '! Danger Zone'),
       h('button', {
         className: 'repo-panel__delete-btn',
         onClick: async () => {
@@ -641,7 +641,7 @@ function renderSettings(): void {
             }
           }
         },
-      }, '🗑️ Delete Repository'),
+      }, 'Delete Repository'),
     ),
   );
 }
@@ -667,9 +667,9 @@ function renderValidation(): void {
     const result = validateDeck(deck.boards, deck.format || 'commander');
 
     const header = h('div', { className: 'repo-panel__validation-header' },
-      h('h3', {}, '✅ Deck Validation'),
+ h('h3', {}, ' Deck Validation'),
       h('span', { className: result.valid ? 'repo-panel__valid' : 'repo-panel__invalid' },
-        result.valid ? '✅ Valid' : `❌ ${result.issues.filter(i => i.severity === 'error').length} errors`),
+ result.valid ? ' Valid' : ` ${result.issues.filter(i => i.severity === 'error').length} errors`),
       h('span', { className: 'repo-panel__deck-size' },
         `${result.deckSize}/${result.targetSize} cards`),
     );
