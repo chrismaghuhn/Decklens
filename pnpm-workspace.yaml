@@ -2,14 +2,14 @@ packages:
   - 'apps/*'
   - 'packages/*'
 allowBuilds:
-  '@nestjs/core': set this to true or false
-  '@tensorflow/tfjs-node': set this to true or false
-  '@tensorflow/tfjs-node-gpu': set this to true or false
-  better-sqlite3: set this to true or false
-  core-js: set this to true or false
-  es5-ext: set this to true or false
-  esbuild: set this to true or false
-  sharp: set this to true or false
-  tesseract.js: set this to true or false
-  unrs-resolver: set this to true or false
-  workerd: set this to true or false
+  '@nestjs/core': false
+  '@tensorflow/tfjs-node': false
+  '@tensorflow/tfjs-node-gpu': false
+  better-sqlite3: false
+  core-js: false
+  es5-ext: false
+  esbuild: true
+  sharp: false
+  tesseract.js: false
+  unrs-resolver: false
+  workerd: false
