@@ -163,8 +163,8 @@ function showPanel(): void {
 
   panelEl = h('div', { className: 'constraint-panel' },
     h('div', { className: 'constraint-header' },
-      h('span', { className: 'constraint-title' }, '\u2699\uFE0F Team Constraints'),
-      h('button', { className: 'constraint-close', onClick: () => toggleConstraintPanel(), title: 'Close' }, '\u2715'),
+ h('span', { className: 'constraint-title' }, ' Team Constraints'),
+ h('button', { className: 'constraint-close', onClick: () => toggleConstraintPanel(), title: 'Close' }, '✕'),
     ),
     h('div', { className: 'constraint-body', id: '_constraintBody' }),
   );
@@ -195,7 +195,7 @@ function renderPanel(): void {
 
     // Max Budget
     h('div', { className: 'constraint-row' },
-      h('label', { className: 'constraint-label' }, '\uD83D\uDCB0 Max Total Budget (\u20AC)'),
+ h('label', { className: 'constraint-label' }, ' Max Total Budget (\u20AC)'),
       h('div', { className: 'constraint-input-row' },
         h('input', {
           type: 'number',
@@ -218,7 +218,7 @@ function renderPanel(): void {
             className: 'constraint-remove-btn',
             onClick: () => removeConstraint(budgetConstraint.id, 'max_budget'),
             title: 'Remove constraint',
-          }, '\u2715'),
+ }, '✕'),
           h('span', { className: 'constraint-set-by' }, `by ${budgetConstraint.set_by}`),
         ] : []),
       ),
@@ -226,7 +226,7 @@ function renderPanel(): void {
 
     // Max Card Price
     h('div', { className: 'constraint-row' },
-      h('label', { className: 'constraint-label' }, '\uD83C\uDFF7\uFE0F Max Single Card Price (\u20AC)'),
+ h('label', { className: 'constraint-label' }, ' Max Single Card Price (\u20AC)'),
       h('div', { className: 'constraint-input-row' },
         h('input', {
           type: 'number',
@@ -249,7 +249,7 @@ function renderPanel(): void {
             className: 'constraint-remove-btn',
             onClick: () => removeConstraint(cardPriceConstraint.id, 'max_card_price'),
             title: 'Remove constraint',
-          }, '\u2715'),
+ }, '✕'),
           h('span', { className: 'constraint-set-by' }, `by ${cardPriceConstraint.set_by}`),
         ] : []),
       ),
@@ -257,7 +257,7 @@ function renderPanel(): void {
 
     // Power Level
     h('div', { className: 'constraint-row' },
-      h('label', { className: 'constraint-label' }, '\u26A1 Power Level Target (1-10)'),
+ h('label', { className: 'constraint-label' }, '▲ Power Level Target (1-10)'),
       h('div', { className: 'constraint-input-row' },
         h('input', {
           type: 'number',
@@ -281,7 +281,7 @@ function renderPanel(): void {
             className: 'constraint-remove-btn',
             onClick: () => removeConstraint(powerConstraint.id, 'power_level'),
             title: 'Remove constraint',
-          }, '\u2715'),
+ }, '✕'),
           h('span', { className: 'constraint-set-by' }, `by ${powerConstraint.set_by}`),
         ] : []),
       ),
@@ -307,9 +307,9 @@ function renderPanel(): void {
 
 function formatConstraintType(type: string): string {
   const names: Record<string, string> = {
-    max_budget: '\uD83D\uDCB0 Budget',
-    max_card_price: '\uD83C\uDFF7\uFE0F Max Card',
-    power_level: '\u26A1 Power',
+ max_budget: ' Budget',
+ max_card_price: ' Max Card',
+ power_level: '▲ Power',
   };
   return names[type] || type;
 }

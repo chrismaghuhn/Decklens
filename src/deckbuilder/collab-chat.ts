@@ -98,12 +98,12 @@ function updateBadge(): void {
 
 function createChatPanel(): void {
   const header = h('div', { className: 'collab-chat-header' },
-    h('span', {}, '\uD83D\uDCAC Chat'),
+ h('span', {}, '❝ Chat'),
     h('button', {
       className: 'collab-chat-close-btn',
       onClick: () => closeChatPanel(),
       title: 'Close chat',
-    }, '\u2715'),
+ }, '✕'),
   );
 
   chatMessagesContainer = h('div', { className: 'collab-chat-messages' });
@@ -129,13 +129,13 @@ function createChatPanel(): void {
     className: 'collab-btn collab-chat-send-btn',
     onClick: () => sendMessage(),
     title: 'Send message',
-  }, '\u27A4');
+ }, '➤');
 
   const templateToggle = h('button', {
     className: 'collab-chat-templates-toggle',
     onClick: () => toggleTemplatesBar(),
     title: 'Insert primer template',
-  }, '\uD83D\uDCCB');
+ }, '▤');
 
   // Templates bar (hidden by default)
   const templatesBar = h('div', { className: 'collab-chat-templates-bar', id: '_chatTemplatesBar', style: 'display:none;' },

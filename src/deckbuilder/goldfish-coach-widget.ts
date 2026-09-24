@@ -7,6 +7,7 @@
 
 import { h } from '../shared/dom.js';
 import type { DeckCoach, CoachHint } from './goldfish-coach.js';
+import { lineIcon } from './line-icons.js';
 
 /**
  * Render the coach widget into the target container.
@@ -17,7 +18,7 @@ export function renderCoachWidget(container: HTMLElement, coach: DeckCoach | nul
 
   if (!coach || !coach.enabled) {
     container.appendChild(h('div', { className: 'coach-widget-disabled' },
-      h('p', {}, '🎓 Coach is disabled.'),
+      h('p', {}, 'Coach is disabled.'),
       h('p', { className: 'coach-hint' }, 'Enable it in the playtest settings.'),
     ));
     return;
@@ -27,7 +28,7 @@ export function renderCoachWidget(container: HTMLElement, coach: DeckCoach | nul
 
   if (hints.length === 0) {
     container.appendChild(h('div', { className: 'coach-widget-empty' },
-      h('p', {}, '✅ No hints right now.'),
+ h('p', {}, ' No hints right now.'),
       h('p', { className: 'coach-hint' }, 'Keep playing, I\'ll chime in when I spot something!'),
     ));
     return;
@@ -35,7 +36,7 @@ export function renderCoachWidget(container: HTMLElement, coach: DeckCoach | nul
 
   // Header with mode indicator
   const header = h('div', { className: 'coach-widget-header' },
-    h('span', { className: 'coach-icon' }, '🎓'),
+    lineIcon('coach', 'coach-icon'),
     h('span', { className: 'coach-title' }, 'Coach'),
     h('span', { className: 'coach-mode-badge' }, coach.level === 'beginner' ? 'Beginner' : 'Advanced'),
   );

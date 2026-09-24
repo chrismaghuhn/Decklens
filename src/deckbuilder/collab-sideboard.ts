@@ -154,10 +154,10 @@ function showPanel(): void {
 
   panelEl = h('div', { className: 'sideboard-plan-panel' },
     h('div', { className: 'sideboard-plan-header' },
-      h('span', { className: 'sideboard-plan-title' }, '\uD83D\uDCCB Sideboard Plans'),
+ h('span', { className: 'sideboard-plan-title' }, '▤ Sideboard Plans'),
       h('div', { className: 'sideboard-plan-actions-header' },
         h('button', { className: 'sideboard-plan-add-btn', onClick: () => promptCreatePlan(), title: 'Create new sideboard plan' }, '+ Plan'),
-        h('button', { className: 'sideboard-plan-close', onClick: () => toggleSideboardPanel(), title: 'Close' }, '\u2715'),
+ h('button', { className: 'sideboard-plan-close', onClick: () => toggleSideboardPanel(), title: 'Close' }, '✕'),
       ),
     ),
     h('div', { className: 'sideboard-plan-body', id: '_sbPlanBody' }),
@@ -220,12 +220,12 @@ function renderPlanCard(plan: SideboardPlan, versionCount: number): HTMLElement 
           if (confirm(`Delete sideboard plan for "${plan.matchup}"?`)) deletePlan(plan.id);
         },
         title: 'Delete',
-      }, '\u2715'),
+ }, '✕'),
     ),
 
     // In cards
     h('div', { className: 'sideboard-plan-section' },
-      h('div', { className: 'sideboard-plan-section-title sideboard-in' }, `\u2B06 IN (${inCards.length})`),
+ h('div', { className: 'sideboard-plan-section-title sideboard-in' }, ` IN (${inCards.length})`),
       h('div', { className: 'sideboard-plan-cards' },
         ...inCards.map((name) => h('span', { className: 'sideboard-plan-card-item sideboard-card-in' }, '+', cardNameWithPreview(name))),
       ),
@@ -233,7 +233,7 @@ function renderPlanCard(plan: SideboardPlan, versionCount: number): HTMLElement 
 
     // Out cards
     h('div', { className: 'sideboard-plan-section' },
-      h('div', { className: 'sideboard-plan-section-title sideboard-out' }, `\u2B07 OUT (${outCards.length})`),
+ h('div', { className: 'sideboard-plan-section-title sideboard-out' }, ` OUT (${outCards.length})`),
       h('div', { className: 'sideboard-plan-cards' },
         ...outCards.map((name) => h('span', { className: 'sideboard-plan-card-item sideboard-card-out' }, '-', cardNameWithPreview(name))),
       ),

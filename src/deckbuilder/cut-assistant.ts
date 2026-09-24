@@ -283,7 +283,7 @@ export function explainCut(candidate: CutCandidate): string {
   const lines = [`Cut "${candidate.name}" (score: ${candidate.score}/100):`];
 
   for (const reason of candidate.reasons) {
-    const icon = reason.severity === 'strong' ? '🔴' : reason.severity === 'moderate' ? '🟡' : '🟢';
+    const icon = reason.severity === 'strong' ? '●' : reason.severity === 'moderate' ? '◐' : '○';
     const direction = reason.weight < 0 ? '↓' : '↑';
     lines.push(`  ${icon} ${direction} ${reason.explanation}`);
   }

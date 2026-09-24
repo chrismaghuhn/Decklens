@@ -208,7 +208,7 @@ export function initCollabUI(): void {
     const { label, boardsJson, cardCount } = (e as CustomEvent).detail || {};
     if (boardsJson) {
       await createManualSnapshot(label || 'Manual snapshot', boardsJson, cardCount || 0);
-      showToast('\uD83D\uDCF8 Snapshot created!', 'info');
+ showToast('◆ Snapshot created!', 'info');
     }
   });
 
@@ -224,7 +224,7 @@ export function initCollabUI(): void {
   initLocking();
   setOnLockResult((success, reason) => {
     if (!success && reason) {
-      showToast(`\uD83D\uDD12 ${reason}`, 'error');
+ showToast(`◆ ${reason}`, 'error');
     }
   });
   setOnLocksChanged(() => {
@@ -237,7 +237,7 @@ export function initCollabUI(): void {
     if (lockInfo.locked && lockInfo.lockId) {
       const lockId = lockInfo.lockId;
       showEditorToast({
-        message: `\uD83D\uDD13 ${requestedByName} wants to edit "${cardName}". Release your lock?`,
+ message: ` ${requestedByName} wants to edit "${cardName}". Release your lock?`,
         type: 'info',
         duration: 15000,
         action: {
@@ -456,31 +456,31 @@ function renderToolbar(): void {
       className: `collab-btn collab-draw-toggle${isDrawingActive() ? ' active' : ''}`,
       onClick: () => { toggleDrawingMode(); renderToolbar(); },
       title: 'Toggle drawing mode',
-    }, '\u270F\uFE0F Draw'),
+ }, ' Draw'),
     // Chat button with unread badge
     h('button', {
       className: `collab-btn collab-chat-toggle${isChatOpen() ? ' active' : ''}`,
       onClick: () => exclusiveToggle(isChatOpen, toggleChatPanel),
       title: 'Toggle chat panel (Alt+C)',
-    }, '\uD83D\uDCAC Chat', chatBadge),
+ }, '❝ Chat', chatBadge),
     // Activity feed
     h('button', {
       className: `collab-btn collab-activity-toggle${isActivityPanelOpen() ? ' active' : ''}`,
       onClick: () => exclusiveToggle(isActivityPanelOpen, toggleActivityPanel),
       title: 'Activity feed (Alt+A)',
-    }, '\uD83D\uDCCB Activity'),
+ }, '▤ Activity'),
     // Proposals with badge
     h('button', {
       className: `collab-btn collab-proposals-toggle${isProposalPanelOpen() ? ' active' : ''}`,
       onClick: () => exclusiveToggleWithBadge('proposals', isProposalPanelOpen, toggleProposalPanel),
       title: 'Change proposals (Alt+P)',
-    }, '\uD83D\uDCDD Proposals', renderBadge('proposals')),
+ }, '▥ Proposals', renderBadge('proposals')),
     // Tasks with badge
     h('button', {
       className: `collab-btn collab-tasks-toggle${isTaskPanelOpen() ? ' active' : ''}`,
       onClick: () => exclusiveToggleWithBadge('tasks', isTaskPanelOpen, toggleTaskPanel),
       title: 'Task board (Alt+K)',
-    }, '\u2705 Tasks', renderBadge('tasks')),
+ }, '✓ Tasks', renderBadge('tasks')),
   ];
 
   // ── B3: Overflow panels (hidden in "More…" dropdown) ──
@@ -495,15 +495,15 @@ function renderToolbar(): void {
   }
   const overflowPanels: OverflowPanelConfig[] = [
     { key: 'timeline', icon: '\u231B', label: 'Timeline', isOpen: isTimelinePanelOpen, toggle: () => exclusiveToggle(isTimelinePanelOpen, toggleTimelinePanel), title: 'Timeline / snapshots (Alt+T)' },
-    { key: 'diff', icon: '\uD83D\uDD0D', label: 'Diff', isOpen: isDiffPanelOpen, toggle: () => exclusiveToggle(isDiffPanelOpen, toggleDiffPanel), title: 'Deck diff (Alt+D)' },
-    { key: 'threads', icon: '\uD83D\uDCAC', label: 'Threads', isOpen: isThreadPanelOpen, toggle: () => exclusiveToggleWithBadge('threads', isThreadPanelOpen, toggleThreadPanel), title: 'Card discussions (Alt+H)', badgeKey: 'threads' },
-    { key: 'decisions', icon: '\uD83D\uDCD6', label: 'Decisions', isOpen: isDecisionPanelOpen, toggle: () => exclusiveToggleWithBadge('decisions', isDecisionPanelOpen, toggleDecisionPanel), title: 'Decision log (Alt+L)', badgeKey: 'decisions' },
-    { key: 'collection', icon: '\uD83D\uDCE6', label: 'Collection', isOpen: isTeamCollectionPanelOpen, toggle: () => exclusiveToggle(isTeamCollectionPanelOpen, toggleTeamCollectionPanel), title: 'Team collection pool (Alt+O)' },
-    { key: 'constraints', icon: '\u2699\uFE0F', label: 'Constraints', isOpen: isConstraintPanelOpen, toggle: () => exclusiveToggle(isConstraintPanelOpen, toggleConstraintPanel), title: 'Team constraints (Alt+N)' },
-    { key: 'packages', icon: '\uD83D\uDCE6', label: 'Packages', isOpen: isPackagePanelOpen, toggle: () => exclusiveToggle(isPackagePanelOpen, togglePackagePanel), title: 'Card packages (Alt+G)' },
-    { key: 'spectator', icon: '\uD83C\uDFAE', label: 'Spectator', isOpen: isSpectatorPanelOpen, toggle: () => exclusiveToggle(isSpectatorPanelOpen, toggleSpectatorPanel), title: 'Goldfish spectator (Alt+S)' },
-    { key: 'tests', icon: '\uD83D\uDCCB', label: 'Tests', isOpen: isTestLogPanelOpen, toggle: () => exclusiveToggleWithBadge('tests', isTestLogPanelOpen, toggleTestLogPanel), title: 'Test protocol (Alt+E)', badgeKey: 'tests' },
-    { key: 'sideboard', icon: '\uD83D\uDEE1\uFE0F', label: 'Sideboard', isOpen: isSideboardPanelOpen, toggle: () => exclusiveToggleWithBadge('sideboard', isSideboardPanelOpen, toggleSideboardPanel), title: 'Sideboard plans (Alt+B)', badgeKey: 'sideboard' },
+ { key: 'diff', icon: '◇', label: 'Diff', isOpen: isDiffPanelOpen, toggle: () => exclusiveToggle(isDiffPanelOpen, toggleDiffPanel), title: 'Deck diff (Alt+D)' },
+ { key: 'threads', icon: '❝', label: 'Threads', isOpen: isThreadPanelOpen, toggle: () => exclusiveToggleWithBadge('threads', isThreadPanelOpen, toggleThreadPanel), title: 'Card discussions (Alt+H)', badgeKey: 'threads' },
+ { key: 'decisions', icon: '▤', label: 'Decisions', isOpen: isDecisionPanelOpen, toggle: () => exclusiveToggleWithBadge('decisions', isDecisionPanelOpen, toggleDecisionPanel), title: 'Decision log (Alt+L)', badgeKey: 'decisions' },
+ { key: 'collection', icon: '▢', label: 'Collection', isOpen: isTeamCollectionPanelOpen, toggle: () => exclusiveToggle(isTeamCollectionPanelOpen, toggleTeamCollectionPanel), title: 'Team collection pool (Alt+O)' },
+ { key: 'constraints', icon: '⚙', label: 'Constraints', isOpen: isConstraintPanelOpen, toggle: () => exclusiveToggle(isConstraintPanelOpen, toggleConstraintPanel), title: 'Team constraints (Alt+N)' },
+ { key: 'packages', icon: '▢', label: 'Packages', isOpen: isPackagePanelOpen, toggle: () => exclusiveToggle(isPackagePanelOpen, togglePackagePanel), title: 'Card packages (Alt+G)' },
+ { key: 'spectator', icon: '▸', label: 'Spectator', isOpen: isSpectatorPanelOpen, toggle: () => exclusiveToggle(isSpectatorPanelOpen, toggleSpectatorPanel), title: 'Goldfish spectator (Alt+S)' },
+ { key: 'tests', icon: '▤', label: 'Tests', isOpen: isTestLogPanelOpen, toggle: () => exclusiveToggleWithBadge('tests', isTestLogPanelOpen, toggleTestLogPanel), title: 'Test protocol (Alt+E)', badgeKey: 'tests' },
+ { key: 'sideboard', icon: '■', label: 'Sideboard', isOpen: isSideboardPanelOpen, toggle: () => exclusiveToggleWithBadge('sideboard', isSideboardPanelOpen, toggleSideboardPanel), title: 'Sideboard plans (Alt+B)', badgeKey: 'sideboard' },
   ];
 
   // Extract pinned panels into the core area
@@ -550,7 +550,7 @@ function renderToolbar(): void {
             className: 'collab-overflow-pin',
             onClick: (e: Event) => { e.stopPropagation(); togglePinPanel(panel.key); },
             title: 'Pin to toolbar',
-          }, '\uD83D\uDCCC'),
+ }, '◆'),
         ),
       ),
     ) : document.createTextNode(''),
@@ -562,7 +562,7 @@ function renderToolbar(): void {
 
     // D3: Viewer role badge
     ...(currentUserRole === 'viewer' ? [
-      h('span', { className: 'collab-viewer-badge' }, '\uD83D\uDC41 Viewing'),
+ h('span', { className: 'collab-viewer-badge' }, '◇ Viewing'),
     ] : []),
 
     // Branch selector (Phase 1)
@@ -600,7 +600,7 @@ function renderToolbar(): void {
         }
       },
       title: 'Copy invite link (one-click)',
-    }, '\uD83D\uDD17 Copy Link'),
+ }, '∞ Copy Link'),
 
     // End/Leave button
     ownerToken
@@ -608,12 +608,12 @@ function renderToolbar(): void {
           className: 'collab-btn collab-end-btn',
           onClick: () => endCollabSession(),
           title: 'End session for all participants',
-        }, '\u2716 End')
+ }, ' End')
       : h('button', {
           className: 'collab-btn collab-leave-btn',
           onClick: () => leaveCollabSession(),
           title: 'Leave session',
-        }, '\u2716 Leave'),
+ }, ' Leave'),
   );
 
   // Wire up the chat badge
@@ -636,10 +636,10 @@ function renderToolbar(): void {
 
 function renderConnectionBadge(state: CollabConnectionState): HTMLElement {
   const statusMap: Record<CollabConnectionState, { dot: string; label: string; cls: string }> = {
-    connected: { dot: '\uD83D\uDFE2', label: 'Connected', cls: 'collab-status-connected' },
-    connecting: { dot: '\uD83D\uDFE1', label: 'Connecting...', cls: 'collab-status-connecting' },
-    reconnecting: { dot: '\uD83D\uDFE1', label: 'Reconnecting...', cls: 'collab-status-reconnecting' },
-    disconnected: { dot: '\uD83D\uDD34', label: 'Disconnected', cls: 'collab-status-disconnected' },
+ connected: { dot: '●', label: 'Connected', cls: 'collab-status-connected' },
+ connecting: { dot: '◐', label: 'Connecting...', cls: 'collab-status-connecting' },
+ reconnecting: { dot: '◐', label: 'Reconnecting...', cls: 'collab-status-reconnecting' },
+ disconnected: { dot: '●', label: 'Disconnected', cls: 'collab-status-disconnected' },
   };
 
   const info = statusMap[state];
@@ -653,7 +653,7 @@ function renderParticipantAvatars(participants: CollabParticipant[]): HTMLElemen
   const container = h('div', { className: 'collab-participants' });
 
   for (const p of participants.slice(0, 8)) {
-    const roleIcon = p.role === 'owner' ? ' \u2605' : p.role === 'viewer' ? ' \uD83D\uDC41' : '';
+ const roleIcon = p.role === 'owner' ? ' ★' : p.role === 'viewer' ? ' ◇' : '';
     const titleText = `${p.name}${roleIcon}${p.userId ? ' (signed in)' : ''}`;
 
     let avatarEl: HTMLElement;
@@ -714,7 +714,7 @@ function showParticipantContextMenu(e: MouseEvent, participant: CollabParticipan
         menu.remove();
         confirmTransferOwnership(participant);
       },
-    }, '\u2B50 Transfer Ownership'),
+ }, ' Transfer Ownership'),
     ...(participant.role !== 'editor' ? [
       h('button', {
         className: 'collab-participant-menu-item',
@@ -723,7 +723,7 @@ function showParticipantContextMenu(e: MouseEvent, participant: CollabParticipan
           getCollabManager().sendRoleAssign(participant.id, 'editor');
           showToast(`Set ${participant.name} to editor.`, 'info');
         },
-      }, '\u270F\uFE0F Set as Editor'),
+ }, ' Set as Editor'),
     ] : []),
     ...(participant.role !== 'viewer' ? [
       h('button', {
@@ -733,7 +733,7 @@ function showParticipantContextMenu(e: MouseEvent, participant: CollabParticipan
           getCollabManager().sendRoleAssign(participant.id, 'viewer');
           showToast(`Set ${participant.name} to viewer.`, 'info');
         },
-      }, '\uD83D\uDC41 Set as Viewer'),
+ }, '◇ Set as Viewer'),
     ] : []),
   );
 
@@ -796,7 +796,7 @@ function showShareModal(): void {
     },
   },
     h('div', { className: 'collab-modal' },
-      h('h3', { className: 'collab-modal-title' }, '\uD83D\uDD17 Share Session'),
+ h('h3', { className: 'collab-modal-title' }, '∞ Share Session'),
       h('p', { className: 'collab-modal-desc' }, 'Share this link with others to collaborate on this deck in real-time:'),
 
       h('div', { className: 'collab-share-url-row' },
@@ -1072,18 +1072,18 @@ function renderAuthButton(): void {
       h('button', {
         className: 'auth-login-provider-btn auth-login-github',
         onClick: () => loginWithGitHub(),
-      }, '\uD83D\uDC19 GitHub'),
+ }, '◆ GitHub'),
       h('button', {
         className: 'auth-login-provider-btn auth-login-google',
         onClick: () => loginWithGoogle(),
-      }, '\uD83C\uDF10 Google'),
+ }, ' Google'),
     );
 
     const loginWrapper = h('div', { className: 'auth-login-wrapper' },
       h('button', {
         className: 'auth-login-btn',
         title: 'Sign in',
-      }, '\uD83D\uDD11 Sign In'),
+ }, '→ Sign In'),
       loginDropdown,
     );
 
@@ -1128,7 +1128,7 @@ const onOwnershipTransferred: CollabEventHandler = (event: CollabEvent) => {
   if (data.ownerToken) {
     // We are the new owner — store the token
     ownerToken = data.ownerToken;
-    showToast(`\u2B50 You are now the session owner!`, 'success');
+ showToast(` You are now the session owner!`, 'success');
   }
   updateCurrentUserRole();
   renderToolbar();
@@ -1145,7 +1145,7 @@ const onActivityLogged: CollabEventHandler = (event: CollabEvent) => {
 /** Handle snapshot-created event (Phase 1) */
 const onSnapshotCreated: CollabEventHandler = (event: CollabEvent) => {
   const data = event.data as { snapshotId: string; label: string; by: string };
-  showToast(`\uD83D\uDCF8 Snapshot "${data.label}" created by ${data.by}`, 'info');
+ showToast(`◆ Snapshot "${data.label}" created by ${data.by}`, 'info');
   addActivity('snapshot-create', data.by, `created snapshot "${data.label}"`);
 };
 
@@ -1156,7 +1156,7 @@ const onProposalEvent: CollabEventHandler = (event: CollabEvent) => {
   const labels: Record<string, string> = { created: 'created proposal', voted: 'voted on proposal', resolved: 'resolved proposal' };
   if (!isProposalPanelOpen()) unreadCounts.proposals++;
   showToastWithAction(
-    `\uD83D\uDCDD ${data.by} ${labels[data.action] || data.action} "${data.title || ''}"`, 'info',
+ `▥ ${data.by} ${labels[data.action] || data.action} "${data.title || ''}"`, 'info',
     { label: 'View', onClick: () => exclusiveToggleWithBadge('proposals', isProposalPanelOpen, toggleProposalPanel) },
   );
   addActivity('proposal-' + data.action, data.by, `${labels[data.action] || data.action} "${data.title || data.proposalId}"`);
@@ -1168,7 +1168,7 @@ const onThreadEvent: CollabEventHandler = (event: CollabEvent) => {
   const data = event.data as { board: string; cardName: string; text: string; by: string };
   if (!isThreadPanelOpen()) unreadCounts.threads++;
   showToastWithAction(
-    `\uD83D\uDCAC ${data.by} commented on ${data.cardName}`, 'info',
+ `❝ ${data.by} commented on ${data.cardName}`, 'info',
     { label: 'View', onClick: () => exclusiveToggleWithBadge('threads', isThreadPanelOpen, toggleThreadPanel) },
   );
   addActivity('thread-post', data.by, `commented on ${data.cardName}`);
@@ -1180,7 +1180,7 @@ const onDecisionEvent: CollabEventHandler = (event: CollabEvent) => {
   const data = event.data as { cardName?: string; rationale: string; by: string };
   if (!isDecisionPanelOpen()) unreadCounts.decisions++;
   showToastWithAction(
-    `\uD83D\uDCD6 ${data.by} added decision${data.cardName ? ` for ${data.cardName}` : ''}`, 'info',
+ `▤ ${data.by} added decision${data.cardName ? ` for ${data.cardName}` : ''}`, 'info',
     { label: 'View', onClick: () => exclusiveToggleWithBadge('decisions', isDecisionPanelOpen, toggleDecisionPanel) },
   );
   addActivity('decision-add', data.by, `added decision${data.cardName ? ` for ${data.cardName}` : ''}`);
@@ -1193,7 +1193,7 @@ const onTaskEvent: CollabEventHandler = (event: CollabEvent) => {
   const labels: Record<string, string> = { created: 'created task', updated: 'updated task', deleted: 'deleted task' };
   if (!isTaskPanelOpen()) unreadCounts.tasks++;
   showToastWithAction(
-    `\u2705 ${data.by} ${labels[data.action] || data.action} "${data.title || ''}"`, 'info',
+ `✓ ${data.by} ${labels[data.action] || data.action} "${data.title || ''}"`, 'info',
     { label: 'View', onClick: () => exclusiveToggleWithBadge('tasks', isTaskPanelOpen, toggleTaskPanel) },
   );
   addActivity('task-' + data.action, data.by, `${labels[data.action] || data.action} "${data.title || data.taskId}"`);
@@ -1205,7 +1205,7 @@ const onTaskEvent: CollabEventHandler = (event: CollabEvent) => {
 
 const onCollectionShared: CollabEventHandler = (event: CollabEvent) => {
   const data = event.data as { participantName: string; cardCount: number };
-  showToast(`\uD83D\uDCE6 ${data.participantName} shared their collection (${data.cardCount} cards)`, 'info');
+ showToast(`▢ ${data.participantName} shared their collection (${data.cardCount} cards)`, 'info');
   addActivity('collection-shared', data.participantName, `shared their collection (${data.cardCount} cards)`);
   refreshTeamCollection();
 };
@@ -1213,7 +1213,7 @@ const onCollectionShared: CollabEventHandler = (event: CollabEvent) => {
 const onConstraintEvent: CollabEventHandler = (event: CollabEvent) => {
   const data = event.data as { action: string; constraintType: string; constraintValue?: string; by: string };
   const verb = data.action === 'set' ? 'set' : 'removed';
-  showToast(`\u2699\uFE0F ${data.by} ${verb} ${data.constraintType} constraint${data.constraintValue ? `: ${data.constraintValue}` : ''}`, 'info');
+ showToast(` ${data.by} ${verb} ${data.constraintType} constraint${data.constraintValue ? `: ${data.constraintValue}` : ''}`, 'info');
   addActivity('constraint-' + data.action, data.by, `${verb} ${data.constraintType}${data.constraintValue ? `: ${data.constraintValue}` : ''}`);
   refreshConstraints();
 };
@@ -1222,13 +1222,13 @@ const onConstraintEvent: CollabEventHandler = (event: CollabEvent) => {
 
 const onGoldfishStarted: CollabEventHandler = (event: CollabEvent) => {
   const data = event.data as { by: string; deckName: string };
-  showToast(`\uD83C\uDFAE ${data.by} started goldfish testing "${data.deckName}"`, 'info');
+ showToast(` ${data.by} started goldfish testing "${data.deckName}"`, 'info');
   addActivity('goldfish-start', data.by, `started goldfish testing "${data.deckName}"`);
 };
 
 const onGoldfishEnded: CollabEventHandler = (event: CollabEvent) => {
   const data = event.data as { by: string; result: string; turnCount: number };
-  showToast(`\u2705 ${data.by} finished goldfish: ${data.result} (turn ${data.turnCount})`, 'info');
+ showToast(`✓ ${data.by} finished goldfish: ${data.result} (turn ${data.turnCount})`, 'info');
   addActivity('goldfish-end', data.by, `finished goldfish: ${data.result} (turn ${data.turnCount})`);
 };
 
@@ -1237,7 +1237,7 @@ const onSideboardPlanEvent: CollabEventHandler = (event: CollabEvent) => {
   const labels: Record<string, string> = { created: 'created', updated: 'updated', deleted: 'deleted' };
   if (!isSideboardPanelOpen()) unreadCounts.sideboard++;
   showToastWithAction(
-    `\uD83D\uDEE1\uFE0F ${data.by} ${labels[data.action] || data.action} sideboard plan for "${data.matchup}"`, 'info',
+ `■ ${data.by} ${labels[data.action] || data.action} sideboard plan for "${data.matchup}"`, 'info',
     { label: 'View', onClick: () => exclusiveToggleWithBadge('sideboard', isSideboardPanelOpen, toggleSideboardPanel) },
   );
   addActivity('sideboard-' + data.action, data.by, `${labels[data.action] || data.action} sideboard plan for "${data.matchup}"`);
@@ -1249,7 +1249,7 @@ const onTestSessionEvent: CollabEventHandler = (event: CollabEvent) => {
   const data = event.data as { action: string; sessionId: string; by: string };
   if (!isTestLogPanelOpen()) unreadCounts.tests++;
   showToastWithAction(
-    `\uD83D\uDCCB ${data.by} logged a test session result`, 'info',
+ `▤ ${data.by} logged a test session result`, 'info',
     { label: 'View', onClick: () => exclusiveToggleWithBadge('tests', isTestLogPanelOpen, toggleTestLogPanel) },
   );
   addActivity('test-session-logged', data.by, `logged a test session result`);
@@ -1273,7 +1273,7 @@ function applyViewerModeUI(): void {
     banner = document.createElement('div');
     banner.id = 'viewerModeBanner';
     banner.className = 'viewer-mode-banner';
-    banner.textContent = '\uD83D\uDC41 Viewing — you have read-only access to this session';
+ banner.textContent = '◇ Viewing — you have read-only access to this session';
     const toolbar = byId('collabToolbar');
     if (toolbar) toolbar.insertAdjacentElement('afterend', banner);
   } else if (!isViewer && banner) {

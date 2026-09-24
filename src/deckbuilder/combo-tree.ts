@@ -522,11 +522,11 @@ function showTooltip(tooltip: HTMLElement | null, node: GraphNode, e: MouseEvent
     if (node.description) lines.push(node.description.slice(0, 120) + (node.description.length > 120 ? '\u2026' : ''));
     if (node.produces && node.produces.length > 0) lines.push('\u2192 ' + node.produces.join(', '));
     if (node.source) lines.push('Source: ' + (node.source === 'spellbook' ? 'Commander Spellbook' : node.source === 'catalog' ? 'DeckLens' : 'Community'));
-    if (node.hasTemplateReqs) lines.push('\u26A0 Requires template card(s)');
-    if (node.spellbookUrl) lines.push('\uD83D\uDD17 Click to open Spellbook');
+ if (node.hasTemplateReqs) lines.push('! Requires template card(s)');
+ if (node.spellbookUrl) lines.push('∞ Click to open Spellbook');
   } else {
     lines.push(node.cardName || node.label);
-    if (!node.inDeck) lines.push('\u274C Not in deck (missing piece)');
+ if (!node.inDeck) lines.push('✕ Not in deck (missing piece)');
   }
 
   tooltip.textContent = '';
@@ -620,12 +620,12 @@ export function openComboTree(coach: DeckCoach): void {
 
   const title = document.createElement('span');
   title.className = 'combo-tree-title';
-  title.textContent = '\uD83C\uDF33 Combo Tree';
+ title.textContent = ' Combo Tree';
   header.appendChild(title);
 
   const closeBtn = document.createElement('button');
   closeBtn.className = 'combo-tree-close';
-  closeBtn.textContent = '\u2715';
+ closeBtn.textContent = '✕';
   closeBtn.title = 'Close';
   closeBtn.addEventListener('click', () => closeComboTree());
   header.appendChild(closeBtn);

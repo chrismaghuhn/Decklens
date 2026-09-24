@@ -50,529 +50,424 @@
   "author": { "@type": "Organization", "name": "DeckLens" }
 }
 </script>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/src/styles/data-lab.css">
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-:root {
-  --void: #06060e;
-  --abyss: #0c0b18;
-  --obsidian: #141225;
-  --smoke: #1e1b33;
-  --gold: #c9a84c;
-  --gold-bright: #e8c84a;
-  --gold-dim: #8a7230;
-  --crimson: #a82035;
-  --crimson-glow: #d42a45;
-  --emerald: #1fa855;
-  --royal-blue: #2855cc;
-  --mystic-blue: #4080ff;
-  --text-primary: #ece4d4;
-  --text-secondary: #9e96ab;
-  --text-dim: #5c5670;
-}
-
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; scroll-padding-top: 90px; }
 
 body {
-  background: var(--void);
-  color: var(--text-primary);
-  font-family: 'Cormorant Garamond', Georgia, serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
   overflow-x: hidden;
   line-height: 1.6;
   min-height: 100vh;
+  border-top: 3px solid var(--cobalt);
 }
 
-/* Noise overlay */
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 9999;
-}
-
-::-webkit-scrollbar { width: 5px; }
-::-webkit-scrollbar-track { background: var(--void); }
-::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--paper-dim); }
+::-webkit-scrollbar-thumb { background: var(--ink-35); }
+::-webkit-scrollbar-thumb:hover { background: var(--ink); }
 
 /* ═══ NAV ═══ */
 nav {
   position: fixed; top: 0; width: 100%; z-index: 1000;
-  padding: 1rem 2.5rem;
+  padding: 1.1rem 2.5rem;
   display: flex; justify-content: space-between; align-items: center;
-  backdrop-filter: blur(20px);
-  background: rgba(6,6,14,0.65);
-  border-bottom: 1px solid rgba(201,168,76,0.06);
-  transition: all 0.4s ease;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(250,250,247,0.88);
+  border-bottom: 1px solid var(--hairline);
+  transition: padding 0.3s ease, background 0.3s ease;
 }
 nav.scrolled {
   padding: 0.7rem 2.5rem;
-  background: rgba(6,6,14,0.92);
-  border-bottom-color: rgba(201,168,76,0.12);
+  background: rgba(250,250,247,0.96);
 }
 .nav-logo {
-  font-family: 'Cinzel', serif;
-  font-size: 1.2rem; font-weight: 700;
-  background: linear-gradient(135deg, var(--gold-bright), var(--gold), var(--gold-dim));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  letter-spacing: 0.06em;
+  font-family: var(--font-sans);
+  font-size: 1.1rem; font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  text-decoration: none;
 }
 .nav-logo em {
   font-style: normal;
-  -webkit-text-fill-color: var(--text-primary);
+  color: var(--cobalt);
 }
 .nav-right { display: flex; gap: 2rem; align-items: center; }
 .nav-links { display: flex; gap: 2rem; list-style: none; }
 .nav-links a {
-  font-family: 'Outfit', sans-serif; font-weight: 400; font-size: 0.78rem;
-  color: var(--text-secondary); text-decoration: none;
-  letter-spacing: 0.1em; text-transform: uppercase;
-  position: relative; transition: color 0.3s;
+  font-family: var(--font-mono); font-weight: 500; font-size: 0.66rem;
+  color: var(--ink-70); text-decoration: none;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  position: relative; transition: color 0.2s;
+  padding-bottom: 2px;
 }
 .nav-links a::after {
-  content: ''; position: absolute; bottom: -3px; left: 0;
-  width: 0; height: 1px; background: var(--gold); transition: width 0.3s ease;
+  content: ''; position: absolute; bottom: 0; left: 0;
+  width: 0; height: 1px; background: var(--cobalt); transition: width 0.25s ease;
 }
-.nav-links a:hover { color: var(--gold); }
+.nav-links a:hover { color: var(--ink); }
 .nav-links a:hover::after { width: 100%; }
 
 /* ═══ HERO ═══ */
 .hero {
-  position: relative; min-height: 100vh;
-  display: flex; flex-direction: column; justify-content: center; align-items: center;
-  text-align: center; overflow: hidden;
-}
-.hero-bg {
-  position: absolute; inset: 0;
-  background:
-    radial-gradient(ellipse 70% 55% at 50% 40%, rgba(168,32,53,0.07) 0%, transparent 60%),
-    radial-gradient(ellipse 55% 50% at 25% 60%, rgba(40,85,204,0.05) 0%, transparent 50%),
-    radial-gradient(ellipse 65% 35% at 70% 30%, rgba(201,168,76,0.04) 0%, transparent 50%),
-    var(--void);
-}
-.hero-particles { position: absolute; inset: 0; overflow: hidden; }
-.particle {
-  position: absolute; width: 2px; height: 2px;
-  background: var(--gold); border-radius: 50%;
-  opacity: 0; animation: float-up linear infinite;
-}
-@keyframes float-up {
-  0% { opacity: 0; transform: translateY(100vh) scale(0); }
-  10% { opacity: 0.7; }
-  90% { opacity: 0.2; }
-  100% { opacity: 0; transform: translateY(-10vh) scale(1); }
-}
-.hero-content {
-  position: relative; z-index: 2; max-width: 860px; padding: 0 2rem;
+  padding: 10.5rem 2.5rem 5rem;
+  max-width: 1240px; margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 4rem;
+  align-items: center;
 }
 .hero-badge {
-  font-family: 'Outfit', sans-serif; font-size: 0.65rem; font-weight: 500;
-  letter-spacing: 0.35em; text-transform: uppercase; color: var(--gold);
-  margin-bottom: 1.8rem;
-  opacity: 0; animation: fade-in 1s 0.3s forwards;
-  display: inline-flex; align-items: center; gap: 1rem;
+  font-family: var(--font-mono); font-size: 0.64rem; font-weight: 500;
+  letter-spacing: 0.26em; text-transform: uppercase; color: var(--cobalt);
+  margin-bottom: 1.6rem;
+  display: inline-flex; align-items: center; gap: 0.8rem;
 }
-.hero-badge::before, .hero-badge::after {
-  content: ''; width: 35px; height: 1px;
-  background: linear-gradient(90deg, transparent, var(--gold-dim));
+.hero-badge::before {
+  content: ''; width: 28px; height: 1px; background: var(--cobalt);
 }
-.hero-badge::after { background: linear-gradient(90deg, var(--gold-dim), transparent); }
-
-.hero-icon {
-  width: 72px; height: 72px; margin: 0 auto 1.8rem;
-  background: linear-gradient(135deg, rgba(201,168,76,0.15), rgba(201,168,76,0.05));
-  border: 1px solid rgba(201,168,76,0.2);
-  border-radius: 18px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 2rem;
-  box-shadow: 0 8px 40px rgba(201,168,76,0.1), 0 0 0 1px rgba(201,168,76,0.1);
-  opacity: 0; animation: fade-in 1s 0.4s forwards;
-}
-
 .hero h1 {
-  font-family: 'Cinzel', serif;
-  font-size: clamp(2.8rem, 7vw, 5rem); font-weight: 900;
-  line-height: 1.05; margin-bottom: 0.3rem;
-  opacity: 0; animation: fade-in 1s 0.6s forwards;
+  font-size: clamp(3.4rem, 8vw, 6.5rem); font-weight: 800;
+  line-height: 0.95; letter-spacing: -0.045em;
+  margin-bottom: 1.2rem;
+  text-transform: uppercase;
 }
-.hero h1 .deck { color: var(--text-primary); }
-.hero h1 .lens {
-  background: linear-gradient(135deg, var(--gold-bright), var(--gold), var(--gold-dim));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
+.hero h1 .deck { color: var(--ink); }
+.hero h1 .lens { color: var(--cobalt); }
 
 .hero-tagline {
-  font-family: 'Outfit', sans-serif; font-size: 0.85rem; font-weight: 400;
-  color: var(--text-dim); letter-spacing: 0.15em; text-transform: uppercase;
-  margin-bottom: 1.8rem;
-  opacity: 0; animation: fade-in 1s 0.8s forwards;
+  font-family: var(--font-mono); font-size: 0.78rem; font-weight: 500;
+  color: var(--ink-50); letter-spacing: 0.18em; text-transform: uppercase;
+  margin-bottom: 1.6rem;
+  padding-bottom: 1.2rem;
+  border-bottom: 1px solid var(--hairline);
+  display: inline-block;
 }
 
 .hero-sub {
-  font-size: 1.2rem; color: var(--text-secondary);
-  max-width: 520px; margin: 0 auto 3.5rem;
-  font-style: italic;
-  opacity: 0; animation: fade-in 1s 1s forwards;
+  font-size: 1.05rem; color: var(--ink-70);
+  max-width: 480px; margin-bottom: 2.4rem;
+  line-height: 1.7;
 }
 
-/* ═══ GAME CARDS ═══ */
+.hero-actions { display: flex; gap: 0.9rem; flex-wrap: wrap; }
+
+/* Chart panel */
+.hero-chart {
+  position: relative;
+  border: 1px solid var(--ink);
+  background: var(--paper-card);
+  padding: 1.6rem 1.6rem 1.2rem;
+}
+.hero-chart .corner {
+  position: absolute; width: 12px; height: 12px;
+}
+.corner.tl { top: -1px; left: -1px; border-top: 3px solid var(--cobalt); border-left: 3px solid var(--cobalt); }
+.corner.tr { top: -1px; right: -1px; border-top: 3px solid var(--cobalt); border-right: 3px solid var(--cobalt); }
+.corner.bl { bottom: -1px; left: -1px; border-bottom: 3px solid var(--cobalt); border-left: 3px solid var(--cobalt); }
+.corner.br { bottom: -1px; right: -1px; border-bottom: 3px solid var(--cobalt); border-right: 3px solid var(--cobalt); }
+
+.chart-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 1rem;
+  gap: 1rem;
+}
+.chart-title {
+  font-family: var(--font-mono); font-size: 0.62rem; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink);
+}
+.chart-meta {
+  font-family: var(--font-mono); font-size: 0.58rem; color: var(--ink-50);
+  letter-spacing: 0.08em; text-align: right;
+}
+.chart-svg { display: block; width: 100%; height: auto; }
+.chart-caption {
+  font-family: var(--font-mono); font-size: 0.56rem; color: var(--ink-50);
+  letter-spacing: 0.1em; text-transform: uppercase;
+  margin-top: 0.8rem;
+  border-top: 1px solid var(--hairline-soft);
+  padding-top: 0.7rem;
+}
+
+/* ═══ STATS STRIP ═══ */
+.stats-strip {
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+}
+.stats-strip-inner {
+  max-width: 1240px; margin: 0 auto; padding: 0 2.5rem;
+  display: grid; grid-template-columns: repeat(3, 1fr);
+}
+.strip-cell {
+  padding: 1.6rem 1.5rem;
+  display: flex; align-items: baseline; gap: 0.9rem;
+}
+.strip-cell + .strip-cell { border-left: 1px solid var(--hairline); }
+.strip-num {
+  font-family: var(--font-mono); font-size: 1.6rem; font-weight: 600;
+  color: var(--cobalt);
+}
+.strip-label {
+  font-family: var(--font-mono); font-size: 0.62rem; font-weight: 500;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-50);
+}
+
+/* ═══ SECTION SCAFFOLD ═══ */
+.section {
+  max-width: 1240px; margin: 0 auto;
+  padding: 5.5rem 2.5rem;
+}
+.section-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 2rem; flex-wrap: wrap;
+  margin-bottom: 3rem;
+  padding-bottom: 1.4rem;
+  border-bottom: 1px solid var(--ink);
+}
+.section-index {
+  font-family: var(--font-mono); font-size: 0.66rem; font-weight: 600;
+  letter-spacing: 0.2em; text-transform: uppercase; color: var(--cobalt);
+}
+.section-title {
+  font-size: clamp(1.7rem, 3.5vw, 2.4rem); font-weight: 800;
+  letter-spacing: -0.03em; line-height: 1.1;
+}
+.section-desc {
+  color: var(--ink-50); font-size: 0.92rem;
+  max-width: 420px;
+}
+
+/* ═══ GAME PORTALS ═══ */
 .game-portals {
   display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;
-  max-width: 720px; width: 100%; margin: 0 auto;
-  opacity: 0; animation: fade-in 1s 1.2s forwards;
+  width: 100%;
 }
 .portal {
   position: relative; text-decoration: none; color: inherit;
-  border-radius: 16px; overflow: hidden;
-  padding: 2.5rem 2rem 2rem;
-  display: flex; flex-direction: column; align-items: center;
-  gap: 0.8rem; cursor: pointer;
-  transition: all 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  border: 1px solid rgba(255,255,255,0.04);
+  border: 1px solid var(--ink);
+  background: var(--paper-card);
+  overflow: hidden;
+  padding: 2.2rem 2rem 1.8rem;
+  display: flex; flex-direction: column;
+  gap: 0.9rem;
+  transition: background 0.25s ease, transform 0.25s ease;
 }
-.portal::before {
-  content: ''; position: absolute; inset: 0; opacity: 0; transition: opacity 0.4s;
+.portal:hover { background: var(--cobalt-tint); }
+.portal-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--hairline);
 }
-.portal.mtg::before {
-  background: radial-gradient(ellipse at 50% 80%, rgba(168,32,53,0.12) 0%, transparent 65%);
+.portal-index {
+  font-family: var(--font-mono); font-size: 0.66rem; font-weight: 600;
+  letter-spacing: 0.2em; color: var(--ink-50);
 }
-.portal.ygo::before {
-  background: radial-gradient(ellipse at 50% 80%, rgba(201,168,76,0.1) 0%, transparent 65%);
-}
-.portal:hover { transform: translateY(-6px); border-color: rgba(255,255,255,0.08); }
-.portal:hover::before { opacity: 1; }
-
-.portal-bg {
-  position: absolute; inset: 0; z-index: 0;
-}
-.portal.mtg .portal-bg {
-  background: linear-gradient(160deg, #0d0810 0%, #140a12 40%, #0f0c18 100%);
-}
-.portal.ygo .portal-bg {
-  background: linear-gradient(160deg, #0d0b06 0%, #14100a 40%, #0f0c18 100%);
-}
-
-.portal-content { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 0.8rem; }
-
-.portal-mana {
-  display: flex; gap: 5px; justify-content: center; margin-bottom: 0.2rem;
-}
+.portal-mana { display: flex; gap: 4px; }
 .mana-dot {
-  width: 14px; height: 14px; border-radius: 50%;
-  border: 1.5px solid rgba(255,255,255,0.08); opacity: 0.6;
-  transition: opacity 0.3s, transform 0.3s;
+  width: 9px; height: 9px;
+  border: 1px solid var(--ink);
 }
-.portal:hover .mana-dot { opacity: 1; transform: scale(1.1); }
-
 .portal-icon {
-  font-size: 2.8rem; line-height: 1;
-  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
-  transition: transform 0.4s;
+  width: 46px; height: 46px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  margin: 0.6rem 0 0.2rem;
+  align-self: flex-start;
 }
-.portal:hover .portal-icon { transform: scale(1.1); }
-
 .portal-title {
-  font-family: 'Cinzel', serif; font-weight: 700;
-  font-size: 1.15rem; color: var(--text-primary); letter-spacing: 0.02em;
-  transition: color 0.3s;
+  font-weight: 800; font-size: 1.25rem;
+  letter-spacing: -0.02em; color: var(--ink);
 }
-.portal.mtg:hover .portal-title { color: var(--crimson-glow); }
-.portal.ygo:hover .portal-title { color: var(--gold-bright); }
-
 .portal-subtitle {
-  font-family: 'Outfit', sans-serif; font-size: 0.7rem;
-  color: var(--text-dim); letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500;
+  font-family: var(--font-mono); font-size: 0.62rem;
+  color: var(--ink-50); letter-spacing: 0.2em; text-transform: uppercase; font-weight: 500;
 }
-
 .portal-features {
-  display: flex; flex-wrap: wrap; gap: 0.35rem; justify-content: center; margin-top: 0.2rem;
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 0.35rem 1.2rem;
+  margin-top: 0.8rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--hairline-soft);
 }
 .feat-tag {
-  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 100px; padding: 0.18rem 0.6rem;
-  font-family: 'Outfit', sans-serif; font-size: 0.65rem; color: var(--text-dim); font-weight: 500;
-  transition: all 0.3s;
+  font-family: var(--font-mono); font-size: 0.62rem; color: var(--ink-70); font-weight: 500;
+  letter-spacing: 0.04em;
+  display: flex; align-items: center; gap: 0.5rem;
 }
-.portal.mtg:hover .feat-tag { border-color: rgba(168,32,53,0.3); color: var(--text-secondary); }
-.portal.ygo:hover .feat-tag { border-color: rgba(201,168,76,0.25); color: var(--text-secondary); }
-
+.feat-tag::before {
+  content: ''; width: 10px; height: 1px; background: var(--cobalt); flex: none;
+}
 .portal-arrow {
-  font-family: 'Outfit', sans-serif; font-size: 1.1rem; color: var(--text-dim);
-  transition: all 0.3s; opacity: 0.4; margin-top: auto; padding-top: 0.3rem;
+  font-family: var(--font-mono); font-size: 0.85rem; font-weight: 600;
+  color: var(--cobalt);
+  margin-top: auto; padding-top: 1rem;
+  display: flex; justify-content: space-between; align-items: center;
 }
-.portal.mtg:hover .portal-arrow { color: var(--crimson-glow); transform: translateX(4px); opacity: 1; }
-.portal.ygo:hover .portal-arrow { color: var(--gold); transform: translateX(4px); opacity: 1; }
-
-/* Holographic border glow */
-.portal::after {
-  content: ''; position: absolute; inset: 0;
-  border-radius: 16px; padding: 1px;
-  background: linear-gradient(135deg, transparent 30%, rgba(201,168,76,0.15) 50%, transparent 70%);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor; mask-composite: exclude;
-  opacity: 0; transition: opacity 0.5s; z-index: 2;
-}
-.portal.mtg::after {
-  background: linear-gradient(135deg, transparent 30%, rgba(212,42,69,0.2) 50%, transparent 70%);
-}
-.portal:hover::after { opacity: 1; }
-
-.hero-scroll {
-  position: absolute; bottom: 2.5rem; left: 50%; transform: translateX(-50%);
-  display: flex; flex-direction: column; align-items: center; gap: 0.4rem;
-  opacity: 0; animation: fade-in 1s 2s forwards;
-}
-.hero-scroll span {
-  font-family: 'Outfit', sans-serif; font-size: 0.6rem;
-  letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-dim);
-}
-.scroll-line {
-  width: 1px; height: 35px;
-  background: linear-gradient(to bottom, var(--gold-dim), transparent);
-  animation: pulse-line 2s ease-in-out infinite;
-}
-@keyframes pulse-line { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
-@keyframes fade-in { to { opacity: 1; } }
-
-/* ═══ FEATURES ═══ */
-.features {
-  padding: 6rem 2.5rem;
-  background: var(--abyss);
-}
-.features-inner {
-  max-width: 1000px; margin: 0 auto;
-}
-.features-header {
-  text-align: center; margin-bottom: 3.5rem;
-}
-.section-label {
-  font-family: 'Outfit', sans-serif; font-size: 0.62rem; font-weight: 500;
-  letter-spacing: 0.4em; text-transform: uppercase; color: var(--gold-dim);
-  margin-bottom: 0.8rem;
-}
-.section-title {
-  font-family: 'Cinzel', serif;
-  font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 700; margin-bottom: 0.8rem;
-  color: var(--text-primary);
-}
-.section-desc {
-  color: var(--text-secondary); font-size: 1.05rem;
-  max-width: 520px; margin: 0 auto; font-style: italic;
+.portal-arrow .tag {
+  font-size: 0.58rem; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--ink-50); font-weight: 500;
 }
 
-.features-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem;
+/* ═══ SPEC SHEETS (FEATURES) ═══ */
+.spec-sheet {
+  border: 1px solid var(--ink);
+  background: var(--hairline-soft);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
 }
-.feature-card {
-  background: rgba(255,255,255,0.015);
-  border: 1px solid rgba(255,255,255,0.04);
-  border-radius: 12px; padding: 2rem 1.5rem;
-  transition: all 0.4s ease; position: relative; overflow: hidden;
+.spec-sheet > * {
+  background: var(--paper-card);
+  padding: 1.8rem 1.6rem 2rem;
+  transition: background 0.25s ease;
 }
-.feature-card::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
-  background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
-  opacity: 0; transition: opacity 0.4s;
+.spec-sheet > *:hover { background: var(--cobalt-tint); }
+.spec-row {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 1.1rem;
 }
-.feature-card:hover {
-  border-color: rgba(201,168,76,0.1);
-  transform: translateY(-3px);
-  box-shadow: 0 10px 35px rgba(0,0,0,0.3);
+.spec-index {
+  font-family: var(--font-mono); font-size: 0.68rem; font-weight: 600;
+  color: var(--cobalt); letter-spacing: 0.1em;
 }
-.feature-card:hover::before { opacity: 1; }
-
-.feature-icon {
-  font-size: 1.6rem; margin-bottom: 1rem;
-  width: 44px; height: 44px;
+.spec-icon {
+  width: 40px; height: 40px;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(201,168,76,0.06);
-  border: 1px solid rgba(201,168,76,0.12);
-  border-radius: 10px;
+  border: 1px solid var(--ink);
+  color: var(--ink);
 }
 .feature-title {
-  font-family: 'Cinzel', serif; font-weight: 700;
-  font-size: 1rem; margin-bottom: 0.5rem; color: var(--text-primary);
+  font-weight: 700; font-size: 1rem;
+  letter-spacing: -0.01em; color: var(--ink);
+  margin-bottom: 0.5rem;
 }
 .feature-text {
-  font-family: 'Outfit', sans-serif;
-  font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6;
+  font-size: 0.84rem; color: var(--ink-70); line-height: 1.65;
 }
 
-/* ═══ SPLIT WORLDS ═══ */
+/* ═══ WORLDS (dark contrast blocks) ═══ */
 .worlds {
   display: grid; grid-template-columns: 1fr 1fr;
-  min-height: 70vh; position: relative;
-}
-.worlds::after {
-  content: ''; position: absolute;
-  top: 12%; bottom: 12%; left: 50%; width: 1px;
-  background: linear-gradient(to bottom, transparent, var(--gold-dim), transparent);
-  transform: translateX(-50%); z-index: 5;
+  gap: 1.5rem;
 }
 .world-half {
-  padding: 5rem 3.5rem;
+  background: var(--lab-block);
+  color: var(--lab-block-text);
+  padding: 3.5rem 3rem;
   display: flex; flex-direction: column; justify-content: center;
-  position: relative; overflow: hidden;
+  position: relative;
 }
-.world-mtg { background: linear-gradient(135deg, #0d0508 0%, #160a0f 50%, var(--abyss) 100%); }
-.world-ygo { background: linear-gradient(225deg, #0d0a04 0%, #161008 50%, var(--abyss) 100%); }
 .world-half::before {
-  content: ''; position: absolute;
-  width: 250px; height: 250px; border-radius: 50%;
-  filter: blur(90px); opacity: 0.12;
+  content: ''; position: absolute; top: 0; left: 0;
+  width: 40px; height: 3px; background: var(--cobalt);
 }
-.world-mtg::before { background: var(--crimson); top: 20%; right: -40px; }
-.world-ygo::before { background: var(--gold); top: 20%; left: -40px; }
-
 .world-icon {
-  width: 50px; height: 50px; margin-bottom: 1.5rem;
+  width: 48px; height: 48px;
   display: flex; align-items: center; justify-content: center;
-  border-radius: 50%; font-size: 1.3rem;
-}
-.world-mtg .world-icon {
-  background: rgba(168,32,53,0.12); border: 1px solid rgba(168,32,53,0.25);
-}
-.world-ygo .world-icon {
-  background: rgba(201,168,76,0.12); border: 1px solid rgba(201,168,76,0.25);
+  border: 1px solid rgba(245,245,242,0.35);
+  color: var(--lab-block-text);
+  margin-bottom: 1.6rem;
 }
 .world-title {
-  font-family: 'Cinzel', serif;
-  font-size: clamp(1.4rem, 2.5vw, 2rem); font-weight: 700;
-  margin-bottom: 1.2rem; line-height: 1.2;
-}
-.world-mtg .world-title {
-  background: linear-gradient(135deg, #ff6060, var(--crimson-glow), var(--crimson));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
-.world-ygo .world-title {
-  background: linear-gradient(135deg, var(--gold-bright), var(--gold), var(--gold-dim));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  font-size: clamp(1.3rem, 2.2vw, 1.8rem); font-weight: 800;
+  letter-spacing: -0.02em; line-height: 1.15;
+  margin-bottom: 1.1rem;
 }
 .world-text {
-  color: var(--text-secondary); font-size: 1rem;
-  margin-bottom: 1.8rem; max-width: 380px; line-height: 1.7;
+  color: rgba(245,245,242,0.66); font-size: 0.92rem;
+  margin-bottom: 1.8rem; max-width: 400px; line-height: 1.7;
 }
-.world-stats { display: flex; gap: 2rem; margin-bottom: 2rem; }
+.world-stats { display: flex; gap: 3rem; margin-bottom: 2rem; }
 .stat-num {
-  font-family: 'Cinzel', serif; font-size: 1.5rem; font-weight: 700;
+  font-family: var(--font-mono); font-size: 1.5rem; font-weight: 600;
+  color: var(--cobalt);
+  filter: brightness(1.5);
 }
-.world-mtg .stat-num { color: var(--crimson-glow); }
-.world-ygo .stat-num { color: var(--gold); }
 .stat-label {
-  font-family: 'Outfit', sans-serif; font-size: 0.62rem;
-  letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-top: 0.2rem;
+  font-family: var(--font-mono); font-size: 0.6rem;
+  letter-spacing: 0.16em; text-transform: uppercase; color: rgba(245,245,242,0.5); margin-top: 0.3rem;
 }
 .world-link {
-  font-family: 'Outfit', sans-serif; font-size: 0.75rem; font-weight: 500;
-  letter-spacing: 0.1em; text-transform: uppercase;
+  font-family: var(--font-mono); font-size: 0.7rem; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase;
   text-decoration: none; display: inline-flex; align-items: center;
-  gap: 0.7rem; transition: all 0.3s;
+  gap: 0.8rem; color: var(--lab-block-text);
+  align-self: flex-start;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--cobalt);
+  transition: gap 0.25s ease, color 0.25s ease;
 }
-.world-mtg .world-link { color: var(--crimson-glow); }
-.world-ygo .world-link { color: var(--gold); }
-.world-link:hover { gap: 1.1rem; }
+.world-link:hover { gap: 1.2rem; color: #FFFFFF; }
 .world-link .arrow {
   display: inline-block; width: 25px; height: 1px; position: relative;
+  background: var(--cobalt);
 }
-.world-mtg .arrow { background: var(--crimson-glow); }
-.world-ygo .arrow { background: var(--gold); }
 .arrow::after {
   content: ''; position: absolute; right: 0; top: -3px;
   width: 6px; height: 6px;
-  border-right: 1px solid currentColor; border-top: 1px solid currentColor;
+  border-right: 1px solid var(--cobalt); border-top: 1px solid var(--cobalt);
   transform: rotate(45deg);
 }
-.world-mtg .arrow::after { border-color: var(--crimson-glow); }
-.world-ygo .arrow::after { border-color: var(--gold); }
 
-/* ═══ SEO FEATURES ═══ */
-.seo-section {
-  padding: 5rem 2.5rem;
-  background: var(--void);
-}
-.seo-inner {
-  max-width: 1000px; margin: 0 auto; text-align: center;
-}
-.seo-inner .section-title span {
-  background: linear-gradient(135deg, var(--gold-bright), var(--gold));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
+/* ═══ DEEP ANALYSIS ═══ */
 .seo-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem;
-  text-align: left; margin-top: 2.5rem;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;
+  margin-top: 2.5rem;
 }
 .seo-card {
-  background: var(--abyss); border: 1px solid rgba(255,255,255,0.04);
-  border-radius: 10px; padding: 1.5rem;
-  transition: all 0.3s;
+  background: var(--paper-card); border: 1px solid var(--hairline);
+  padding: 1.6rem;
+  transition: border-color 0.25s ease;
 }
-.seo-card:hover {
-  border-color: rgba(201,168,76,0.1);
-  transform: translateY(-2px);
-}
+.seo-card:hover { border-color: var(--ink); }
 .seo-card h3 {
-  font-family: 'Cinzel', serif; font-size: 0.95rem;
-  font-weight: 700; color: var(--gold); margin-bottom: 0.6rem;
+  font-size: 0.95rem; font-weight: 700;
+  color: var(--cobalt); margin-bottom: 0.7rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
 }
 .seo-card p {
-  font-family: 'Outfit', sans-serif; font-size: 0.8rem;
-  color: var(--text-secondary); line-height: 1.6;
+  font-size: 0.82rem;
+  color: var(--ink-70); line-height: 1.65;
 }
 
 /* ═══ CTA BANNER ═══ */
 .cta-banner {
-  text-align: center; padding: 6rem 2.5rem;
-  position: relative; overflow: hidden;
+  border-top: 1px solid var(--ink);
+  background: var(--paper-dim);
+  text-align: center; padding: 5.5rem 2.5rem;
+  position: relative;
 }
-.cta-banner::before {
-  content: ''; position: absolute; inset: 0;
-  background:
-    radial-gradient(ellipse 55% 50% at 50% 50%, rgba(201,168,76,0.05) 0%, transparent 65%),
-    var(--abyss);
-}
-.cta-content { position: relative; z-index: 2; }
-.cta-content .section-title { margin-bottom: 1.2rem; }
-.cta-content .section-title span {
-  background: linear-gradient(135deg, var(--gold-bright), var(--gold));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
-.cta-content .section-desc { margin: 0 auto 2.5rem; text-align: center; }
+.cta-banner .section-index { display: block; margin-bottom: 1rem; }
+.cta-content .section-title { margin-bottom: 1rem; }
+.cta-content .section-title span { color: var(--cobalt); }
+.cta-content .section-desc { margin: 0 auto 2.5rem; }
 .cta-stats {
   display: flex; justify-content: center; gap: 4rem; margin-bottom: 2.5rem; flex-wrap: wrap;
 }
 .cta-stat-num {
-  font-family: 'Cinzel', serif; font-size: 2rem; font-weight: 900;
-  background: linear-gradient(135deg, var(--text-primary), var(--gold));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  font-family: var(--font-mono); font-size: 2rem; font-weight: 600;
+  color: var(--ink);
 }
 .cta-stat-label {
-  font-family: 'Outfit', sans-serif; font-size: 0.65rem;
-  letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-top: 0.2rem;
-}
-.btn-cta {
-  font-family: 'Outfit', sans-serif; font-size: 0.78rem; font-weight: 600;
-  letter-spacing: 0.12em; text-transform: uppercase;
-  padding: 0.9rem 2.2rem; border: none; border-radius: 3px; cursor: pointer;
-  text-decoration: none; transition: all 0.4s ease;
-  background: linear-gradient(135deg, var(--gold), var(--gold-dim));
-  color: var(--void);
-  box-shadow: 0 4px 20px rgba(201,168,76,0.2);
-}
-.btn-cta:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 35px rgba(201,168,76,0.35);
+  font-family: var(--font-mono); font-size: 0.62rem;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-50); margin-top: 0.3rem;
 }
 
 /* ═══ FOOTER ═══ */
 footer {
-  border-top: 1px solid rgba(255,255,255,0.04);
-  background: var(--void);
+  border-top: 1px solid var(--hairline);
+  background: var(--paper);
 }
 .footer-inner {
-  max-width: 1000px; margin: 0 auto;
+  max-width: 1240px; margin: 0 auto;
   padding: 3rem 2.5rem 1.5rem;
 }
 .footer-top {
@@ -580,129 +475,122 @@ footer {
   gap: 2.5rem; margin-bottom: 2.5rem;
 }
 .footer-brand-text {
-  color: var(--text-secondary); font-size: 0.9rem;
-  max-width: 260px; line-height: 1.6; margin-top: 0.8rem;
+  color: var(--ink-50); font-size: 0.85rem;
+  max-width: 280px; line-height: 1.6; margin-top: 0.8rem;
 }
 .footer-col h4 {
-  font-family: 'Outfit', sans-serif; font-size: 0.65rem; font-weight: 600;
-  letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-dim);
+  font-family: var(--font-mono); font-size: 0.62rem; font-weight: 600;
+  letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-50);
   margin-bottom: 1rem;
 }
 .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
 .footer-col a {
-  color: var(--text-secondary); text-decoration: none;
-  font-family: 'Outfit', sans-serif; font-size: 0.82rem;
-  transition: color 0.3s; cursor: pointer;
+  color: var(--ink-70); text-decoration: none;
+  font-size: 0.84rem;
+  transition: color 0.2s; cursor: pointer;
 }
-.footer-col a:hover { color: var(--gold); }
+.footer-col a:hover { color: var(--cobalt); }
 
 .footer-bottom {
-  border-top: 1px solid rgba(255,255,255,0.04);
+  border-top: 1px solid var(--hairline-soft);
   padding-top: 1.5rem;
   display: flex; justify-content: space-between; align-items: center;
   flex-wrap: wrap; gap: 0.8rem;
 }
 .footer-copy {
-  font-family: 'Outfit', sans-serif; font-size: 0.7rem; color: var(--text-dim);
+  font-family: var(--font-mono); font-size: 0.66rem; color: var(--ink-50);
 }
-.footer-legal {
-  display: flex; gap: 1.2rem; align-items: center;
-}
-.footer-legal a {
-  font-family: 'Outfit', sans-serif; font-size: 0.7rem;
-  color: var(--text-dim); text-decoration: none; cursor: pointer; transition: color 0.3s;
-}
-.footer-legal a:hover { color: var(--gold); }
-.footer-legal .sep { color: rgba(255,255,255,0.1); font-size: 0.6rem; }
 .footer-note {
-  font-family: 'Outfit', sans-serif; font-size: 0.65rem;
-  color: var(--text-dim); opacity: 0.5; margin-top: 0.8rem;
+  font-family: var(--font-mono); font-size: 0.62rem;
+  color: var(--ink-35);
 }
 
 /* ═══ MODAL ═══ */
 .modal-overlay {
   display: none; position: fixed; inset: 0;
-  background: rgba(0,0,0,0.75); z-index: 1000;
+  background: rgba(10,10,10,0.45); z-index: 1000;
   align-items: center; justify-content: center; padding: 1.5rem;
-  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
 }
 .modal-overlay.active { display: flex; animation: fade-in 0.2s ease; }
 .modal {
-  background: var(--abyss); border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 12px; max-width: 680px; width: 100%; max-height: 85vh;
+  background: var(--paper-card); border: 1px solid var(--ink);
+  max-width: 680px; width: 100%; max-height: 85vh;
   overflow-y: auto; position: relative;
   animation: modal-in 0.3s ease;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+  box-shadow: 8px 8px 0 rgba(10,10,10,0.15);
 }
-@keyframes modal-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes modal-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
 .modal-close {
-  position: absolute; top: 1rem; right: 1rem;
-  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
-  color: var(--text-dim); width: 32px; height: 32px; border-radius: 8px;
+  position: absolute; top: 0.8rem; right: 0.8rem;
+  background: transparent; border: 1px solid var(--hairline);
+  color: var(--ink-70); width: 32px; height: 32px; border-radius: 0;
   cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;
   transition: all 0.2s; z-index: 2;
 }
-.modal-close:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
+.modal-close:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .legal-content { padding: 2rem; }
 .legal-content h2 {
-  font-family: 'Cinzel', serif; font-weight: 700; font-size: 1.2rem;
-  color: var(--text-primary); margin-bottom: 1rem;
+  font-weight: 800; font-size: 1.2rem;
+  color: var(--ink); margin-bottom: 1rem;
 }
 .legal-content h3 {
-  font-family: 'Cinzel', serif; font-weight: 600; font-size: 0.95rem;
-  color: var(--text-primary); margin: 1.2rem 0 0.5rem;
+  font-weight: 700; font-size: 0.95rem;
+  color: var(--ink); margin: 1.2rem 0 0.5rem;
 }
 .legal-content p {
-  font-family: 'Outfit', sans-serif; font-size: 0.85rem;
-  line-height: 1.7; color: var(--text-secondary); margin-bottom: 0.6rem;
+  font-size: 0.85rem;
+  line-height: 1.7; color: var(--ink-70); margin-bottom: 0.6rem;
 }
 .legal-content ul {
   margin: 0.4rem 0 0.8rem 1.2rem;
-  font-family: 'Outfit', sans-serif; font-size: 0.82rem;
-  line-height: 1.6; color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.6; color: var(--ink-70);
 }
 .legal-content li { margin-bottom: 0.3rem; }
-.legal-content a { color: var(--gold); text-decoration: none; }
+.legal-content a { color: var(--cobalt); text-decoration: none; }
 .legal-content a:hover { text-decoration: underline; }
 
 /* ═══ SCROLL REVEAL ═══ */
 .reveal {
-  opacity: 0; transform: translateY(25px);
-  transition: opacity 0.7s ease, transform 0.7s ease;
+  opacity: 0; transform: translateY(20px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
 }
 .reveal.visible { opacity: 1; transform: translateY(0); }
 
 /* ═══ RESPONSIVE ═══ */
-@media (max-width: 900px) {
+@media (max-width: 980px) {
+  .hero { grid-template-columns: 1fr; gap: 3rem; padding-top: 8.5rem; }
+  .stats-strip-inner { grid-template-columns: 1fr; }
+  .strip-cell + .strip-cell { border-left: none; border-top: 1px solid var(--hairline); }
+  .spec-sheet { grid-template-columns: 1fr 1fr; }
   .worlds { grid-template-columns: 1fr; }
-  .worlds::after { display: none; }
-  .world-half { padding: 3.5rem 2rem; }
-  .features-grid { grid-template-columns: 1fr; }
+  .game-portals { grid-template-columns: 1fr; max-width: 560px; }
   .seo-grid { grid-template-columns: 1fr; }
   .footer-top { grid-template-columns: 1fr 1fr; }
-  nav { padding: 0.8rem 1.5rem; }
+  nav { padding: 0.9rem 1.5rem; }
   .nav-links { gap: 1.2rem; }
-  .nav-links a { font-size: 0.7rem; }
 }
 @media (max-width: 600px) {
-  .game-portals { grid-template-columns: 1fr; max-width: 360px; }
   .nav-links { display: none; }
+  .spec-sheet { grid-template-columns: 1fr; }
   .footer-top { grid-template-columns: 1fr; }
   .cta-stats { gap: 2rem; }
-  .features { padding: 4rem 1.5rem; }
-  .seo-section { padding: 3.5rem 1.5rem; }
-  .cta-banner { padding: 4rem 1.5rem; }
+  .section { padding: 3.5rem 1.5rem; }
+  .hero { padding-left: 1.5rem; padding-right: 1.5rem; }
+  .portal-features { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+@keyframes fade-in { to { opacity: 1; } }
 </style>
 </head>
 <body>
 
 <!-- NAV -->
 <nav>
-  <div class="nav-logo">Deck<em>Lens</em></div>
+  <a class="nav-logo" href="/">Deck<em>Lens</em></a>
   <div class="nav-right">
     <ul class="nav-links">
       <li><a href="#features">Features</a></li>
@@ -714,173 +602,321 @@ footer {
 </nav>
 
 <!-- HERO -->
-<section class="hero">
-  <div class="hero-bg"></div>
-  <div class="hero-particles" id="particles"></div>
-  <div class="hero-content">
+<header class="hero">
+  <div class="hero-copy">
     <div class="hero-badge">Free Deck Analyzer</div>
-    <div class="hero-icon">&#127183;</div>
     <h1><span class="deck">Deck</span><span class="lens">Lens</span></h1>
     <div class="hero-tagline">Deck Viewer &amp; Analyzer</div>
     <p class="hero-sub">Where the arcane art of deckbuilding meets precision analysis. MTG &amp; Yu-Gi-Oh! — all client-side, no account needed.</p>
-
-    <div class="game-portals">
-      <a href="mtg.html" class="portal mtg">
-        <div class="portal-bg"></div>
-        <div class="portal-content">
-          <div class="portal-mana">
-            <div class="mana-dot" style="background:#f0e6b2;"></div>
-            <div class="mana-dot" style="background:#4a90d9;"></div>
-            <div class="mana-dot" style="background:#a070a0;"></div>
-            <div class="mana-dot" style="background:#e8604a;"></div>
-            <div class="mana-dot" style="background:#4cb050;"></div>
-          </div>
-          <span class="portal-icon">&#9876;&#65039;</span>
-          <span class="portal-title">Magic: The Gathering</span>
-          <span class="portal-subtitle">Deck Analyzer</span>
-          <div class="portal-features">
-            <span class="feat-tag">Mana Curve</span>
-            <span class="feat-tag">Legality Check</span>
-            <span class="feat-tag">Price Tracker</span>
-            <span class="feat-tag">Scryfall API</span>
-          </div>
-          <span class="portal-arrow">&rarr;</span>
-        </div>
-      </a>
-
-      <a href="yugioh.html" class="portal ygo">
-        <div class="portal-bg"></div>
-        <div class="portal-content">
-          <div class="portal-mana">
-            <div class="mana-dot" style="background:#e8604a;"></div>
-            <div class="mana-dot" style="background:#cfb53b;"></div>
-            <div class="mana-dot" style="background:#a070a0;"></div>
-            <div class="mana-dot" style="background:#4a90d9;"></div>
-            <div class="mana-dot" style="background:#9e9e9e;"></div>
-          </div>
-          <span class="portal-icon">&#127156;</span>
-          <span class="portal-title">Yu-Gi-Oh!</span>
-          <span class="portal-subtitle">Deck Analyzer</span>
-          <div class="portal-features">
-            <span class="feat-tag">Card Types</span>
-            <span class="feat-tag">Deck Stats</span>
-            <span class="feat-tag">Collection</span>
-            <span class="feat-tag">YGOProDeck API</span>
-          </div>
-          <span class="portal-arrow">&rarr;</span>
-        </div>
-      </a>
-    </div>
-
-    <div style="margin-top:1.4rem;">
-      <a href="/decks.html" class="btn-cta">Open EDH Deckbuilder MVP</a>
+    <div class="hero-actions">
+      <a href="/decks.html" class="dl-btn">Open EDH Deckbuilder MVP</a>
+      <a href="#games" class="dl-btn dl-btn--outline">Choose Your Game</a>
     </div>
   </div>
-  <div class="hero-scroll">
-    <span>Scroll</span>
-    <div class="scroll-line"></div>
+
+  <div class="hero-chart">
+    <span class="corner tl"></span><span class="corner tr"></span>
+    <span class="corner bl"></span><span class="corner br"></span>
+    <div class="chart-head">
+      <span class="chart-title">Fig. 01 — Hypergeometric Distribution</span>
+      <span class="chart-meta">EDH / 37 LANDS / 99 CARDS</span>
+    </div>
+    <svg class="chart-svg" viewBox="0 0 560 300" role="img" aria-label="Hypergeometric distribution of lands in an opening hand">
+      <!-- grid -->
+      <g stroke="rgba(10,10,10,0.10)" stroke-width="1">
+        <line x1="40" y1="20" x2="40" y2="260"/>
+        <line x1="120" y1="20" x2="120" y2="260"/>
+        <line x1="200" y1="20" x2="200" y2="260"/>
+        <line x1="280" y1="20" x2="280" y2="260"/>
+        <line x1="360" y1="20" x2="360" y2="260"/>
+        <line x1="440" y1="20" x2="440" y2="260"/>
+        <line x1="520" y1="20" x2="520" y2="260"/>
+        <line x1="40" y1="20" x2="520" y2="20"/>
+        <line x1="40" y1="72" x2="520" y2="72"/>
+        <line x1="40" y1="124" x2="520" y2="124"/>
+        <line x1="40" y1="176" x2="520" y2="176"/>
+        <line x1="40" y1="228" x2="520" y2="228"/>
+        <line x1="40" y1="260" x2="520" y2="260"/>
+      </g>
+      <!-- area -->
+      <path d="M40 258 C 90 253, 120 244, 160 220 C 200 196, 220 148, 260 148 C 300 148, 320 198, 360 220 C 400 242, 440 252, 520 256 L 520 260 L 40 260 Z"
+            fill="#0056D2" opacity="0.08"/>
+      <path d="M40 258 C 90 253, 120 244, 160 220 C 200 196, 220 148, 260 148 C 300 148, 320 198, 360 220 C 400 242, 440 252, 520 256"
+            fill="none" stroke="#0056D2" stroke-width="2"/>
+      <!-- marker -->
+      <line x1="260" y1="148" x2="260" y2="260" stroke="#0A0A0A" stroke-width="1" stroke-dasharray="4 4"/>
+      <circle cx="260" cy="148" r="3.5" fill="#FAFAF7" stroke="#0056D2" stroke-width="2"/>
+      <!-- y labels -->
+      <g font-family="JetBrains Mono, monospace" font-size="9" fill="rgba(10,10,10,0.4)">
+        <text x="8" y="263">0%</text>
+        <text x="8" y="231">10%</text>
+        <text x="8" y="179">20%</text>
+        <text x="8" y="127">30%</text>
+        <text x="8" y="75">40%</text>
+      </g>
+      <!-- x labels -->
+      <g font-family="JetBrains Mono, monospace" font-size="9" fill="rgba(10,10,10,0.4)" text-anchor="middle">
+        <text x="40" y="278">0</text>
+        <text x="120" y="278">1</text>
+        <text x="200" y="278">2</text>
+        <text x="280" y="278">3</text>
+        <text x="360" y="278">4</text>
+        <text x="440" y="278">5</text>
+        <text x="520" y="278">7</text>
+      </g>
+      <text x="272" y="140" font-family="JetBrains Mono, monospace" font-size="9" fill="#0A0A0A">P(X=3)</text>
+    </svg>
+    <div class="chart-caption">Opening hand simulator — lands drawn per opening hand</div>
+  </div>
+</header>
+
+<!-- STATS STRIP -->
+<div class="stats-strip">
+  <div class="stats-strip-inner">
+    <div class="strip-cell">
+      <span class="strip-num">40K+</span>
+      <span class="strip-label">Cards Supported</span>
+    </div>
+    <div class="strip-cell">
+      <span class="strip-num">2</span>
+      <span class="strip-label">Card Games</span>
+    </div>
+    <div class="strip-cell">
+      <span class="strip-num">0</span>
+      <span class="strip-label">Data Collected</span>
+    </div>
+  </div>
+</div>
+
+<!-- GAME PORTALS -->
+<section class="section" id="games">
+  <div class="section-head reveal">
+    <div>
+      <div class="section-index">Sec. 01 / Games</div>
+      <h2 class="section-title">Deck Analyzers</h2>
+    </div>
+    <p class="section-desc">Pick your game — deep statistical analysis for both, running entirely in your browser.</p>
+  </div>
+  <div class="game-portals">
+    <a href="mtg.html" class="portal reveal">
+      <div class="portal-head">
+        <span class="portal-index">01 / MTG</span>
+        <div class="portal-mana">
+          <span class="mana-dot" style="background:#f0e6b2;"></span>
+          <span class="mana-dot" style="background:#4a90d9;"></span>
+          <span class="mana-dot" style="background:#a070a0;"></span>
+          <span class="mana-dot" style="background:#e8604a;"></span>
+          <span class="mana-dot" style="background:#4cb050;"></span>
+        </div>
+      </div>
+      <span class="portal-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square">
+          <path d="M4 4l12 12M16 4L4 16"/>
+          <path d="M12.5 15.5l3-3M15.5 12.5l3-3"/>
+        </svg>
+      </span>
+      <span class="portal-title">Magic: The Gathering</span>
+      <span class="portal-subtitle">Deck Analyzer</span>
+      <div class="portal-features">
+        <span class="feat-tag">Mana Curve</span>
+        <span class="feat-tag">Legality Check</span>
+        <span class="feat-tag">Price Tracker</span>
+        <span class="feat-tag">Scryfall API</span>
+      </div>
+      <span class="portal-arrow"><span class="tag">Open Analyzer</span> &rarr;</span>
+    </a>
+
+    <a href="yugioh.html" class="portal reveal">
+      <div class="portal-head">
+        <span class="portal-index">02 / YGO</span>
+        <div class="portal-mana">
+          <span class="mana-dot" style="background:#e8604a;"></span>
+          <span class="mana-dot" style="background:#cfb53b;"></span>
+          <span class="mana-dot" style="background:#a070a0;"></span>
+          <span class="mana-dot" style="background:#4a90d9;"></span>
+          <span class="mana-dot" style="background:#9e9e9e;"></span>
+        </div>
+      </div>
+      <span class="portal-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square">
+          <rect x="6" y="3" width="12" height="18"/>
+          <path d="M9 7h6"/>
+        </svg>
+      </span>
+      <span class="portal-title">Yu-Gi-Oh!</span>
+      <span class="portal-subtitle">Deck Analyzer</span>
+      <div class="portal-features">
+        <span class="feat-tag">Card Types</span>
+        <span class="feat-tag">Deck Stats</span>
+        <span class="feat-tag">Collection</span>
+        <span class="feat-tag">YGOProDeck API</span>
+      </div>
+      <span class="portal-arrow"><span class="tag">Open Analyzer</span> &rarr;</span>
+    </a>
   </div>
 </section>
 
-<!-- FEATURES -->
-<section class="features" id="features">
-  <div class="features-inner">
-    <div class="features-header reveal">
-      <div class="section-label">Powerful Tools</div>
+<!-- FEATURES / SPEC SHEETS -->
+<section class="section" id="features">
+  <div class="section-head reveal">
+    <div>
+      <div class="section-index">Sec. 02 / Analysis</div>
       <h2 class="section-title">Everything You Need for Deck Analysis</h2>
-      <p class="section-desc">Deep analysis tools for both card games, running entirely in your browser.</p>
     </div>
-    <div class="features-grid">
-      <div class="feature-card reveal">
-        <div class="feature-icon">&#128202;</div>
-        <div class="feature-title">Mana Curves</div>
-        <p class="feature-text">Visualize mana distribution, color ratios, and casting cost breakdowns for optimal deck construction.</p>
+    <p class="section-desc">Deep analysis tools for both card games, running entirely in your browser.</p>
+  </div>
+  <div class="spec-sheet reveal">
+    <div class="spec-cell">
+      <div class="spec-row">
+        <span class="spec-index">01</span>
+        <span class="spec-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 21h18"/>
+            <rect x="5" y="12" width="3.5" height="9"/>
+            <rect x="10.25" y="7" width="3.5" height="14"/>
+            <rect x="15.5" y="10" width="3.5" height="11"/>
+          </svg>
+        </span>
       </div>
-      <div class="feature-card reveal">
-        <div class="feature-icon">&#127183;</div>
-        <div class="feature-title">Hand Simulator</div>
-        <p class="feature-text">Test opening hands with brick tracking, mulligan analysis, and hypergeometric probability calculations.</p>
+      <div class="feature-title">Mana Curves</div>
+      <p class="feature-text">Visualize mana distribution, color ratios, and casting cost breakdowns for optimal deck construction.</p>
+    </div>
+    <div class="spec-cell">
+      <div class="spec-row">
+        <span class="spec-index">02</span>
+        <span class="spec-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="4" y="6" width="10" height="15"/>
+            <rect x="10" y="3" width="10" height="15"/>
+          </svg>
+        </span>
       </div>
-      <div class="feature-card reveal">
-        <div class="feature-icon">&#128270;</div>
-        <div class="feature-title">Combo Detection</div>
-        <p class="feature-text">Discover combos via Commander Spellbook integration and card synergy scoring for MTG decks.</p>
+      <div class="feature-title">Hand Simulator</div>
+      <p class="feature-text">Test opening hands with brick tracking, mulligan analysis, and hypergeometric probability calculations.</p>
+    </div>
+    <div class="spec-cell">
+      <div class="spec-row">
+        <span class="spec-index">03</span>
+        <span class="spec-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="10.5" cy="10.5" r="6.5"/>
+            <path d="M15.5 15.5L21 21"/>
+          </svg>
+        </span>
       </div>
-      <div class="feature-card reveal">
-        <div class="feature-icon">&#9878;</div>
-        <div class="feature-title">Legality Check</div>
-        <p class="feature-text">Verify format legality and banlist compliance across TCG, OCG, Master Duel, Goat, Edison, and more.</p>
+      <div class="feature-title">Combo Detection</div>
+      <p class="feature-text">Discover combos via Commander Spellbook integration and card synergy scoring for MTG decks.</p>
+    </div>
+    <div class="spec-cell">
+      <div class="spec-row">
+        <span class="spec-index">04</span>
+        <span class="spec-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6l7-3z"/>
+            <path d="M9 12l2 2 4-4.5"/>
+          </svg>
+        </span>
       </div>
-      <div class="feature-card reveal">
-        <div class="feature-icon">&#128257;</div>
-        <div class="feature-title">Import Anywhere</div>
-        <p class="feature-text">Paste, upload, or import via URL from Moxfield, Archidekt, and other popular deckbuilding platforms.</p>
+      <div class="feature-title">Legality Check</div>
+      <p class="feature-text">Verify format legality and banlist compliance across TCG, OCG, Master Duel, Goat, Edison, and more.</p>
+    </div>
+    <div class="spec-cell">
+      <div class="spec-row">
+        <span class="spec-index">05</span>
+        <span class="spec-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 16V4M7 9l5-5 5 5"/>
+            <path d="M4 20h16"/>
+          </svg>
+        </span>
       </div>
-      <div class="feature-card reveal">
-        <div class="feature-icon">&#128274;</div>
-        <div class="feature-title">100% Private</div>
-        <p class="feature-text">Zero backend, zero tracking, zero cookies. All analysis runs client-side. Your data never leaves your device.</p>
+      <div class="feature-title">Import Anywhere</div>
+      <p class="feature-text">Paste, upload, or import via URL from Moxfield, Archidekt, and other popular deckbuilding platforms.</p>
+    </div>
+    <div class="spec-cell">
+      <div class="spec-row">
+        <span class="spec-index">06</span>
+        <span class="spec-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="5" y="11" width="14" height="9"/>
+            <path d="M8 11V8a4 4 0 0 1 8 0v3"/>
+          </svg>
+        </span>
       </div>
+      <div class="feature-title">100% Private</div>
+      <p class="feature-text">Zero backend, zero tracking, zero cookies. All analysis runs client-side. Your data never leaves your device.</p>
     </div>
   </div>
 </section>
 
-<!-- SPLIT WORLDS -->
-<section class="worlds" id="worlds">
-  <div class="world-half world-mtg">
-    <div class="world-icon reveal">&#9876;&#65039;</div>
-    <h2 class="world-title reveal">Magic: The Gathering Deck Analyzer</h2>
-    <p class="world-text reveal">The original trading card game. Tap lands, summon creatures, and wage war across the multiverse with five colors of magic and thirty years of strategy.</p>
-    <div class="world-stats reveal">
-      <div>
-        <div class="stat-num">27K+</div>
-        <div class="stat-label">Unique Cards</div>
+<!-- WORLDS -->
+<section class="section" id="worlds">
+  <div class="worlds">
+    <div class="world-half reveal">
+      <div class="world-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square">
+          <path d="M4 4l12 12M16 4L4 16"/>
+          <path d="M12.5 15.5l3-3M15.5 12.5l3-3"/>
+        </svg>
       </div>
-      <div>
-        <div class="stat-num">35+</div>
-        <div class="stat-label">Years Running</div>
+      <h2 class="world-title">Magic: The Gathering Deck Analyzer</h2>
+      <p class="world-text">The original trading card game. Tap lands, summon creatures, and wage war across the multiverse with five colors of magic and thirty years of strategy.</p>
+      <div class="world-stats">
+        <div>
+          <div class="stat-num">27K+</div>
+          <div class="stat-label">Unique Cards</div>
+        </div>
+        <div>
+          <div class="stat-num">35+</div>
+          <div class="stat-label">Years Running</div>
+        </div>
       </div>
+      <a href="mtg.html" class="world-link">Open MTG Analyzer <span class="arrow"></span></a>
     </div>
-    <a href="mtg.html" class="world-link reveal">Open MTG Analyzer <span class="arrow"></span></a>
-  </div>
 
-  <div class="world-half world-ygo">
-    <div class="world-icon reveal">&#127156;</div>
-    <h2 class="world-title reveal">Yu-Gi-Oh! Deck Analyzer</h2>
-    <p class="world-text reveal">From ancient shadow games to modern dueling arenas. Set traps, fusion summon legends, and claim victory with the heart of the cards.</p>
-    <div class="world-stats reveal">
-      <div>
-        <div class="stat-num">13K+</div>
-        <div class="stat-label">Unique Cards</div>
+    <div class="world-half reveal">
+      <div class="world-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square">
+          <rect x="6" y="3" width="12" height="18"/>
+          <path d="M9 7h6"/>
+        </svg>
       </div>
-      <div>
-        <div class="stat-num">6</div>
-        <div class="stat-label">Ban Formats</div>
+      <h2 class="world-title">Yu-Gi-Oh! Deck Analyzer</h2>
+      <p class="world-text">From ancient shadow games to modern dueling arenas. Set traps, fusion summon legends, and claim victory with the heart of the cards.</p>
+      <div class="world-stats">
+        <div>
+          <div class="stat-num">13K+</div>
+          <div class="stat-label">Unique Cards</div>
+        </div>
+        <div>
+          <div class="stat-num">6</div>
+          <div class="stat-label">Ban Formats</div>
+        </div>
       </div>
+      <a href="yugioh.html" class="world-link">Open Yu-Gi-Oh! Analyzer <span class="arrow"></span></a>
     </div>
-    <a href="yugioh.html" class="world-link reveal">Open Yu-Gi-Oh! Analyzer <span class="arrow"></span></a>
   </div>
 </section>
 
 <!-- SEO FEATURES -->
-<section class="seo-section" id="about">
-  <div class="seo-inner">
-    <div class="section-label reveal">Deep Analysis</div>
-    <h2 class="section-title reveal">Free Deck Analysis — <span>No Account, No Tracking</span></h2>
-    <p class="section-desc reveal">DeckLens runs entirely in your browser. Import via paste, file upload, or URL — get instant analysis with no data leaving your device.</p>
-    <div class="seo-grid">
-      <div class="seo-card reveal">
-        <h3>MTG Features</h3>
-        <p>Mana curve &amp; color distribution, format legality checking, Deck DNA fingerprint, hypergeometric probability calculator, opening hand simulator, combo detection via Commander Spellbook, card synergy scores, Moxfield &amp; Archidekt import, budget alternatives, and deck comparison.</p>
-      </div>
-      <div class="seo-card reveal">
-        <h3>Yu-Gi-Oh! Features</h3>
-        <p>Level/rank charts, archetype detection, multi-banlist support for TCG, OCG, Master Duel, Goat Format, Edison, Speed Duel &amp; Duel Links, opening hand calculator, test hand simulator with brick tracking, YDK/YDKE/Omega import, deck comparison, and tournament PDF export.</p>
-      </div>
-      <div class="seo-card reveal">
-        <h3>Privacy by Design</h3>
-        <p>Zero backend, zero tracking, zero cookies. All analysis runs client-side in your browser. Your deck data never leaves your device. Works offline after first load. Open source and free forever.</p>
-      </div>
+<section class="section" id="about">
+  <div class="reveal">
+    <div class="section-index">Sec. 03 / Privacy</div>
+    <h2 class="section-title" style="margin:0.6rem 0 1rem;">Free Deck Analysis — <span style="color:var(--cobalt);">No Account, No Tracking</span></h2>
+    <p class="section-desc" style="max-width:560px;">DeckLens runs entirely in your browser. Import via paste, file upload, or URL — get instant analysis with no data leaving your device.</p>
+  </div>
+  <div class="seo-grid">
+    <div class="seo-card reveal">
+      <h3>MTG Features</h3>
+      <p>Mana curve &amp; color distribution, format legality checking, Deck DNA fingerprint, hypergeometric probability calculator, opening hand simulator, combo detection via Commander Spellbook, card synergy scores, Moxfield &amp; Archidekt import, budget alternatives, and deck comparison.</p>
+    </div>
+    <div class="seo-card reveal">
+      <h3>Yu-Gi-Oh! Features</h3>
+      <p>Level/rank charts, archetype detection, multi-banlist support for TCG, OCG, Master Duel, Goat Format, Edison, Speed Duel &amp; Duel Links, opening hand calculator, test hand simulator with brick tracking, YDK/YDKE/Omega import, deck comparison, and tournament PDF export.</p>
+    </div>
+    <div class="seo-card reveal">
+      <h3>Privacy by Design</h3>
+      <p>Zero backend, zero tracking, zero cookies. All analysis runs client-side in your browser. Your deck data never leaves your device. Works offline after first load. Open source and free forever.</p>
     </div>
   </div>
 </section>
@@ -888,7 +924,7 @@ footer {
 <!-- CTA -->
 <section class="cta-banner">
   <div class="cta-content">
-    <div class="section-label reveal">Start Analyzing</div>
+    <div class="section-index reveal">Sec. 04 / Start Analyzing</div>
     <div class="section-title reveal">Ready to <span>Optimize</span> Your Deck?</div>
     <p class="section-desc reveal">Import your deck and get instant, deep analysis — completely free and private.</p>
     <div class="cta-stats reveal">
@@ -905,7 +941,7 @@ footer {
         <div class="cta-stat-label">Data Collected</div>
       </div>
     </div>
-    <a href="#" class="btn-cta reveal" onclick="window.scrollTo({top:0,behavior:'smooth'});return false;">Choose Your Game</a>
+    <a href="#" class="dl-btn reveal" onclick="window.scrollTo({top:0,behavior:'smooth'});return false;">Choose Your Game</a>
   </div>
 </section>
 
@@ -957,21 +993,6 @@ footer {
 </div>
 
 <script>
-// Particles
-const pc = document.getElementById('particles');
-for (let i = 0; i < 35; i++) {
-  const p = document.createElement('div');
-  p.classList.add('particle');
-  p.style.left = Math.random() * 100 + '%';
-  p.style.animationDuration = (7 + Math.random() * 9) + 's';
-  p.style.animationDelay = Math.random() * 12 + 's';
-  p.style.width = p.style.height = (1 + Math.random() * 2) + 'px';
-  const r = Math.random();
-  if (r > 0.7) p.style.background = '#d42a45';
-  else if (r > 0.5) p.style.background = '#4080ff';
-  pc.appendChild(p);
-}
-
 // Nav scroll
 const nav = document.querySelector('nav');
 window.addEventListener('scroll', () => {
@@ -989,17 +1010,6 @@ const observer = new IntersectionObserver((entries) => {
   });
 }, { threshold: 0.12, rootMargin: '0px 0px -30px 0px' });
 reveals.forEach(el => observer.observe(el));
-
-// Portal tilt
-document.querySelectorAll('.portal').forEach(card => {
-  card.addEventListener('mousemove', (e) => {
-    const r = card.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width;
-    const y = (e.clientY - r.top) / r.height;
-    card.style.transform = `translateY(-6px) rotateX(${(0.5-y)*8}deg) rotateY(${(x-0.5)*8}deg)`;
-  });
-  card.addEventListener('mouseleave', () => { card.style.transform = ''; });
-});
 
 // Smooth anchor scroll
 document.querySelectorAll('a[href^="#"]').forEach(a => {

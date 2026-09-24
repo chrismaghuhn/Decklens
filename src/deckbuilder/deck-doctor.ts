@@ -3,6 +3,7 @@ import type { DeckbuilderSearchCard } from '../shared/api.js';
 import { analyzeManaBase } from './mana-calc.js';
 import { parseDeckDSL } from './deck-dsl-parser.js';
 import { lintDeck } from './deck-linter.js';
+import { svgMarkup } from './line-icons.js';
 
 export interface DoctorDiagnosis {
   id: string;
@@ -169,7 +170,7 @@ export function renderDoctorModal(
   
   const avatar = document.createElement('div');
   avatar.className = 'doctor-avatar';
-  avatar.textContent = '👨‍🏫'; // Professor emoji
+  avatar.innerHTML = svgMarkup('doctor');
   
   const titleBlock = document.createElement('div');
   const name = document.createElement('div');
@@ -198,7 +199,7 @@ export function renderDoctorModal(
         
         const icon = document.createElement('span');
         icon.className = 'doctor-item-icon';
-        icon.textContent = d.severity === 'critical' ? '🚨' : '⚠️';
+        icon.innerHTML = svgMarkup('warning');
         
         const details = document.createElement('div');
         details.className = 'doctor-item-details';

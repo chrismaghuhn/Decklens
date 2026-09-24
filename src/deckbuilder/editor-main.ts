@@ -128,6 +128,7 @@ import { renderMatchupStrategyWidget } from './matchup-strategy-widget.js';
 import { renderDeckSolverWidget } from './deck-solver-widget.js';
 import { renderCutSuggestionsWidget } from './cut-suggestions-widget.js';
 import { renderSimulationWidget } from './simulation-widget.js';
+import { svgMarkup } from './line-icons.js';
 
 const BOARD_ORDER: DeckBoard[] = ['commander', 'mainboard', 'maybeboard', 'sideboard'];
 const BOARD_LABEL: Record<DeckBoard, string> = {
@@ -284,7 +285,7 @@ function showLayoutModeOnboarding(): void {
 
   if (!hasSeenOnboarding.layoutMode) {
     showToast({
-      message: '💡 New: Switch between Classic and Grid layouts using the toggle in the header!',
+      message: 'New: Switch between Classic and Grid layouts using the toggle in the header!',
       type: 'info',
       duration: 8000,
     });
@@ -318,7 +319,7 @@ function showPresetPicker(): void {
       const card = document.createElement('button');
       card.className = 'preset-card';
       card.innerHTML = `
-        <div class="preset-icon">${preset.icon}</div>
+        <div class="preset-icon">${svgMarkup(preset.id)}</div>
         <div class="preset-name">${preset.name}</div>
         <div class="preset-desc">${preset.description}</div>
       `;
@@ -326,7 +327,7 @@ function showPresetPicker(): void {
         applyPreset(preset.id);
         closePresetPicker();
         showToast({
-          message: `✨ Applied "${preset.name}" layout`,
+          message: `Applied "${preset.name}" layout`,
           type: 'success',
           duration: 3000,
         });
@@ -586,7 +587,7 @@ function upsertEntry(board: DeckBoard, cardName: string, qtyDelta: number, cardM
     if (lockInfo.locked) {
       // D2: Actionable lock contention toast with "Request Lock"
       showToast({
-        message: `\uD83D\uDD12 Locked by ${lockInfo.by}`,
+ message: `◆ Locked by ${lockInfo.by}`,
         type: 'error',
         duration: 8000,
         action: {
@@ -636,7 +637,7 @@ function removeEntry(board: DeckBoard, cardName: string): void {
     if (lockInfo.locked) {
       // D2: Actionable lock contention toast
       showToast({
-        message: `\uD83D\uDD12 Locked by ${lockInfo.by}`,
+ message: `◆ Locked by ${lockInfo.by}`,
         type: 'error',
         duration: 8000,
         action: {
@@ -668,7 +669,7 @@ function moveEntry(fromBoard: DeckBoard, toBoard: DeckBoard, cardName: string): 
     if (lockInfo.locked) {
       // D2: Actionable lock contention toast
       showToast({
-        message: `\uD83D\uDD12 Locked by ${lockInfo.by}`,
+ message: `◆ Locked by ${lockInfo.by}`,
         type: 'error',
         duration: 8000,
         action: {
@@ -727,7 +728,7 @@ function detectAndPromoteCommander(
         onClick: () => {
           moveEntry('mainboard', 'commander', candidate.name);
           saveAndRender();
-          showToast({ message: `✅ ${candidate.name} set as commander.`, type: 'success' });
+          showToast({ message: `${candidate.name} set as commander.`, type: 'success' });
         },
       },
     });
@@ -749,7 +750,7 @@ function detectAndPromoteCommander(
       onClick: () => {
         moveEntry('mainboard', 'commander', top.name);
         saveAndRender();
-        showToast({ message: `✅ ${top.name} set as commander.`, type: 'success' });
+        showToast({ message: `${top.name} set as commander.`, type: 'success' });
       },
     },
   });
@@ -1022,7 +1023,7 @@ function renderDeckOverview(): void {
 
   // Progress bar: X/100 cards
   const progressPct = Math.min(100, Math.round((deckTotal / 100) * 100));
-  const progressColor = deckTotal > 100 ? '#f87171' : deckTotal >= 99 ? '#34d399' : 'var(--gold, #c9a84c)';
+  const progressColor = deckTotal > 100 ? '#f87171' : deckTotal >= 99 ? '#34d399' : 'var(--cobalt, #c9a84c)';
   const progressWrap = document.createElement('div');
   progressWrap.className = 'overview-progress';
   progressWrap.innerHTML =
@@ -1180,7 +1181,7 @@ function injectRuleViolationIndicators(issues: EdhRuleIssue[]): void {
     // Add tooltip indicator
     const indicator = document.createElement('span');
     indicator.className = 'rule-violation-indicator';
-    indicator.textContent = '\u26A0';
+ indicator.textContent = '!';
     indicator.title = msgs.join(' | ');
     el.appendChild(indicator);
   }
@@ -1281,7 +1282,7 @@ function renderFormatLegalityCheck(): void {
   if (banned.length === 0 && notLegal.length === 0 && restricted.length === 0) {
     const ok = document.createElement('div');
     ok.className = 'format-legal-ok';
-    ok.textContent = `\u2705 All cards legal in ${displayName}`;
+ ok.textContent = `✓ All cards legal in ${displayName}`;
     container.appendChild(ok);
     injectFormatLegalityBadges(formatKey);
     return;
@@ -1758,7 +1759,7 @@ function generateContextualTips(
     .map((f) => f.detail);
   if (reasons.length > 0) {
     tips.push({
-      icon: '\uD83C\uDFC6',
+ icon: '◆',
       text: `Bracket ${est.bracket} (${bracketLabels[est.bracket]}): ${reasons.join('. ')}.`,
     });
   }
@@ -1766,12 +1767,12 @@ function generateContextualTips(
   // CMC tips
   if (est.avgCmc < 2.5) {
     tips.push({
-      icon: '\u26A1',
+ icon: '▲',
       text: `Avg CMC ${est.avgCmc.toFixed(1)} is very aggressive. Consider adding card draw to sustain pressure past turn 5.`,
     });
   } else if (est.avgCmc > 4.0) {
     tips.push({
-      icon: '\uD83D\uDC22',
+ icon: '▼',
       text: `Avg CMC ${est.avgCmc.toFixed(1)} is high. You'll need strong ramp to keep up. Consider cutting cards above 6 CMC.`,
     });
   }
@@ -1779,7 +1780,7 @@ function generateContextualTips(
   // Tutor tip
   if (est.tutorCount >= 5) {
     tips.push({
-      icon: '\uD83D\uDD0D',
+ icon: '◇',
       text: `${est.tutorCount} tutors detected \u2014 this significantly raises consistency and power level.`,
     });
   }
@@ -1787,7 +1788,7 @@ function generateContextualTips(
   // Salt tip
   if (est.salt > 7) {
     tips.push({
-      icon: '\uD83E\uDDE2',
+ icon: '◆',
       text: `Salt score ${est.salt.toFixed(1)}/10 is very high. Expect focused targeting from opponents. Consider your table's social contract.`,
     });
   }
@@ -1796,7 +1797,7 @@ function generateContextualTips(
   for (const comp of health.components) {
     if (comp.score < 40 && comp.recommendations.length > 0) {
       tips.push({
-        icon: '\u26A0\uFE0F',
+ icon: '!',
         text: `${comp.label}: ${comp.recommendations[0].text}`,
       });
     }
@@ -1807,7 +1808,7 @@ function generateContextualTips(
 
 function renderDeckTips(deck: DeckbuilderDeck): void {
   const box = byId<HTMLDivElement>('deckTipsBox');
-  box.textContent = '';
+  box.textContent = '✕';
 
   if (deck.boards.mainboard.length < 10) return;
 
@@ -1864,7 +1865,7 @@ function renderPowerBracket(deck: DeckbuilderDeck): void {
 
   const archLabel = document.createElement('span');
   archLabel.className = 'power-label';
-  archLabel.style.color = 'var(--gold-dim)';
+  archLabel.style.color = 'var(--cobalt-dim)';
   archLabel.textContent = `${est.dominant} \u00B7 ${est.saltLabel}`;
 
   info.append(bracketLabel, archLabel);
@@ -2069,14 +2070,14 @@ function mapProducesToCategory(produces: string[]): ComboCategory | 'API' {
 }
 
 const COMBO_ICONS: Record<ComboCategory | 'API', string> = {
-  'Win Con': '\u26A1',
-  'Infinite Mana': '\uD83D\uDC8E',
-  'Infinite Damage': '\uD83D\uDD25',
-  'Infinite Tokens': '\uD83D\uDC7E',
-  'Card Advantage': '\uD83C\uDCCF',
-  'Lock': '\uD83D\uDD12',
-  'Infinite Combat': '\u2694\uFE0F',
-  'API': '\u2728',
+ 'Win Con': '▲',
+ 'Infinite Mana': '◆',
+ 'Infinite Damage': '▲',
+ 'Infinite Tokens': '▣',
+ 'Card Advantage': '■',
+ 'Lock': '◆',
+ 'Infinite Combat': '✕',
+ 'API': '✦',
 };
 
 const KNOWN_COMBOS: KnownCombo[] = [
@@ -2316,7 +2317,7 @@ function renderCombos(deck: DeckbuilderDeck): void {
 
       const status = document.createElement('span');
       status.className = missing.length === 0 ? 'combo-status complete' : 'combo-status partial';
-      status.textContent = missing.length === 0 ? '\u2713 Complete' : `${present.length}/${cards.length}`;
+ status.textContent = missing.length === 0 ? ' Complete' : `${present.length}/${cards.length}`;
 
       bottom.append(desc, sourceBadge, status);
       item.append(cardRow, bottom);
@@ -2365,7 +2366,7 @@ function renderCommanderStatsWidgetAsync(deck: DeckbuilderDeck): void {
     console.error('[Commander Stats] Render error:', err);
     container.innerHTML = `
       <div class="commander-stats-error">
-        <div class="error-icon">⚠️</div>
+        <div class="error-icon">${svgMarkup("warning")}</div>
         <p class="error-text">Failed to load stats</p>
       </div>
     `;
@@ -2419,7 +2420,7 @@ function renderAnalytics(): void {
     empty.innerHTML = '';
     const icon = document.createElement('div');
     icon.className = 'empty-state-icon';
-    icon.textContent = '\uD83D\uDCCA';
+ icon.textContent = '▤';
     const msg = document.createElement('p');
     msg.className = 'empty-state-text';
     msg.textContent = 'Add cards to your deck to see analytics, mana curve, and power level.';
@@ -2600,9 +2601,9 @@ function renderPricing(): void {
       saveAndRender();
       // Show toast with synergy impact
       if (delta > 0) {
-        showToast({ message: `Swapped ${cutName} → ${addName}  ⬆ Health +${delta}`, type: 'success' });
+        showToast({ message: `Swapped ${cutName} → ${addName} ↑ Health +${delta}`, type: 'success' });
       } else if (delta < 0) {
-        showToast({ message: `Swapped ${cutName} → ${addName}  ⬇ Health ${delta}`, type: 'warning' });
+        showToast({ message: `Swapped ${cutName} → ${addName} ↓ Health ${delta}`, type: 'warning' });
       } else {
         showToast({ message: `Swapped ${cutName} → ${addName}  → Health unchanged`, type: 'info' });
       }
@@ -3055,7 +3056,7 @@ function renderSavedSearchChips(): void {
 
   const label = document.createElement('span');
   label.className = 'saved-search-label';
-  label.textContent = '\u2B50 Saved:';
+ label.textContent = ' Saved:';
   savedSearchContainer.appendChild(label);
 
   for (const query of saved) {
@@ -3131,18 +3132,18 @@ function showStorageWarningBanner(usagePercent: number): void {
   banner.className = 'storage-warning-banner';
 
   const msg = document.createElement('span');
-  msg.textContent = `\u26A0\uFE0F Storage ${usagePercent}% full \u2014 decks may fail to save.`;
+ msg.textContent = `! Storage ${usagePercent}% full \u2014 decks may fail to save.`;
 
   const exportBtn = document.createElement('button');
   exportBtn.className = 'btn';
-  exportBtn.textContent = '\uD83D\uDCE5 Download All Decks';
+ exportBtn.textContent = ' Download All Decks';
   exportBtn.addEventListener('click', () => {
     exportAllDecksAsJson();
   });
 
   const dismissBtn = document.createElement('button');
   dismissBtn.className = 'storage-warning-dismiss';
-  dismissBtn.textContent = '\u2715';
+ dismissBtn.textContent = '✕';
   dismissBtn.addEventListener('click', () => {
     banner.remove();
   });
@@ -3389,7 +3390,7 @@ function renderActiveFilterPills(): void {
     el.textContent = pill.label;
     const x = document.createElement('span');
     x.className = 'filter-pill-x';
-    x.textContent = '✕';
+ x.textContent = '';
     x.addEventListener('click', () => { pill.clear(); renderActiveFilterPills(); });
     el.appendChild(x);
     container.appendChild(el);
@@ -3481,7 +3482,7 @@ let quickAddTimer: ReturnType<typeof setTimeout> | null = null;
 function showQuickAddConfirmation(cardName: string): void {
   const el = document.getElementById('quickAddConfirm');
   if (!el) return;
-  el.textContent = `\u2713 ${cardName}`;
+ el.textContent = ` ${cardName}`;
   el.classList.add('visible');
   if (quickAddTimer) clearTimeout(quickAddTimer);
   quickAddTimer = setTimeout(() => { el.classList.remove('visible'); quickAddTimer = null; }, 1800);
@@ -3498,7 +3499,7 @@ function checkDuplicateWarning(cardName: string, card?: DeckbuilderSearchCard): 
     const existing = currentDeck.boards[board].find((e) => normalizeNameKey(e.name) === key);
     if (existing) {
       showToast({
-        message: `\u26A0\uFE0F ${cardName} already in ${BOARD_LABEL[board]} (qty: ${existing.qty}). EDH is singleton!`,
+ message: `! ${cardName} already in ${BOARD_LABEL[board]} (qty: ${existing.qty}). EDH is singleton!`,
         type: 'warning',
         duration: 5000,
       });
@@ -3764,7 +3765,7 @@ function initSaveSearchButton(): void {
 
   const saveBtn = document.createElement('button');
   saveBtn.className = 'save-search-btn hidden';
-  saveBtn.textContent = '\u2B50 Save';
+ saveBtn.textContent = ' Save';
   saveBtn.title = 'Save this search query';
   saveBtn.addEventListener('click', () => {
     const input = byId<HTMLInputElement>('searchInput');
@@ -4763,9 +4764,23 @@ function initDragDropSystem(): void {
     },
     onDropFromSearch: (card, toBoard) => {
       if (!currentDeck) return;
+      const cardKey = normalizeNameKey(card.name);
+      const wasPresent = currentDeck.boards[toBoard].some((e) => normalizeNameKey(e.name) === cardKey);
+      const lockBlocked = !isRemoteUpdate && isCollabActive() && isCardLocked(toBoard, card.name).locked;
       upsertEntry(toBoard, card.name, 1, card as DeckbuilderSearchCard);
-      resolvedCardByName[normalizeNameKey(card.name)] = card as DeckbuilderSearchCard;
+      resolvedCardByName[cardKey] = card as DeckbuilderSearchCard;
       saveAndRender();
+      if (!lockBlocked) {
+        showToast({
+          message: `Added "${card.name}" to ${toBoard}`,
+          type: 'success',
+          undoAction: () => {
+            if (wasPresent) upsertEntry(toBoard, card.name, -1);
+            else removeEntry(toBoard, card.name);
+            saveAndRender();
+          },
+        });
+      }
     },
     getSelectedCards,
     getActiveBoard: () => activeBoard,
@@ -5630,11 +5645,11 @@ function initThemeToggle(): void {
   const toggleBtn = document.createElement('button');
   toggleBtn.className = 'theme-toggle-btn';
   toggleBtn.title = 'Toggle light/dark theme';
-  toggleBtn.textContent = savedTheme === 'light' ? '\u{1F319}' : '\u2600\uFE0F';
+ toggleBtn.textContent = savedTheme === 'light' ? '☾' : '☀';
   toggleBtn.addEventListener('click', () => {
     const isLight = document.body.classList.toggle('theme-light');
     storageSet(STORAGE_KEYS.THEME, isLight ? 'light' : 'dark');
-    toggleBtn.textContent = isLight ? '\u{1F319}' : '\u2600\uFE0F';
+ toggleBtn.textContent = isLight ? '☾' : '☀';
   });
   header.appendChild(toggleBtn);
 }

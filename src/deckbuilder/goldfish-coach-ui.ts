@@ -27,7 +27,7 @@ const ROLE_DISPLAY: Record<CardRole, { label: string; cls: string }> = {
   'draw': { label: 'DRAW', cls: 'gf-role-draw' },
   'removal': { label: 'REMOVE', cls: 'gf-role-removal' },
   'protection': { label: 'SHIELD', cls: 'gf-role-protect' },
-  'land': { label: '', cls: '' },
+  'land': { label: 'LAND', cls: '' },
 };
 
 const HINT_MAX_VISIBLE = 3;
@@ -67,7 +67,7 @@ function createTemplateReqBadge(hasTemplateReqs?: boolean): HTMLElement | null {
   if (!hasTemplateReqs) return null;
   const badge = document.createElement('span');
   badge.className = 'gf-combo-badge gf-badge-template-req';
-  badge.textContent = '\u2713 + template';
+ badge.textContent = ' + template';
   badge.title = 'All named cards present, but combo requires additional template card(s)';
   return badge;
 }
@@ -92,7 +92,7 @@ function createSpellbookLink(url?: string): HTMLElement | null {
   link.href = url;
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
-  link.textContent = '\uD83D\uDD17 Spellbook';
+ link.textContent = '∞ Spellbook';
   link.title = 'View on Commander Spellbook';
   return link;
 }
@@ -134,7 +134,7 @@ export function renderCoachPanel(
 
   const title = document.createElement('span');
   title.className = 'gf-coach-title';
-  title.textContent = '\uD83E\uDDE0 Deck Coach';
+ title.textContent = '◆ Deck Coach';
   header.appendChild(title);
 
   const toggleBtn = document.createElement('button');
@@ -152,7 +152,7 @@ export function renderCoachPanel(
   // Combo Tree button
   const treeBtn = document.createElement('button');
   treeBtn.className = 'gf-coach-tree-btn';
-  treeBtn.textContent = '\uD83C\uDF33';
+ treeBtn.textContent = '⑂';
   treeBtn.title = 'Open Combo Tree';
   treeBtn.addEventListener('click', () => openComboTree(coach));
   header.appendChild(treeBtn);
@@ -193,7 +193,7 @@ export function renderCoachPanel(
   if (coach.gameplan.winConditions.length > 0) {
     const winLabel = document.createElement('div');
     winLabel.className = 'gf-coach-section-label';
-    winLabel.textContent = '\uD83C\uDFC6 Win Conditions';
+ winLabel.textContent = '◆ Win Conditions';
     gpBody.appendChild(winLabel);
     for (const wc of coach.gameplan.winConditions) {
       const item = document.createElement('div');
@@ -207,7 +207,7 @@ export function renderCoachPanel(
   if (coach.gameplan.keyEngines.length > 0) {
     const engLabel = document.createElement('div');
     engLabel.className = 'gf-coach-section-label';
-    engLabel.textContent = '\u2699\uFE0F Key Engines';
+ engLabel.textContent = ' Key Engines';
     gpBody.appendChild(engLabel);
     const engList = document.createElement('div');
     engList.className = 'gf-coach-card-list';
@@ -219,7 +219,7 @@ export function renderCoachPanel(
   if (coach.gameplan.interactionSuite.length > 0) {
     const intLabel = document.createElement('div');
     intLabel.className = 'gf-coach-section-label';
-    intLabel.textContent = '\uD83D\uDEE1\uFE0F Interaction';
+ intLabel.textContent = '■ Interaction';
     gpBody.appendChild(intLabel);
     const intList = document.createElement('div');
     intList.className = 'gf-coach-card-list';
@@ -237,7 +237,7 @@ export function renderCoachPanel(
 
     const seqLabel = document.createElement('div');
     seqLabel.className = 'gf-coach-section-label';
-    seqLabel.textContent = '\uD83D\uDCCB Play Sequence';
+ seqLabel.textContent = '▤ Play Sequence';
     seqSection.appendChild(seqLabel);
 
     const flowStatuses = computeFlowStatus(coach.gameplan.playSequence, state, coach.deckCardNames);
@@ -262,7 +262,7 @@ export function renderCoachPanel(
 
       const dotEl = document.createElement('span');
       dotEl.className = `gf-sequence-dot${fs.stepStatus === 'active' ? ' active' : ''}${fs.stepStatus === 'done' ? ' done' : ''}`;
-      dotEl.textContent = fs.stepStatus === 'active' ? '\u25CF' : fs.stepStatus === 'done' ? '\u2713' : '\u25CB';
+ dotEl.textContent = fs.stepStatus === 'active' ? '\u25CF' : fs.stepStatus === 'done' ? '✓' : '\u25CB';
       headerRow.appendChild(dotEl);
 
       stepEl.appendChild(headerRow);
@@ -307,13 +307,13 @@ export function renderCoachPanel(
     comboHeader.style.alignItems = 'center';
 
     const comboLabel = document.createElement('span');
-    comboLabel.textContent = '\uD83E\uDDE9 Combo Progress';
+ comboLabel.textContent = ' Combo Progress';
     comboHeader.appendChild(comboLabel);
 
     // "Suggest Combo" button
     const suggestBtn = document.createElement('button');
     suggestBtn.className = 'gf-combo-suggest-btn';
-    suggestBtn.textContent = '\uD83D\uDCA1 Suggest';
+ suggestBtn.textContent = '◆ Suggest';
     suggestBtn.title = 'Suggest a new combo';
     suggestBtn.addEventListener('click', () => {
       showSuggestComboModal((suggestion) => {
@@ -324,8 +324,8 @@ export function renderCoachPanel(
           produces: suggestion.produces,
         }).then((result) => {
           if (result.ok) {
-            suggestBtn.textContent = '\u2713 Sent!';
-            setTimeout(() => { suggestBtn.textContent = '\uD83D\uDCA1 Suggest'; }, 2000);
+ suggestBtn.textContent = ' Sent!';
+ setTimeout(() => { suggestBtn.textContent = '◆ Suggest'; }, 2000);
           }
         }).catch(() => { /* ignore */ });
       });
@@ -543,11 +543,11 @@ function createPillGroup(
 
 function statusToIcon(status: CardFlowStatus): string {
   switch (status) {
-    case 'done': return '\u2713';
-    case 'in-hand': return '\u23F3';
-    case 'in-graveyard': return '\u26B0';
-    case 'in-exile': return '\u26D4';
-    case 'missing': return '\u2718';
+ case 'done': return '✓';
+ case 'in-hand': return '…';
+ case 'in-graveyard': return '✕';
+ case 'in-exile': return '⊘';
+ case 'missing': return '✘';
     default: return '';
   }
 }

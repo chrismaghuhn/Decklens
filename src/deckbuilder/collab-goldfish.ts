@@ -172,8 +172,8 @@ function showPanel(): void {
 
   spectatorPanelEl = h('div', { className: 'goldfish-spectator-panel' },
     h('div', { className: 'goldfish-spectator-header' },
-      h('span', { className: 'goldfish-spectator-title' }, '\uD83C\uDFAE Goldfish Spectator'),
-      h('button', { className: 'goldfish-spectator-close', onClick: () => toggleSpectatorPanel(), title: 'Close' }, '\u2715'),
+ h('span', { className: 'goldfish-spectator-title' }, ' Goldfish Spectator'),
+ h('button', { className: 'goldfish-spectator-close', onClick: () => toggleSpectatorPanel(), title: 'Close' }, '✕'),
     ),
     h('div', { className: 'goldfish-spectator-body', id: '_goldfishBody' }),
   );
@@ -204,8 +204,8 @@ function renderPanel(): void {
   // Status bar
   const statusClass = isLive ? 'goldfish-status-live' : 'goldfish-status-ended';
   const statusText = isLive
-    ? `\uD83D\uDD34 LIVE — ${currentPlayer} is playtesting "${currentDeckName}" — Turn ${currentTurn}`
-    : `\u2705 Ended — ${currentPlayer}'s playtest of "${currentDeckName}"`;
+ ? `● LIVE — ${currentPlayer} is playtesting "${currentDeckName}" — Turn ${currentTurn}`
+ : `✓ Ended — ${currentPlayer}'s playtest of "${currentDeckName}"`;
   els.push(h('div', { className: `goldfish-status ${statusClass}` }, statusText));
 
   // Action log

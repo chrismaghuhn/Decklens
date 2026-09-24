@@ -279,7 +279,7 @@ export function copyAsArenaFormat(boards: DeckbuilderBoards): string {
 export function generateSummary(pack: SharePackData): string {
   const { manifest } = pack;
   const lines = [
-    `📦 ${manifest.name}`,
+    `${manifest.name}`,
     `Format: ${manifest.format}`,
     `Cards: ${manifest.cardCount}`,
   ];

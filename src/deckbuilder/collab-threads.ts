@@ -151,14 +151,14 @@ function showPanel(): void {
 
   panelEl = h('div', { className: 'thread-panel' },
     h('div', { className: 'thread-panel-header' },
-      h('span', { className: 'thread-panel-title', id: '_threadTitle' }, '\uD83D\uDCAC Discussions'),
+ h('span', { className: 'thread-panel-title', id: '_threadTitle' }, '❝ Discussions'),
       h('div', { style: 'display:flex;gap:4px;align-items:center;' },
         !currentCard ? h('button', {
           className: 'thread-panel-all-btn',
           onClick: () => { currentBoard = null; currentCard = null; loadAllThreads(); },
           title: 'Show all threads',
         }, 'All') : '',
-        h('button', { className: 'thread-panel-close', onClick: () => toggleThreadPanel(), title: 'Close' }, '\u2715'),
+ h('button', { className: 'thread-panel-close', onClick: () => toggleThreadPanel(), title: 'Close' }, '✕'),
       ),
     ),
     h('div', { className: 'thread-list', id: '_threadList' }),
@@ -177,7 +177,7 @@ function showPanel(): void {
       h('input', { type: 'text', className: 'thread-input', placeholder: 'Add a comment...', id: '_threadInput',
         onKeyDown: (e: KeyboardEvent) => { if (e.key === 'Enter') submitComment(); },
       }),
-      h('button', { className: 'thread-send-btn', onClick: () => submitComment() }, '\u27A4'),
+ h('button', { className: 'thread-send-btn', onClick: () => submitComment() }, '➤'),
     ),
   );
   document.body.appendChild(panelEl);
@@ -209,8 +209,8 @@ function renderThreadList(): void {
   const titleEl = document.getElementById('_threadTitle');
   if (titleEl) {
     titleEl.textContent = currentCard
-      ? `\uD83D\uDCAC ${currentCard}`
-      : '\uD83D\uDCAC All Discussions';
+ ? `❝ ${currentCard}`
+ : '❝ All Discussions';
   }
 
   if (threads.length === 0) {
@@ -299,7 +299,7 @@ function updateCardSelectorVisibility(): void {
 }
 
 function showReactionPicker(threadId: string): void {
-  const emojis = ['\uD83D\uDC4D', '\u2764\uFE0F', '\uD83E\uDD14', '\uD83D\uDE02', '\uD83D\uDE4F', '\uD83D\uDD25'];
+ const emojis = ['👍', '❤️', '🤔', '😂', '🙏', '🔥'];
   const picker = h('div', { className: 'thread-reaction-picker' },
     ...emojis.map((emoji) =>
       h('button', { className: 'thread-reaction-pick', onClick: () => { reactToComment(threadId, emoji); picker.remove(); } }, emoji),

@@ -156,10 +156,10 @@ function showPanel(): void {
 
   panelEl = h('div', { className: 'proposal-panel' },
     h('div', { className: 'proposal-panel-header' },
-      h('span', { className: 'proposal-panel-title' }, '\uD83D\uDCDD Proposals'),
+ h('span', { className: 'proposal-panel-title' }, '▥ Proposals'),
       h('div', { className: 'proposal-panel-actions-header' },
         h('button', { className: 'proposal-create-btn', onClick: () => promptCreateProposal(), title: 'New proposal' }, '+ New'),
-        h('button', { className: 'proposal-panel-close', onClick: () => toggleProposalPanel(), title: 'Close' }, '\u2715'),
+ h('button', { className: 'proposal-panel-close', onClick: () => toggleProposalPanel(), title: 'Close' }, '✕'),
       ),
     ),
     h('div', { className: 'proposal-list', id: '_proposalList' }),
@@ -244,16 +244,16 @@ function renderProposalDetail(proposal: Proposal, votes: ProposalVote[]): void {
           h('div', { className: 'proposal-vote-reject-fill', style: `width:${(rejectVotes / total) * 100}%` }),
         ),
         h('div', { className: 'proposal-vote-counts' },
-          h('span', { className: 'proposal-vote-accept-count' }, `\u2705 ${acceptVotes}`),
-          h('span', { className: 'proposal-vote-reject-count' }, `\u274C ${rejectVotes}`),
+ h('span', { className: 'proposal-vote-accept-count' }, `✓ ${acceptVotes}`),
+ h('span', { className: 'proposal-vote-reject-count' }, `✕ ${rejectVotes}`),
         ),
       ),
 
       // Vote + resolve buttons
       proposal.status === 'open'
         ? h('div', { className: 'proposal-actions' },
-            h('button', { className: 'proposal-vote-btn proposal-vote-accept', onClick: () => voteOnProposal(proposal.id, 'accept') }, '\u2705 Accept'),
-            h('button', { className: 'proposal-vote-btn proposal-vote-reject', onClick: () => voteOnProposal(proposal.id, 'reject') }, '\u274C Reject'),
+ h('button', { className: 'proposal-vote-btn proposal-vote-accept', onClick: () => voteOnProposal(proposal.id, 'accept') }, '✓ Accept'),
+ h('button', { className: 'proposal-vote-btn proposal-vote-reject', onClick: () => voteOnProposal(proposal.id, 'reject') }, '✕ Reject'),
             h('div', { className: 'proposal-resolve-section' },
               h('button', { className: 'proposal-resolve-btn proposal-resolve-accept', onClick: () => resolveProposal(proposal.id, 'accepted') }, 'Merge'),
               h('button', { className: 'proposal-resolve-btn proposal-resolve-reject', onClick: () => resolveProposal(proposal.id, 'rejected') }, 'Close'),

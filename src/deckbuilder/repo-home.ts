@@ -140,7 +140,7 @@ function render(): void {
       h('span', { className: 'repo-home__format' }, state.repo.format),
       h('span', { className: 'repo-home__visibility' }, state.repo.visibility),
       state.repo.upstream_repo_id
-        ? h('span', { className: 'repo-home__fork-badge' }, '🔱 Fork')
+ ? h('span', { className: 'repo-home__fork-badge' }, 'Fork')
         : null,
     ),
   );
@@ -176,7 +176,7 @@ function renderBranchSelector(): HTMLElement {
   for (const branch of state.branches) {
     const opt = document.createElement('option');
     opt.value = branch.id;
-    opt.textContent = `${branch.isProtected ? '🔒 ' : ''}${branch.name}`;
+    opt.textContent = `${branch.isProtected ? '' : ''}${branch.name}`;
     opt.selected = branch.id === state.currentBranch?.id;
     select.appendChild(opt);
   }
@@ -196,7 +196,7 @@ function renderBranchSelector(): HTMLElement {
   }, '+ New Branch');
 
   return h('div', { className: 'repo-home__branch-bar' },
-    h('span', { className: 'repo-home__branch-icon' }, '🔀'),
+    h('span', { className: 'repo-home__branch-icon' }, '⑂'),
     select,
     createBtn,
   );

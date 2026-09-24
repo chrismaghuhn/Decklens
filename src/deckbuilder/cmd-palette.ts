@@ -259,7 +259,7 @@ export function openPalette(): void {
 
   paletteEl = h('div', { className: 'cmd-palette' },
     h('div', { className: 'cmd-palette__header' },
-      h('span', { className: 'cmd-palette__icon-search' }, '\u{1F50D}'),
+      h('span', { className: 'cmd-palette__icon-search' }, '◇'),
       input,
     ),
     h('div', { className: 'cmd-palette__list' }),

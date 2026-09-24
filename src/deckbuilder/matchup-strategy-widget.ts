@@ -27,7 +27,7 @@ export function renderMatchupStrategyWidget(
     empty.className = 'matchup-widget-empty';
     empty.innerHTML = `
       <p style="text-align:center;padding:2rem 1rem;color:var(--text-dim);">
-        ⚔️<br>
+ ✕<br>
         <span style="font-size:0.82rem;">Add cards to your deck to see matchup strategies.</span>
       </p>
     `;

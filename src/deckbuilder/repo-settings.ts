@@ -149,9 +149,9 @@ function render(): void {
   // Header
   const header = h('div', { className: 'repo-settings__header' },
     h('button', { className: 'repo-settings__back', onClick: () => callbacks?.onBack() }, '← Back'),
-    h('h3', {}, '⚙️ Repository Settings'),
+    h('h3', {}, 'Repository Settings'),
     state.dirty
-      ? h('button', { className: 'repo-settings__save-btn', onClick: saveSettings }, '💾 Save Changes')
+      ? h('button', { className: 'repo-settings__save-btn', onClick: saveSettings }, 'Save Changes')
       : null,
   );
 
@@ -281,7 +281,7 @@ function renderBranchProtection(): HTMLElement {
               render();
             },
           }),
-          h('span', {}, `${branch.name} ${isProtected ? '🔒' : ''}`),
+          h('span', {}, `${branch.name} ${isProtected ? '' : ''}`),
         ),
       );
     }),
@@ -316,7 +316,7 @@ function renderBranchProtection(): HTMLElement {
 
     ...s.lockedSlots.map((slot, i) =>
       h('div', { className: 'repo-settings__locked-slot' },
-        h('span', {}, `🔒 ${slot.cardName} (${slot.board})`),
+        h('span', {}, `${slot.cardName} (${slot.board})`),
         h('span', { className: 'repo-settings__locked-reason' }, slot.reason),
         h('button', {
           className: 'repo-settings__remove-btn',
@@ -325,7 +325,7 @@ function renderBranchProtection(): HTMLElement {
             state.dirty = true;
             render();
           },
-        }, '✕'),
+ }, '✕'),
       )
     ),
     h('button', {
@@ -369,7 +369,7 @@ function renderCollaborators(): HTMLElement {
                       }
                     }
                   },
-                }, '✕'),
+ }, '✕'),
               ),
             )
           )
@@ -406,7 +406,7 @@ function renderPlaygroupRules(): HTMLElement {
           ...s.playgroupRules.map((rule, i) =>
             h('div', { className: `repo-settings__rule repo-settings__rule--${rule.type}` },
               h('span', { className: 'repo-settings__rule-type' },
-                rule.type === 'ban' ? '🚫' : rule.type === 'limit' ? '📊' : '✅'),
+ rule.type === 'ban' ? '⊘' : rule.type === 'limit' ? '▤' : ''),
               h('span', {}, `${rule.type.toUpperCase()}: ${rule.cardName}`),
               rule.limit !== undefined ? h('span', {}, `(max ${rule.limit})`) : null,
               rule.message ? h('span', { className: 'repo-settings__rule-msg' }, rule.message) : null,
@@ -417,7 +417,7 @@ function renderPlaygroupRules(): HTMLElement {
                   state.dirty = true;
                   render();
                 },
-              }, '✕'),
+ }, '✕'),
             )
           )
         ),
@@ -438,7 +438,7 @@ function renderPlaygroupRules(): HTMLElement {
 
 function renderDangerZone(): HTMLElement {
   return h('div', { className: 'repo-settings__section repo-settings__danger' },
-    h('h4', {}, '⚠️ Danger Zone'),
+    h('h4', {}, '! Danger Zone'),
 
     h('div', { className: 'repo-settings__danger-item' },
       h('div', {},

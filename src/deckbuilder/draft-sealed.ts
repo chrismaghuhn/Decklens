@@ -275,7 +275,7 @@ function renderLobby(): void {
   if (!containerEl) return;
 
   containerEl.appendChild(h('div', { className: 'draft__lobby' },
-    h('h2', {}, `🎲 ${state.config.format === 'draft' ? 'Draft' : 'Sealed'} Lobby`),
+    h('h2', {}, `${state.config.format === 'draft' ? 'Draft' : 'Sealed'} Lobby`),
 
     h('div', { className: 'draft__config' },
       h('div', { className: 'draft__config-row' },
@@ -301,7 +301,7 @@ function renderLobby(): void {
         h('div', { className: 'draft__player' },
           h('span', {}, `Seat ${p.seatNumber + 1}: ${p.displayName}`),
           p.isHost ? h('span', { className: 'draft__host-badge' }, 'Host') : null,
-          p.isReady ? h('span', { className: 'draft__ready-badge' }, '✓ Ready') : null,
+ p.isReady ? h('span', { className: 'draft__ready-badge' }, ' Ready') : null,
         )
       ),
     ),
@@ -333,7 +333,7 @@ function renderDrafting(): void {
     h('div', { className: 'draft__header' },
       h('h3', {}, `Round ${state.currentRound + 1}/${state.config.packCount}`),
       h('div', { className: `draft__timer ${state.pickTimer <= 10 ? 'draft__timer--urgent' : ''}` },
-        `⏱️ ${state.pickTimer}s`),
+        `${state.pickTimer}s`),
       h('span', {}, `Pool: ${state.pool.length} cards`),
     ),
 
@@ -367,7 +367,7 @@ function renderBuilding(): void {
   if (!containerEl) return;
 
   containerEl.appendChild(h('div', { className: 'draft__building' },
-    h('h2', {}, '🔨 Build Your Deck'),
+    h('h2', {}, 'Build Your Deck'),
     h('p', {}, `Build a deck from your ${state.pool.length + state.mainboard.length + state.sideboard.length} card pool`),
 
     h('div', { className: 'draft__build-zones' },
@@ -415,7 +415,7 @@ function renderBuilding(): void {
     h('button', {
       className: 'draft__finalize-btn',
       onClick: finalizeBuild,
-    }, '✅ Finalize Deck'),
+ }, ' Finalize Deck'),
   ));
 }
 
@@ -423,7 +423,7 @@ function renderComplete(): void {
   if (!containerEl) return;
 
   containerEl.appendChild(h('div', { className: 'draft__complete' },
-    h('h2', {}, '🎉 Deck Complete!'),
+    h('h2', {}, 'Deck Complete!'),
     h('p', {}, `Mainboard: ${state.mainboard.length} cards, Sideboard: ${state.sideboard.length} cards`),
     h('button', {
       className: 'draft__done-btn',

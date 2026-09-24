@@ -9,7 +9,7 @@ export function renderLegalFooter(container: HTMLElement): void {
     <footer class="legal-footer">
       <div class="legal-footer-content">
         <div class="legal-disclaimer">
-          <p class="legal-title">⚖️ Legal Disclaimer</p>
+          <p class="legal-title">Legal Disclaimer</p>
           <p class="legal-text">
             <strong>DeckLens</strong> is an unofficial fan-made project and is not affiliated with, endorsed by,
             or sponsored by Wizards of the Coast LLC, Hasbro, or Konami Digital Entertainment.
@@ -76,7 +76,7 @@ export function injectLegalFooterStyles(): void {
       font-family: 'Cinzel', serif;
       font-size: 14px;
       font-weight: 600;
-      color: var(--gold, #c9a84c);
+      color: var(--cobalt, #c9a84c);
       margin: 0 0 12px 0;
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -101,7 +101,7 @@ export function injectLegalFooterStyles(): void {
     }
 
     .legal-text a {
-      color: var(--gold, #c9a84c);
+      color: var(--cobalt, #c9a84c);
       text-decoration: none;
       transition: color 0.2s;
     }
@@ -121,7 +121,7 @@ export function injectLegalFooterStyles(): void {
     }
 
     .legal-links a {
-      color: var(--gold, #c9a84c);
+      color: var(--cobalt, #c9a84c);
       text-decoration: none;
       display: flex;
       align-items: center;

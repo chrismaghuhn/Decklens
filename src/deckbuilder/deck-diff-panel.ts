@@ -203,7 +203,7 @@ function renderPanel(labelA: string = 'Before', labelB: string = 'After'): void 
 
   panelEl = h('div', { className: 'diff-panel' },
     h('div', { className: 'diff-panel-header' },
-      h('span', { className: 'diff-panel-title' }, `📊 Diff: ${labelA} → ${labelB}`),
+      h('span', { className: 'diff-panel-title' }, `Diff: ${labelA} → ${labelB}`),
       h('div', { className: 'diff-panel-actions' },
         h('button', {
           className: 'diff-action-btn diff-action-copy',
@@ -212,7 +212,7 @@ function renderPanel(labelA: string = 'Before', labelB: string = 'After'): void 
             const text = diffToText(currentDiff);
             navigator.clipboard.writeText(text).then(() => {
               const btn = document.querySelector('.diff-action-copy') as HTMLElement | null;
-              if (btn) { btn.textContent = '✅ Copied!'; setTimeout(() => { btn.textContent = '📋 Copy Text'; }, 1500); }
+ if (btn) { btn.textContent = ' Copied!'; setTimeout(() => { btn.textContent = 'Copy Text'; }, 1500); }
             }).catch(() => {
               // Fallback: create textarea for manual copy
               const ta = document.createElement('textarea');
@@ -224,7 +224,7 @@ function renderPanel(labelA: string = 'Before', labelB: string = 'After'): void 
             });
           },
           title: 'Copy diff as text',
-        }, '📋 Copy Text'),
+        }, 'Copy Text'),
         h('button', {
           className: 'diff-action-btn',
           onClick: () => {
@@ -239,13 +239,13 @@ function renderPanel(labelA: string = 'Before', labelB: string = 'After'): void 
             URL.revokeObjectURL(url);
           },
           title: 'Download diff as Markdown',
-        }, '📥 Save MD'),
+        }, 'Save MD'),
       ),
       h('button', {
         className: 'diff-panel-close',
         onClick: () => hideDiffPanel(),
         title: 'Close',
-      }, '✕'),
+ }, '✕'),
     ),
 
     // Summary bar

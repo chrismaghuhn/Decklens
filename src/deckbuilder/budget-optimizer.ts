@@ -153,7 +153,7 @@ export function renderBudgetOptimizer(
       labelLeft.textContent = 'Target Budget';
 
       const labelRight = document.createElement('span');
-      labelRight.style.cssText = "font-family:'JetBrains Mono',monospace; color:var(--gold);";
+      labelRight.style.cssText = "font-family:'JetBrains Mono',monospace; color:var(--cobalt);";
       labelRight.textContent = `€${maxBudget}`;
 
       sliderLabel.append(labelLeft, labelRight);
@@ -164,7 +164,7 @@ export function renderBudgetOptimizer(
       slider.max = String(maxBudget);
       slider.value = String(maxBudget);
       slider.className = 'budget-slider';
-      slider.style.cssText = 'width:100%; accent-color:var(--gold, #e2b340);';
+      slider.style.cssText = 'width:100%; accent-color:var(--cobalt, #e2b340);';
 
       const previewBox = document.createElement('div');
       previewBox.className = 'budget-slider-preview';

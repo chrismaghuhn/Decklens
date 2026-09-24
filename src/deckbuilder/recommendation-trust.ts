@@ -76,27 +76,27 @@ export function renderConfidenceBadge(confidence: number): HTMLElement {
 
 const SOURCE_CONFIG: Record<RecSource, { icon: string; label: string; tooltip: string }> = {
   discovery: {
-    icon: '\uD83D\uDD0D',
+ icon: '◇',
     label: 'Discovered',
     tooltip: 'Found via dynamic card search — a fresh pick based on your deck profile.',
   },
   archetype: {
-    icon: '\uD83C\uDFAF',
+ icon: '◎',
     label: 'Archetype Match',
     tooltip: 'Matches your deck\'s archetype profile and strategic role needs.',
   },
   anti_meta: {
-    icon: '\uD83D\uDEE1\uFE0F',
+ icon: '■',
     label: 'Meta Counter',
     tooltip: 'Counters popular strategies in the current metagame.',
   },
   learned: {
-    icon: '\uD83D\uDCDA',
+ icon: '◆',
     label: 'Learned',
     tooltip: 'Recommended based on your past feedback and preferences.',
   },
   staple: {
-    icon: '\u2B50',
+ icon: '◆',
     label: 'Staple',
     tooltip: 'A widely-played format staple with proven track record.',
   },
@@ -258,7 +258,7 @@ export function renderMetaFreshnessIndicator(
   if (freshness.state === 'stale') {
     const warn = document.createElement('span');
     warn.className = 'meta-freshness-warn';
-    warn.textContent = ' \u26A0';
+ warn.textContent = ' !';
     el.appendChild(warn);
   }
 
@@ -283,7 +283,7 @@ export function renderFallbackLabel(
 
   const icon = document.createElement('span');
   icon.className = 'meta-fallback-icon';
-  icon.textContent = '\u26A0';
+ icon.textContent = '!';
 
   const text = document.createElement('span');
   text.textContent = FALLBACK_DESCRIPTIONS[quality.fallbackMode]
@@ -302,7 +302,7 @@ export function renderDistrustButton(
   btn.className = 'rec-distrust-btn';
   btn.type = 'button';
   btn.title = 'This recommendation does not seem right';
-  btn.textContent = '\uD83D\uDC4E';
+ btn.textContent = '';
 
   let fired = false;
   btn.addEventListener('click', (e) => {

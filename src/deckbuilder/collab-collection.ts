@@ -163,14 +163,14 @@ function showPanel(): void {
 
   panelEl = h('div', { className: 'team-collection-panel' },
     h('div', { className: 'team-collection-header' },
-      h('span', { className: 'team-collection-title' }, '\uD83D\uDCE6 Team Collection Pool'),
+ h('span', { className: 'team-collection-title' }, '▢ Team Collection Pool'),
       h('div', { className: 'team-collection-actions-header' },
         h('button', {
           className: 'team-share-btn',
           onClick: () => shareMyCollection(),
           title: 'Upload your collection to share with the team',
-        }, '\u2B06 Share My Collection'),
-        h('button', { className: 'team-collection-close', onClick: () => toggleTeamCollectionPanel(), title: 'Close' }, '\u2715'),
+ }, ' Share My Collection'),
+ h('button', { className: 'team-collection-close', onClick: () => toggleTeamCollectionPanel(), title: 'Close' }, '✕'),
       ),
     ),
     h('div', { className: 'team-collection-body', id: '_teamCollBody' }),

@@ -104,10 +104,10 @@ function showPanel(): void {
 
   panelEl = h('div', { className: 'decision-panel' },
     h('div', { className: 'decision-panel-header' },
-      h('span', { className: 'decision-panel-title' }, '\uD83D\uDCD6 Decision Log'),
+ h('span', { className: 'decision-panel-title' }, '▤ Decision Log'),
       h('div', { className: 'decision-panel-actions-header' },
         h('button', { className: 'decision-add-btn', onClick: () => promptAddDecision(), title: 'Add decision' }, '+ Add'),
-        h('button', { className: 'decision-panel-close', onClick: () => toggleDecisionPanel(), title: 'Close' }, '\u2715'),
+ h('button', { className: 'decision-panel-close', onClick: () => toggleDecisionPanel(), title: 'Close' }, '✕'),
       ),
     ),
     h('div', { className: 'decision-list', id: '_decisionList' }),
@@ -158,10 +158,10 @@ function promptAddDecision(cardName?: string): void {
       h('input', { type: 'text', className: 'decision-input', placeholder: 'e.g. Sol Ring', id: '_decCardName', value: cardName || '' }),
       h('label', {}, 'Type'),
       h('select', { className: 'decision-select', id: '_decType' },
-        h('option', { value: 'include' }, '\u2705 Include — why this card is in'),
-        h('option', { value: 'exclude' }, '\u274C Exclude — why this card is out'),
-        h('option', { value: 'swap' }, '\uD83D\uDD04 Swap — why one card replaced another'),
-        h('option', { value: 'meta' }, '\uD83D\uDCCB Meta — general deckbuilding decision'),
+ h('option', { value: 'include' }, '✓ Include — why this card is in'),
+ h('option', { value: 'exclude' }, '✕ Exclude — why this card is out'),
+ h('option', { value: 'swap' }, '↻ Swap — why one card replaced another'),
+ h('option', { value: 'meta' }, '▤ Meta — general deckbuilding decision'),
       ),
       h('label', {}, 'Rationale'),
       h('textarea', { className: 'decision-textarea', placeholder: 'Why this decision?', id: '_decRationale', rows: '3' }),
@@ -199,10 +199,10 @@ function promptAddDecision(cardName?: string): void {
 
 function getTypeInfo(type: string): { icon: string; label: string } {
   const types: Record<string, { icon: string; label: string }> = {
-    include: { icon: '\u2705', label: 'Include' },
-    exclude: { icon: '\u274C', label: 'Exclude' },
-    swap: { icon: '\uD83D\uDD04', label: 'Swap' },
-    meta: { icon: '\uD83D\uDCCB', label: 'Meta' },
+ include: { icon: '✓', label: 'Include' },
+ exclude: { icon: '✕', label: 'Exclude' },
+ swap: { icon: '↻', label: 'Swap' },
+ meta: { icon: '▤', label: 'Meta' },
   };
   return types[type] || { icon: '\u25CF', label: type };
 }

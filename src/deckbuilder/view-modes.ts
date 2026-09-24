@@ -164,7 +164,7 @@ function teamOwnBadge(cardName: string): HTMLElement | string {
   return h('span', {
     className: `team-own-badge ${cls}`,
     title: data.owners.map((o) => `${o.name}: ${o.qty}x`).join(', '),
-  }, `\u2713 ${data.total}`);
+ }, ` ${data.total}`);
 }
 
 function getCardImage(card: DeckbuilderCardView | undefined, size: 'normal' | 'small' = 'normal'): string {
@@ -348,7 +348,7 @@ export function renderFilterBadge(container: HTMLElement, filter: ChartFilter, o
 
   const badge = h('div', { className: 'chart-filter-badge', onClick: onClear },
     h('span', {}, `Filtered: ${labels[filter.type]}`),
-    h('span', { className: 'chart-filter-x' }, '✕'),
+ h('span', { className: 'chart-filter-x' }, '✕'),
   );
   container.insertBefore(badge, container.firstChild);
 }
@@ -376,7 +376,7 @@ function renderGridView(container: HTMLElement, ctx: ViewModeContext): void {
     lastGridRenderHash = ''; // Reset cache
     replaceChildren(container,
       h('div', { className: 'empty-state' },
-        h('div', { className: 'empty-state-icon' }, '\uD83C\uDCCF'),
+ h('div', { className: 'empty-state-icon' }, '■'),
         h('p', { className: 'empty-state-text' }, `No cards in ${ctx.boardLabels[ctx.activeBoard]}. Search for cards or import a decklist to get started.`),
         h('div', { className: 'empty-state-actions' },
           h('button', { className: 'btn btn-sm', onClick: () => {
@@ -556,7 +556,7 @@ function renderListView(container: HTMLElement, ctx: ViewModeContext): void {
     lastListRenderHash = ''; // Reset cache
     replaceChildren(container,
       h('div', { className: 'empty-state' },
-        h('div', { className: 'empty-state-icon' }, '\uD83C\uDCCF'),
+ h('div', { className: 'empty-state-icon' }, '■'),
         h('p', { className: 'empty-state-text' }, `No cards in ${ctx.boardLabels[ctx.activeBoard]}. Search for cards or import a decklist to get started.`),
         h('div', { className: 'empty-state-actions' },
           h('button', { className: 'btn btn-sm', onClick: () => {
@@ -673,7 +673,7 @@ function renderPileView(container: HTMLElement, ctx: ViewModeContext): void {
     lastPileRenderHash = ''; // Reset cache
     replaceChildren(container,
       h('div', { className: 'empty-state' },
-        h('div', { className: 'empty-state-icon' }, '\uD83C\uDCCF'),
+ h('div', { className: 'empty-state-icon' }, '■'),
         h('p', { className: 'empty-state-text' }, `No cards in ${ctx.boardLabels[ctx.activeBoard]}. Search for cards or import a decklist to get started.`),
         h('div', { className: 'empty-state-actions' },
           h('button', { className: 'btn btn-sm', onClick: () => {

@@ -926,8 +926,8 @@ export function openMultiplayerGoldfish(
   function rollDice(sides: number, playerId: string): void {
     const result = Math.floor(Math.random() * sides) + 1;
     const label = sides === 2 ? (result === 1 ? 'Heads' : 'Tails') : `${result}`;
-    addLog(`🎲 Rolled d${sides}: ${label}`, playerId);
-    showFloatingText(`🎲 d${sides} → ${label}`, '#60a5fa', 2500);
+    addLog(`Rolled d${sides}: ${label}`, playerId);
+    showFloatingText(`d${sides} → ${label}`, '#60a5fa', 2500);
     playSound('draw');
     render();
   }
@@ -940,14 +940,14 @@ export function openMultiplayerGoldfish(
     const modal = document.createElement('div');
     modal.className = 'gf-zone-modal';
     modal.style.maxWidth = '320px';
-    modal.innerHTML = `<div class="gf-zone-modal-title">🎲 Dice & Coin</div>`;
+    modal.innerHTML = `<div class="gf-zone-modal-title">Dice & Coin</div>`;
     const grid = document.createElement('div');
     grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px;';
     const diceTypes = [
-      { label: '🪙 Coin Flip', sides: 2 },
-      { label: '🎲 D6', sides: 6 },
-      { label: '🎲 D20', sides: 20 },
-      { label: '🎲 D100', sides: 100 },
+      { label: 'Coin Flip', sides: 2 },
+      { label: 'D6', sides: 6 },
+      { label: 'D20', sides: 20 },
+      { label: 'D100', sides: 100 },
     ];
     for (const dt of diceTypes) {
       const btn = document.createElement('button');
@@ -993,8 +993,8 @@ export function openMultiplayerGoldfish(
     const idx = Math.floor(Math.random() * player.hand.length);
     const card = player.hand.splice(idx, 1)[0];
     player.graveyard.push(card);
-    addLog(`🔀 Randomly discarded: ${card}`, playerId);
-    showFloatingText(`🔀 Discarded: ${card}`, '#ef4444', 2500);
+    addLog(`Randomly discarded: ${card}`, playerId);
+    showFloatingText(`Discarded: ${card}`, '#ef4444', 2500);
     playSound('damage');
     render();
   }
@@ -1077,7 +1077,7 @@ export function openMultiplayerGoldfish(
   }
 
   // ─── Emotes ───
-  const EMOTE_LIST = ['😂', '🤔', '👍', '😱', 'gg', '👏'] as const;
+ const EMOTE_LIST = ['😂', '🤔', '👍', '😱', 'gg', '👏'] as const;
   let activeEmotes: { playerId: string; emote: string; timer: ReturnType<typeof setTimeout> }[] = [];
 
   function sendEmote(playerId: string, emote: string): void {
@@ -1257,7 +1257,7 @@ export function openMultiplayerGoldfish(
           renderCards();
           confirmBtn.disabled = selected.size !== putBackCount;
           confirmBtn.textContent = selected.size === putBackCount
-            ? `✓ Put ${putBackCount} on Bottom`
+ ? ` Put ${putBackCount} on Bottom`
             : `Select ${putBackCount - selected.size} more`;
         });
         cardGrid.appendChild(cardEl);
@@ -1304,7 +1304,7 @@ export function openMultiplayerGoldfish(
 
     const title = document.createElement('div');
     title.className = 'gf-zone-modal-title';
-    title.textContent = '\uD83C\uDFAD Create Token';
+ title.textContent = '□ Create Token';
     modal.appendChild(title);
 
     // Collect ALL available tokens from all decks
@@ -1434,7 +1434,7 @@ export function openMultiplayerGoldfish(
     customActions.className = 'gf-token-actions';
     const customCreateBtn = document.createElement('button');
     customCreateBtn.className = 'btn gf-btn';
-    customCreateBtn.style.background = 'var(--gold, #c9a84c)';
+    customCreateBtn.style.background = 'var(--cobalt, #c9a84c)';
     customCreateBtn.style.color = '#000';
     customCreateBtn.textContent = 'Create Custom';
     customCreateBtn.addEventListener('click', () => {
@@ -1506,7 +1506,7 @@ export function openMultiplayerGoldfish(
 
     const titleEl = document.createElement('div');
     titleEl.className = 'gf-zone-modal-title';
-    titleEl.textContent = `\uD83D\uDD0D Search Library (${player.library.length} cards)`;
+ titleEl.textContent = `◇ Search Library (${player.library.length} cards)`;
     modal.appendChild(titleEl);
 
     const searchInput = document.createElement('input');
@@ -1634,7 +1634,7 @@ export function openMultiplayerGoldfish(
 
     const p1Title = document.createElement('div');
     p1Title.className = 'gf-zone-modal-title';
-    p1Title.textContent = '\uD83D\uDC41 Look at Top N Cards';
+ p1Title.textContent = '◇ Look at Top N Cards';
     phase1Modal.appendChild(p1Title);
 
     const p1Label = document.createElement('label');
@@ -1660,7 +1660,7 @@ export function openMultiplayerGoldfish(
 
     const p1Look = document.createElement('button');
     p1Look.className = 'btn gf-btn';
-    p1Look.style.background = 'var(--gold, #c9a84c)';
+    p1Look.style.background = 'var(--cobalt, #c9a84c)';
     p1Look.style.color = '#000';
     p1Look.textContent = 'Look';
     p1Look.addEventListener('click', () => {
@@ -1782,7 +1782,7 @@ export function openMultiplayerGoldfish(
 
     const confirmBtn = document.createElement('button');
     confirmBtn.className = 'btn gf-btn';
-    confirmBtn.style.background = 'var(--gold, #c9a84c)';
+    confirmBtn.style.background = 'var(--cobalt, #c9a84c)';
     confirmBtn.style.color = '#000';
     confirmBtn.textContent = 'Confirm';
     confirmBtn.addEventListener('click', () => {
@@ -2188,7 +2188,7 @@ export function openMultiplayerGoldfish(
     const p1Modal = document.createElement('div');
     p1Modal.className = 'gf-zone-modal gf-topn-modal';
 
-    p1Modal.innerHTML = `<div class="gf-zone-modal-title">\uD83D\uDD2E Scry</div>`;
+ p1Modal.innerHTML = `<div class="gf-zone-modal-title">◇ Scry</div>`;
     const p1Label = document.createElement('label');
     p1Label.className = 'gf-token-label';
     p1Label.textContent = `How many? (1-${Math.min(5, player.library.length)})`;
@@ -2206,7 +2206,7 @@ export function openMultiplayerGoldfish(
     p1Cancel.className = 'btn gf-btn'; p1Cancel.textContent = 'Cancel';
     p1Cancel.addEventListener('click', () => p1Overlay.remove());
     const p1Go = document.createElement('button');
-    p1Go.className = 'btn gf-btn'; p1Go.style.background = 'var(--gold)'; p1Go.style.color = '#000';
+    p1Go.className = 'btn gf-btn'; p1Go.style.background = 'var(--cobalt)'; p1Go.style.color = '#000';
     p1Go.textContent = 'Scry';
     p1Go.addEventListener('click', () => {
       const n = Math.max(1, Math.min(Math.min(5, player.library.length), parseInt(p1Input.value, 10) || 1));
@@ -2266,7 +2266,7 @@ export function openMultiplayerGoldfish(
 
     const actions = document.createElement('div'); actions.className = 'gf-token-actions';
     const confirmBtn = document.createElement('button');
-    confirmBtn.className = 'btn gf-btn'; confirmBtn.style.background = 'var(--gold)'; confirmBtn.style.color = '#000';
+    confirmBtn.className = 'btn gf-btn'; confirmBtn.style.background = 'var(--cobalt)'; confirmBtn.style.color = '#000';
     confirmBtn.textContent = 'Confirm';
     confirmBtn.addEventListener('click', () => {
       pushUndo(player);
@@ -2286,13 +2286,13 @@ export function openMultiplayerGoldfish(
   function exportGameState(): void {
     const lines: string[] = [];
     const round = Math.ceil(mpState.turn / mpState.playerOrder.length);
-    lines.push(`\uD83C\uDFAE DeckLens Playtest \u2014 Turn ${mpState.turn} (Round ${round}), ${PHASE_LABELS[mpState.phase]}`);
+ lines.push(` DeckLens Playtest \u2014 Turn ${mpState.turn} (Round ${round}), ${PHASE_LABELS[mpState.phase]}`);
     lines.push('\u2501'.repeat(40));
     lines.push('');
     for (const pid of mpState.playerOrder) {
       const p = getPlayer(pid);
-      const status = p.isEliminated ? ' \u2620 ELIMINATED' : '';
-      const isActive = pid === getActivePlayerId(mpState) ? '\uD83D\uDC51 ' : '';
+ const status = p.isEliminated ? ' ELIMINATED' : '';
+ const isActive = pid === getActivePlayerId(mpState) ? '◆ ' : '';
       const poisonStr = p.poisonCounters > 0 ? `, ${p.poisonCounters} poison` : '';
       lines.push(`${isActive}${p.playerName}${status} \u2014 ${p.lifeTotal} life${poisonStr}`);
       // Battlefield details
@@ -2305,18 +2305,18 @@ export function openMultiplayerGoldfish(
           if (b.isCreature) s += ` ${b.currentPower}/${b.currentToughness}`;
           return s;
         });
-        lines.push(`  \u2694 Battlefield: ${bfParts.join(', ')}`);
+ lines.push(` ✕ Battlefield: ${bfParts.join(', ')}`);
       } else {
-        lines.push(`  \u2694 Battlefield: empty`);
+ lines.push(` ✕ Battlefield: empty`);
       }
-      lines.push(`  \u270B Hand: ${p.hand.length} | \uD83D\uDCDA Library: ${p.library.length} | \uD83E\uDEA6 GY: ${p.graveyard.length} | Exile: ${p.exile.length}`);
+ lines.push(` Hand: ${p.hand.length} | Library: ${p.library.length} | GY: ${p.graveyard.length} | Exile: ${p.exile.length}`);
       lines.push('');
     }
     lines.push(`Generated by DeckLens \u2014 https://decklens.chrisgarkisch.workers.dev`);
     const text = lines.join('\n');
     navigator.clipboard.writeText(text).then(() => {
       addLog('Game state copied to clipboard');
-      showFloatingText('\uD83D\uDCCB Copied to clipboard!', '#34d399');
+ showFloatingText('▤ Copied to clipboard!', '#34d399');
       render();
     }).catch(() => {
       alert(text);
@@ -2931,7 +2931,7 @@ export function openMultiplayerGoldfish(
           const deathReason = perm.damage >= perm.currentToughness ? 'lethal damage' : (perm as any)._deathtouchDamage ? 'deathtouch' : 'zero toughness';
 
           // Visual death notification
-          showFloatingText(`💀 ${perm.name} dies (${deathReason})`, '#ef4444', 2200);
+ showFloatingText(` ${perm.name} dies (${deathReason})`, '#ef4444', 2200);
           // Mark card for death animation (CSS handles the rest)
           const cardEl = overlay.querySelector(`[data-perm-id="${perm.id}"]`);
           if (cardEl) cardEl.classList.add('gf-dying');
@@ -3098,7 +3098,7 @@ export function openMultiplayerGoldfish(
       avatar.innerHTML = `
         <span class="mp-avatar-name" style="color:${p.playerColor}">${p.playerName}</span>
         <span class="mp-avatar-life" data-pid="${pid}">${p.isEliminated ? '&#9760;' : p.lifeTotal}</span>
-        <span class="mp-avatar-poison-wrap">${p.poisonCounters > 0 ? `<span class="mp-avatar-poison">${p.poisonCounters}\u2620</span>` : `<span class="mp-avatar-poison dim">0\u2620</span>`}</span>
+ <span class="mp-avatar-poison-wrap">${p.poisonCounters > 0 ? `<span class="mp-avatar-poison">${p.poisonCounters}</span>` : `<span class="mp-avatar-poison dim">0</span>`}</span>
       `;
 
       // Life total click to edit
@@ -3112,7 +3112,7 @@ export function openMultiplayerGoldfish(
             const input = document.createElement('input');
             input.type = 'number'; input.value = String(p.lifeTotal);
             input.className = 'mp-life-edit-input';
-            input.style.cssText = 'width:42px;font-size:0.75rem;text-align:center;background:rgba(0,0,0,0.5);border:1px solid var(--gold);border-radius:4px;color:#fff;padding:1px 3px;';
+            input.style.cssText = 'width:42px;font-size:0.75rem;text-align:center;background:rgba(0,0,0,0.5);border:1px solid var(--cobalt);border-radius:4px;color:#fff;padding:1px 3px;';
             lifeEl.replaceWith(input);
             input.focus(); input.select();
             const commit = () => {
@@ -3174,7 +3174,7 @@ export function openMultiplayerGoldfish(
           avatar.classList.add('mp-attack-selected');
           const targetLabel = document.createElement('div');
           targetLabel.className = 'mp-attack-target-label';
-          targetLabel.textContent = '⚔ TARGET';
+ targetLabel.textContent = ' TARGET';
           avatar.appendChild(targetLabel);
         }
         avatar.addEventListener('click', () => {
@@ -3270,7 +3270,7 @@ export function openMultiplayerGoldfish(
       if (mpState.phase === 'main1' || mpState.phase === 'combat') {
         const combatBtn = document.createElement('button');
         combatBtn.className = 'gf-btn gf-btn-combat';
-        combatBtn.textContent = '⚔ Combat';
+ combatBtn.textContent = ' Combat';
         combatBtn.addEventListener('click', enterCombat);
         topActions.appendChild(combatBtn);
       }
@@ -3314,21 +3314,21 @@ export function openMultiplayerGoldfish(
     }
 
     // Library group
-    topActions.appendChild(createToolGroup('📚 Library', [
-      { text: '🔍 Search Library', title: 'S', action: () => showLibrarySearchModal() },
-      { text: '👁 Look at Top N', title: 'L', action: () => showTopNModal() },
-      { text: '🔮 Scry', title: 'R', action: () => showScryModal() },
-      { text: '📥 Mill 1', title: 'Mill top card', action: () => {
+    topActions.appendChild(createToolGroup('Library', [
+      { text: 'Search Library', title: 'S', action: () => showLibrarySearchModal() },
+ { text: 'Look at Top N', title: 'L', action: () => showTopNModal() },
+ { text: 'Scry', title: 'R', action: () => showScryModal() },
+      { text: 'Mill 1', title: 'Mill top card', action: () => {
         const p = getPlayer(toolPid); pushUndo(p);
         if (p.library.length > 0) { const c = p.library.shift()!; p.graveyard.push(c); addLog(`Milled: ${c}`, toolPid); render(); }
       }},
-      { text: '📥 Mill 3', title: 'Mill top 3 cards', action: () => {
+      { text: 'Mill 3', title: 'Mill top 3 cards', action: () => {
         const p = getPlayer(toolPid); pushUndo(p); const milled: string[] = [];
         for (let i = 0; i < 3 && p.library.length > 0; i++) { const c = p.library.shift()!; p.graveyard.push(c); milled.push(c); }
         if (milled.length) { addLog(`Milled ${milled.length}: ${milled.join(', ')}`, toolPid); render(); }
       }},
-      { text: '🔀 Shuffle', title: 'Shuffle Library', action: () => shuffleLibrary(toolPid) },
-      { text: '🔝 Reveal Top', title: 'Reveal top card of library', action: () => {
+      { text: 'Shuffle', title: 'Shuffle Library', action: () => shuffleLibrary(toolPid) },
+ { text: 'Reveal Top', title: 'Reveal top card of library', action: () => {
         const p = getPlayer(toolPid);
         if (p.library.length > 0) {
           const topCard = p.library[0];
@@ -3340,21 +3340,21 @@ export function openMultiplayerGoldfish(
     ]));
 
     // Tokens & Create group
-    topActions.appendChild(createToolGroup('🎭 Create', [
-      { text: '🎭 Create Token', title: 'T', action: () => showTokenCreationModal() },
-      { text: '♻ Mulligan', title: 'M — London Mulligan', action: () => mulliganHand(toolPid) },
+ topActions.appendChild(createToolGroup('Create', [
+ { text: 'Create Token', title: 'T', action: () => showTokenCreationModal() },
+ { text: '↻ Mulligan', title: 'M — London Mulligan', action: () => mulliganHand(toolPid) },
     ]));
 
     // Utilities group
     const undoPlayerId = gameMode === 'hotseat' ? getActivePlayerId(mpState) : localPlayerId;
-    topActions.appendChild(createToolGroup('⚙ Tools', [
+    topActions.appendChild(createToolGroup('Tools', [
       { text: `↩ Undo (${getPlayer(undoPlayerId).undoStack.length})`, title: 'Ctrl+Z', action: () => performUndo(undoPlayerId) },
-      { text: '🎯 Proliferate', title: 'P — +1 all counters', action: () => proliferate(toolPid) },
-      { text: '🎲 Dice / Coin', title: 'Roll dice or flip a coin', action: () => showDiceRollModal() },
-      { text: '🔀 Random Discard', title: 'Discard a random card', action: () => randomDiscard(toolPid) },
-      { text: soundEnabled ? '🔊 Sound ON' : '🔇 Sound OFF', action: () => toggleSound(), active: soundEnabled },
-      { text: coachEnabled ? '🧠 Coach ON' : '🧠 Coach OFF', action: () => toggleCoach(), active: coachEnabled },
-      { text: '📋 Export', title: 'Copy game state (enhanced)', action: () => exportGameState() },
+      { text: 'Proliferate', title: 'P — +1 all counters', action: () => proliferate(toolPid) },
+      { text: 'Dice / Coin', title: 'Roll dice or flip a coin', action: () => showDiceRollModal() },
+      { text: 'Random Discard', title: 'Discard a random card', action: () => randomDiscard(toolPid) },
+ { text: soundEnabled ? 'Sound ON' : 'Sound OFF', action: () => toggleSound(), active: soundEnabled },
+      { text: coachEnabled ? 'Coach ON' : 'Coach OFF', action: () => toggleCoach(), active: coachEnabled },
+      { text: 'Export', title: 'Copy game state (enhanced)', action: () => exportGameState() },
       { text: '↻ Reset Game', action: () => resetGame() },
       { text: '? Shortcuts', action: () => showKeybindsHelp() },
     ]));
@@ -3379,7 +3379,7 @@ export function openMultiplayerGoldfish(
 
       const manaClearBtn = document.createElement('button');
       manaClearBtn.className = 'gf-btn gf-btn-small';
-      manaClearBtn.textContent = '✕';
+ manaClearBtn.textContent = '✕';
       manaClearBtn.title = 'Clear Mana Pool';
       manaClearBtn.style.cssText = 'min-width:24px;padding:2px 6px;font-size:0.7rem;margin-left:2px;';
       manaClearBtn.addEventListener('click', () => { clearManaPool(); render(); });
@@ -3399,7 +3399,7 @@ export function openMultiplayerGoldfish(
       const hrBadge = document.createElement('span');
       hrBadge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);font-size:0.72rem;color:#c9a84c;cursor:default;';
       hrBadge.title = `House Rules: ${nonDefaultRules.join(', ')}`;
-      hrBadge.textContent = `⚙ ${nonDefaultRules.join(' · ')}`;
+      hrBadge.textContent = `${nonDefaultRules.join(' · ')}`;
       topActions.appendChild(hrBadge);
     }
 
@@ -3446,7 +3446,7 @@ export function openMultiplayerGoldfish(
     if (stormCount > 0) {
       const stormEl = document.createElement('span');
       stormEl.className = 'mp-storm-count';
-      stormEl.textContent = `⚡ Storm: ${stormCount}`;
+      stormEl.textContent = `Storm: ${stormCount}`;
       stormEl.title = 'Spells cast this turn (storm count)';
       phaseBar.appendChild(stormEl);
     }
@@ -3471,7 +3471,7 @@ export function openMultiplayerGoldfish(
       const elapsed = Math.floor((Date.now() - mpState.gameStartedAt) / 1000);
       const mins = Math.floor(elapsed / 60);
       const secs = elapsed % 60;
-      timerEl.textContent = `⏱ ${mins}:${secs.toString().padStart(2, '0')}`;
+ timerEl.textContent = ` ${mins}:${secs.toString().padStart(2, '0')}`;
     };
     updateTimer();
     // Update timer every second (clean up on next render via DOM replacement)
@@ -3511,7 +3511,7 @@ export function openMultiplayerGoldfish(
       } else {
         const replayBtn = document.createElement('button');
         replayBtn.className = 'gf-btn gf-btn-small';
-        replayBtn.textContent = `⏪ Replay (${replaySnapshots.length})`;
+ replayBtn.textContent = ` Replay (${replaySnapshots.length})`;
         replayBtn.title = 'Review game history';
         replayBtn.addEventListener('click', () => viewReplayAt(replaySnapshots.length - 1));
         replayBar.appendChild(replayBtn);
@@ -3530,7 +3530,7 @@ export function openMultiplayerGoldfish(
       const winnerText = document.createElement('div');
       winnerText.className = 'mp-winner-text';
       winnerText.style.color = winner.playerColor;
-      winnerText.textContent = `🏆 ${winner.playerName} wins! 🏆`;
+      winnerText.textContent = `${winner.playerName} wins! `;
       banner.appendChild(winnerText);
       const closeBtn = document.createElement('button');
       closeBtn.className = 'gf-btn';
@@ -3539,7 +3539,7 @@ export function openMultiplayerGoldfish(
       banner.appendChild(closeBtn);
       const newGameBtn = document.createElement('button');
       newGameBtn.className = 'gf-btn gf-btn-secondary';
-      newGameBtn.textContent = '🔄 Play Again';
+      newGameBtn.textContent = '↻ Play Again';
       newGameBtn.style.marginLeft = '8px';
       newGameBtn.addEventListener('click', () => { resetGame(); });
       banner.appendChild(newGameBtn);
@@ -3547,7 +3547,7 @@ export function openMultiplayerGoldfish(
       // ── Post-Game Statistics ──
       const statsPanel = document.createElement('div');
       statsPanel.className = 'mp-postgame-stats';
-      statsPanel.innerHTML = '<div class="mp-stats-title">📊 Game Statistics</div>';
+      statsPanel.innerHTML = '<div class="mp-stats-title">Game Statistics</div>';
 
       const statsGrid = document.createElement('div');
       statsGrid.className = 'mp-stats-grid';
@@ -3561,14 +3561,14 @@ export function openMultiplayerGoldfish(
         const dmgDealt = gameStats.damageDealt[pid] || 0;
         const cardsPlayed = gameStats.cardsPlayed[pid] || 0;
         const cardsDrawn = gameStats.cardsDrawn[pid] || 0;
-        const statusIcon = pid === mpState.winnerId ? '🏆' : p.isEliminated ? '💀' : '🏳️';
+ const statusIcon = pid === mpState.winnerId ? '' : p.isEliminated ? '✕' : '●';
         card.innerHTML = `
           <div class="mp-stats-player" style="color:${p.playerColor}">${statusIcon} ${p.playerName}</div>
-          <div class="mp-stats-row">❤️ Final Life: ${p.lifeTotal}</div>
-          <div class="mp-stats-row">⚔ Damage Dealt: ${dmgDealt}</div>
-          <div class="mp-stats-row">🎴 Cards Played: ${cardsPlayed}</div>
-          <div class="mp-stats-row">📖 Cards Drawn: ${cardsDrawn}</div>
-          <div class="mp-stats-row">⚔ Creatures on BF: ${p.battlefield.filter(b => b.isCreature).length}</div>
+          <div class="mp-stats-row">Final Life: ${p.lifeTotal}</div>
+ <div class="mp-stats-row"> Damage Dealt: ${dmgDealt}</div>
+          <div class="mp-stats-row">Cards Played: ${cardsPlayed}</div>
+          <div class="mp-stats-row">Cards Drawn: ${cardsDrawn}</div>
+ <div class="mp-stats-row"> Creatures on BF: ${p.battlefield.filter(b => b.isCreature).length}</div>
         `;
         statsGrid.appendChild(card);
       }
@@ -3582,10 +3582,10 @@ export function openMultiplayerGoldfish(
       const mins = Math.floor(elapsed / 60);
       const secs = elapsed % 60;
       globalStats.innerHTML = `
-        <span>🔄 Total Turns: ${totalTurns}</span>
-        <span>⏱ Duration: ${mins}:${secs.toString().padStart(2, '0')}</span>
-        <span>💀 Creatures Killed: ${gameStats.creaturesKilled}</span>
-        <span>⚔ Combat Phases: ${gameStats.combatPhases}</span>
+        <span>↻ Total Turns: ${totalTurns}</span>
+ <span> Duration: ${mins}:${secs.toString().padStart(2, '0')}</span>
+ <span> Creatures Killed: ${gameStats.creaturesKilled}</span>
+ <span> Combat Phases: ${gameStats.combatPhases}</span>
       `;
       statsPanel.appendChild(globalStats);
 
@@ -3662,9 +3662,9 @@ export function openMultiplayerGoldfish(
       const creatures = player.battlefield.filter(b => b.isCreature).length;
       const lands = player.battlefield.filter(b => b.isLand).length;
       const otherPerms = player.battlefield.length - creatures - lands;
-      const landBadge = player.landPlayedThisTurn ? '<span class="mp-land-played" title="Land played this turn">🏔</span>' : '';
+      const landBadge = player.landPlayedThisTurn ? '<span class="mp-land-played" title="Land played this turn"></span>' : '';
       header.innerHTML = `
-        <span class="mp-zone-name" style="color:${player.playerColor}">${player.playerName}${isActive ? ' ★' : ''}${gameMode === 'online' && pid === localPlayerId ? ' <span class="mp-you-badge">YOU</span>' : ''}</span>
+ <span class="mp-zone-name" style="color:${player.playerColor}">${player.playerName}${isActive ? ' ★' : ''}${gameMode === 'online' && pid === localPlayerId ? ' <span class="mp-you-badge">YOU</span>' : ''}</span>
         <span class="mp-zone-stats">
           Life: <strong>${player.lifeTotal}</strong>
           ${player.poisonCounters > 0 ? ` | Poison: <strong class="poison">${player.poisonCounters}</strong>` : ''}
@@ -3718,7 +3718,7 @@ export function openMultiplayerGoldfish(
           ];
           if (bfCreatureCount > 0) {
             boardItems.push({ label: `── Board Wipes ──`, divider: true, action: () => {} });
-            boardItems.push({ label: `💀 Destroy All Creatures (${bfCreatureCount})`, danger: true, action: () => {
+ boardItems.push({ label: ` Destroy All Creatures (${bfCreatureCount})`, danger: true, action: () => {
               if (!confirm(`Destroy all ${bfCreatureCount} creatures?`)) return;
               pushUndo(player);
               const dying = player.battlefield.filter(p => p.isCreature && !isIndestructible(p));
@@ -3738,7 +3738,7 @@ export function openMultiplayerGoldfish(
             }});
           }
           if (bfTokenCount > 0) {
-            boardItems.push({ label: `🧹 Remove All Tokens (${bfTokenCount})`, danger: true, action: () => {
+            boardItems.push({ label: `Remove All Tokens (${bfTokenCount})`, danger: true, action: () => {
               pushUndo(player);
               player.battlefield = player.battlefield.filter(p => !p.isToken);
               addLog(`Removed all ${bfTokenCount} tokens`, pid);
@@ -3746,14 +3746,14 @@ export function openMultiplayerGoldfish(
             }});
           }
           boardItems.push({ label: '── Tools ──', divider: true, action: () => {} });
-          boardItems.push({ label: '📝 Add Note', action: () => {
+          boardItems.push({ label: 'Add Note', action: () => {
             const rect = battlefield.getBoundingClientRect();
             const x = ((e as MouseEvent).clientX - rect.left) / rect.width * 100;
             const y = ((e as MouseEvent).clientY - rect.top) / rect.height * 100;
             addBattlefieldNote(pid, x, y);
           }});
           boardItems.push({ label: '── Zone Actions ──', divider: true, action: () => {} });
-          boardItems.push({ label: '🔄 Bounce All to Hand', danger: true, action: () => {
+          boardItems.push({ label: '↻ Bounce All to Hand', danger: true, action: () => {
             if (!confirm(`Return all permanents to hand?`)) return;
             pushUndo(player);
             for (const p of [...player.battlefield]) {
@@ -3763,7 +3763,7 @@ export function openMultiplayerGoldfish(
             addLog('All permanents returned to hand', pid);
             render();
           }});
-          boardItems.push({ label: '💀 Sacrifice All', danger: true, action: () => {
+ boardItems.push({ label: ' Sacrifice All', danger: true, action: () => {
             if (!confirm(`Sacrifice all permanents?`)) return;
             pushUndo(player);
             for (const p of [...player.battlefield]) {
@@ -3826,7 +3826,7 @@ export function openMultiplayerGoldfish(
       if (hasMultipleTypes && bfCreatures.length > 0) {
         const label = document.createElement('div');
         label.className = 'mp-bf-group-label';
-        label.textContent = `⚔ Creatures (${bfCreatures.length})`;
+ label.textContent = ` Creatures (${bfCreatures.length})`;
         battlefield.appendChild(label);
       }
       for (const { perm, idx } of bfCreatures) renderBfCard(perm, idx, battlefield, player, canControl);
@@ -3834,7 +3834,7 @@ export function openMultiplayerGoldfish(
       if (hasMultipleTypes && bfOther.length > 0) {
         const label = document.createElement('div');
         label.className = 'mp-bf-group-label';
-        label.textContent = `✦ Other (${bfOther.length})`;
+ label.textContent = ` Other (${bfOther.length})`;
         battlefield.appendChild(label);
       }
       for (const { perm, idx } of bfOther) renderBfCard(perm, idx, battlefield, player, canControl);
@@ -3842,7 +3842,7 @@ export function openMultiplayerGoldfish(
       if (hasMultipleTypes && bfLands.length > 0) {
         const label = document.createElement('div');
         label.className = 'mp-bf-group-label';
-        label.textContent = `🏔 Lands (${bfLands.length})`;
+        label.textContent = `Lands (${bfLands.length})`;
         battlefield.appendChild(label);
       }
       for (const { perm, idx } of bfLands) renderBfCard(perm, idx, battlefield, player, canControl);
@@ -4026,7 +4026,7 @@ export function openMultiplayerGoldfish(
         if (rules.maxHandSize && player.hand.length > 7 && (mpState.phase === 'end' || mpState.phase === 'main2')) {
           const warnEl = document.createElement('div');
           warnEl.className = 'mp-hand-warning';
-          warnEl.textContent = `⚠ ${player.hand.length - 7} cards over hand size limit — discard to 7`;
+          warnEl.textContent = `! ${player.hand.length - 7} cards over hand size limit — discard to 7`;
           handArea.appendChild(warnEl);
         }
       } else {
@@ -4127,14 +4127,14 @@ export function openMultiplayerGoldfish(
         const combatInfo = document.createElement('div');
         combatInfo.className = 'mp-combat-info';
         const eligible = getEligibleAttackersGoldfish(activePlayer(), mpState.turn, !rules.summoningSickness);
-        combatInfo.textContent = `⚔ Declare Attackers — Click creatures, then click target player (${mpState.combat.attackers.length}/${eligible.length} attacking)`;
+ combatInfo.textContent = ` Declare Attackers — Click creatures, then click target player (${mpState.combat.attackers.length}/${eligible.length} attacking)`;
 
         // Attack-All button
         const opponents = mpState.playerOrder.filter(p => p !== getActivePlayerId(mpState) && !getPlayer(p).isEliminated);
         if (eligible.length > 0 && opponents.length > 0) {
           const atkAllBtn = document.createElement('button');
           atkAllBtn.className = 'gf-btn gf-btn-secondary';
-          atkAllBtn.textContent = `⚔ Attack All (${eligible.length})`;
+ atkAllBtn.textContent = ` Attack All (${eligible.length})`;
           atkAllBtn.title = 'Attack with all eligible creatures';
           if (opponents.length === 1) {
             atkAllBtn.addEventListener('click', () => attackWithAll(opponents[0]));
@@ -4153,7 +4153,7 @@ export function openMultiplayerGoldfish(
               const tBtn = document.createElement('button');
               tBtn.className = 'gf-btn gf-btn-small mp-atk-target-btn';
               tBtn.style.borderColor = op.playerColor;
-              tBtn.innerHTML = `<span style="color:${op.playerColor}">⚔</span> ${op.playerName} (${op.lifeTotal}♥)`;
+ tBtn.innerHTML = `<span style="color:${op.playerColor}">✕</span> ${op.playerName} (${op.lifeTotal})`;
               tBtn.addEventListener('click', () => { attackWithAll(opp); atkTargets.style.display = 'none'; });
               atkTargets.appendChild(tBtn);
             }
@@ -4167,7 +4167,7 @@ export function openMultiplayerGoldfish(
 
         const confirmBtn = document.createElement('button');
         confirmBtn.className = 'gf-btn gf-btn-combat';
-        confirmBtn.textContent = mpState.combat.attackers.length > 0 ? '⚔ Confirm Attackers' : 'Skip Combat';
+ confirmBtn.textContent = mpState.combat.attackers.length > 0 ? ' Confirm Attackers' : 'Skip Combat';
         confirmBtn.addEventListener('click', confirmAttackers);
 
         combatBar.appendChild(combatInfo);
@@ -4184,16 +4184,16 @@ export function openMultiplayerGoldfish(
         const combatInfo = document.createElement('div');
         combatInfo.className = 'mp-combat-info';
         if (canDeclareBlockers && defender) {
-          combatInfo.innerHTML = `🛡 <strong style="color:${defender.playerColor}">${defender.playerName}</strong> — Declare Blockers: Click your creature → Click an attacker to block`;
+          combatInfo.innerHTML = `■ <strong style="color:${defender.playerColor}">${defender.playerName}</strong> — Declare Blockers: Click your creature → Click an attacker to block`;
         } else if (defender) {
-          combatInfo.textContent = `🛡 Waiting for ${defender.playerName} to declare blockers...`;
+          combatInfo.textContent = `■ Waiting for ${defender.playerName} to declare blockers...`;
         }
 
         if (canDeclareBlockers) {
           const blockerCount = mpState.combat.blockers.filter(b => b.blockerPlayerId === currentDefId).length;
           const confirmBtn = document.createElement('button');
           confirmBtn.className = 'gf-btn gf-btn-combat';
-          confirmBtn.textContent = blockerCount > 0 ? `🛡 Confirm ${blockerCount} Blocker(s)` : 'No Blocks';
+          confirmBtn.textContent = blockerCount > 0 ? `■ Confirm ${blockerCount} Blocker(s)` : 'No Blocks';
           confirmBtn.addEventListener('click', confirmBlockers);
           combatBar.appendChild(combatInfo);
           combatBar.appendChild(confirmBtn);
@@ -4253,7 +4253,7 @@ export function openMultiplayerGoldfish(
       ledger.className = 'mp-commander-ledger';
       const ledgerToggle = document.createElement('div');
       ledgerToggle.className = 'mp-ledger-title mp-ledger-toggle';
-      ledgerToggle.textContent = '🏆 Commander Damage Matrix ▾';
+      ledgerToggle.textContent = 'Commander Damage Matrix ▾';
       ledgerToggle.style.cursor = 'pointer';
       ledger.appendChild(ledgerToggle);
 
@@ -4326,7 +4326,7 @@ export function openMultiplayerGoldfish(
       ledgerToggle.addEventListener('click', () => {
         const open = ledgerBody.style.display !== 'none';
         ledgerBody.style.display = open ? 'none' : 'block';
-        ledgerToggle.textContent = open ? '🏆 Commander Damage Matrix ▾' : '🏆 Commander Damage Matrix ▴';
+        ledgerToggle.textContent = open ? 'Commander Damage Matrix ▾' : 'Commander Damage Matrix ▴';
       });
       logPanel.appendChild(ledger);
     }
@@ -4424,7 +4424,7 @@ export function openMultiplayerGoldfish(
     // Face-down indicator
     if (perm.faceDown) {
       card.classList.add('face-down');
-      card.innerHTML = `<div class="gf-face-down-label">🎭<br>2/2</div>`;
+ card.innerHTML = `<div class="gf-face-down-label"><br>2/2</div>`;
     }
     // Image (use cloneNode from preloaded cache to avoid flicker)
     else if (perm.imgUrl) {
@@ -4508,7 +4508,7 @@ export function openMultiplayerGoldfish(
       const chapterTotal = getSagaChapterCount(perm);
       const sagaBadge = document.createElement('span');
       sagaBadge.className = 'gf-saga-badge';
-      sagaBadge.textContent = `📖 ${loreCount}/${chapterTotal}`;
+      sagaBadge.textContent = `${loreCount}/${chapterTotal}`;
       sagaBadge.title = `Saga — Chapter ${loreCount} of ${chapterTotal}`;
       card.appendChild(sagaBadge);
     }
@@ -4520,7 +4520,7 @@ export function openMultiplayerGoldfish(
       if (targetPerm) {
         const attachBadge = document.createElement('span');
         attachBadge.className = 'gf-attach-badge';
-        attachBadge.textContent = isEquipment(perm) ? `⚔→${targetPerm.name.slice(0, 8)}` : `✨→${targetPerm.name.slice(0, 8)}`;
+ attachBadge.textContent = isEquipment(perm) ? `✕→${targetPerm.name.slice(0, 8)}` : `→${targetPerm.name.slice(0, 8)}`;
         attachBadge.title = `Attached to ${targetPerm.name}`;
         card.appendChild(attachBadge);
       }
@@ -4626,7 +4626,7 @@ export function openMultiplayerGoldfish(
         ];
         // Quick-damage for creatures
         if (perm.isCreature) {
-          items.push({ label: `🗡 Deal Damage...`, action: () => {
+ items.push({ label: `Deal Damage...`, action: () => {
             const amt = prompt(`How much damage to ${perm.name}? (current: ${perm.damage}/${perm.currentToughness})`);
             if (amt) {
               const val = parseInt(amt, 10);
@@ -4639,7 +4639,7 @@ export function openMultiplayerGoldfish(
               }
             }
           }});
-          items.push({ label: `❤ Remove Damage`, action: () => {
+          items.push({ label: `Remove Damage`, action: () => {
             if (perm.damage > 0) {
               pushUndo(player);
               perm.damage = 0;
@@ -4686,7 +4686,7 @@ export function openMultiplayerGoldfish(
             items.push({ label: '── Create Token ──', divider: true, action: () => {} });
             for (const dt of detectedTokens) {
               const tokenLabel = dt.power ? `${dt.name} ${dt.power}/${dt.toughness}` : dt.name;
-              items.push({ label: `🎭 ${tokenLabel} (1x)`, action: () => {
+ items.push({ label: `${tokenLabel} (1x)`, action: () => {
                 const imgUrl = tokenImageCache.get(dt.name) || '';
                 createTokensFromTemplate(player.playerId, { name: dt.name, power: dt.power, toughness: dt.toughness, typeLine: dt.typeLine, imgUrl }, 1);
                 if (!imgUrl) fetchTokenImage(dt.name).then(url => { if (url) { for (const bf of player.battlefield) { if (bf.isToken && bf.name === dt.name && !bf.imgUrl) bf.imgUrl = url; } render(); } });
@@ -4697,13 +4697,13 @@ export function openMultiplayerGoldfish(
 
         // Token Clone / Copy as Token options
         if (perm.isToken) {
-          items.push({ label: '⬦ Copy Token (1x)', divider: true, action: () => {
+ items.push({ label: ' Copy Token (1x)', divider: true, action: () => {
             createTokensFromTemplate(player.playerId, {
               name: perm.name, power: perm.power, toughness: perm.toughness,
               colors: '', typeLine: perm.typeLine, abilities: '', imgUrl: perm.imgUrl,
             }, 1);
           }});
-          items.push({ label: '⬦ Copy Token (5x)', action: () => {
+ items.push({ label: ' Copy Token (5x)', action: () => {
             createTokensFromTemplate(player.playerId, {
               name: perm.name, power: perm.power, toughness: perm.toughness,
               colors: '', typeLine: perm.typeLine, abilities: '', imgUrl: perm.imgUrl,
@@ -4711,7 +4711,7 @@ export function openMultiplayerGoldfish(
           }});
         } else if (perm.isCreature) {
           // Copy any creature as token copy
-          items.push({ label: '⬦ Create Token Copy', divider: true, action: () => {
+ items.push({ label: ' Create Token Copy', divider: true, action: () => {
             createTokensFromTemplate(player.playerId, {
               name: perm.name, power: perm.power, toughness: perm.toughness,
               typeLine: perm.typeLine, imgUrl: perm.imgUrl,
@@ -4730,7 +4730,7 @@ export function openMultiplayerGoldfish(
             }
             for (const cr of creatures.slice(0, 6)) {
               const crIdx = player.battlefield.indexOf(cr);
-              items.push({ label: `⚔ Equip → ${cr.name}`, action: () => attachEquipment(player.playerId, bfIdx, crIdx) });
+ items.push({ label: ` Equip → ${cr.name}`, action: () => attachEquipment(player.playerId, bfIdx, crIdx) });
             }
           }
         }
@@ -4746,7 +4746,7 @@ export function openMultiplayerGoldfish(
             }
             for (const cr of creatures.slice(0, 6)) {
               const crIdx = player.battlefield.indexOf(cr);
-              items.push({ label: `✨ Enchant → ${cr.name}`, action: () => attachEquipment(player.playerId, bfIdx, crIdx) });
+              items.push({ label: `Enchant → ${cr.name}`, action: () => attachEquipment(player.playerId, bfIdx, crIdx) });
             }
           }
         }
@@ -4755,7 +4755,7 @@ export function openMultiplayerGoldfish(
         if (cardData?.card_faces && cardData.card_faces.length > 1) {
           const currentFace = perm.transformed ? cardData.card_faces[1] : cardData.card_faces[0];
           const otherFace = perm.transformed ? cardData.card_faces[0] : cardData.card_faces[1];
-          items.push({ label: `🔄 Transform → ${(otherFace as any).name || 'Back'}`, divider: true, action: () => {
+          items.push({ label: `↻ Transform → ${(otherFace as any).name || 'Back'}`, divider: true, action: () => {
             pushUndo(player);
             perm.transformed = !perm.transformed;
             const face = perm.transformed ? cardData!.card_faces![1] : cardData!.card_faces![0];
@@ -4772,7 +4772,7 @@ export function openMultiplayerGoldfish(
         }
         // Face-down / Morph
         if (!perm.faceDown) {
-          items.push({ label: '🎭 Turn Face Down', action: () => {
+ items.push({ label: 'Turn Face Down', action: () => {
             pushUndo(player);
             perm.faceDown = true;
             perm._savedName = perm.name;
@@ -4788,7 +4788,7 @@ export function openMultiplayerGoldfish(
             render();
           }});
         } else {
-          items.push({ label: '🎭 Turn Face Up', action: () => {
+ items.push({ label: 'Turn Face Up', action: () => {
             pushUndo(player);
             perm.faceDown = false;
             if (perm._savedName) perm.name = perm._savedName;
