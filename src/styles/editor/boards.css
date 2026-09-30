@@ -401,11 +401,11 @@
   color: var(--gold-bright);
 }
 .ctx-danger {
-  color: #f87171;
+  color: var(--danger-soft);
 }
 .ctx-danger:hover {
   background: rgba(239, 68, 68, 0.1);
-  color: #fca5a5;
+  color: var(--danger-soft);
 }
 .ctx-divider {
   height: 1px;
@@ -458,7 +458,7 @@
   border-radius: 50px;
   flex-shrink: 0;
   background: var(--gold);
-  color: #0a0e17;
+  color: var(--surface-1);
   border: none;
   cursor: pointer;
   font-weight: 600;
@@ -478,7 +478,7 @@
   top: 2px;
   right: 4px;
   font-size: 0.7rem;
-  color: #ef4444;
+  color: var(--danger);
   pointer-events: auto;
   cursor: help;
   text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);

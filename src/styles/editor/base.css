@@ -7,38 +7,59 @@
 }
 
 :root {
+  /* ── Design tokens (Phase R: values = old palette; flipped in Phase D) ── */
+  --surface-0: #08090f;
+  --surface-1: #0c0e16;
+  --surface-2: #12141e;
+  --surface-3: #1a1d2a;
+  --surface-4: #252838;
+  --accent: #c9a84c;
+  --accent-strong: #e8c84a;
+  --accent-dim: #8a7230;
+  --accent-glow: rgba(201, 168, 76, 0.12);
+  --ok: #34d399;
+  --ok-soft: #6ee7b7;
+  --danger: #ef4444;
+  --danger-soft: #f87171;
+  --warn: #f59e0b;
+  --info: #60a5fa;
+  --info-violet: #a78bfa;
+  --text-hi: #e8e2d6;
+  --text-bright: #e2e8f0;
+  --text-lo: #9a94a8;
+  --text-muted: #706b7f;
   /* Arcane Forge palette */
-  --void: #08090f;
-  --abyss: #0c0e16;
-  --obsidian: #12141e;
-  --smoke: #1a1d2a;
-  --slate: #252838;
+  --void: var(--surface-0);
+  --abyss: var(--surface-1);
+  --obsidian: var(--surface-2);
+  --smoke: var(--surface-3);
+  --slate: var(--surface-4);
   --line: rgba(255, 255, 255, 0.06);
   --line-light: rgba(255, 255, 255, 0.1);
 
   /* Accent spectrum */
-  --gold: #c9a84c;
-  --gold-bright: #e8c84a;
-  --gold-dim: #8a7230;
+  --gold: var(--accent);
+  --gold-bright: var(--accent-strong);
+  --gold-dim: var(--accent-dim);
   --gold-glow: rgba(201, 168, 76, 0.12);
-  --emerald: #34d399;
+  --emerald: var(--ok);
   --emerald-dim: #1a9a6a;
   --emerald-glow: rgba(52, 211, 153, 0.1);
-  --accent: #34d399;
-  --crimson: #ef4444;
+  --accent: var(--ok);
+  --crimson: var(--danger);
   --crimson-glow: rgba(239, 68, 68, 0.12);
-  --amber: #f59e0b;
+  --amber: var(--warn);
   --amber-glow: rgba(245, 158, 11, 0.1);
 
   /* Text */
-  --text: #e8e2d6;
-  --text-dim: #9a94a8;
-  --muted: #706b7f;
+  --text: var(--text-hi);
+  --text-dim: var(--text-lo);
+  --muted: var(--text-muted);
 
   /* Semantic */
-  --danger: #ef4444;
-  --warn: #f59e0b;
-  --ok: #34d399;
+  --danger: var(--danger);
+  --warn: var(--warn);
+  --ok: var(--ok);
 
   /* Surface */
   --panel: rgba(18, 20, 30, 0.85);

@@ -105,12 +105,12 @@
 }
 .import-summary-banner--ok {
   background: rgba(52, 211, 153, 0.1);
-  color: #34d399;
+  color: var(--ok);
   border: 1px solid rgba(52, 211, 153, 0.2);
 }
 .import-summary-banner--warn {
   background: rgba(245, 158, 11, 0.1);
-  color: #f59e0b;
+  color: var(--warn);
   border: 1px solid rgba(245, 158, 11, 0.2);
 }
 .import-summary-banner__close {
@@ -167,7 +167,7 @@
   height: 40px;
   border-radius: 3px;
   object-fit: cover;
-  border: 1px solid var(--line, #1e2a3a);
+  border: 1px solid var(--line, var(--surface-2));
   flex-shrink: 0;
 }
 
@@ -175,10 +175,10 @@
   position: relative;
   width: 80px;
   height: 14px;
-  background: var(--obsidian, #1a1f2e);
+  background: var(--obsidian, var(--surface-2));
   border-radius: 7px;
   overflow: hidden;
-  border: 1px solid var(--line, #1e2a3a);
+  border: 1px solid var(--line, var(--surface-2));
   flex-shrink: 0;
 }
 
@@ -216,13 +216,13 @@
 .overview-stat-val {
   font-weight: 700;
   font-size: 0.78rem;
-  color: var(--text, #e2e8f0);
+  color: var(--text, var(--text-bright));
 }
 
 .overview-stat-lbl {
   font-size: 0.55rem;
   text-transform: uppercase;
-  color: var(--text-dim, #64748b);
+  color: var(--text-dim, var(--text-muted));
   letter-spacing: 0.05em;
 }
 
@@ -476,12 +476,12 @@
   padding: 2px 0;
 }
 .factor-plus {
-  color: #34d399;
+  color: var(--ok);
   font-family: "JetBrains Mono", monospace;
   font-weight: 600;
 }
 .factor-minus {
-  color: #ef4444;
+  color: var(--danger);
   font-family: "JetBrains Mono", monospace;
   font-weight: 600;
 }
@@ -514,7 +514,7 @@
 .counter-title {
   font-size: 0.68rem;
   font-weight: 600;
-  color: #fca5a5;
+  color: var(--danger-soft);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin-bottom: 4px;
@@ -530,7 +530,7 @@
   background: rgba(239, 68, 68, 0.08);
   border: 1px solid rgba(239, 68, 68, 0.15);
   font-size: 0.65rem;
-  color: #fca5a5;
+  color: var(--danger-soft);
 }
 
 /* ═══ DECK TIPS ═══ */
@@ -659,13 +659,13 @@
   font-family: "JetBrains Mono", monospace;
 }
 .history-added {
-  color: #6ee7b7;
+  color: var(--ok-soft);
 }
 .history-removed {
-  color: #fca5a5;
+  color: var(--danger-soft);
 }
 .history-changed {
-  color: #e8c84a;
+  color: var(--accent-strong);
 }
 .version-actions {
   display: flex;
@@ -695,7 +695,7 @@
 .version-sync-both {
   background: rgba(52, 211, 153, 0.1);
   border: 1px solid rgba(52, 211, 153, 0.25);
-  color: #6ee7b7;
+  color: var(--ok-soft);
 }
 .version-timeline {
   display: flex;
@@ -734,10 +734,10 @@
   background: rgba(255, 255, 255, 0.25);
 }
 .version-dot-cloud {
-  background: #60a5fa;
+  background: var(--info);
 }
 .version-dot-synced {
-  background: #34d399;
+  background: var(--ok);
 }
 .version-entry-content {
   flex: 1;
@@ -812,7 +812,7 @@
 }
 .budget-summary strong {
   font-family: "JetBrains Mono", monospace;
-  color: #ef4444;
+  color: var(--danger);
 }
 .budget-table {
   display: flex;
@@ -1161,12 +1161,12 @@
 }
 .matchup-tag.threat {
   background: rgba(239, 68, 68, 0.12);
-  color: #f87171;
+  color: var(--danger-soft);
   border: 1px solid rgba(239, 68, 68, 0.2);
 }
 .matchup-tag.wincon {
   background: rgba(52, 211, 153, 0.12);
-  color: #34d399;
+  color: var(--ok);
   border: 1px solid rgba(52, 211, 153, 0.2);
 }
 .matchup-timeline {
@@ -1216,10 +1216,10 @@
   margin-bottom: 3px;
 }
 .sb-in {
-  color: #34d399;
+  color: var(--ok);
 }
 .sb-out {
-  color: #f87171;
+  color: var(--danger-soft);
 }
 .sb-move {
   font-size: 0.72rem;
@@ -1227,10 +1227,10 @@
   padding: 2px 0;
 }
 .sb-move-in {
-  color: #6ee7b7;
+  color: var(--ok-soft);
 }
 .sb-move-out {
-  color: #fca5a5;
+  color: var(--danger-soft);
 }
 .sb-reason {
   font-size: 0.64rem;
@@ -1241,7 +1241,7 @@
 }
 .matchup-coverage-warn {
   font-size: 0.72rem;
-  color: #e8c84a;
+  color: var(--accent-strong);
   padding: 6px 10px;
   border: 1px solid rgba(232, 200, 74, 0.2);
   border-radius: var(--radius-sm);
@@ -1288,10 +1288,10 @@
   font-size: 0.82rem;
 }
 .rec-cut .rec-card-name {
-  color: #fca5a5;
+  color: var(--danger-soft);
 }
 .rec-add .rec-card-name {
-  color: #6ee7b7;
+  color: var(--ok-soft);
 }
 .rec-reasons {
   font-size: 0.68rem;
@@ -1314,7 +1314,7 @@
   border-radius: 50px;
   background: rgba(52, 211, 153, 0.12);
   border: 1px solid rgba(52, 211, 153, 0.2);
-  color: #34d399;
+  color: var(--ok);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -1461,7 +1461,7 @@
   white-space: nowrap;
 }
 .combo-status.complete {
-  color: #34d399;
+  color: var(--ok);
   background: rgba(52, 211, 153, 0.08);
 }
 .combo-status.partial {
@@ -1560,7 +1560,7 @@
 }
 .synergy-tooltip-name {
   font-weight: 700;
-  color: var(--gold, #e2b340);
+  color: var(--gold, var(--accent-strong));
   margin-bottom: 4px;
 }
 .synergy-tooltip-count {
@@ -1703,7 +1703,7 @@
   color: var(--gold-bright, #e0c05c);
 }
 .quality-bad {
-  color: var(--crimson, #ef4444);
+  color: var(--crimson, var(--danger));
 }
 .hand-stat {
   color: var(--muted);

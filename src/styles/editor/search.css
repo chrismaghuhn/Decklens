@@ -174,7 +174,7 @@
   color: #4da6e8;
 }
 .color-toggle[data-color="B"].active {
-  border-color: #9a94a8;
+  border-color: var(--text-lo);
   background: rgba(90, 80, 83, 0.15);
   color: #c8c0cc;
 }
@@ -186,7 +186,7 @@
 .color-toggle[data-color="G"].active {
   border-color: #00733e;
   background: rgba(0, 115, 62, 0.15);
-  color: #34d399;
+  color: var(--ok);
 }
 
 /* ═══ SEARCH SIDEBAR ═══ */

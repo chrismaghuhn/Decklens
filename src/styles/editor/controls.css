@@ -96,7 +96,7 @@ h3 {
 .btn.danger {
   background: rgba(239, 68, 68, 0.08);
   border-color: rgba(239, 68, 68, 0.2);
-  color: #f87171;
+  color: var(--danger-soft);
 }
 .btn.danger:hover {
   background: rgba(239, 68, 68, 0.15);

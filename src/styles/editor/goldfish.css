@@ -3,7 +3,7 @@
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: var(--bg-1, #0a0e17);
+  background: var(--bg-1, var(--surface-1));
   display: flex;
   flex-direction: column;
   font-family: "Outfit", sans-serif;
@@ -15,20 +15,20 @@
   align-items: center;
   gap: 10px;
   padding: 10px 16px;
-  background: var(--bg-2, #131a2b);
-  border-top: 1px solid var(--border, #1e293b);
+  background: var(--bg-2, var(--surface-2));
+  border-top: 1px solid var(--border, var(--surface-2));
   flex-wrap: wrap;
 }
 .gf-turn {
   font-family: "Space Grotesk", sans-serif;
   font-size: 1.1rem;
   font-weight: 700;
-  color: var(--gold, #e2b340);
+  color: var(--gold, var(--accent-strong));
 }
 .gf-phase {
   font-size: 0.82rem;
   font-weight: 600;
-  color: var(--text, #e2e8f0);
+  color: var(--text, var(--text-bright));
   background: rgba(255, 255, 255, 0.06);
   padding: 3px 10px;
   border-radius: 50px;
@@ -36,11 +36,11 @@
 .gf-life {
   font-size: 0.88rem;
   font-weight: 600;
-  color: var(--text, #e2e8f0);
+  color: var(--text, var(--text-bright));
 }
 .gf-info {
   font-size: 0.76rem;
-  color: #94a3b8;
+  color: var(--text-lo);
 }
 .gf-btn {
   font-size: 0.72rem !important;
@@ -72,7 +72,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #94a3b8;
+  color: var(--text-lo);
   margin-bottom: 8px;
 }
 .gf-battlefield {
@@ -115,7 +115,7 @@
   border: 2px solid transparent;
 }
 .gf-card:hover {
-  border-color: var(--gold, #e2b340);
+  border-color: var(--gold, var(--accent-strong));
   transform: scale(1.04);
 }
 .gf-card img {
@@ -126,8 +126,8 @@
 .gf-hand {
   grid-column: 1;
   grid-row: 2;
-  background: var(--bg-2, #131a2b);
-  border-top: 1px solid var(--border, #1e293b);
+  background: var(--bg-2, var(--surface-2));
+  border-top: 1px solid var(--border, var(--surface-2));
   min-height: 160px;
   max-height: 200px;
   transition:
@@ -151,8 +151,8 @@
 .gf-side {
   grid-column: 2;
   grid-row: 1 / 3;
-  background: var(--bg-2, #131a2b);
-  border-left: 1px solid var(--border, #1e293b);
+  background: var(--bg-2, var(--surface-2));
+  border-left: 1px solid var(--border, var(--surface-2));
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -169,7 +169,7 @@
 }
 .gf-mini-card {
   font-size: 0.68rem;
-  color: #94a3b8;
+  color: var(--text-lo);
   padding: 2px 4px;
   white-space: nowrap;
   overflow: hidden;
@@ -191,7 +191,7 @@
   overflow-y: auto;
   font-family: "JetBrains Mono", monospace;
   font-size: 0.62rem;
-  color: #64748b;
+  color: var(--text-muted);
 }
 .gf-log-entry {
   padding: 1px 0;
@@ -199,7 +199,7 @@
 }
 .gf-card:not(.gf-hand-card):not(:has(img)) {
   font-size: 0.58rem;
-  color: #94a3b8;
+  color: var(--text-lo);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -211,12 +211,12 @@
   opacity: 0.35 !important;
 }
 .gf-drop-target {
-  outline: 2px dashed var(--gold, #e2b340) !important;
+  outline: 2px dashed var(--gold, var(--accent-strong)) !important;
   outline-offset: -2px;
   background: rgba(226, 179, 64, 0.06) !important;
 }
 .gf-drop-target .gf-bf-title {
-  color: var(--gold, #e2b340);
+  color: var(--gold, var(--accent-strong));
 }
 /* Library drop target in topbar */
 .gf-lib-drop {
@@ -228,7 +228,7 @@
     background 0.15s;
 }
 .gf-lib-drop.gf-drop-target {
-  border-color: var(--gold, #e2b340) !important;
+  border-color: var(--gold, var(--accent-strong)) !important;
   background: rgba(226, 179, 64, 0.08) !important;
   outline: none !important;
 }
@@ -237,7 +237,7 @@
   position: fixed;
   z-index: 10002;
   background: rgba(12, 14, 22, 0.97);
-  border: 1px solid var(--border, #1e293b);
+  border: 1px solid var(--border, var(--surface-2));
   border-radius: 10px;
   padding: 5px;
   min-width: 180px;
@@ -257,7 +257,7 @@
   padding: 6px 12px;
   border: none;
   background: none;
-  color: var(--text, #e2e8f0);
+  color: var(--text, var(--text-bright));
   font-size: 0.72rem;
   font-family: "Outfit", sans-serif;
   text-align: left;
@@ -268,7 +268,7 @@
   background: rgba(255, 255, 255, 0.08);
 }
 .gf-ctx-danger {
-  color: #f87171;
+  color: var(--danger-soft);
 }
 .gf-ctx-danger:hover {
   background: rgba(248, 113, 113, 0.1);
@@ -284,13 +284,13 @@
   transition: color 0.15s;
 }
 .gf-zone-title.gf-expandable:hover {
-  color: var(--gold, #e2b340);
+  color: var(--gold, var(--accent-strong));
 }
 .gf-zone-title.gf-expandable::after {
   content: " [view all]";
   font-size: 0.58rem;
   font-weight: 400;
-  color: #475569;
+  color: var(--text-muted);
 }
 /* Zone expansion modal */
 .gf-zone-modal-overlay {
@@ -304,8 +304,8 @@
   backdrop-filter: blur(4px);
 }
 .gf-zone-modal {
-  background: var(--bg-2, #131a2b);
-  border: 1px solid var(--border, #1e293b);
+  background: var(--bg-2, var(--surface-2));
+  border: 1px solid var(--border, var(--surface-2));
   border-radius: 16px;
   padding: 20px;
   max-width: 700px;
@@ -317,7 +317,7 @@
   font-family: "Space Grotesk", sans-serif;
   font-size: 1rem;
   font-weight: 700;
-  color: var(--gold, #e2b340);
+  color: var(--gold, var(--accent-strong));
   margin-bottom: 12px;
 }
 .gf-zone-modal-grid {
@@ -333,7 +333,7 @@
   transition: border-color 0.15s;
 }
 .gf-zone-modal-card:hover {
-  border-color: var(--gold, #e2b340);
+  border-color: var(--gold, var(--accent-strong));
 }
 .gf-zone-modal-card img {
   width: 100%;
@@ -343,17 +343,17 @@
 /* Counter badges — see typed counter badges section below */
 /* Token styling */
 .gf-card.gf-token {
-  border: 2px dashed #64748b;
+  border: 2px dashed var(--text-muted);
   background: rgba(255, 255, 255, 0.03);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.72rem;
-  color: #94a3b8;
+  color: var(--text-lo);
   min-height: 126px;
 }
 .gf-card.gf-token:hover {
-  border-color: var(--gold, #e2b340);
+  border-color: var(--gold, var(--accent-strong));
 }
 
 /* ── Goldfish Keybinds Help ── */
@@ -375,8 +375,8 @@
   justify-content: center;
 }
 .gf-help-modal {
-  background: var(--abyss, #0f1623);
-  border: 1px solid var(--gold, #c9a84c);
+  background: var(--abyss, var(--surface-1));
+  border: 1px solid var(--gold, var(--accent));
   border-radius: 16px;
   padding: 28px 32px;
   max-width: 420px;
@@ -398,7 +398,7 @@
 }
 .gf-help-title {
   font-family: "Cinzel", serif;
-  color: var(--gold, #c9a84c);
+  color: var(--gold, var(--accent));
   font-size: 1.1rem;
   margin: 0 0 16px;
   text-align: center;
@@ -417,13 +417,13 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   font-family: "JetBrains Mono", monospace;
   font-size: 0.78rem;
-  color: var(--gold, #c9a84c);
+  color: var(--gold, var(--accent));
   text-align: center;
   min-width: 40px;
 }
 .gf-help-desc {
   font-size: 0.82rem;
-  color: var(--text, #e8e2d6);
+  color: var(--text, var(--text-hi));
 }
 .gf-help-subtitle {
   font-family: "Cinzel", serif;
@@ -438,7 +438,7 @@
 }
 .gf-help-tips li {
   font-size: 0.78rem;
-  color: #94a3b8;
+  color: var(--text-lo);
   margin-bottom: 5px;
   position: relative;
   padding-left: 4px;
@@ -452,7 +452,7 @@
 
 /* ═══ GOLDFISH — COMMAND ZONE ═══ */
 .gf-command-zone {
-  border-left: 3px solid var(--gold, #c9a84c);
+  border-left: 3px solid var(--gold, var(--accent));
   background: rgba(201, 168, 76, 0.04);
 }
 .gf-commander-card {
@@ -468,18 +468,18 @@
     box-shadow 0.2s;
 }
 .gf-commander-card:hover {
-  border-color: var(--gold, #c9a84c);
+  border-color: var(--gold, var(--accent));
   box-shadow: 0 0 8px rgba(201, 168, 76, 0.3);
 }
 .gf-commander-tax-label {
   text-align: center;
   font-size: 0.68rem;
-  color: var(--gold, #c9a84c);
+  color: var(--gold, var(--accent));
   margin-top: 2px;
   font-weight: 600;
 }
 .gf-commander-tax {
-  color: var(--gold, #c9a84c);
+  color: var(--gold, var(--accent));
   font-size: 0.72rem;
   font-weight: 700;
 }
@@ -518,7 +518,7 @@
   transition: all 0.15s ease;
 }
 .gf-token-grid-card:hover {
-  border-color: var(--gold, #c9a84c);
+  border-color: var(--gold, var(--accent));
   background: rgba(201, 168, 76, 0.1);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -543,7 +543,7 @@
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px dashed rgba(255, 255, 255, 0.15);
-  color: #94a3b8;
+  color: var(--text-lo);
   font-size: 0.72rem;
   font-weight: 600;
   padding: 4px;
@@ -564,7 +564,7 @@
 .gf-token-label {
   display: block;
   font-size: 0.74rem;
-  color: #94a3b8;
+  color: var(--text-lo);
   margin: 8px 0 3px;
 }
 .gf-token-input {
@@ -573,13 +573,13 @@
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.04);
-  color: #e8e2d6;
+  color: var(--text-hi);
   font-size: 0.82rem;
   outline: none;
   box-sizing: border-box;
 }
 .gf-token-input:focus {
-  border-color: var(--gold, #c9a84c);
+  border-color: var(--gold, var(--accent));
 }
 .gf-token-actions {
   display: flex;
@@ -596,7 +596,7 @@
 }
 .gf-quick-pick-label {
   font-size: 0.72rem;
-  color: #94a3b8;
+  color: var(--text-lo);
   margin-bottom: 6px;
 }
 .gf-quick-pick-row {
@@ -612,7 +612,7 @@
   border-radius: 16px;
   border: 1px solid rgba(201, 168, 76, 0.3);
   background: rgba(201, 168, 76, 0.08);
-  color: var(--gold, #c9a84c);
+  color: var(--gold, var(--accent));
   font-size: 0.74rem;
   font-weight: 600;
   cursor: pointer;
@@ -620,7 +620,7 @@
 }
 .gf-quick-pick-pill:hover {
   background: rgba(201, 168, 76, 0.2);
-  border-color: var(--gold, #c9a84c);
+  border-color: var(--gold, var(--accent));
   transform: scale(1.04);
 }
 
@@ -642,7 +642,7 @@
   bottom: 2px;
   right: 2px;
   background: rgba(0, 0, 0, 0.85);
-  color: #e8e2d6;
+  color: var(--text-hi);
   font-size: 0.68rem;
   font-weight: 700;
   padding: 1px 5px;
@@ -658,7 +658,7 @@
   padding: 2px 6px;
   border-radius: 9px;
   color: #fff;
-  background: var(--emerald, #34d399);
+  background: var(--emerald, var(--ok));
   white-space: nowrap;
   line-height: 1.3;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
@@ -710,22 +710,22 @@
 }
 /* Counter type colors (+1/+1 → p1p1, -1/-1 → m1m1) */
 .gf-counter-p1p1 {
-  background: #34d399;
+  background: var(--ok);
 }
 .gf-counter-m1m1 {
-  background: #ef4444;
+  background: var(--danger);
 }
 .gf-counter-loyalty {
   background: #3b82f6;
 }
 .gf-counter-charge {
-  background: #f59e0b;
+  background: var(--warn);
 }
 .gf-counter-shield {
   background: #a855f7;
 }
 .gf-counter-lore {
-  background: var(--gold, #c9a84c);
+  background: var(--gold, var(--accent));
 }
 
 /* ═══ GOLDFISH — LIBRARY PILE ═══ */
@@ -768,7 +768,7 @@
 }
 .gf-library-empty {
   font-size: 0.68rem;
-  color: #64748b;
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -778,7 +778,7 @@
   border-color: rgba(34, 197, 94, 0.3) !important;
 }
 .gf-poison-lethal {
-  color: #ef4444 !important;
+  color: var(--danger) !important;
   border-color: rgba(239, 68, 68, 0.4) !important;
   animation: gf-poison-pulse 1s infinite;
 }
@@ -802,14 +802,14 @@
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.04);
-  color: #e8e2d6;
+  color: var(--text-hi);
   font-size: 0.88rem;
   outline: none;
   margin-bottom: 10px;
   box-sizing: border-box;
 }
 .gf-search-input:focus {
-  border-color: var(--gold, #c9a84c);
+  border-color: var(--gold, var(--accent));
 }
 
 /* ═══ GOLDFISH — TOP N MODAL ═══ */
@@ -849,7 +849,7 @@
 .gf-topn-name {
   flex: 1;
   font-size: 0.78rem;
-  color: #e8e2d6;
+  color: var(--text-hi);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -870,21 +870,21 @@
   padding: 2px 6px;
   border-radius: 4px;
   cursor: pointer;
-  color: #94a3b8;
+  color: var(--text-lo);
   border: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
   gap: 3px;
 }
 .gf-topn-dest-label.active {
-  color: var(--gold, #c9a84c);
+  color: var(--gold, var(--accent));
   border-color: rgba(201, 168, 76, 0.3);
   background: rgba(201, 168, 76, 0.08);
 }
 .gf-topn-dest-label input[type="radio"] {
   width: 10px;
   height: 10px;
-  accent-color: var(--gold, #c9a84c);
+  accent-color: var(--gold, var(--accent));
 }
 @keyframes coach-pulse {
   0%,
@@ -905,12 +905,12 @@
   transition: all 0.2s ease;
 }
 .gf-sequence-step.active {
-  border-left-color: var(--gold, #c9a84c);
+  border-left-color: var(--gold, var(--accent));
   background: rgba(201, 168, 76, 0.06);
 }
 .gf-sequence-step.done {
   opacity: 0.55;
-  border-left-color: #34d399;
+  border-left-color: var(--ok);
 }
 .gf-sequence-header {
   display: flex;
@@ -921,12 +921,12 @@
 .gf-sequence-turns {
   font-size: 0.62rem;
   font-weight: 800;
-  color: #94a3b8;
+  color: var(--text-lo);
   min-width: 32px;
   font-variant-numeric: tabular-nums;
 }
 .gf-sequence-step.active .gf-sequence-turns {
-  color: var(--gold, #c9a84c);
+  color: var(--gold, var(--accent));
 }
 .gf-sequence-phase {
   font-size: 0.68rem;
@@ -935,22 +935,22 @@
   flex: 1;
 }
 .gf-sequence-step.active .gf-sequence-phase {
-  color: var(--gold, #c9a84c);
+  color: var(--gold, var(--accent));
 }
 .gf-sequence-dot {
   font-size: 0.7rem;
-  color: #475569;
+  color: var(--text-muted);
 }
 .gf-sequence-dot.active {
-  color: var(--gold, #c9a84c);
+  color: var(--gold, var(--accent));
   text-shadow: 0 0 6px rgba(201, 168, 76, 0.4);
 }
 .gf-sequence-dot.done {
-  color: #34d399;
+  color: var(--ok);
 }
 .gf-sequence-goal {
   font-size: 0.6rem;
-  color: #64748b;
+  color: var(--text-muted);
   line-height: 1.3;
   margin-bottom: 4px;
   padding-left: 38px;
@@ -970,11 +970,11 @@
 }
 .gf-seq-done {
   background: rgba(52, 211, 153, 0.15);
-  color: #34d399;
+  color: var(--ok);
 }
 .gf-seq-hand {
   background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
+  color: var(--warn);
 }
 .gf-seq-gy {
   background: rgba(245, 158, 11, 0.08);
@@ -988,7 +988,7 @@
 }
 .gf-seq-missing {
   background: rgba(255, 255, 255, 0.04);
-  color: #475569;
+  color: var(--text-muted);
 }
 
 /* ═══ COMBO — SOURCE BADGES ═══ */
@@ -1012,13 +1012,13 @@
   color: #fff;
 }
 .gf-badge-near-miss {
-  background: #f59e0b;
+  background: var(--warn);
   color: #000;
   animation: coach-pulse 2s ease infinite;
 }
 .gf-badge-template-req {
   background: rgba(255, 255, 255, 0.12);
-  color: #94a3b8;
+  color: var(--text-lo);
   border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
@@ -1034,7 +1034,7 @@
   padding: 1px 6px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.06);
-  color: #94a3b8;
+  color: var(--text-lo);
   border: 1px solid rgba(255, 255, 255, 0.08);
   text-transform: capitalize;
   font-weight: 500;
@@ -1045,7 +1045,7 @@
   display: inline-block;
   font-size: 0.55rem;
   margin-top: 2px;
-  color: #60a5fa;
+  color: var(--info);
   text-decoration: none;
   opacity: 0.7;
   transition: opacity 0.15s;
@@ -1061,7 +1061,7 @@
   padding: 2px 8px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.06);
-  color: #94a3b8;
+  color: var(--text-lo);
   border: 1px solid rgba(255, 255, 255, 0.12);
   cursor: pointer;
   transition: all 0.15s;
@@ -1069,7 +1069,7 @@
 }
 .gf-combo-suggest-btn:hover {
   background: rgba(201, 168, 76, 0.15);
-  color: var(--gold, #c9a84c);
+  color: var(--gold, var(--accent));
   border-color: rgba(201, 168, 76, 0.3);
 }
 
@@ -1085,7 +1085,7 @@
   backdrop-filter: blur(4px);
 }
 .combo-suggest-modal {
-  background: var(--obsidian, #1a1f2e);
+  background: var(--obsidian, var(--surface-2));
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
   padding: 24px;
@@ -1098,7 +1098,7 @@
 .combo-suggest-title {
   font-family: "Cinzel", serif;
   font-size: 1.1rem;
-  color: var(--gold, #c9a84c);
+  color: var(--gold, var(--accent));
   margin: 0 0 16px;
   text-align: center;
 }
@@ -1108,7 +1108,7 @@
 .combo-suggest-label {
   display: block;
   font-size: 0.7rem;
-  color: #94a3b8;
+  color: var(--text-lo);
   margin-bottom: 4px;
   font-weight: 600;
 }
@@ -1117,7 +1117,7 @@
   padding: 8px 10px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.05);
-  color: #e2e8f0;
+  color: var(--text-bright);
   border: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 0.75rem;
   outline: none;
@@ -1125,7 +1125,7 @@
   box-sizing: border-box;
 }
 .combo-suggest-input:focus {
-  border-color: var(--gold, #c9a84c);
+  border-color: var(--gold, var(--accent));
   box-shadow: 0 0 0 2px rgba(201, 168, 76, 0.15);
 }
 .combo-suggest-textarea {
@@ -1133,7 +1133,7 @@
   padding: 8px 10px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.05);
-  color: #e2e8f0;
+  color: var(--text-bright);
   border: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 0.75rem;
   outline: none;
@@ -1142,7 +1142,7 @@
   box-sizing: border-box;
 }
 .combo-suggest-textarea:focus {
-  border-color: var(--gold, #c9a84c);
+  border-color: var(--gold, var(--accent));
   box-shadow: 0 0 0 2px rgba(201, 168, 76, 0.15);
 }
 .combo-suggest-card-list {
@@ -1155,7 +1155,7 @@
   padding: 4px 10px;
   border-radius: 8px;
   background: transparent;
-  color: #60a5fa;
+  color: var(--info);
   border: 1px dashed rgba(96, 165, 250, 0.3);
   cursor: pointer;
   margin-top: 4px;
@@ -1166,7 +1166,7 @@
 }
 .combo-suggest-error {
   font-size: 0.7rem;
-  color: #ef4444;
+  color: var(--danger);
   padding: 6px 0;
   font-weight: 500;
 }
@@ -1180,7 +1180,7 @@
   padding: 8px 16px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.06);
-  color: #94a3b8;
+  color: var(--text-lo);
   border: 1px solid rgba(255, 255, 255, 0.1);
   cursor: pointer;
   font-size: 0.75rem;
@@ -1192,7 +1192,7 @@
 .combo-suggest-submit {
   padding: 8px 20px;
   border-radius: 10px;
-  background: var(--gold, #c9a84c);
+  background: var(--gold, var(--accent));
   color: #000;
   border: none;
   cursor: pointer;
@@ -1209,7 +1209,7 @@
 .combo-tree-window {
   position: fixed;
   z-index: 10002;
-  background: var(--abyss, #0f1623);
+  background: var(--abyss, var(--surface-1));
   border: 1px solid rgba(201, 168, 76, 0.18);
   border-radius: 14px;
   display: flex;
@@ -1234,14 +1234,14 @@
 .combo-tree-title {
   font-family: "Cinzel", serif;
   font-size: 0.88rem;
-  color: var(--gold, #c9a84c);
+  color: var(--gold, var(--accent));
   font-weight: 700;
   flex: 1;
 }
 .combo-tree-close {
   background: none;
   border: none;
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 1rem;
   cursor: pointer;
   padding: 2px 6px;
@@ -1249,7 +1249,7 @@
   transition: all 0.15s;
 }
 .combo-tree-close:hover {
-  color: #ef4444;
+  color: var(--danger);
   background: rgba(239, 68, 68, 0.1);
 }
 
@@ -1265,7 +1265,7 @@
   padding: 3px 10px;
   border-radius: 50px;
   background: rgba(255, 255, 255, 0.04);
-  color: #64748b;
+  color: var(--text-muted);
   border: 1px solid rgba(255, 255, 255, 0.06);
   cursor: pointer;
   transition: all 0.15s;
@@ -1273,16 +1273,16 @@
 }
 .combo-tree-filter-btn:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: #94a3b8;
+  color: var(--text-lo);
 }
 .combo-tree-filter-btn.active {
   background: rgba(201, 168, 76, 0.15);
-  color: var(--gold, #c9a84c);
+  color: var(--gold, var(--accent));
   border-color: rgba(201, 168, 76, 0.3);
 }
 .combo-tree-count {
   font-size: 0.55rem;
-  color: #475569;
+  color: var(--text-muted);
   margin-left: auto;
   font-weight: 600;
 }
@@ -1301,29 +1301,29 @@
 /* ── Graph Nodes ── */
 .ct-node-card {
   fill: #334155;
-  stroke: #64748b;
+  stroke: var(--text-muted);
   stroke-width: 1.5;
   transition: opacity 0.15s;
 }
 .ct-node-card.ct-missing {
   fill: transparent;
-  stroke: #475569;
+  stroke: var(--text-muted);
   stroke-dasharray: 4 3;
   opacity: 0.45;
 }
 .ct-node-combo {
   fill: rgba(201, 168, 76, 0.2);
-  stroke: var(--gold, #c9a84c);
+  stroke: var(--gold, var(--accent));
   stroke-width: 2;
   transition: opacity 0.15s;
 }
 .ct-node-combo.ct-near {
-  stroke: #f59e0b;
+  stroke: var(--warn);
   animation: ct-pulse 2s ease infinite;
 }
 .ct-node-combo.ct-partial {
   fill: rgba(100, 116, 139, 0.12);
-  stroke: #475569;
+  stroke: var(--text-muted);
   stroke-width: 1.5;
 }
 @keyframes ct-pulse {
@@ -1339,17 +1339,17 @@
 .ct-label {
   font-family: "Outfit", sans-serif;
   font-size: 9px;
-  fill: #94a3b8;
+  fill: var(--text-lo);
   pointer-events: none;
   user-select: none;
 }
 .ct-label-combo {
   font-size: 8px;
-  fill: var(--gold, #c9a84c);
+  fill: var(--gold, var(--accent));
   font-weight: 600;
 }
 .ct-badge {
-  fill: #64748b;
+  fill: var(--text-muted);
   font-family: "JetBrains Mono", monospace;
   pointer-events: none;
 }
@@ -1363,10 +1363,10 @@
     stroke-width 0.15s;
 }
 .ct-edge-combo-piece {
-  stroke: var(--gold, #c9a84c);
+  stroke: var(--gold, var(--accent));
 }
 .ct-edge-missing-piece {
-  stroke: #475569;
+  stroke: var(--text-muted);
   stroke-dasharray: 5 4;
   opacity: 0.18;
 }
@@ -1380,8 +1380,8 @@
 
 /* ── Node highlight/dim ── */
 .ct-node-group.ct-highlight .ct-node-card {
-  fill: #475569;
-  stroke: #e2e8f0;
+  fill: var(--text-muted);
+  stroke: var(--text-bright);
   stroke-width: 2;
 }
 .ct-node-group.ct-highlight .ct-node-combo {
@@ -1397,7 +1397,7 @@
   position: fixed;
   z-index: 10003;
   background: rgba(15, 22, 35, 0.96);
-  color: #e2e8f0;
+  color: var(--text-bright);
   border: 1px solid rgba(201, 168, 76, 0.2);
   border-radius: 10px;
   padding: 8px 12px;
@@ -1410,7 +1410,7 @@
 }
 .ct-tooltip div:first-child {
   font-weight: 700;
-  color: var(--gold, #c9a84c);
+  color: var(--gold, var(--accent));
   margin-bottom: 2px;
 }
 
@@ -1430,11 +1430,11 @@
   pointer-events: none;
 }
 .gf-role-combo {
-  background: #ef4444;
+  background: var(--danger);
   color: #fff;
 }
 .gf-role-payoff {
-  background: var(--gold, #c9a84c);
+  background: var(--gold, var(--accent));
   color: #000;
 }
 .gf-role-engine {
@@ -1446,7 +1446,7 @@
   color: #fff;
 }
 .gf-role-ramp {
-  background: #34d399;
+  background: var(--ok);
   color: #000;
 }
 .gf-role-draw {
@@ -1454,10 +1454,10 @@
   color: #000;
 }
 .gf-role-removal {
-  background: #f59e0b;
+  background: var(--warn);
   color: #000;
 }
 .gf-role-protect {
-  background: #a78bfa;
+  background: var(--info-violet);
   color: #fff;
 }
