@@ -158,7 +158,7 @@ export class UserFeedbackSystem {
   }
 
   /**
-   * Track explicit user rating (👍/👎)
+   * Track explicit user rating (up/down)
    */
   trackRating(
     recommendation: RecommendationItem,

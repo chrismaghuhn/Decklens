@@ -5648,7 +5648,7 @@ function renderComboItem(match: ComboMatch, isNearMiss: boolean): HTMLElement {
 // ==================== COMBO CARD HIGHLIGHTING ====================
 
 function highlightComboCards(): void {
-  // Add ♾️ indicator to cards in the deck list that are part of combos
+  // Add infinity indicator to cards in the deck list that are part of combos
   const cardElements = document.querySelectorAll('[data-card-name]');
   for (const el of cardElements) {
     const name = (el as HTMLElement).dataset.cardName?.toLowerCase() || '';

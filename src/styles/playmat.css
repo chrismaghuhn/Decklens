@@ -474,9 +474,36 @@ body {
 .pm-dock-empty { font: 400 0.7rem var(--font-ui); color: var(--text-muted); padding: 6px; display: block; }
 
 @media (max-width: 899px) {
-  .pm-cmdzone { position: static; margin-bottom: 14px; }
-  .pm-field { margin-left: 0; }
-  .pm-docks { position: static; flex-direction: row; margin-top: 14px; }
+  .pm-cmdzone { position: static; width: auto; margin-bottom: 14px; }
+  .pm-cmdzone .pm-card, .pm-cmdslot { width: 104px; }
+  .pm-docks { position: static; flex-direction: row; margin-top: 14px; align-items: flex-start; }
+
+  /* Accordion: piles become full-width stacked lists, free positions ignored */
+  .pm-field,
+  .pm-mat-free .pm-field { margin-left: 0; display: block; position: static; min-height: 0; }
+  .pm-pile,
+  .pm-mat-free .pm-pile { position: static; width: 100%; margin-bottom: 14px; }
+  .pm-pile-head { padding: 8px 10px; font-size: 0.7rem; }
+  .pm-pile-head[data-drag] { cursor: default; }
+  .pm-stack {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+    gap: 6px;
+    padding-top: 6px;
+  }
+  .pm-stack .pm-card { margin-top: 0; width: auto; }
+  .pm-stack .pm-card:hover { transform: none; }
+  .pm-ghost-pile,
+  .pm-mat-free .pm-ghost-pile { position: static; width: 100%; margin-bottom: 14px; }
+
+  /* Hand: flat sheet, no fan tilt */
+  .pm-hand-card { transform: none !important; width: 86px; margin: 0 -8px; }
+  .pm-fan { padding: 18px 10px 8px; overflow-x: auto; justify-content: flex-start; }
+
+  /* Action buttons: icons only, above the hand */
+  .pm-action-btn span { display: none; }
+  .pm-actions { bottom: 190px; flex-direction: column; }
+  .pm-mat { padding-bottom: 200px; }
 }
 
 /* ── Search ── */

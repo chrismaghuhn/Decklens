@@ -502,13 +502,14 @@ function renderHud(): void {
 
   let legalityText: string;
   let legalityOk: boolean;
-  if (stateRef.deck.format === 'commander') {
+  const format = stateRef.deck.format || 'commander';
+  if (format === 'commander') {
     const result = evaluateEdhRules(stateRef.deck, stateRef.cardByName);
     const errors = result.issues.filter((i) => i.severity === 'error');
     legalityOk = errors.length === 0;
     legalityText = legalityOk ? 'Legal' : `${errors.length} Regel-Probleme`;
-  } else if (stateRef.deck.format && stateRef.deck.format !== 'none') {
-    const rules = getFormatRules(stateRef.deck.format);
+  } else if (format !== 'none') {
+    const rules = getFormatRules(format);
     legalityOk = stats.total >= rules.minDeckSize;
     legalityText = legalityOk ? 'Legal' : `Min. ${rules.minDeckSize} Karten`;
   } else {

@@ -438,6 +438,6 @@ export function getIssueSeverityIcon(severity: ValidationSeverity): string {
   switch (severity) {
     case 'error': return '✕';
     case 'warning': return '!';
-    case 'info': return 'ℹ️';
+    case 'info': return 'i';
   }
 }
