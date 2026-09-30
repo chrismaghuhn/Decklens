@@ -1,7 +1,7 @@
 # DeckLens Redesign "Linear Dark" — Design Spec
 
 Date: 2026-09-30
-Status: Approved direction (chat); spec pending owner review
+Status: Approved by owner (chat, 2026-09-30)
 Chosen direction: Mockup **Variante A — "Linear"** (design-mockups.html, untracked scratch file)
 
 ## Goal
@@ -63,9 +63,8 @@ treatment in Phase D. index/decks/yugioh are small enough to edit in place.
    Outfit/Sora on all pages.
 2. **Editor**: flip the Phase-R token values to the new palette; polish
    hotspots by hand (header, board tabs, search sidebar, goldfish overlay,
-   toasts). The old light-theme toggle maps to a provisional light token set
-   or is hidden if it can't be made presentable within scope (owner call in
-   plan review — default: hide toggle, keep dark only for now).
+   toasts). The old light-theme toggle is removed (owner decision 2026-09-30):
+   dark-only for now; a proper light mode can be its own later project.
 3. **Landing (index.html)**: rebuild hero + game cards + footer in Mockup-A
    style (kicker, gradient headline, primary/ghost CTAs, two game cards with
    pills and stat row). Content stays (links to /decks, /mtg, /yugioh, legal
