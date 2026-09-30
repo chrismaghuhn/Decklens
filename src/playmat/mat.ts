@@ -6,7 +6,7 @@
 import type { DeckBoard, DeckbuilderCardEntry } from '../deckbuilder/types.js';
 import { projectPiles, applyPileOrder, type Pile } from './sort.js';
 import { layoutFor, GRID_CELL } from './layout.js';
-import { mutateDeck, cardFor, normalizeNameKey,
+import { mutateDeck, cardFor, normalizeNameKey, isTypingContext,
   EV_OPEN_COMMANDER_SEARCH, type PlaymatState } from './state.js';
 import { showDetailModal, showHoverPreview, hideHoverPreview } from '../deckbuilder/card-preview.js';
 import { initContextMenu, showContextMenu } from '../deckbuilder/context-menu.js';
@@ -15,6 +15,10 @@ import { showToast } from '../deckbuilder/toast.js';
 import { iconSvg } from '../shared/icons.js';
 import { openArtPicker } from './art-picker.js';
 import { openPresetSearch } from './hand.js';
+import {
+  initSelection, applySelectionStyles, isSelected, selectedNames, selectionSize,
+  selectOnly, ctrlToggle, shiftSelect, clearSelection,
+} from './selection.js';
 import { classifyRole, ROLE_LABELS, type Role } from '../deckbuilder/role-classifier.js';
 import type { DeckbuilderSearchParams } from '../shared/scryfall-client.js';
 
@@ -129,6 +133,91 @@ export function assignTag(name: string, tag: string): void {
     if (tag === 'Untagged') entry.tags = [];
     else if (!entry.tags?.includes(tag)) entry.tags = [...(entry.tags || []), tag];
   });
+}
+
+// ── Bulk actions (each is exactly ONE undo step) ──
+
+export function bulkMoveTo(names: string[], to: DeckBoard): void {
+  const keys = new Set(names.map(normalizeNameKey));
+  mutateDeck(stateRef, (d) => {
+    const moving = d.boards.mainboard.filter((e) => keys.has(normalizeNameKey(e.name)));
+    d.boards.mainboard = d.boards.mainboard.filter((e) => !keys.has(normalizeNameKey(e.name)));
+    for (const e of moving) {
+      const existing = d.boards[to].find((x) => normalizeNameKey(x.name) === normalizeNameKey(e.name));
+      if (existing) existing.qty += e.qty;
+      else d.boards[to].push(e);
+    }
+  });
+  showToast({ message: `${names.length} card${names.length === 1 ? '' : 's'} moved to ${BOARD_LABELS[to]}.`, type: 'success' });
+}
+
+export function bulkRemove(names: string[]): void {
+  const keys = new Set(names.map(normalizeNameKey));
+  mutateDeck(stateRef, (d) => {
+    d.boards.mainboard = d.boards.mainboard.filter((e) => !keys.has(normalizeNameKey(e.name)));
+  });
+  showToast({ message: `${names.length} card${names.length === 1 ? '' : 's'} removed — Ctrl+Z to undo.`, type: 'info' });
+}
+
+export function bulkAssignTag(names: string[], tag: string): void {
+  const keys = new Set(names.map(normalizeNameKey));
+  mutateDeck(stateRef, (d) => {
+    for (const e of d.boards.mainboard) {
+      if (!keys.has(normalizeNameKey(e.name))) continue;
+      if (tag === 'Untagged') e.tags = [];
+      else if (!e.tags?.includes(tag)) e.tags = [...(e.tags || []), tag];
+    }
+  });
+}
+
+export function bulkClearTags(names: string[]): void {
+  const keys = new Set(names.map(normalizeNameKey));
+  mutateDeck(stateRef, (d) => {
+    for (const e of d.boards.mainboard) {
+      if (keys.has(normalizeNameKey(e.name))) e.tags = [];
+    }
+  });
+}
+
+function showBulkMenu(event: MouseEvent): void {
+  document.querySelector('.pm-menu')?.remove();
+  const names = selectedNames();
+  const menu = document.createElement('div');
+  menu.className = 'pm-menu pm-bulk-menu';
+  const head = document.createElement('div');
+  head.className = 'pm-bulk-head';
+  head.textContent = `${names.length} cards`;
+  menu.appendChild(head);
+
+  const item = (label: string, fn: () => void): void => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.addEventListener('click', () => { menu.remove(); fn(); });
+    menu.appendChild(b);
+  };
+  item('Move to Sideboard', () => bulkMoveTo(names, 'sideboard'));
+  item('Move to Maybeboard', () => bulkMoveTo(names, 'maybeboard'));
+  item('Add tag …', async () => {
+    const tag = (await showPromptModal({
+      title: `Tag ${names.length} cards`,
+      message: 'Tag to add to every selected card:',
+      placeholder: 'e.g. Combo pieces',
+    }))?.trim();
+    if (tag) bulkAssignTag(names, tag);
+  });
+  item('Clear tags', () => bulkClearTags(names));
+  item('Remove from deck', () => bulkRemove(names));
+  item('Clear selection', () => clearSelection());
+
+  menu.style.top = `${Math.min(event.clientY, window.innerHeight - 240)}px`;
+  menu.style.left = `${Math.min(event.clientX, window.innerWidth - 200)}px`;
+  menu.style.right = 'auto';
+  document.body.appendChild(menu);
+  const close = (e: MouseEvent): void => {
+    if (!menu.contains(e.target as Node)) { menu.remove(); document.removeEventListener('mousedown', close); }
+  };
+  setTimeout(() => document.addEventListener('mousedown', close), 0);
 }
 
 // ── Role targets (Command Zone style template, editable per deck) ──
@@ -294,13 +383,24 @@ function cardEl(entry: DeckbuilderCardEntry, opts: { eager: boolean; board: Deck
   }
   el.appendChild(qtybar);
 
-  el.addEventListener('click', () => {
+  // desktop metaphor: click selects, double-click opens the detail view
+  el.addEventListener('click', (e) => {
+    if (e.shiftKey) shiftSelect(entry.name);
+    else if (e.ctrlKey || e.metaKey) ctrlToggle(entry.name);
+    else selectOnly(entry.name);
+  });
+  el.addEventListener('dblclick', () => {
     const c = cardFor(stateRef, entry.name);
     if (c) showDetailModal(entry.name, c, entryOf(opts.board, entry.name), opts.board);
   });
   el.addEventListener('contextmenu', (e) => {
     e.preventDefault();
-    showContextMenu(entry.name, opts.board, e);
+    if (isSelected(entry.name) && selectionSize() > 1) {
+      showBulkMenu(e);
+    } else {
+      selectOnly(entry.name);
+      showContextMenu(entry.name, opts.board, e);
+    }
   });
   el.addEventListener('mouseenter', (e) => {
     const c = cardFor(stateRef, entry.name);
@@ -492,6 +592,8 @@ export function renderMat(root: HTMLElement, state: PlaymatState): void {
   docks.className = 'pm-docks';
   docks.append(dockEl('maybeboard'), dockEl('sideboard'));
   root.appendChild(docks);
+
+  applySelectionStyles();
 }
 
 export function initMat(root: HTMLElement, state: PlaymatState): void {
@@ -525,6 +627,13 @@ export function initMat(root: HTMLElement, state: PlaymatState): void {
     boardLabels: BOARD_LABELS,
   });
 
+  initSelection(root, state);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Delete' && selectionSize() > 0 && !isTypingContext(e.target)) {
+      e.preventDefault();
+      bulkRemove(selectedNames());
+    }
+  });
   document.addEventListener('pm-render-mat', () => renderMat(root, state));
   renderMat(root, state);
 }

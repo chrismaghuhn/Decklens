@@ -6,8 +6,9 @@
 import { snapToGrid, GRID_CELL } from './layout.js';
 import { mutateDeck, type PlaymatState } from './state.js';
 import type { SortMode } from './sort.js';
-import { addCardToDeck, assignTag } from './mat.js';
+import { addCardToDeck, assignTag, bulkAssignTag } from './mat.js';
 import { handCardByName, rememberCard } from './hand.js';
+import { isSelected, selectedNames } from './selection.js';
 import { showToast } from '../deckbuilder/toast.js';
 
 const DRAG_THRESHOLD = 6;
@@ -231,7 +232,10 @@ function finishDrop(e: PointerEvent): void {
   if (action.type === 'assign-to-pile') {
     // raw label on purpose: dropping on "Untagged" clears the card's tags
     const label = matRootRef.querySelector<HTMLElement>(`[data-pile="${action.pileId}"]`)?.dataset.pileLabel;
-    if (label) assignTag(current.name, label);
+    if (!label) return;
+    // dragging a selected card carries the whole selection (one undo step)
+    if (isSelected(current.name) && selectedNames().length > 1) bulkAssignTag(selectedNames(), label);
+    else assignTag(current.name, label);
     return;
   }
 
@@ -293,6 +297,12 @@ export function initDrag(matRoot: HTMLElement, state: PlaymatState): void {
         ? matRootRef.querySelector<HTMLElement>(`[data-pile="${session.pileId}"]`)
         : document.querySelector<HTMLElement>(`[data-drag][data-card="${CSS.escape(session.name)}"]`);
       if (source) session.ghost = makeGhost(source, session.kind);
+      if (session.ghost && session.kind === 'card' && isSelected(session.name) && selectedNames().length > 1) {
+        const badge = document.createElement('span');
+        badge.className = 'pm-ghost-count';
+        badge.textContent = `×${selectedNames().length}`;
+        session.ghost.appendChild(badge);
+      }
       document.body.classList.add('pm-dragging');
     }
     if (session.ghost) {
