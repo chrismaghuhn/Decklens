@@ -89,6 +89,12 @@ All modes operate on the same deck data; piles are a pure projection.
   position on the mat, draggable anywhere; positions persist per deck
   (`deck.matLayout`). Entering Frei the first time seeds positions from
   the last sorted view. Other modes ignore matLayout (non-destructive).
+  **Snap-to-grid** (owner requirement): the mat exposes a snap grid
+  aligned with its visible texture (cell = half a card width, 72px at
+  default zoom); while dragging, the drop target cell highlights and the
+  pile snaps to the nearest grid point on release. Stored positions are
+  grid coordinates (col/row), so layouts stay aligned across viewport
+  sizes.
 
 Boards: the mat shows the mainboard+commander. Maybeboard/Sideboard are
 two docked side piles at the mat's right edge (collapsed stacks with
