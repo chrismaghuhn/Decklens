@@ -1789,30 +1789,6 @@
   grid-column: 1 / -1;
 }
 
-/* ── Context Menu Keyboard Highlight ── */
-.ctx-menu-highlighted {
-  background: rgba(201, 168, 76, 0.12) !important;
-  color: var(--accent) !important;
-  outline: 1px solid rgba(201, 168, 76, 0.2);
-}
-
-/* ── Goldfish Life Total Input ── */
-.gf-life-input {
-  width: 52px;
-  padding: 2px 4px;
-  font-size: 0.85rem;
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid var(--accent);
-  border-radius: 6px;
-  color: var(--text-hi);
-  text-align: center;
-  outline: none;
-  font-family: var(--font-mono);
-}
-.gf-life-input:focus {
-  box-shadow: 0 0 6px rgba(201, 168, 76, 0.3);
-}
-
 /* ── Task Drag States ── */
 .task-dragging {
   opacity: 0.4;

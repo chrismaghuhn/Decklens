@@ -1,0 +1,224 @@
+/* ==================== Playmat Editor Styles ==================== */
+/* Shell layout + mat surface. Reuses theme.css tokens plus the kept
+   editor slices for tokens, goldfish overlay and shared modals. */
+
+@import './editor/base.css';
+@import './editor/goldfish.css';
+@import './editor/modals.css';
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+}
+.skip-link:focus {
+  left: 8px;
+  top: 8px;
+  z-index: 200;
+  background: var(--accent);
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 8px;
+}
+
+/* ── Header ── */
+.pm-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-1);
+  position: relative;
+  z-index: 30;
+}
+.pm-name {
+  font: 700 1.05rem var(--font-display, 'Fraunces', serif);
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text-hi);
+  min-width: 120px;
+  max-width: 300px;
+}
+.pm-name:focus {
+  border-bottom: 1px solid var(--accent);
+}
+.pm-format {
+  font: 500 0.64rem var(--font-mono);
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+  flex: none;
+}
+.pm-spacer { flex: 1; }
+.pm-search-slot { width: min(460px, 40vw); }
+.pm-progress {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.pm-ring { width: 28px; height: 28px; transform: rotate(-90deg); }
+.pm-ring circle { fill: none; stroke-width: 3; }
+.pm-ring .bg { stroke: var(--surface-4); }
+.pm-ring .fg { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset 0.3s var(--ease); }
+.pm-ring .fg.warn { stroke: var(--warn); }
+.pm-ring-label { font: 600 0.72rem var(--font-mono); color: var(--text-hi); }
+.pm-ring-label em { font-style: normal; color: var(--text-muted); }
+.pm-more {
+  font: 600 1rem var(--font-mono);
+  color: var(--text-lo);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.pm-more:hover { border-color: var(--accent); color: var(--text-hi); }
+
+.pm-menu {
+  position: fixed;
+  z-index: 120;
+  background: var(--surface-2);
+  border: 1px solid var(--line-light);
+  border-radius: 10px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+.pm-menu button {
+  font: 500 0.84rem var(--font-ui);
+  color: var(--text-hi);
+  background: none;
+  border: none;
+  border-radius: 7px;
+  padding: 9px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.pm-menu button:hover { background: var(--accent-glow); }
+
+/* ── Sortbar ── */
+.pm-sortbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-1);
+  position: relative;
+  z-index: 25;
+  flex-wrap: wrap;
+}
+.pm-sort-label {
+  font: 600 0.6rem var(--font-mono);
+  letter-spacing: 0.16em;
+  color: var(--text-muted);
+}
+.pm-sort-opt {
+  font: 600 0.76rem var(--font-ui);
+  color: var(--text-lo);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 13px;
+  cursor: pointer;
+  transition: all 0.12s var(--ease);
+}
+.pm-sort-opt:hover:not(.on) { border-color: var(--accent); color: var(--text-hi); }
+.pm-sort-opt.on {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 2px 2px 0 rgba(74, 36, 24, 0.9);
+}
+.pm-hud {
+  margin-left: auto;
+  display: flex;
+  gap: 16px;
+  font: 600 0.66rem var(--font-mono);
+  color: var(--text-muted);
+  align-items: center;
+}
+.pm-hud b { color: var(--accent-strong); font-weight: 600; }
+.pm-hud .ok { color: var(--ok); }
+.pm-hud .warn { color: var(--warn); }
+.pm-hud button {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  gap: 16px;
+}
+
+/* ── Mat ── */
+.pm-mat {
+  position: relative;
+  flex: 1;
+  padding: 22px 18px 140px;
+  overflow: auto;
+  background:
+    radial-gradient(ellipse 120% 80% at 50% 0%, rgba(224, 82, 44, 0.04), transparent 55%),
+    repeating-linear-gradient(90deg, transparent 0 71px, rgba(120, 140, 110, 0.1) 71px 72px),
+    repeating-linear-gradient(0deg, transparent 0 71px, rgba(120, 140, 110, 0.1) 71px 72px),
+    linear-gradient(160deg, #191c17, #171a16 55%, #131510);
+  border-top: 1px solid rgba(120, 140, 110, 0.14);
+}
+
+.pm-notfound {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  padding: 80px 20px;
+  color: var(--text-lo);
+  text-align: center;
+}
+.pm-notfound .ui-ic { width: 2.2em; height: 2.2em; color: var(--text-muted); }
+.pm-notfound a { color: var(--accent-strong); }
+
+/* ── Hand / Actions / Drawer shells ── */
+.pm-hand {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+.pm-actions {
+  position: fixed;
+  right: 14px;
+  bottom: 12px;
+  z-index: 45;
+  display: flex;
+  gap: 8px;
+}
+.pm-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(440px, 94vw);
+  z-index: 60;
+  background: var(--surface-1);
+  border-left: 1px solid var(--line-light);
+  transform: translateX(102%);
+  transition: transform 0.22s var(--ease);
+  overflow-y: auto;
+}
+.pm-drawer.open { transform: none; }
+
+/* ── Mobile fallback (accordion, no drag) ── */
+@media (max-width: 899px) {
+  .pm-search-slot { width: 100%; order: 10; }
+  .pm-header { flex-wrap: wrap; }
+}
