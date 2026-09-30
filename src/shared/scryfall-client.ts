@@ -27,6 +27,8 @@ export interface DeckbuilderSearchCard {
   power?: string;
   toughness?: string;
   edhrec_rank?: number;
+  /** Wizards' Commander Brackets "Game Changer" list membership */
+  game_changer?: boolean;
   produced_mana?: string[];
   card_faces?: Array<{
     name?: string;
@@ -160,6 +162,7 @@ function mapScryfallCard(raw: unknown): DeckbuilderSearchCard | null {
     power: typeof raw.power === 'string' ? raw.power : firstFace?.power,
     toughness: typeof raw.toughness === 'string' ? raw.toughness : firstFace?.toughness,
     edhrec_rank: typeof raw.edhrec_rank === 'number' && Number.isFinite(raw.edhrec_rank) ? raw.edhrec_rank : undefined,
+    game_changer: raw.game_changer === true ? true : undefined,
     produced_mana: Array.isArray(raw.produced_mana)
       ? raw.produced_mana.filter((p): p is string => typeof p === 'string')
       : undefined,

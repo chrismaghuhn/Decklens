@@ -260,6 +260,32 @@ function renderSortbar(root: HTMLElement, state: PlaymatState): void {
   root.appendChild(hud);
 }
 
+function toggleShortcutOverlay(): void {
+  const existing = document.querySelector('.pm-shortcuts');
+  if (existing) { existing.remove(); return; }
+  const overlay = document.createElement('div');
+  overlay.className = 'pm-shortcuts';
+  overlay.innerHTML = `
+    <div class="pm-shortcuts-box">
+      <h2>Shortcuts &amp; gestures</h2>
+      <dl>
+        <dt>/</dt><dd>Focus the card search</dd>
+        <dt>Enter</dt><dd>Add the top search hit</dd>
+        <dt>Esc</dt><dd>Leave field → close drawer → cancel drag</dd>
+        <dt>Ctrl+Z / Ctrl+Y</dt><dd>Undo / redo card changes</dd>
+        <dt>Drag a card</dt><dd>From the hand onto the mat adds it; outside the mat cancels</dd>
+        <dt>Drag a pile header</dt><dd>Reorders piles; in Free mode moves them on the grid</dd>
+        <dt>Double-click a pile header</dt><dd>Collapse / expand the pile</dd>
+        <dt>Right-click a card</dt><dd>Quantity, boards, tags, artwork, Scryfall</dd>
+        <dt>Hover a card</dt><dd>+ / − quantity buttons</dd>
+        <dt>?</dt><dd>This overlay (Goldfish has its own under ?)</dd>
+      </dl>
+      <span class="pm-muted">Click anywhere or press ? to close.</span>
+    </div>`;
+  overlay.addEventListener('click', () => overlay.remove());
+  document.body.appendChild(overlay);
+}
+
 async function boot(): Promise<void> {
   initToastContainer();
   initCardPreview();
@@ -277,6 +303,11 @@ async function boot(): Promise<void> {
   initUndoStack(() => { /* re-render happens via persistDeck below */ });
   document.addEventListener('keydown', (e) => {
     if (isTypingContext(e.target)) return; // native text undo stays native
+    if (e.key === '?') {
+      e.preventDefault();
+      toggleShortcutOverlay();
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
       e.preventDefault();
       if (undo(state.deck)) { persistDeck(state); showToast({ message: 'Undone.', type: 'info', duration: 1500 }); }

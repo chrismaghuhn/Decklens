@@ -241,6 +241,15 @@ export function openGoldfishPlaytest(
   let state = initState(deck);
   let ctxMenuEl: HTMLElement | null = null;
   let zoneModalEl: HTMLElement | null = null;
+  // London mulligan: after the Nth mulligan you draw 7 and bottom N
+  let mullCount = 0;
+  let bottomsPending = 0;
+  // simple opponent tracking: life + commander damage taken from you
+  let opponents = [
+    { life: 40, cmdDmg: 0 },
+    { life: 40, cmdDmg: 0 },
+    { life: 40, cmdDmg: 0 },
+  ];
 
   const overlay = document.createElement('div');
   overlay.className = 'goldfish-overlay';
@@ -1365,11 +1374,15 @@ export function openGoldfishPlaytest(
 
   function mulliganHand(): void {
     pushUndo();
+    // London mulligan: always draw 7, then put one card per mulligan
+    // taken on the bottom of the library
+    mullCount += 1;
     // Gather all non-commander cards back into library
     const all = [...state.library, ...state.hand];
     state.library = shuffle(all);
     state.hand = state.library.splice(0, 7);
-    state.log = ['Mulligan taken. New hand drawn.'];
+    bottomsPending = Math.min(mullCount, state.hand.length);
+    state.log = [`London mulligan #${mullCount} — drew 7, put ${bottomsPending} card${bottomsPending === 1 ? '' : 's'} on the bottom (click them in hand).`];
     state.turn = 1;
     state.phase = 'main1';
     state.battlefield = [];
@@ -1394,6 +1407,22 @@ export function openGoldfishPlaytest(
     const undoStack = state.undoStack;
     state = initState(deck);
     state.undoStack = undoStack;
+    mullCount = 0;
+    bottomsPending = 0;
+    opponents = [
+      { life: 40, cmdDmg: 0 },
+      { life: 40, cmdDmg: 0 },
+      { life: 40, cmdDmg: 0 },
+    ];
+    render();
+  }
+
+  function bottomFromHand(idx: number): void {
+    const [name] = state.hand.splice(idx, 1);
+    state.library.push(name);
+    bottomsPending -= 1;
+    addLog(`${name} to the bottom.`);
+    if (bottomsPending === 0) addLog('Hand kept. Good luck!');
     render();
   }
 
@@ -1817,6 +1846,40 @@ export function openGoldfishPlaytest(
     // Battlefield is a drop zone for cards from other zones
     setupDropZone(bfSection, (payload, e) => handleDrop('battlefield', payload, e));
 
+    // ── Opponent tracker (life + commander damage dealt by you) ──
+    const oppPanel = document.createElement('div');
+    oppPanel.className = 'gf-opponents';
+    opponents.forEach((opp, i) => {
+      const row = document.createElement('div');
+      row.className = 'gf-opp';
+      const title = document.createElement('span');
+      title.className = 'gf-opp-name';
+      title.textContent = `Opp ${i + 1}`;
+      row.appendChild(title);
+      const stat = (label: string, value: number, dead: boolean, fn: (delta: number) => void): HTMLElement => {
+        const wrap = document.createElement('span');
+        wrap.className = 'gf-opp-stat' + (dead ? ' dead' : '');
+        wrap.title = label;
+        const minus = document.createElement('button');
+        minus.textContent = '−';
+        minus.addEventListener('click', () => { fn(-1); render(); });
+        const val = document.createElement('b');
+        val.textContent = String(value);
+        const plus = document.createElement('button');
+        plus.textContent = '+';
+        plus.addEventListener('click', () => { fn(1); render(); });
+        wrap.append(minus, val, plus);
+        return wrap;
+      };
+      row.appendChild(stat('Life', opp.life, opp.life <= 0, (d) => { opp.life += d; }));
+      row.appendChild(stat(`Commander damage (dies at 21)`, opp.cmdDmg, opp.cmdDmg >= 21, (d) => {
+        opp.cmdDmg = Math.max(0, opp.cmdDmg + d);
+        opp.life -= d; // commander damage is also regular damage
+      }));
+      oppPanel.appendChild(row);
+    });
+    bfSection.appendChild(oppPanel);
+
     main.appendChild(bfSection);
 
     // ── Hand ──
@@ -1826,7 +1889,10 @@ export function openGoldfishPlaytest(
 
     const handTitle = document.createElement('div');
     handTitle.className = 'gf-zone-title';
-    handTitle.textContent = `Hand (${state.hand.length})`;
+    handTitle.textContent = bottomsPending > 0
+      ? `Hand (${state.hand.length}) — click ${bottomsPending} card${bottomsPending === 1 ? '' : 's'} to put on the bottom`
+      : `Hand (${state.hand.length})`;
+    if (bottomsPending > 0) handTitle.classList.add('gf-bottom-mode');
     handSection.appendChild(handTitle);
 
     const handRow = document.createElement('div');
@@ -1836,7 +1902,7 @@ export function openGoldfishPlaytest(
       const name = state.hand[i];
       const card = document.createElement('div');
       card.className = 'gf-card gf-hand-card';
-      card.title = `Click to play: ${name}`;
+      card.title = bottomsPending > 0 ? `Put on the bottom: ${name}` : `Click to play: ${name}`;
       card.setAttribute('data-card-name', name);
 
       const imgUrl = getImgUrl(name, cardByName);
@@ -1850,7 +1916,10 @@ export function openGoldfishPlaytest(
         card.textContent = name.slice(0, 14);
       }
 
-      card.addEventListener('click', () => playFromHand(i));
+      card.addEventListener('click', () => {
+        if (bottomsPending > 0) bottomFromHand(i);
+        else playFromHand(i);
+      });
       card.addEventListener('contextmenu', ((idx: number, cardName: string) => (e: MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();

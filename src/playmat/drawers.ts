@@ -32,6 +32,7 @@ import {
 } from './state.js';
 import { isDragging } from './drag.js';
 import { listVersions, saveVersion, deleteVersion, diffBoards, type DeckVersion } from './versions.js';
+import { simulateHands, type SimCard } from './handstats.js';
 import { showPromptModal, showConfirmModal } from '../deckbuilder/confirm-modal.js';
 
 type DrawerKind = 'analyse' | 'share' | 'import' | 'history';
@@ -214,6 +215,48 @@ function renderAnalyse(body: HTMLElement): void {
   healthBox.appendChild(healthHost);
   body.appendChild(healthBox);
 
+  // Bracket / Game Changers (commander decks)
+  if ((stateRef.deck.format || 'commander') === 'commander') {
+    body.appendChild(bracketSection());
+  }
+
+  // Opening hand simulation
+  const handsBox = document.createElement('div');
+  handsBox.className = 'pm-analyse-section';
+  handsBox.innerHTML = '<h3>Opening Hands</h3>';
+  const handsHost = document.createElement('div');
+  const simBtn = document.createElement('button');
+  simBtn.type = 'button';
+  simBtn.className = 'pm-btn';
+  simBtn.innerHTML = `${iconSvg('dice')} Simulate 1,000 hands`;
+  simBtn.addEventListener('click', () => {
+    const library: SimCard[] = [];
+    for (const entry of stateRef.deck.boards.mainboard) {
+      const card = stateRef.cardByName[normalizeNameKey(entry.name)];
+      const isLand = (card?.type_line || '').toLowerCase().includes('land');
+      for (let i = 0; i < entry.qty; i++) library.push({ isLand, mv: card?.cmc ?? 0 });
+    }
+    const stats = simulateHands(library, 1000);
+    if (stats.hands === 0) {
+      handsHost.innerHTML = '<span class="pm-muted">Deck needs at least 7 mainboard cards.</span>';
+      return;
+    }
+    const maxH = Math.max(...stats.landHist, 1);
+    handsHost.innerHTML = `
+      <div class="pm-handstats-row"><span>2–4 lands</span><strong>${stats.pct2to4}%</strong>
+        <span>Avg lands</span><strong>${stats.avgLands}</strong>
+        <span>Avg MV</span><strong>${stats.avgMv}</strong></div>
+      <div class="pm-curve">${stats.landHist.map((count, lands) => `
+        <div class="pm-curve-col">
+          <span class="pm-curve-count">${count ? Math.round((count / stats.hands) * 100) + '%' : ''}</span>
+          <div class="pm-curve-bar" style="height:${Math.round((count / maxH) * 60)}px"></div>
+          <span class="pm-curve-mv">${lands}</span>
+        </div>`).join('')}</div>
+      <div class="pm-muted" style="font-size:0.66rem">Lands per 7-card opening hand, ${stats.hands} shuffles.</div>`;
+  });
+  handsBox.append(simBtn, handsHost);
+  body.appendChild(handsBox);
+
   // Mehr: synergy map + draw probability
   const more = document.createElement('details');
   more.className = 'pm-analyse-more';
@@ -239,6 +282,62 @@ function renderAnalyse(body: HTMLElement): void {
     moreBody.append(syn, draw);
   });
   body.appendChild(more);
+}
+
+// ── Bracket / Game Changers ──
+
+function bracketOverrideKey(): string {
+  return `dl_pm_bracket_${stateRef.deck.id}`;
+}
+
+function bracketSection(): HTMLElement {
+  const box = document.createElement('div');
+  box.className = 'pm-analyse-section';
+  box.innerHTML = '<h3>Commander Bracket</h3>';
+
+  // sideboard/maybeboard deliberately ignored per bracket rules
+  const gameChangers: Array<{ name: string; qty: number }> = [];
+  for (const entry of [...stateRef.deck.boards.commander, ...stateRef.deck.boards.mainboard]) {
+    const card = stateRef.cardByName[normalizeNameKey(entry.name)];
+    if (card?.game_changer) gameChangers.push({ name: entry.name, qty: entry.qty });
+  }
+  const gcCount = gameChangers.reduce((s, e) => s + e.qty, 0);
+
+  const estimate = gcCount === 0 ? '1–2' : gcCount <= 3 ? '3' : '4–5';
+  const reason = gcCount === 0
+    ? 'No Game Changers in commander or mainboard.'
+    : `${gcCount} Game Changer${gcCount === 1 ? '' : 's'} (bracket 3 allows up to 3, brackets 1–2 none).`;
+
+  const override = localStorage.getItem(bracketOverrideKey()) || '';
+
+  const row = document.createElement('div');
+  row.className = 'pm-bracket-row';
+  row.innerHTML = `
+    <span class="pm-bracket-num">${override || estimate}</span>
+    <span class="pm-bracket-why">${override ? `Manually set (auto estimate: ${estimate}).` : reason}
+      <em>Brackets measure intent too — treat this as a starting point.</em></span>`;
+  const select = document.createElement('select');
+  select.setAttribute('aria-label', 'Bracket override');
+  select.innerHTML = '<option value="">Auto</option>' +
+    [1, 2, 3, 4, 5].map((n) => `<option value="${n}" ${override === String(n) ? 'selected' : ''}>${n}</option>`).join('');
+  select.addEventListener('change', () => {
+    if (select.value) localStorage.setItem(bracketOverrideKey(), select.value);
+    else localStorage.removeItem(bracketOverrideKey());
+    const body = drawerEl.querySelector<HTMLElement>('.pm-drawer-body');
+    if (body) { body.textContent = ''; renderAnalyse(body); }
+  });
+  row.appendChild(select);
+  box.appendChild(row);
+
+  if (gameChangers.length > 0) {
+    const list = document.createElement('div');
+    list.className = 'pm-gc-list';
+    list.innerHTML = gameChangers
+      .map((e) => `<span class="pm-gc-chip">${iconSvg('bolt')} ${e.qty > 1 ? `${e.qty}× ` : ''}${e.name.replace(/</g, '&lt;')}</span>`)
+      .join('');
+    box.appendChild(list);
+  }
+  return box;
 }
 
 // ── Teilen ──
@@ -278,7 +377,8 @@ function renderShare(body: HTMLElement): void {
       <button type="button" id="pmCopyExport" class="pm-btn">${iconSvg('clipboard')} Copy</button>
       <button type="button" id="pmShareLink" class="pm-btn">${iconSvg('link')} Share link</button>
       <button type="button" id="pmDeckImage" class="pm-btn">${iconSvg('image')} Image (PNG)</button>
-      <button type="button" id="pmPrintProxies" class="pm-btn">${iconSvg('printer')} Print</button>
+      <button type="button" id="pmPrintProxies" class="pm-btn">${iconSvg('printer')} Print proxies</button>
+      <button type="button" id="pmPrintList" class="pm-btn">${iconSvg('list')} Print list</button>
     </div>`;
 
   const select = body.querySelector<HTMLSelectElement>('#pmExportFormat')!;
@@ -313,6 +413,16 @@ function renderShare(body: HTMLElement): void {
     });
   });
 
+  body.querySelector('#pmPrintList')!.addEventListener('click', () => {
+    const win = window.open('', '_blank');
+    if (!win) {
+      showToast({ message: 'Popup blocked — please allow popups.', type: 'error' });
+      return;
+    }
+    win.document.write(printableListHTML());
+    win.document.close();
+  });
+
   body.querySelector('#pmPrintProxies')!.addEventListener('click', () => {
     const b = stateRef.deck.boards;
     const entries = [...b.commander, ...b.mainboard].map((e) => ({
@@ -332,6 +442,58 @@ function renderShare(body: HTMLElement): void {
     win.document.write(generatePrintHTML(entries, { showNames: true }));
     win.document.close();
   });
+}
+
+function printableListHTML(): string {
+  const b = stateRef.deck.boards;
+  const typeOf = (name: string): string => {
+    const t = (stateRef.cardByName[normalizeNameKey(name)]?.type_line || '').toLowerCase();
+    for (const [key, label] of [
+      ['land', 'Lands'], ['creature', 'Creatures'], ['planeswalker', 'Planeswalkers'],
+      ['instant', 'Instants'], ['sorcery', 'Sorceries'], ['enchantment', 'Enchantments'],
+      ['artifact', 'Artifacts'], ['battle', 'Battles'],
+    ] as const) {
+      if (t.includes(key)) return label;
+    }
+    return 'Other';
+  };
+  const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const line = (e: { name: string; qty: number; set?: string | null; collectorNumber?: string | null }): string => {
+    const card = stateRef.cardByName[normalizeNameKey(e.name)];
+    const set = e.set || card?.set;
+    const num = e.collectorNumber || card?.collector_number;
+    return `<li><span class="box"></span>${e.qty} ${esc(e.name)}${set ? ` <em>${set.toUpperCase()}${num ? ` #${num}` : ''}</em>` : ''}</li>`;
+  };
+  const section = (title: string, entries: typeof b.mainboard): string => {
+    if (entries.length === 0) return '';
+    return `<h2>${title} (${entries.reduce((s, e) => s + e.qty, 0)})</h2><ul>${entries.map(line).join('')}</ul>`;
+  };
+  const groups = new Map<string, typeof b.mainboard>();
+  for (const e of [...b.mainboard].sort((x, y) => x.name.localeCompare(y.name))) {
+    const g = typeOf(e.name);
+    groups.set(g, [...(groups.get(g) || []), e]);
+  }
+  const order = ['Creatures', 'Planeswalkers', 'Instants', 'Sorceries', 'Enchantments', 'Artifacts', 'Battles', 'Other', 'Lands'];
+  const mainSections = order.filter((g) => groups.has(g)).map((g) => section(g, groups.get(g)!)).join('');
+
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(stateRef.deck.name)} — deck list</title>
+    <style>
+      body { font: 13px/1.5 Georgia, serif; color: #111; margin: 32px; }
+      h1 { font-size: 20px; margin: 0 0 2px; } .sub { color: #666; font-size: 11px; margin-bottom: 18px; }
+      h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid #bbb; padding-bottom: 3px; margin: 16px 0 6px; }
+      ul { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 32px; }
+      li { break-inside: avoid; padding: 1px 0; }
+      .box { display: inline-block; width: 9px; height: 9px; border: 1px solid #888; margin-right: 7px; }
+      em { color: #777; font-style: normal; font-size: 11px; }
+      @media print { body { margin: 12mm; } }
+    </style></head><body>
+    <h1>${esc(stateRef.deck.name)}</h1>
+    <div class="sub">${(stateRef.deck.format || 'commander').toUpperCase()} · ${new Date().toLocaleDateString()} · checkboxes for assembling the paper deck</div>
+    ${section('Commander', b.commander)}
+    ${mainSections}
+    ${section('Sideboard', b.sideboard)}
+    ${section('Maybeboard', b.maybeboard)}
+    </body></html>`;
 }
 
 // ── Import ──

@@ -1461,3 +1461,40 @@
   background: var(--info-violet);
   color: #fff;
 }
+
+/* ── Opponent tracker ── */
+.gf-opponents {
+  position: absolute;
+  top: 34px;
+  right: 10px;
+  z-index: 8;
+  display: grid;
+  gap: 6px;
+}
+.gf-opp {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 9px;
+  background: rgba(10, 8, 7, 0.82);
+  border: 1px solid var(--line-light, #2a2f3e);
+  border-radius: 7px;
+  font: 600 0.66rem var(--font-mono, monospace);
+  color: var(--text-muted, #999);
+}
+.gf-opp-name { min-width: 38px; }
+.gf-opp-stat { display: inline-flex; align-items: center; gap: 3px; }
+.gf-opp-stat b { min-width: 20px; text-align: center; color: var(--text-hi, #eee); }
+.gf-opp-stat.dead b { color: var(--danger, #e05a5a); }
+.gf-opp-stat button {
+  all: unset;
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  color: var(--text-muted, #999);
+}
+.gf-opp-stat button:hover { background: var(--accent, #e0522c); color: #fff; }
+.gf-zone-title.gf-bottom-mode { color: var(--warn, #f5c04a); }

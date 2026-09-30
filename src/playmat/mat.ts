@@ -270,6 +270,14 @@ function cardEl(entry: DeckbuilderCardEntry, opts: { eager: boolean; board: Deck
     el.appendChild(q);
   }
 
+  if (card?.game_changer) {
+    const gc = document.createElement('span');
+    gc.className = 'pm-gc-badge';
+    gc.title = 'Game Changer (Commander Brackets)';
+    gc.innerHTML = iconSvg('bolt');
+    el.appendChild(gc);
+  }
+
   const qtybar = document.createElement('div');
   qtybar.className = 'pm-card-qtybar';
   for (const [glyph, delta, title] of [['−', -1, 'Remove one copy'], ['+', 1, 'Add one copy']] as const) {
