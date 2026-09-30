@@ -93,17 +93,23 @@ function normalizeDeck(raw: unknown): DeckbuilderDeck | null {
   const updatedAt = typeof obj.updatedAt === 'string' && obj.updatedAt.trim() ? obj.updatedAt : createdAt;
 
   const description = typeof obj.description === 'string' ? obj.description : undefined;
+  const notes = typeof obj.notes === 'string' ? obj.notes : undefined;
+  const format = typeof obj.format === 'string' ? (obj.format as DeckbuilderDeck['format']) : undefined;
   const customCategories = Array.isArray(obj.customCategories) ? obj.customCategories : undefined;
+  const matLayout = obj.matLayout && Array.isArray(obj.matLayout.piles) ? obj.matLayout : undefined;
 
   return {
     id,
     name,
     description,
+    notes,
+    format,
     visibility: normalizeVisibility(obj.visibility),
     createdAt,
     updatedAt,
     boards: normalizeBoards(obj.boards),
     customCategories,
+    matLayout,
   };
 }
 

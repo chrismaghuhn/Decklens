@@ -43,6 +43,12 @@ export interface DeckbuilderDeck {
   boards: DeckbuilderBoards;
   /** User-defined custom categories for pile view grouping */
   customCategories?: CustomCategory[];
+  /** Playmat free-mode pile positions (grid coordinates) */
+  matLayout?: MatLayout;
+}
+
+export interface MatLayout {
+  piles: Array<{ id: string; col: number; row: number }>;
 }
 
 export interface DeckbuilderSnapshotSummary {
