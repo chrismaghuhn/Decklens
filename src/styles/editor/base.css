@@ -8,15 +8,15 @@
 
 :root {
   /* ── Design tokens (Phase R: values = old palette; flipped in Phase D) ── */
-  --surface-0: #08090a;
-  --surface-1: #0b0c10;
-  --surface-2: #111318;
-  --surface-3: #161920;
-  --surface-4: #1c2028;
-  --accent: #7c6cf6;
-  --accent-strong: #8f82f8;
-  --accent-dim: #5b4fc0;
-  --accent-glow: rgba(124, 108, 246, 0.22);
+  --surface-0: #0e0c0b;
+  --surface-1: #141110;
+  --surface-2: #1b1715;
+  --surface-3: #221d19;
+  --surface-4: #2b2520;
+  --accent: #e0522c;
+  --accent-strong: #f06a42;
+  --accent-dim: #8a3c22;
+  --accent-glow: rgba(224, 82, 44, 0.22);
   --ok: #34d399;
   --ok-soft: #6ee7b7;
   --danger: #ef4444;
@@ -24,10 +24,10 @@
   --warn: #f59e0b;
   --info: #60a5fa;
   --info-violet: #a78bfa;
-  --text-hi: #f4f5f8;
-  --text-bright: #eceef2;
-  --text-lo: #9aa0ae;
-  --text-muted: #7d8494;
+  --text-hi: #f4eee1;
+  --text-bright: #f0e9db;
+  --text-lo: #a89c88;
+  --text-muted: #8a8070;
   /* Arcane Forge palette */
   --line: rgba(255, 255, 255, 0.06);
   --line-light: rgba(255, 255, 255, 0.1);
@@ -90,7 +90,7 @@ body::before {
   background:
     radial-gradient(
       ellipse 900px 500px at 15% -5%,
-      rgba(124, 108, 246, 0.05) 0%,
+      rgba(224, 82, 44, 0.05) 0%,
       transparent 70%
     ),
     radial-gradient(

@@ -836,7 +836,7 @@
   padding: 2px 8px;
   border-radius: 4px;
   background: rgba(201, 168, 76, 0.12);
-  border: 1px solid rgba(124, 108, 246, 0.28);
+  border: 1px solid rgba(224, 82, 44, 0.28);
   color: var(--accent);
   text-align: center;
 }
@@ -912,9 +912,9 @@
   padding: 4px 10px;
   font-size: 0.72rem;
   font-weight: 600;
-  color: var(--accent-soft, #a89cff);
-  background: rgba(124, 108, 246, 0.12);
-  border: 1px solid rgba(124, 108, 246, 0.28);
+  color: var(--accent-soft, #f08a64);
+  background: rgba(224, 82, 44, 0.12);
+  border: 1px solid rgba(224, 82, 44, 0.28);
   border-radius: 8px;
   white-space: nowrap;
   letter-spacing: 0.5px;
@@ -995,7 +995,7 @@
   color: var(--text-lo);
 }
 .mp-ledger-table th {
-  background: rgba(124, 108, 246, 0.1);
+  background: rgba(224, 82, 44, 0.1);
   color: var(--accent);
   font-weight: 600;
   font-size: 0.58rem;
@@ -1112,7 +1112,7 @@
 .mp-phase-step.active {
   color: #fff;
   font-weight: 600;
-  background: rgba(124, 108, 246, 0.12);
+  background: rgba(224, 82, 44, 0.12);
 }
 .mp-storm-count {
   margin-left: auto;
@@ -1412,9 +1412,9 @@
 .mp-mana-display {
   font-size: 0.72rem;
   font-weight: 600;
-  color: var(--accent-soft, #a89cff);
+  color: var(--accent-soft, #f08a64);
   padding: 2px 8px;
-  background: rgba(124, 108, 246, 0.1);
+  background: rgba(224, 82, 44, 0.1);
   border-radius: 6px;
   white-space: nowrap;
 }
@@ -1501,7 +1501,7 @@
 }
 @keyframes phase-activate {
   0% { background: rgba(201, 168, 76, 0.3); transform: scaleX(1.1); }
-  100% { background: rgba(124, 108, 246, 0.12); transform: scaleX(1); }
+  100% { background: rgba(224, 82, 44, 0.12); transform: scaleX(1); }
 }
 
 /* ── P/T Overlay improvements ── */
@@ -1928,12 +1928,12 @@
   cursor: pointer;
 }
 .mp-ledger-table th {
-  background: rgba(124, 108, 246, 0.1);
+  background: rgba(224, 82, 44, 0.1);
   color: var(--accent);
   font-weight: 600;
 }
 .mp-ledger-table td:hover {
-  background: rgba(124, 108, 246, 0.12);
+  background: rgba(224, 82, 44, 0.12);
 }
 .mp-cmd-warning { color: var(--warn) !important; font-weight: bold; }
 .mp-cmd-danger { color: #f97316 !important; font-weight: bold; }

@@ -6,28 +6,28 @@
 
 :root {
   /* Surfaces */
-  --surface-0: #08090a;
-  --surface-1: #0b0c10;
-  --surface-2: #111318;
-  --surface-3: #161920;
-  --surface-4: #1c2028;
+  --surface-0: #0e0c0b;
+  --surface-1: #141110;
+  --surface-2: #1b1715;
+  --surface-3: #221d19;
+  --surface-4: #2b2520;
 
   /* Accent (Indigo/Violett) */
-  --accent: #7c6cf6;
-  --accent-strong: #8f82f8;
-  --accent-soft: #a89cff;
-  --accent-dim: #5b4fc0;
-  --accent-glow: rgba(124, 108, 246, 0.25);
+  --accent: #e0522c;
+  --accent-strong: #f06a42;
+  --accent-soft: #f08a64;
+  --accent-dim: #8a3c22;
+  --accent-glow: rgba(224, 82, 44, 0.25);
 
   /* Text */
-  --text-hi: #f4f5f8;
-  --text-mid: #e7e9ee;
-  --text-lo: #9aa0ae;
-  --text-muted: #7d8494;
+  --text-hi: #f4eee1;
+  --text-mid: #ece4d4;
+  --text-lo: #a89c88;
+  --text-muted: #8a8070;
 
   /* Borders */
-  --border: rgba(255, 255, 255, 0.07);
-  --border-strong: rgba(255, 255, 255, 0.12);
+  --border: rgba(236, 228, 212, 0.09);
+  --border-strong: rgba(236, 228, 212, 0.16);
 
   /* Semantics */
   --ok: #34d399;
@@ -44,8 +44,9 @@
   --r-lg: 14px;
 
   /* Type */
-  --font-ui: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-ui: 'Libre Franklin', system-ui, sans-serif;
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
   /* Motion */
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
@@ -61,7 +62,8 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-ui);
+  font-family: var(--font-display);
+  font-weight: 700;
   color: var(--text-hi);
   letter-spacing: -0.01em;
 }
@@ -125,7 +127,7 @@ a:hover { color: var(--accent-strong); }
   padding: 22px;
   transition: border-color 0.15s var(--ease);
 }
-.card:hover { border-color: rgba(124, 108, 246, 0.33); }
+.card:hover { border-color: rgba(224, 82, 44, 0.4); }
 
 .pill {
   display: inline-block;
@@ -137,3 +139,8 @@ a:hover { color: var(--accent-strong); }
   border: 1px solid var(--border);
   color: var(--text-lo);
 }
+
+/* ── Inline SVG icons (emoji replacement) ── */
+.ui-ic { width: 1em; height: 1em; vertical-align: -0.125em; display: inline-block; }
+.ui-ic-wrap { display: inline-flex; align-items: center; }
+.layout-widget-icon .ui-ic, .drawer-tool-icon .ui-ic { width: 1.05em; height: 1.05em; }

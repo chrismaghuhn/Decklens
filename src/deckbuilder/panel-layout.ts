@@ -9,6 +9,7 @@
  * Uses shared/dom.ts h() helper and shared/storage.ts for persistence.
  */
 
+import { iconEl } from '../shared/icons.js';
 import { h } from '../shared/dom.js';
 import { storageGet, storageSet, STORAGE_KEYS } from '../shared/storage.js';
 import { showConfirmModal } from './confirm-modal.js';
@@ -82,7 +83,7 @@ const LAYOUT_PRESETS: LayoutPreset[] = [
     id: 'compact',
     name: 'Compact',
     description: 'Deck + Search + Essential Analytics',
-    icon: '📦',
+    icon: 'package',
     widgets: [
       { widgetId: 'cards', col: 0, row: 0, colSpan: 7, rowSpan: 12, visible: true, collapsed: false },
       { widgetId: 'search', col: 7, row: 0, colSpan: 5, rowSpan: 6, visible: true, collapsed: false },
@@ -97,7 +98,7 @@ const LAYOUT_PRESETS: LayoutPreset[] = [
     id: 'analytics',
     name: 'Analytics Focus',
     description: 'Full analytics dashboard with charts',
-    icon: '📊',
+    icon: 'chart',
     widgets: [
       { widgetId: 'cards', col: 0, row: 0, colSpan: 5, rowSpan: 10, visible: true, collapsed: false },
       { widgetId: 'search', col: 0, row: 10, colSpan: 5, rowSpan: 6, visible: true, collapsed: false },
@@ -117,7 +118,7 @@ const LAYOUT_PRESETS: LayoutPreset[] = [
     id: 'goldfish',
     name: 'Goldfish Testing',
     description: 'Deck + Playtest Coach + Draw Probability',
-    icon: '🎮',
+    icon: 'dice',
     widgets: [
       { widgetId: 'cards', col: 0, row: 0, colSpan: 8, rowSpan: 10, visible: true, collapsed: false },
       { widgetId: 'draw-probability', col: 8, row: 6, colSpan: 4, rowSpan: 4, visible: true, collapsed: false },
@@ -131,7 +132,7 @@ const LAYOUT_PRESETS: LayoutPreset[] = [
     id: 'minimal',
     name: 'Minimal',
     description: 'Just Deck + Search. Maximum focus.',
-    icon: '✨',
+    icon: 'sparkle',
     widgets: [
       { widgetId: 'cards', col: 0, row: 0, colSpan: 8, rowSpan: 14, visible: true, collapsed: false },
       { widgetId: 'search', col: 8, row: 0, colSpan: 4, rowSpan: 14, visible: true, collapsed: false },
@@ -142,7 +143,7 @@ const LAYOUT_PRESETS: LayoutPreset[] = [
     id: 'full',
     name: 'Full Dashboard',
     description: 'Everything visible. Power user mode.',
-    icon: '🚀',
+    icon: 'bolt',
     widgets: [
       { widgetId: 'cards', col: 0, row: 0, colSpan: 4, rowSpan: 16, visible: true, collapsed: false },
       { widgetId: 'search', col: 4, row: 0, colSpan: 3, rowSpan: 8, visible: true, collapsed: false },
@@ -205,65 +206,65 @@ export { LAYOUT_PRESETS };
 
 const WIDGET_REGISTRY: WidgetRegistryEntry[] = [
   // Core
-  { id: 'cards', label: 'Deck Cards', icon: '🃏', minColSpan: 4, minRowSpan: 4, defaultVisible: true,
+  { id: 'cards', label: 'Deck Cards', icon: 'cards', minColSpan: 4, minRowSpan: 4, defaultVisible: true,
     extractSelectors: ['#descriptionEditor', '#bulkBar', '#boardLiveRegion', '#boardRows', '#rulesPanel'] },
-  { id: 'search', label: 'Card Search', icon: '🔍', minColSpan: 3, minRowSpan: 3, defaultVisible: true,
+  { id: 'search', label: 'Card Search', icon: 'search', minColSpan: 3, minRowSpan: 3, defaultVisible: true,
     extractSelectors: ['.sidebar-search', '#searchFilters', '#activeFilterPills', '#searchResults'] },
 
   // Analytics
-  { id: 'mana-curve', label: 'Mana Curve', icon: '📊', minColSpan: 3, minRowSpan: 2, defaultVisible: true,
+  { id: 'mana-curve', label: 'Mana Curve', icon: 'chart', minColSpan: 3, minRowSpan: 2, defaultVisible: true,
     extractSelectors: ['#manaCurveChart', '#manaCurveAvg'] },
-  { id: 'color-pie', label: 'Color Distribution', icon: '🎨', minColSpan: 2, minRowSpan: 2, defaultVisible: true,
+  { id: 'color-pie', label: 'Color Distribution', icon: 'pie', minColSpan: 2, minRowSpan: 2, defaultVisible: true,
     extractSelectors: ['#colorDonutChart'] },
-  { id: 'type-dist', label: 'Type Distribution', icon: '📋', minColSpan: 2, minRowSpan: 2, defaultVisible: true,
+  { id: 'type-dist', label: 'Type Distribution', icon: 'clipboard', minColSpan: 2, minRowSpan: 2, defaultVisible: true,
     extractSelectors: ['#typeDistChart'] },
-  { id: 'power-bracket', label: 'Power Bracket', icon: '⚡', minColSpan: 2, minRowSpan: 2, defaultVisible: true,
+  { id: 'power-bracket', label: 'Power Bracket', icon: 'bolt', minColSpan: 2, minRowSpan: 2, defaultVisible: true,
     extractSelectors: ['#powerBracketBox'] },
-  { id: 'health-score', label: 'Health Score', icon: '💚', minColSpan: 2, minRowSpan: 2, defaultVisible: true,
+  { id: 'health-score', label: 'Health Score', icon: 'heart', minColSpan: 2, minRowSpan: 2, defaultVisible: true,
     extractSelectors: ['#healthScoreBox'] },
-  { id: 'official-bracket', label: 'Commander Bracket', icon: '🏆', minColSpan: 2, minRowSpan: 2, defaultVisible: false,
+  { id: 'official-bracket', label: 'Commander Bracket', icon: 'trophy', minColSpan: 2, minRowSpan: 2, defaultVisible: false,
     extractSelectors: ['#officialBracketBox'] },
-  { id: 'fingerprint', label: 'Deck DNA', icon: '🧬', minColSpan: 2, minRowSpan: 2, defaultVisible: false,
+  { id: 'fingerprint', label: 'Deck DNA', icon: 'dna', minColSpan: 2, minRowSpan: 2, defaultVisible: false,
     extractSelectors: ['#fingerprintBox'] },
-  { id: 'mana-calc', label: 'Mana Base Calc', icon: '🧮', minColSpan: 3, minRowSpan: 2, defaultVisible: false,
+  { id: 'mana-calc', label: 'Mana Base Calc', icon: 'calc', minColSpan: 3, minRowSpan: 2, defaultVisible: false,
     extractSelectors: ['#manaCalcBox'] },
-  { id: 'synergy-map', label: 'Synergy Web', icon: '🕸', minColSpan: 3, minRowSpan: 2, defaultVisible: false,
+  { id: 'synergy-map', label: 'Synergy Web', icon: 'web', minColSpan: 3, minRowSpan: 2, defaultVisible: false,
     extractSelectors: ['#synergyMapBox'] },
-  { id: 'combos', label: 'Detected Combos', icon: '🔗', minColSpan: 3, minRowSpan: 2, defaultVisible: false,
+  { id: 'combos', label: 'Detected Combos', icon: 'link', minColSpan: 3, minRowSpan: 2, defaultVisible: false,
     extractSelectors: ['#combosPanel'] },
-  { id: 'draw-probability', label: 'Draw Probability', icon: '🎲', minColSpan: 3, minRowSpan: 2, defaultVisible: false,
+  { id: 'draw-probability', label: 'Draw Probability', icon: 'dice', minColSpan: 3, minRowSpan: 2, defaultVisible: false,
     extractSelectors: ['#drawProbabilityBox'] },
-  { id: 'deck-tips', label: 'Deck Tips', icon: '💡', minColSpan: 3, minRowSpan: 2, defaultVisible: true,
+  { id: 'deck-tips', label: 'Deck Tips', icon: 'lamp', minColSpan: 3, minRowSpan: 2, defaultVisible: true,
     extractSelectors: ['#deckTipsBox'] },
-  { id: 'land-split', label: 'Land/Nonland', icon: '🏔', minColSpan: 2, minRowSpan: 1, defaultVisible: true,
+  { id: 'land-split', label: 'Land/Nonland', icon: 'layers', minColSpan: 2, minRowSpan: 1, defaultVisible: true,
     extractSelectors: ['#analyticsLandSplit'] },
-  { id: 'tags', label: 'Deck Tags', icon: '🏷', minColSpan: 2, minRowSpan: 1, defaultVisible: true,
+  { id: 'tags', label: 'Deck Tags', icon: 'tag', minColSpan: 2, minRowSpan: 1, defaultVisible: true,
     extractSelectors: ['#analyticsTags'] },
-  { id: 'summary-bar', label: 'Analytics Summary', icon: '📈', minColSpan: 3, minRowSpan: 1, defaultVisible: true,
+  { id: 'summary-bar', label: 'Analytics Summary', icon: 'chart-line', minColSpan: 3, minRowSpan: 1, defaultVisible: true,
     extractSelectors: ['#analyticsSummaryBar'] },
 
   // Prices
-  { id: 'price-summary', label: 'Price Summary', icon: '💰', minColSpan: 3, minRowSpan: 2, defaultVisible: false,
+  { id: 'price-summary', label: 'Price Summary', icon: 'coin', minColSpan: 3, minRowSpan: 2, defaultVisible: false,
     extractSelectors: ['#priceEurTotal', '#priceUsdTotal', '#currencyToggle', '#priceMeta', '#priceTopExpensive'] },
-  { id: 'collection', label: 'Collection', icon: '📦', minColSpan: 3, minRowSpan: 3, defaultVisible: false,
+  { id: 'collection', label: 'Collection', icon: 'package', minColSpan: 3, minRowSpan: 3, defaultVisible: false,
     extractSelectors: ['#collectionMissing'] },
-  { id: 'budget', label: 'Budget Optimizer', icon: '🪙', minColSpan: 3, minRowSpan: 3, defaultVisible: false,
+  { id: 'budget', label: 'Budget Optimizer', icon: 'coin', minColSpan: 3, minRowSpan: 3, defaultVisible: false,
     extractSelectors: ['#budgetOptimizerBox', '#budgetAlternativesBox'] },
 
   // Export
-  { id: 'export', label: 'Export & Share', icon: '📤', minColSpan: 3, minRowSpan: 3, defaultVisible: false,
+  { id: 'export', label: 'Export & Share', icon: 'export', minColSpan: 3, minRowSpan: 3, defaultVisible: false,
     extractSelectors: [] }, // Special: takes entire export tab
-  { id: 'version-history', label: 'Version History', icon: '📜', minColSpan: 3, minRowSpan: 2, defaultVisible: false,
+  { id: 'version-history', label: 'Version History', icon: 'note', minColSpan: 3, minRowSpan: 2, defaultVisible: false,
     extractSelectors: ['#deckHistoryBox'] },
 
   // Strategy
-  { id: 'matchups', label: 'Matchup Strategy', icon: '⚔', minColSpan: 3, minRowSpan: 3, defaultVisible: false,
+  { id: 'matchups', label: 'Matchup Strategy', icon: 'sword', minColSpan: 3, minRowSpan: 3, defaultVisible: false,
     extractSelectors: ['#matchupPanelContainer'] },
-  { id: 'smart-recs', label: 'Smart Recs', icon: '🧠', minColSpan: 3, minRowSpan: 3, defaultVisible: false,
+  { id: 'smart-recs', label: 'Smart Recs', icon: 'sparkle', minColSpan: 3, minRowSpan: 3, defaultVisible: false,
     extractSelectors: ['#smartRecsContainer'] },
 
   // Other
-  { id: 'import', label: 'Import Decklist', icon: '📥', minColSpan: 3, minRowSpan: 2, defaultVisible: false,
+  { id: 'import', label: 'Import Decklist', icon: 'import', minColSpan: 3, minRowSpan: 2, defaultVisible: false,
     extractSelectors: [] }, // Special: takes entire import tab
 
   // Git / Repo
@@ -546,7 +547,7 @@ function createWidgetWrapper(entry: WidgetRegistryEntry, placement: WidgetPlacem
 
   // Header (drag handle)
   const header = h('div', { className: 'layout-widget-header' },
-    h('span', { className: 'layout-widget-icon' }, entry.icon),
+    iconEl(entry.icon, 'layout-widget-icon'),
     h('span', { className: 'layout-widget-label' }, entry.label),
     controls,
   );
@@ -1075,7 +1076,7 @@ function updateToolbarPills(): void {
           showWidget(entry.id);
         }
       },
-    }, `${entry.icon} ${entry.label}`);
+    }, iconEl(entry.icon), ' ' + entry.label);
 
     pillContainer.appendChild(pill);
   }
@@ -1168,14 +1169,14 @@ function createToolbar(): HTMLElement {
     type: 'button',
     title: 'Show all hidden widgets',
     onClick: () => showAllWidgets(),
-  }, '👁 Show All');
+  }, 'Show All');
 
   const hideAllBtn = h('button', {
     className: 'btn layout-toolbar-btn',
     type: 'button',
     title: 'Hide all widgets except Cards and Search',
     onClick: () => hideAllWidgets(),
-  }, '👁‍🗨 Hide All');
+  }, '‍Hide All');
 
   const counterEl = document.createElement('span');
   counterEl.className = 'layout-toolbar-counter';
@@ -1184,7 +1185,7 @@ function createToolbar(): HTMLElement {
     className: 'btn primary layout-toolbar-btn',
     type: 'button',
     onClick: () => exitCustomizeMode(),
-  }, '✓ Done');
+  }, 'Done');
 
   const pillContainer = document.createElement('div');
   pillContainer.className = 'layout-pill-container';
@@ -1195,24 +1196,24 @@ function createToolbar(): HTMLElement {
     type: 'button',
     title: 'Minimal: Just Deck + Search',
     onClick: () => applyPreset('minimal'),
-  }, '✨ Minimal');
+  }, 'Minimal');
 
   const presetAnalytics = h('button', {
     className: 'btn layout-toolbar-btn layout-preset-btn',
     type: 'button',
     title: 'Analytics-focused: all analytics widgets visible and large',
     onClick: () => applyPreset('analytics'),
-  }, '📊 Analytics');
+  }, 'Analytics');
 
   const presetCompact = h('button', {
     className: 'btn layout-toolbar-btn layout-preset-btn',
     type: 'button',
     title: 'Compact: Deck + Search + Essential Analytics',
     onClick: () => applyPreset('compact'),
-  }, '📦 Compact');
+  }, 'Compact');
 
   const toolbar = h('div', { className: 'layout-toolbar' },
-    h('span', { className: 'layout-toolbar-label' }, '⚙ Customize Layout'),
+    h('span', { className: 'layout-toolbar-label' }, 'Customize Layout'),
     counterEl,
     h('div', { className: 'layout-toolbar-sep' }),
     showAllBtn,
@@ -1252,7 +1253,7 @@ export function initPanelLayout(): void {
   gridContainer = document.querySelector<HTMLElement>('.editor-main');
   if (!gridContainer) return;
 
-  // Add "⚙ Layout" button to header
+  // Add "Layout" button to header
   const header = document.querySelector<HTMLElement>('.editor-header');
   if (header) {
     const spacer = header.querySelector('.header-spacer');
@@ -1267,7 +1268,7 @@ export function initPanelLayout(): void {
           enterCustomizeMode();
         }
       },
-    }, '⚙ Layout');
+    }, 'Layout');
     if (spacer) {
       spacer.before(layoutBtn);
     } else {

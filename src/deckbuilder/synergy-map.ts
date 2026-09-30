@@ -383,7 +383,7 @@ export function renderSynergyMap(
     circle.setAttribute('cy', String(node.y));
     circle.setAttribute('r', String(r));
     circle.setAttribute('fill', 'rgba(201,168,76,0.15)');
-    circle.setAttribute('stroke', '#7c6cf6');
+    circle.setAttribute('stroke', '#e0522c');
     circle.setAttribute('stroke-width', '1.5');
     circle.setAttribute('data-node', node.name);
     circle.style.cursor = 'pointer';

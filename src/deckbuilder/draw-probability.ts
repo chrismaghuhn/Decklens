@@ -93,7 +93,7 @@ function renderProbSparkline(deckSize: number, copies: number, maxTurn: number =
   const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
   line.setAttribute('points', polyPoints);
   line.setAttribute('fill', 'none');
-  line.setAttribute('stroke', '#7c6cf6');
+  line.setAttribute('stroke', '#e0522c');
   line.setAttribute('stroke-width', '1.5');
   line.setAttribute('stroke-linejoin', 'round');
   svg.appendChild(line);
@@ -119,7 +119,7 @@ function renderProbSparkline(deckSize: number, copies: number, maxTurn: number =
     dot.setAttribute('cx', String(cx));
     dot.setAttribute('cy', String(cy));
     dot.setAttribute('r', '2.5');
-    dot.setAttribute('fill', '#7c6cf6');
+    dot.setAttribute('fill', '#e0522c');
     svg.appendChild(dot);
   }
 

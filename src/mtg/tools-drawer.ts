@@ -3,6 +3,7 @@
 // Persists state to localStorage.
 
 import { h, replaceChildren } from '../shared/dom.js';
+import { iconEl } from '../shared/icons.js';
 import { STORAGE_KEYS, storageGet, storageSet } from '../shared/storage.js';
 import { MTG_TOOLS, getDefaultEnabledTools, type MTGToolDefinition } from './tool-registry.js';
 
@@ -256,7 +257,7 @@ function createToolRow(tool: MTGToolDefinition): HTMLElement {
         toggleTool(tool.id, target.checked);
       },
     }),
-    h('span', { className: 'drawer-tool-icon' }, tool.icon),
+    iconEl(tool.icon, 'drawer-tool-icon'),
     h('div', { className: 'drawer-tool-info' },
       h('span', { className: 'drawer-tool-label' }, tool.label),
       h('span', { className: 'drawer-tool-desc' }, tool.description),
@@ -307,11 +308,11 @@ export function renderDrawerContent(): void {
     ),
     
     // Primary section
-    createSectionHeader('🎯 Primary Tools'),
+    createSectionHeader('Primary Tools'),
     ...primaryTools.map(createToolRow),
     
     // Secondary section
-    createSectionHeader('🔧 Advanced Tools'),
+    createSectionHeader('Advanced Tools'),
     ...secondaryTools.map(createToolRow),
   );
 }
@@ -341,7 +342,7 @@ export function renderDrawer(): void {
     'aria-hidden': 'true',
   },
     h('div', { className: 'drawer-header' },
-      h('h2', { className: 'drawer-title' }, '⚙️ Tools'),
+      h('h2', { className: 'drawer-title' }, 'Tools'),
       h('button', {
         className: 'drawer-close-btn',
         onClick: closeDrawer,

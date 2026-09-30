@@ -3,6 +3,7 @@
 // Persists state to localStorage via STORAGE_KEYS.
 
 import { h, replaceChildren, fragment } from '../shared/dom.js';
+import { iconEl } from '../shared/icons.js';
 import { STORAGE_KEYS, storageGet, storageSet } from '../shared/storage.js';
 import { YGO_TOOLS, getDefaultEnabledTools, type ToolDefinition } from './tool-registry.js';
 
@@ -263,7 +264,7 @@ function createToolRow(tool: ToolDefinition): HTMLElement {
         toggleTool(tool.id, target.checked);
       },
     }),
-    h('span', { className: 'drawer-tool-icon' }, tool.icon),
+    iconEl(tool.icon, 'drawer-tool-icon'),
     h('div', { className: 'drawer-tool-info' },
       h('span', { className: 'drawer-tool-label' }, tool.label),
       h('span', { className: 'drawer-tool-desc' }, tool.description),
@@ -314,11 +315,11 @@ export function renderDrawerContent(): void {
     ),
     
     // Analysis section
-    createSectionHeader('📊 Analysis'),
+    createSectionHeader('Analysis'),
     ...analysisTools.map(createToolRow),
     
     // Tools section
-    createSectionHeader('🔧 Tools'),
+    createSectionHeader('Tools'),
     ...toolsTools.map(createToolRow),
   );
 }
@@ -361,7 +362,7 @@ export function renderDrawer(): void {
     'aria-hidden': 'true',
   },
     h('div', { className: 'drawer-header' },
-      h('h2', { className: 'drawer-title' }, '⚙️ Tools'),
+      h('h2', { className: 'drawer-title' }, 'Tools'),
       h('button', {
         className: 'drawer-close-btn',
         onClick: closeDrawer,
