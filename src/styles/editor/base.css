@@ -1,0 +1,299 @@
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* Arcane Forge palette */
+  --void: #08090f;
+  --abyss: #0c0e16;
+  --obsidian: #12141e;
+  --smoke: #1a1d2a;
+  --slate: #252838;
+  --line: rgba(255, 255, 255, 0.06);
+  --line-light: rgba(255, 255, 255, 0.1);
+
+  /* Accent spectrum */
+  --gold: #c9a84c;
+  --gold-bright: #e8c84a;
+  --gold-dim: #8a7230;
+  --gold-glow: rgba(201, 168, 76, 0.12);
+  --emerald: #34d399;
+  --emerald-dim: #1a9a6a;
+  --emerald-glow: rgba(52, 211, 153, 0.1);
+  --accent: #34d399;
+  --crimson: #ef4444;
+  --crimson-glow: rgba(239, 68, 68, 0.12);
+  --amber: #f59e0b;
+  --amber-glow: rgba(245, 158, 11, 0.1);
+
+  /* Text */
+  --text: #e8e2d6;
+  --text-dim: #9a94a8;
+  --muted: #706b7f;
+
+  /* Semantic */
+  --danger: #ef4444;
+  --warn: #f59e0b;
+  --ok: #34d399;
+
+  /* Surface */
+  --panel: rgba(18, 20, 30, 0.85);
+  --panel-hover: rgba(26, 29, 42, 0.95);
+  --input-bg: rgba(8, 9, 15, 0.6);
+
+  /* Shape */
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-pill: 50px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Aliases for legacy/component CSS */
+  --border: rgba(255, 255, 255, 0.06);
+  --bg-1: var(--obsidian);
+  --bg-2: var(--smoke);
+  --bg-card: rgba(18, 20, 30, 0.85);
+  --bg-deeper: var(--abyss);
+
+  /* Type scale */
+  --text-xs: 0.65rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.85rem;
+  --text-lg: 1rem;
+  --text-xl: 1.25rem;
+}
+
+/* F3: Light theme alternative */
+body.theme-light {
+  --void: #f5f3ef;
+  --abyss: #eae7e1;
+  --obsidian: #ddd9d1;
+  --smoke: #d0ccc4;
+  --slate: #c4bfb7;
+  --line: rgba(0, 0, 0, 0.08);
+  --line-light: rgba(0, 0, 0, 0.12);
+  --gold: #9a7c2e;
+  --gold-bright: #b8912a;
+  --gold-dim: #6b5620;
+  --gold-glow: rgba(154, 124, 46, 0.12);
+  --emerald: #1a9a6a;
+  --emerald-dim: #147a54;
+  --emerald-glow: rgba(26, 154, 106, 0.1);
+  --accent: #1a9a6a;
+  --crimson: #dc2626;
+  --crimson-glow: rgba(220, 38, 38, 0.12);
+  --amber: #d97706;
+  --amber-glow: rgba(217, 119, 6, 0.1);
+  --text: #1a1814;
+  --text-dim: #5a5650;
+  --muted: #8a867e;
+  --danger: #dc2626;
+  --warn: #d97706;
+  --ok: #1a9a6a;
+  --panel: rgba(234, 231, 225, 0.95);
+  --panel-hover: rgba(221, 217, 209, 0.98);
+  --input-bg: rgba(245, 243, 239, 0.8);
+  color-scheme: light;
+}
+
+body.theme-light .editor-header,
+body.theme-light .editor-toolbar {
+  background: var(--abyss);
+  border-color: var(--line);
+}
+
+body.theme-light input,
+body.theme-light textarea,
+body.theme-light select {
+  background: var(--input-bg);
+  color: var(--text);
+  border-color: var(--line);
+}
+
+body.theme-light .btn {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text);
+  border-color: var(--line);
+}
+
+body.theme-light .btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+body.theme-light .btn.primary {
+  background: var(--gold);
+  color: #fff;
+}
+
+body.theme-light .collapsible-header {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+body.theme-light .board-row:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+body.theme-light .context-menu {
+  background: var(--obsidian);
+  border-color: var(--line);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+body.theme-light .search-card {
+  background: var(--obsidian);
+}
+
+body.theme-light .toast {
+  background: var(--abyss);
+  color: var(--text);
+  border-color: var(--line);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--void);
+  color: var(--text);
+  font-family:
+    "Outfit",
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-weight: 400;
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Atmospheric background */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(
+      ellipse 900px 500px at 15% -5%,
+      rgba(201, 168, 76, 0.06) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 700px 400px at 85% 20%,
+      rgba(52, 211, 153, 0.04) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 1200px 800px at 50% 100%,
+      rgba(18, 20, 30, 0.5) 0%,
+      transparent 50%
+    );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Noise texture */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: var(--void);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--gold-dim);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gold);
+}
+
+/* ── Grid Hover Actions ── */
+.gcard {
+  position: relative;
+}
+.gcard-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(12, 14, 22, 0.85);
+  border-radius: 4.5% / 3.5%; /* Matches typical card radius */
+  opacity: 0;
+  transition: opacity 0.15s var(--ease);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
+  z-index: 10;
+  backdrop-filter: blur(2px);
+}
+.gcard:hover .gcard-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.gcard-actions-row {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-overlay {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--obsidian);
+  border: 1px solid var(--line-light);
+  color: var(--text);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.1s;
+  font-size: 1.1rem;
+  line-height: 1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.btn-overlay:hover {
+  background: var(--gold);
+  color: var(--void);
+  transform: scale(1.1);
+  border-color: var(--gold);
+}
+.btn-overlay.danger:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+}
+
+.btn-overlay-text {
+  padding: 4px 10px;
+  height: auto;
+  width: auto;
+  font-size: 0.65rem;
+  border-radius: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: var(--obsidian);
+  border: 1px solid var(--line-light);
+}
+.btn-overlay-text:hover {
+  background: var(--smoke);
+  border-color: var(--text-dim);
+}
