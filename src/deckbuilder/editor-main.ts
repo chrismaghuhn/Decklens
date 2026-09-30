@@ -1,20 +1,10 @@
 import {
-  createCommunityDeck,
-  createDeckbuilderShareSnapshot,
   fetchDeckbuilderAutocomplete,
-  fetchRecommendations,
-  fetchSpellbookCombos,
   resolveDeckbuilderCards,
   searchDeckbuilderCards,
-  syncDeckToCloud,
-  type CommunityDeckInput,
   type DeckbuilderSearchCard,
-  type DeckbuilderShareDeckPayload,
-  type SpellbookCombosResponse,
-} from '../shared/api.js';
+} from '../shared/scryfall-client.js';
 import type { Deck } from '../shared/types.js';
-import { trackAnalyticsEvent } from '../shared/analytics.js';
-import { trackPremiumFeatureUse } from './premium-usage.js';
 import { evaluateEdhRules } from './edh-rules.js';
 import {
   mergeBoards,
@@ -39,7 +29,6 @@ import { normalizeNameKey } from '../shared/utils.js';
 import { createDeck, createEmptyDeck, getDeckById, listDecks, setLastOpenedDeckId, upsertDeck } from './storage.js';
 import { compareDecksDiff, renderDeckComparison, type DeckZones } from '../shared/features/deck-comparison.js';
 import { STORAGE_KEYS, storageGet, storageSet } from '../shared/storage.js';
-import { renderCommanderStatsWidget } from './commander-stats-widget.js';
 import type { DeckBoard, DeckFormat, DeckbuilderCardEntry, DeckbuilderDeck, DeckbuilderImportUnresolved, EdhRuleIssue } from './types.js';
 import {
   getViewMode,
@@ -76,22 +65,18 @@ import { renderManaCalc, analyzeManaBase } from './mana-calc.js';
 import { renderSynergyMap } from './synergy-map.js';
 import { renderSmartRecs as renderSmartRecsView } from './smart-recs.js';
 import { calculateBracket, renderBracketResult } from './bracket-calc.js';
-import { loadMetaData, getMetaBadge, isMetaLoaded } from './meta-badges.js';
 import { renderBudgetOptimizer } from './budget-optimizer.js';
 import { renderBudgetAlternatives } from './budget-alternatives.js';
 import { renderCollectionPanel } from './collection-panel.js';
 import { renderDeckHistory, autoSnapshotIfNeeded, createSnapshot } from './deck-diff.js';
-import { renderVersionPanel } from './version-panel.js';
 import { hasSyntaxPrefixes, parseSearchSyntax } from './search-syntax.js';
 import { attachCardAutocomplete, type CardAutocompleteController } from './card-autocomplete.js';
 import { openGoldfishPlaytest } from './goldfish.js';
-import { showMultiplayerLaunchModal } from './goldfish-mp-launch.js';
 import { initToastContainer, showToast, showBatchableToast } from './toast.js';
 import { showPromptModal, showConfirmModal } from './confirm-modal.js';
 import { shouldShowOnboarding, startOnboarding } from './onboarding.js';
 import { getAutoTagForEntry, categorizeCard } from './auto-categories.js';
 import { getFormatRules } from './live-validation.js';
-import { renderEdhrecPanel, invalidateEdhrecCache } from './edhrec-panel.js';
 import { renderMarkdown } from './markdown-lite.js';
 import { getTemplateByKey } from './primer-templates.js';
 import { initShortcutHelp } from './shortcut-help.js';
@@ -100,34 +85,10 @@ import { detectDeckArchetype, type ArchetypeDetectionResult } from '../mtg/engin
 import { getArchetypeById } from '../mtg/engine/archetype-catalog.js';
 import type { MatchupMetaMode } from '../mtg/engine/matchup-guide.js';
 import type { MetaMode } from '../mtg/engine/recommendation-v1.js';
-import { getCollabManager, type CollabEvent } from './collab-manager.js';
-import {
-  initCollabUI,
-  checkCollabUrlParam,
-  startCollabSession,
-  joinCollabSession,
-  isCollabActive,
-  isCurrentUserViewer,
-} from './collab-ui.js';
-import { initCollabCursors } from './collab-cursors.js';
-import { initCollabDrawing } from './collab-drawing.js';
-import { initCollabChat } from './collab-chat.js';
-import { initCollabPing, sendCardPing, initCollabVoting, setVoteRenderCallback, createVoteWidget } from './collab-tools.js';
-import { sendPresenceUpdate } from './collab-presence.js';
-import { isCardLocked, requestLockFromHolder } from './collab-locking.js';
-import { openOptimizationWizard, closeOptimizationWizard } from './optimization-wizard.js';
-import { trackFunnelStep, trackWizardOpen, trackRecApplied, resetFunnel } from './activation-funnel.js';
-import { recordRecommendationApplyHistory } from '../mtg/recommendation-history.js';
 import { categoryToLogicTags } from './smart-recs.js';
-import { renderRecHistoryPanel } from './rec-history-panel.js';
 import type { RecommendationV1Item } from '../mtg/engine/recommendation-v1.js';
 import { initPanelLayout, refreshAllWidgets, autoFitCardsWidget } from './panel-layout.js';
-import { initRepoPanel, onRepoTabActive } from './repo-panel.js';
 import { initCommandPalette } from './cmd-palette.js';
-import { renderMatchupStrategyWidget } from './matchup-strategy-widget.js';
-import { renderDeckSolverWidget } from './deck-solver-widget.js';
-import { renderCutSuggestionsWidget } from './cut-suggestions-widget.js';
-import { renderSimulationWidget } from './simulation-widget.js';
 
 const BOARD_ORDER: DeckBoard[] = ['commander', 'mainboard', 'maybeboard', 'sideboard'];
 const BOARD_LABEL: Record<DeckBoard, string> = {
@@ -159,18 +120,12 @@ let activeBoard: DeckBoard = 'mainboard';
 let searchDebounce: ReturnType<typeof setTimeout> | null = null;
 let selectedSearchIndex = -1;
 
-/** Flag to prevent echo loops: when true, mutations came from a remote collaborator and should NOT be re-broadcast. */
-let isRemoteUpdate = false;
 let searchResults: DeckbuilderSearchCard[] = [];
 let allSearchResults: DeckbuilderSearchCard[] = []; // Full results from API
 let displayedSearchCount = 25; // How many to show initially
 let unresolvedImportRows: DeckbuilderImportUnresolved[] = [];
 let resolvedCardByName: Record<string, DeckbuilderSearchCard | undefined> = {};
 let resolveInFlight = false;
-let spellbookCombos: SpellbookCombosResponse | null = null;
-let spellbookInFlight = false;
-let spellbookError: string | null = null;
-let spellbookLastHash: string | null = null;
 let sidebarOpen = false;
 let activeChartFilter: ChartFilter = null;
 let lastSnapshotCardCount = 0;
@@ -181,7 +136,6 @@ let searchAbortController: AbortController | null = null;
 let searchAutocomplete: CardAutocompleteController | null = null;
 let deferredRenderTimer: ReturnType<typeof setTimeout> | null = null;
 let deckFilterText = '';
-let cloudSyncTimer: ReturnType<typeof setTimeout> | null = null;
 
 // ==================== Layout Mode ====================
 type LayoutMode = 'classic' | 'grid';
@@ -363,43 +317,10 @@ function closePresetPicker(): void {
 
 // ==================== Cloud Sync ====================
 
-function getDeviceFingerprint(): string {
-  let fp = storageGet<string>(STORAGE_KEYS.DECKBUILDER_DEVICE_FP, '');
-  if (!fp) {
-    fp = `fp_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-    storageSet(STORAGE_KEYS.DECKBUILDER_DEVICE_FP, fp);
-  }
-  return fp;
-}
 
-function isCloudSyncEnabled(): boolean {
-  return storageGet<boolean>(STORAGE_KEYS.DECKBUILDER_CLOUD_SYNC, false);
-}
 
-function setCloudSyncEnabled(enabled: boolean): void {
-  storageSet(STORAGE_KEYS.DECKBUILDER_CLOUD_SYNC, enabled);
-}
 
-function scheduleDebouncedCloudSync(): void {
-  if (!isCloudSyncEnabled() || !currentDeck) return;
-  if (cloudSyncTimer) clearTimeout(cloudSyncTimer);
-  cloudSyncTimer = setTimeout(() => {
-    cloudSyncTimer = null;
-    void performCloudSync();
-  }, 3000); // 3s debounce
-}
 
-async function performCloudSync(): Promise<void> {
-  if (!currentDeck || !isCloudSyncEnabled()) return;
-  updateSaveIndicator('saving');
-  try {
-    await syncDeckToCloud(currentDeck, getDeviceFingerprint());
-    updateSaveIndicator('saved');
-  } catch (err) {
-    console.warn('[cloud-sync] Failed:', err);
-    updateSaveIndicator('saved'); // Still saved locally
-  }
-}
 
 // ==================== Analytics Memoization ====================
 let analyticsCache: {
@@ -469,7 +390,6 @@ function saveCurrentDeck(): void {
     upsertDeck(currentDeck);
     updateSaveIndicator('saved');
     lastSaveError = null;
-    scheduleDebouncedCloudSync();
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'Unknown error';
     console.error('[Deckbuilder] Failed to save deck:', err);
@@ -563,12 +483,6 @@ function setActiveBoard(board: DeckBoard): void {
       showToast('Warning: Board preference not saved', 'warning', 3000);
     }
   }
-  // Send presence update when switching boards (Phase 3)
-  if (isCollabActive()) {
-    sendPresenceUpdate(board);
-  }
-  // Notify drawing module of board change
-  window.dispatchEvent(new CustomEvent('deckbuilder-board-changed', { detail: { board } }));
   scheduleRenderBoardRows();
 }
 
@@ -580,36 +494,11 @@ function findEntry(board: DeckBoard, cardName: string): DeckbuilderCardEntry | n
 
 function upsertEntry(board: DeckBoard, cardName: string, qtyDelta: number, cardMeta?: DeckbuilderSearchCard): void {
   if (!currentDeck) return;
-  // Lock check (Phase 3) — skip for remote updates
-  if (!isRemoteUpdate && isCollabActive()) {
-    const lockInfo = isCardLocked(board, cardName);
-    if (lockInfo.locked) {
-      // D2: Actionable lock contention toast with "Request Lock"
-      showToast({
-        message: `\uD83D\uDD12 Locked by ${lockInfo.by}`,
-        type: 'error',
-        duration: 8000,
-        action: {
-          label: 'Request Lock',
-          onClick: () => {
-            const sent = requestLockFromHolder(board, cardName);
-            showToast({ message: sent ? 'Lock request sent.' : 'Please wait before requesting again.', type: sent ? 'info' : 'warning' });
-          },
-        },
-      });
-      return;
-    }
-  }
   const key = normalizeNameKey(cardName);
   const list = currentDeck.boards[board];
   const existing = list.find((entry) => normalizeNameKey(entry.name) === key);
   if (existing) {
     existing.qty = Math.max(1, Math.min(99, existing.qty + qtyDelta));
-    // Broadcast to collab session (update existing card)
-    if (!isRemoteUpdate && isCollabActive()) {
-      const idx = list.indexOf(existing);
-      getCollabManager().sendCardUpdate(board, idx, existing);
-    }
   } else {
     const newEntry: DeckbuilderCardEntry = {
       name: cardMeta?.name || cardName,
@@ -621,67 +510,17 @@ function upsertEntry(board: DeckBoard, cardName: string, qtyDelta: number, cardM
     };
     list.push(newEntry);
     list.sort((a, b) => a.name.localeCompare(b.name));
-    // Broadcast to collab session (add new card)
-    if (!isRemoteUpdate && isCollabActive()) {
-      getCollabManager().sendCardAdd(board, newEntry);
-    }
   }
 }
 
 function removeEntry(board: DeckBoard, cardName: string): void {
   if (!currentDeck) return;
-  // Lock check (Phase 3) — skip for remote updates
-  if (!isRemoteUpdate && isCollabActive()) {
-    const lockInfo = isCardLocked(board, cardName);
-    if (lockInfo.locked) {
-      // D2: Actionable lock contention toast
-      showToast({
-        message: `\uD83D\uDD12 Locked by ${lockInfo.by}`,
-        type: 'error',
-        duration: 8000,
-        action: {
-          label: 'Request Lock',
-          onClick: () => {
-            const sent = requestLockFromHolder(board, cardName);
-            showToast({ message: sent ? 'Lock request sent.' : 'Please wait before requesting again.', type: sent ? 'info' : 'warning' });
-          },
-        },
-      });
-      return;
-    }
-  }
   const key = normalizeNameKey(cardName);
-  // Find index before removing — needed for collab broadcast
-  const idx = currentDeck.boards[board].findIndex((entry) => normalizeNameKey(entry.name) === key);
   currentDeck.boards[board] = currentDeck.boards[board].filter((entry) => normalizeNameKey(entry.name) !== key);
-  // Broadcast to collab session
-  if (!isRemoteUpdate && isCollabActive() && idx >= 0) {
-    getCollabManager().sendCardRemove(board, idx);
-  }
 }
 
 function moveEntry(fromBoard: DeckBoard, toBoard: DeckBoard, cardName: string): void {
   if (!currentDeck || fromBoard === toBoard) return;
-  // Lock check (Phase 3) — skip for remote updates
-  if (!isRemoteUpdate && isCollabActive()) {
-    const lockInfo = isCardLocked(fromBoard, cardName);
-    if (lockInfo.locked) {
-      // D2: Actionable lock contention toast
-      showToast({
-        message: `\uD83D\uDD12 Locked by ${lockInfo.by}`,
-        type: 'error',
-        duration: 8000,
-        action: {
-          label: 'Request Lock',
-          onClick: () => {
-            const sent = requestLockFromHolder(fromBoard, cardName);
-            showToast({ message: sent ? 'Lock request sent.' : 'Please wait before requesting again.', type: sent ? 'info' : 'warning' });
-          },
-        },
-      });
-      return;
-    }
-  }
   const key = normalizeNameKey(cardName);
   const source = currentDeck.boards[fromBoard];
   const entry = source.find((item) => normalizeNameKey(item.name) === key);
@@ -833,10 +672,6 @@ function updateBulkBar(): void {
 
 // ==================== Board Rendering ====================
 
-/** Helper for injecting collab vote widgets into the view mode context */
-function createVoteWidgetForCtx(board: DeckBoard, cardName: string): HTMLElement {
-  return createVoteWidget(board, cardName);
-}
 
 function buildViewModeContext(): ViewModeContext {
   return {
@@ -875,9 +710,6 @@ function buildViewModeContext(): ViewModeContext {
     onCardMouseLeave: () => { hideHoverPreview(); },
     getSelectedCards,
     onCardSelect: handleCardSelect,
-    getVoteWidget: isCollabActive()
-      ? (board: DeckBoard, cardName: string) => createVoteWidgetForCtx(board, cardName)
-      : undefined,
   };
 }
 
@@ -887,22 +719,6 @@ function setChartFilter(filter: ChartFilter): void {
   renderAnalytics(); // re-render to update active states
 }
 
-function injectMetaBadges(container: HTMLElement): void {
-  if (!isMetaLoaded()) return;
-  const cardElements = container.querySelectorAll<HTMLElement>('[data-card-name]');
-  for (const el of cardElements) {
-    const name = el.dataset.cardName;
-    if (!name) continue;
-    const badge = getMetaBadge(name);
-    if (!badge) continue;
-    // Don't double-inject
-    if (el.querySelector('.meta-badge')) continue;
-    const badgeEl = document.createElement('span');
-    badgeEl.className = `meta-badge ${badge.cssClass}`;
-    badgeEl.textContent = badge.label;
-    el.appendChild(badgeEl);
-  }
-}
 
 // Coalesces rapid renderBoardRows() calls within a single animation frame
 let renderBoardRowsScheduled = false;
@@ -923,7 +739,6 @@ function renderBoardRows(): void {
   }
   renderActiveView(container, buildViewModeContext());
   renderFilterBadge(container, activeChartFilter, () => setChartFilter(null));
-  injectMetaBadges(container);
 
   // Update accessibility live region
   const liveRegion = document.getElementById('boardLiveRegion');
@@ -2185,38 +2000,6 @@ function detectCombos(deck: DeckbuilderDeck): UnifiedCombo[] {
     }
   }
 
-  // 2. Spellbook API combos (if available)
-  if (spellbookCombos) {
-    const localFingerprints = new Set(
-      unified.map((c) => c.cards.map(normalizeNameKey).sort().join('|')),
-    );
-
-    for (const combo of [...spellbookCombos.included, ...spellbookCombos.almostIncluded]) {
-      const fingerprint = combo.cards.map(normalizeNameKey).sort().join('|');
-      if (localFingerprints.has(fingerprint)) continue;
-
-      const present: string[] = [];
-      const missing: string[] = [];
-      for (const card of combo.cards) {
-        if (allNames.has(normalizeNameKey(card))) present.push(card);
-        else missing.push(card);
-      }
-
-      // Only show if at least half present
-      if (present.length < Math.ceil(combo.cards.length / 2)) continue;
-
-      unified.push({
-        source: 'spellbook',
-        cards: combo.cards,
-        description: combo.description,
-        category: mapProducesToCategory(combo.produces),
-        present,
-        missing,
-        spellbookUrl: combo.spellbookUrl,
-        produces: combo.produces,
-      });
-    }
-  }
 
   // Sort: complete combos first, then by fewer missing pieces
   unified.sort((a, b) => a.missing.length - b.missing.length);
@@ -2227,24 +2010,9 @@ function renderCombos(deck: DeckbuilderDeck): void {
   const container = byId<HTMLDivElement>('combosPanel');
   container.textContent = '';
 
-  // Loading indicator
-  if (spellbookInFlight) {
-    const loader = document.createElement('div');
-    loader.className = 'combo-loading';
-    loader.textContent = 'Checking Commander Spellbook\u2026';
-    container.appendChild(loader);
-  }
-
-  // Error notice (non-blocking)
-  if (spellbookError) {
-    const err = document.createElement('div');
-    err.className = 'combo-api-error';
-    err.textContent = `Spellbook: ${spellbookError}`;
-    container.appendChild(err);
-  }
 
   const combos = detectCombos(deck);
-  if (combos.length === 0 && !spellbookInFlight) {
+  if (combos.length === 0) {
     const msg = document.createElement('span');
     msg.className = 'muted';
     msg.style.fontSize = '0.78rem';
@@ -2353,26 +2121,7 @@ function renderCombos(deck: DeckbuilderDeck): void {
   }
 }
 
-/**
- * Render Commander Stats Widget (async)
- */
-function renderCommanderStatsWidgetAsync(deck: DeckbuilderDeck): void {
-  const container = byId<HTMLDivElement>('commanderStatsWidget');
-  if (!container) return;
 
-  // Render asynchronously (don't block analytics rendering)
-  renderCommanderStatsWidget(container, deck).catch(err => {
-    console.error('[Commander Stats] Render error:', err);
-    container.innerHTML = `
-      <div class="commander-stats-error">
-        <div class="error-icon">⚠️</div>
-        <p class="error-text">Failed to load stats</p>
-      </div>
-    `;
-  });
-}
-
-/** B1: Always-visible analytics summary bar */
 function renderAnalyticsSummaryBar(
   deck: DeckbuilderDeck,
   data: { curve: Record<string, number>; colors: Record<string, number>; landCount: number },
@@ -2433,9 +2182,6 @@ function renderAnalytics(): void {
   // B1: Render always-visible summary bar
   renderAnalyticsSummaryBar(currentDeck, data);
 
-  // Commander Stats Widget
-  renderCommanderStatsWidgetAsync(currentDeck);
-
   renderManaCurveChart(data.curve);
   renderColorDonut(data.colors);
   renderTypeDistribution(data.types);
@@ -2462,31 +2208,6 @@ function renderAnalytics(): void {
     ? Object.entries(data.tags).map(([k, v]) => `${k}:${v}`).join(' | ')
     : 'none';
   
-  // Matchup Strategy Widget (for panel-layout system)
-  const matchupWidgetContainer = document.getElementById('matchupStrategyWidget');
-  if (matchupWidgetContainer && currentDeck) {
-    const metaModeSelect = document.getElementById('strategyMetaMode') as HTMLSelectElement | null;
-    const metaMode = (metaModeSelect?.value || 'commander-pod') as MatchupMetaMode;
-    renderMatchupStrategyWidget(matchupWidgetContainer, currentDeck, resolvedCardByName, metaMode);
-  }
-
-  // Deck Solver Widget (for panel-layout system)
-  const solverWidgetContainer = document.getElementById('deckSolverWidget');
-  if (solverWidgetContainer && currentDeck) {
-    renderDeckSolverWidget(solverWidgetContainer, currentDeck, resolvedCardByName);
-  }
-
-  // Cut Suggestions Widget (for panel-layout system)
-  const cutWidgetContainer = document.getElementById('cutSuggestionsWidget');
-  if (cutWidgetContainer && currentDeck) {
-    renderCutSuggestionsWidget(cutWidgetContainer, currentDeck, resolvedCardByName);
-  }
-
-  // Simulation Widget (for panel-layout system)
-  const simulationWidgetContainer = document.getElementById('simulationWidget');
-  if (simulationWidgetContainer && currentDeck) {
-    renderSimulationWidget(simulationWidgetContainer, currentDeck, resolvedCardByName);
-  }
   byId<HTMLDivElement>('analyticsTags').textContent = tagText;
 }
 
@@ -2809,12 +2530,6 @@ async function applyImportText(): Promise<void> {
     detectAndPromoteCommander(currentDeck, resolvedCardByName);
   }
 
-  // Auto-launch optimization wizard after import if deck is large enough
-  trackFunnelStep('import', { cardCount: currentDeck.boards.mainboard.reduce((s, e) => s + e.qty, 0) });
-  if (currentDeck.boards.mainboard.length >= 10) {
-    trackPremiumFeatureUse('optimization_wizard');
-    setTimeout(() => openOptimizationWizard(getWizardCallbacks(), 'import_auto'), 500);
-  }
 }
 
 function applySelectedUnresolvedRows(): void {
@@ -2887,36 +2602,6 @@ async function refreshMissingCardData(forceReload = false): Promise<void> {
   }
 }
 
-async function refreshSpellbookCombos(): Promise<void> {
-  if (!currentDeck || spellbookInFlight) return;
-
-  const hash = deckContentHash(currentDeck);
-  if (hash === spellbookLastHash && spellbookCombos) return;
-
-  const commanders = currentDeck.boards.commander.map((e) => e.name);
-  const main = currentDeck.boards.mainboard.map((e) => e.name);
-
-  if (commanders.length === 0 && main.length < 5) {
-    spellbookCombos = null;
-    spellbookError = null;
-    return;
-  }
-
-  spellbookInFlight = true;
-  spellbookError = null;
-  renderCombos(currentDeck);
-
-  try {
-    spellbookCombos = await fetchSpellbookCombos(commanders, main);
-    spellbookLastHash = hash;
-  } catch (e) {
-    spellbookError = e instanceof Error ? e.message : 'Spellbook lookup failed.';
-    spellbookCombos = null;
-  } finally {
-    spellbookInFlight = false;
-    if (currentDeck) renderCombos(currentDeck);
-  }
-}
 
 function openSearchSidebar(): void {
   if (sidebarOpen) return;
@@ -3509,11 +3194,6 @@ function checkDuplicateWarning(cardName: string, card?: DeckbuilderSearchCard): 
 
 function addSelectedSearchCard(): void {
   if (!currentDeck || selectedSearchIndex < 0 || selectedSearchIndex >= searchResults.length) return;
-  // D3: Block add when viewer
-  if (isCurrentUserViewer()) {
-    showToast({ message: 'You are in viewer mode — editing is disabled.', type: 'warning' });
-    return;
-  }
   const card = searchResults[selectedSearchIndex];
   if (!card) return;
 
@@ -3522,10 +3202,6 @@ function addSelectedSearchCard(): void {
 
   upsertEntry(activeBoard, card.name, 1, card);
   resolvedCardByName[normalizeNameKey(card.name)] = card;
-  trackAnalyticsEvent('feature_used', {
-    feature: 'deckbuilder_add_card',
-    board: activeBoard,
-  });
   deferredSaveAndRender();
 
   // A1: Quick-Add Queue — inline confirmation + keep search focused
@@ -3547,67 +3223,7 @@ function deckbuilderToDeck(deck: DeckbuilderDeck): Deck {
   };
 }
 
-let suggestInFlight = false;
 
-async function runSuggestCards(): Promise<void> {
-  if (!currentDeck || suggestInFlight) return;
-  if (currentDeck.boards.commander.length === 0) {
-    showToast({ message: 'Add a commander first to get card suggestions.', type: 'warning' });
-    return;
-  }
-
-  suggestInFlight = true;
-  showSearchSkeletons();
-  showToast({ message: 'Fetching card suggestions...', type: 'info', duration: 2000 });
-
-  try {
-    const response = await fetchRecommendations({
-      deck: deckbuilderToDeck(currentDeck),
-      maxRecommendations: 25,
-    });
-
-    const recs = response.data.recommendations;
-    if (recs.length === 0) {
-      showToast({ message: 'No suggestions found for this deck.', type: 'info' });
-      return;
-    }
-
-    // Resolve card images for the recommendations
-    const names = recs.map((r) => r.add.name);
-    const resolved = await resolveDeckbuilderCards(names);
-
-    // Build search results from recommendations
-    searchResults = recs.map((rec) => {
-      const key = normalizeNameKey(rec.add.name);
-      const card = resolved.resolved[key];
-      if (card) {
-        resolvedCardByName[key] = card;
-        return card;
-      }
-      // Fallback: create minimal card object
-      return {
-        id: rec.id,
-        name: rec.add.name,
-        cmc: rec.add.cmc,
-        type_line: '',
-        image_uris: undefined,
-      } as unknown as DeckbuilderSearchCard;
-    });
-
-    selectedSearchIndex = searchResults.length > 0 ? 0 : -1;
-
-    // Update sidebar header to show "Suggestions" instead of "Search Results"
-    const headerH3 = document.querySelector('.search-sidebar-header h3');
-    if (headerH3) headerH3.textContent = 'Card Suggestions';
-
-    renderSearchResults();
-    showToast({ message: `${recs.length} card suggestions loaded.`, type: 'success' });
-  } catch (error) {
-    showToast({ message: error instanceof Error ? error.message : 'Failed to fetch suggestions.', type: 'error' });
-  } finally {
-    suggestInFlight = false;
-  }
-}
 
 /** A2: Detect multi-line deck list paste in search input → open import tab */
 function switchToImportTab(prefill: string): void {
@@ -3832,7 +3448,6 @@ function bindFilterEvents(): void {
 }
 
 let strategyDirty = true;
-let historyDirty = true;
 
 function applyRecWithHistory(rec: RecommendationV1Item, source: 'strategy_tab' | 'wizard'): void {
   if (!currentDeck) return;
@@ -3840,24 +3455,7 @@ function applyRecWithHistory(rec: RecommendationV1Item, source: 'strategy_tab' |
   if (cutName) removeEntry('mainboard', cutName);
   upsertEntry('mainboard', rec.add.name, 1);
 
-  // Record to recommendation history
-  recordRecommendationApplyHistory({
-    deckName: currentDeck.name,
-    commanderNames: currentDeck.boards.commander.map((e) => e.name),
-    recommendationId: rec.id,
-    cardName: rec.add.name,
-    mode: cutName ? 'swap' : 'add',
-    cutName,
-    reason: rec.reasons[0] || '',
-    powerImpactLabel: rec.confidence >= 0.7 ? 'high' : rec.confidence >= 0.4 ? 'medium' : 'low',
-    logicTags: categoryToLogicTags(rec.category),
-  });
-
-  // Track in activation funnel
-  trackRecApplied(rec.id, cutName, rec.add.name, source);
-
   strategyDirty = true;
-  historyDirty = true;
   invalidateMatchupCache();
   saveAndRender();
 }
@@ -3880,53 +3478,9 @@ function renderSmartRecs(): void {
       applyRecWithHistory(rec, 'strategy_tab');
     },
   });
-  renderRecHistory();
 }
 
-function renderRecHistory(): void {
-  if (!currentDeck || !historyDirty) return;
-  renderRecHistoryPanel(
-    byId<HTMLDivElement>('recHistoryContainer'),
-    currentDeck,
-    resolvedCardByName,
-    {
-      onReapply: (cardName, mode, cutName) => {
-        if (!currentDeck) return;
-        trackPremiumFeatureUse('rec_history');
-        if (mode === 'swap' && cutName) removeEntry('mainboard', cutName);
-        upsertEntry('mainboard', cardName, 1);
-        strategyDirty = true;
-        historyDirty = true;
-        invalidateMatchupCache();
-        saveAndRender();
-      },
-    },
-  );
-  historyDirty = false;
-}
 
-let edhrecDirty = true;
-
-function renderEdhrecTab(): void {
-  if (!currentDeck || !edhrecDirty) return;
-  const commanderName = currentDeck.boards.commander[0]?.name;
-  const deckCardNames = new Set(
-    [...currentDeck.boards.mainboard, ...currentDeck.boards.sideboard, ...currentDeck.boards.commander]
-      .map((e) => normalizeNameKey(e.name)),
-  );
-  void renderEdhrecPanel(
-    byId<HTMLDivElement>('edhrecPanelContainer'),
-    commanderName,
-    deckCardNames,
-    (name) => {
-      if (!currentDeck) return;
-      upsertEntry('mainboard', name, 1);
-      saveAndRender();
-      showBatchableToast({ message: `Added ${name} to mainboard`, type: 'success', batchKey: 'card-add' });
-    },
-  );
-  edhrecDirty = false;
-}
 
 function renderStrategyTab(): void {
   if (!currentDeck || !strategyDirty) return;
@@ -3953,10 +3507,7 @@ function bindTabEvents(): void {
         section.classList.toggle('active', section.dataset.tabPanel === target);
       });
 
-      if (target === 'strategy') { trackPremiumFeatureUse('matchup_panel'); renderStrategyTab(); }
-      if (target === 'prices') trackPremiumFeatureUse('budget_optimizer');
-      if (target === 'edhrec') renderEdhrecTab();
-      if (target === 'repo') onRepoTabActive();
+      if (target === 'strategy') renderStrategyTab();
     });
   }
 
@@ -4163,10 +3714,6 @@ function bindDeckMetaEvents(): void {
     if (!currentDeck) return;
     currentDeck.name = byId<HTMLInputElement>('deckNameInput').value.trim() || 'Untitled Deck';
     saveAndRender();
-    // Broadcast metadata change to collab session
-    if (!isRemoteUpdate && isCollabActive()) {
-      getCollabManager().sendDeckMeta(currentDeck.name, currentDeck.description || '');
-    }
   });
 
   byId<HTMLSelectElement>('deckVisibility').addEventListener('change', () => {
@@ -4190,24 +3737,9 @@ function bindDeckMetaEvents(): void {
     window.location.href = '/decks';
   });
 
-  byId<HTMLButtonElement>('btnBrowsePublic').addEventListener('click', () => {
-    window.location.href = '/decks/public';
-  });
-
   byId<HTMLButtonElement>('btnCompareDeck').addEventListener('click', () => {
-    trackPremiumFeatureUse('deck_comparison');
     showCompareModal();
   });
-
-  // Collab button → start a new collaborative editing session
-  const btnStartCollab = document.getElementById('btnStartCollab');
-  if (btnStartCollab) {
-    btnStartCollab.addEventListener('click', () => {
-      if (!currentDeck) return;
-      if (isCollabActive()) return; // Already in a session
-      void startCollabSession(currentDeck);
-    });
-  }
 
   // Description toggle
   byId<HTMLButtonElement>('btnToggleDescription').addEventListener('click', () => {
@@ -4224,10 +3756,6 @@ function bindDeckMetaEvents(): void {
     if (!currentDeck) return;
     currentDeck.description = byId<HTMLTextAreaElement>('deckDescription').value;
     scheduleAutosave();
-    // Broadcast metadata change to collab session
-    if (!isRemoteUpdate && isCollabActive()) {
-      getCollabManager().sendDeckMeta(currentDeck.name, currentDeck.description || '');
-    }
   });
 
   // Description Edit/Preview tabs
@@ -4346,7 +3874,6 @@ function bindExportEvents(): void {
 
   byId<HTMLButtonElement>('btnPrintProxies').addEventListener('click', () => {
     if (!currentDeck) return;
-    trackPremiumFeatureUse('print_proxy');
     const entries = [...currentDeck.boards.commander, ...currentDeck.boards.mainboard, ...currentDeck.boards.sideboard]
       .map((e) => {
         const card = resolvedCardByName[normalizeNameKey(e.name)];
@@ -4362,102 +3889,9 @@ function bindExportEvents(): void {
 
   byId<HTMLButtonElement>('btnGoldfishPlaytest').addEventListener('click', () => {
     if (!currentDeck) return;
-    trackPremiumFeatureUse('goldfish_playtest');
     openGoldfishPlaytest(currentDeck, resolvedCardByName);
   });
 
-  byId<HTMLButtonElement>('btnMultiplayerGoldfish').addEventListener('click', () => {
-    if (!currentDeck) return;
-    trackPremiumFeatureUse('multiplayer_goldfish');
-    showMultiplayerLaunchModal(currentDeck, resolvedCardByName);
-  });
-
-  byId<HTMLButtonElement>('btnCreateShareSnapshot').addEventListener('click', async () => {
-    if (!currentDeck) return;
-    if (currentDeck.visibility === 'private') {
-      showToast({ message: 'Set visibility to public or unlisted before creating a snapshot.', type: 'warning' });
-      return;
-    }
-
-    const status = byId<HTMLDivElement>('shareStatus');
-    status.textContent = 'Creating immutable snapshot...';
-    status.className = 'muted';
-    try {
-      const created = await createDeckbuilderShareSnapshot({
-        visibility: currentDeck.visibility,
-        deck: toSharePayload(currentDeck),
-      });
-      const url = `${window.location.origin}/d/${created.slug}`;
-      status.innerHTML = `Snapshot created: <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`;
-      status.className = 'muted';
-      trackAnalyticsEvent('report_shared', {
-        share_scope: created.visibility,
-        share_slug: created.slug,
-      });
-    } catch (error) {
-      status.textContent = error instanceof Error ? error.message : 'Failed to create snapshot.';
-      status.className = 'danger';
-    }
-  });
-
-  byId<HTMLButtonElement>('btnPublishCommunity').addEventListener('click', async () => {
-    if (!currentDeck) return;
-    const commander = currentDeck.boards.commander[0]?.name || 'Unknown';
-    const notes = await showPromptModal({
-      title: 'Publish to Community',
-      message: 'Add a description for your deck (optional):',
-      placeholder: 'Strategy notes, combos, etc.',
-    });
-    if (notes === null) return; // User cancelled
-
-    const publishStatus = byId<HTMLDivElement>('publishStatus');
-    publishStatus.textContent = 'Publishing to community...';
-    publishStatus.className = 'muted';
-
-    try {
-      const decklist = buildPlainTextExport(currentDeck);
-      const entries = currentDeck.boards.mainboard.map((e) => ({ name: e.name, qty: e.qty }));
-      const dna = analyzeDeckDNA(entries, (name) => {
-        const card = resolvedCardByName[normalizeNameKey(name)];
-        return card ? { name: card.name, cmc: card.cmc, type_line: card.type_line, oracle_text: card.oracle_text } : undefined;
-      });
-
-      const payload: CommunityDeckInput = {
-        name: currentDeck.name,
-        format: 'commander',
-        commander,
-        archetype: dna.dominant || 'midrange',
-        decklist,
-        notes: notes || undefined,
-      };
-
-      const created = await createCommunityDeck(payload);
-      const url = `${window.location.origin}/community#deck-${created.id}`;
-      publishStatus.innerHTML = `Published! <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">View in Community</a>`;
-      trackAnalyticsEvent('community_deck_published', { deckId: created.id });
-    } catch (error) {
-      publishStatus.textContent = error instanceof Error ? error.message : 'Failed to publish.';
-      publishStatus.className = 'danger';
-    }
-  });
-
-  // Cloud Sync toggle
-  const cloudToggle = document.getElementById('cloudSyncToggle') as HTMLInputElement | null;
-  const cloudStatus = document.getElementById('cloudSyncStatus');
-  if (cloudToggle) {
-    cloudToggle.checked = isCloudSyncEnabled();
-    cloudToggle.addEventListener('change', () => {
-      setCloudSyncEnabled(cloudToggle.checked);
-      if (cloudStatus) {
-        cloudStatus.textContent = cloudToggle.checked
-          ? 'Cloud sync enabled. Deck will auto-sync after changes.'
-          : 'Cloud sync disabled.';
-      }
-      if (cloudToggle.checked) {
-        void performCloudSync();
-      }
-    });
-  }
 }
 
 function updateOutboundLinks(): void {
@@ -4469,7 +3903,7 @@ function updateOutboundLinks(): void {
 function renderHistory(): void {
   if (!currentDeck) return;
   const historyBox = byId<HTMLDivElement>('deckHistoryBox');
-  void renderVersionPanel(historyBox, currentDeck, {
+  renderDeckHistory(historyBox, currentDeck, {
     onRestore: (boards) => {
       if (!currentDeck) return;
       currentDeck.boards = boards;
@@ -4587,52 +4021,8 @@ function renderStatsBar(): void {
   }
 }
 
-function getWizardCallbacks() {
-  return {
-    getDeck: () => currentDeck,
-    getCardByName: () => resolvedCardByName,
-    applySwap: (cutName: string | null, addName: string) => {
-      if (!currentDeck) return;
-      if (cutName) removeEntry('mainboard', cutName);
-      upsertEntry('mainboard', addName, 1);
-      strategyDirty = true;
-      invalidateMatchupCache();
-      saveAndRender();
-    },
-    applySwapWithMeta: (rec: RecommendationV1Item) => {
-      applyRecWithHistory(rec, 'wizard');
-    },
-    onComplete: () => {
-      saveAndRender();
-    },
-  };
-}
 
-function updateOptimizeButton(): void {
-  const btn = document.getElementById('btnOptimize');
-  if (!btn) return;
-  btn.style.display = currentDeck && currentDeck.boards.mainboard.length >= 10 ? '' : 'none';
-}
 
-function updateShareToCommunityPrompt(): void {
-  let prompt = document.getElementById('communitySharePrompt');
-  const show = Boolean(currentDeck && currentDeck.boards.mainboard.length >= 10);
-  if (!show) {
-    if (prompt) prompt.style.display = 'none';
-    return;
-  }
-  if (!prompt) {
-    prompt = document.createElement('div');
-    prompt.id = 'communitySharePrompt';
-    prompt.className = 'community-share-prompt';
-    prompt.innerHTML = '<span>Deck looking good? </span><a href="/community" class="community-share-link">Share to Community \u2192</a>';
-    const counts = document.getElementById('deckCounts');
-    if (counts?.parentElement) {
-      counts.parentElement.insertBefore(prompt, counts.nextSibling);
-    }
-  }
-  prompt.style.display = '';
-}
 
 // E3: Deferred heavy render — analytics, rules, pricing debounced to avoid jank during rapid mutations
 let heavyRenderTimer: ReturnType<typeof setTimeout> | null = null;
@@ -4654,8 +4044,6 @@ function renderAll(): void {
   renderStatsBar();
   renderBoardRows();
   updateOutboundLinks();
-  updateOptimizeButton();
-  updateShareToCommunityPrompt();
   // Heavy path (debounced 500ms for analytics/rules/pricing)
   scheduleHeavyRender();
 }
@@ -4665,12 +4053,10 @@ function saveAndRender(): void {
   pushSnapshot(currentDeck);
   scheduleAutosave();
   strategyDirty = true;
-  edhrecDirty = true;
   // Invalidate caches on deck mutation
   invalidateViewMemo();
   analyticsCache = null;
   powerLevelCache = null;
-  spellbookLastHash = null;
   invalidateMatchupCache();
   autoSnapshotIfNeeded(currentDeck, lastSnapshotCardCount);
   lastSnapshotCardCount = currentDeck.boards.mainboard.reduce((s, e) => s + e.qty, 0) + currentDeck.boards.commander.reduce((s, e) => s + e.qty, 0);
@@ -4688,7 +4074,6 @@ function saveAndRender(): void {
     renderAnalytics();
     renderPricing();
   });
-  void refreshSpellbookCombos();
   checkLocalStorageQuota();
 }
 
@@ -4720,7 +4105,6 @@ function initDeck(): boolean {
   }
 
   currentDeck = deck;
-  historyDirty = true;
   lastSnapshotCardCount = deck.boards.mainboard.reduce((s, e) => s + e.qty, 0) + deck.boards.commander.reduce((s, e) => s + e.qty, 0);
   setLastOpenedDeckId(deck.id);
   byId<HTMLHeadingElement>('editorDeckTitle').textContent = deck.name;
@@ -5377,245 +4761,6 @@ function showCompareModal(): void {
   document.body.appendChild(modal);
 }
 
-// ==================== Collaborative Editing Integration ====================
-
-function setupCollabEventHandlers(): void {
-  const mgr = getCollabManager();
-
-  // On initial sync — replace entire deck state with server's version
-  mgr.on('sync', (event: CollabEvent) => {
-    const data = event.data as { deck: { name: string; description: string; boards: Record<string, unknown[]> } };
-    if (!currentDeck || !data.deck) return;
-
-    isRemoteUpdate = true;
-    try {
-      currentDeck.name = data.deck.name || currentDeck.name;
-      currentDeck.description = typeof data.deck.description === 'string' ? data.deck.description : currentDeck.description;
-
-      // Update boards from server state
-      for (const board of ['commander', 'mainboard', 'sideboard', 'maybeboard'] as const) {
-        if (Array.isArray(data.deck.boards[board])) {
-          currentDeck.boards[board] = (data.deck.boards[board] as DeckbuilderCardEntry[]).map((entry) => ({
-            name: entry.name,
-            qty: entry.qty || 1,
-            set: entry.set || null,
-            collectorNumber: entry.collectorNumber || null,
-            tags: Array.isArray(entry.tags) ? entry.tags : [],
-          }));
-        }
-      }
-
-      // Update UI
-      byId<HTMLInputElement>('deckNameInput').value = currentDeck.name;
-      const descInput = byId<HTMLTextAreaElement>('deckDescription');
-      if (descInput) descInput.value = currentDeck.description || '';
-
-      // Use the full saveAndRender path so that card images, analytics,
-      // pricing, rule-checks and combos are all refreshed after sync.
-      saveAndRender();
-    } finally {
-      isRemoteUpdate = false;
-    }
-  });
-
-  // Remote card add
-  mgr.on('remote-card-add', (event: CollabEvent) => {
-    const data = event.data as { board: DeckBoard; entry: DeckbuilderCardEntry };
-    if (!currentDeck) return;
-
-    isRemoteUpdate = true;
-    try {
-      currentDeck.boards[data.board].push({
-        name: data.entry.name,
-        qty: data.entry.qty || 1,
-        set: data.entry.set || null,
-        collectorNumber: data.entry.collectorNumber || null,
-        tags: Array.isArray(data.entry.tags) ? data.entry.tags : [],
-      });
-      saveAndRender();
-    } finally {
-      isRemoteUpdate = false;
-    }
-  });
-
-  // Remote card remove
-  mgr.on('remote-card-remove', (event: CollabEvent) => {
-    const data = event.data as { board: DeckBoard; index: number };
-    if (!currentDeck) return;
-
-    isRemoteUpdate = true;
-    try {
-      const boardArr = currentDeck.boards[data.board];
-      if (data.index >= 0 && data.index < boardArr.length) {
-        boardArr.splice(data.index, 1);
-        saveAndRender();
-      }
-    } finally {
-      isRemoteUpdate = false;
-    }
-  });
-
-  // Remote card update (qty change, tags, etc.)
-  mgr.on('remote-card-update', (event: CollabEvent) => {
-    const data = event.data as { board: DeckBoard; index: number; entry: DeckbuilderCardEntry };
-    if (!currentDeck) return;
-
-    isRemoteUpdate = true;
-    try {
-      const boardArr = currentDeck.boards[data.board];
-      if (data.index >= 0 && data.index < boardArr.length) {
-        boardArr[data.index] = {
-          name: data.entry.name,
-          qty: data.entry.qty || 1,
-          set: data.entry.set || null,
-          collectorNumber: data.entry.collectorNumber || null,
-          tags: Array.isArray(data.entry.tags) ? data.entry.tags : [],
-        };
-        saveAndRender();
-      }
-    } finally {
-      isRemoteUpdate = false;
-    }
-  });
-
-  // Remote deck metadata update (name, description)
-  mgr.on('remote-deck-meta', (event: CollabEvent) => {
-    const data = event.data as { name: string; description: string };
-    if (!currentDeck) return;
-
-    isRemoteUpdate = true;
-    try {
-      currentDeck.name = data.name || currentDeck.name;
-      currentDeck.description = typeof data.description === 'string' ? data.description : currentDeck.description;
-      byId<HTMLInputElement>('deckNameInput').value = currentDeck.name;
-      const descInput = byId<HTMLTextAreaElement>('deckDescription');
-      if (descInput) descInput.value = currentDeck.description || '';
-      scheduleAutosave();
-      renderDeckOverview();
-    } finally {
-      isRemoteUpdate = false;
-    }
-  });
-
-  // Snapshot request — editor-main provides deck data for timeline snapshots
-  window.addEventListener('decklens:get-deck-for-snapshot', (e) => {
-    if (!currentDeck) return;
-    const label = (e as CustomEvent).detail?.label || 'Manual snapshot';
-    const boardsJson = JSON.stringify(currentDeck.boards);
-    let cardCount = 0;
-    for (const board of ['commander', 'mainboard', 'sideboard', 'maybeboard'] as const) {
-      cardCount += currentDeck.boards[board].reduce((sum, entry) => sum + (entry.qty || 1), 0);
-    }
-    window.dispatchEvent(new CustomEvent('decklens:snapshot-data', {
-      detail: { label, boardsJson, cardCount },
-    }));
-  });
-}
-
-async function fillBasicLands(): Promise<void> {
-  if (!currentDeck) return;
-  
-  const analysis = analyzeManaBase(currentDeck, resolvedCardByName);
-  const currentLands = analysis.totalLands;
-
-  // 1. Prompt for target land count
-  const targetStr = await showPromptModal({
-    title: 'Fill Basic Lands',
-    message: `Current Lands: ${currentLands}\nTarget Land Count:`,
-    defaultValue: '37',
-    placeholder: '37',
-    confirmLabel: 'Next',
-  });
-
-  if (!targetStr) return; // User cancelled
-  const targetLands = parseInt(targetStr, 10);
-  if (isNaN(targetLands) || targetLands < 0) {
-    showToast({ message: 'Invalid land count.', type: 'error' });
-    return;
-  }
-  
-  if (currentLands >= targetLands) {
-    showToast({ message: `Deck already has ${currentLands} lands (Target: ${targetLands})`, type: 'info' });
-    return;
-  }
-  
-  const needed = targetLands - currentLands;
-  const landsToAdd: Record<string, number> = {
-    'Plains': 0, 'Island': 0, 'Swamp': 0, 'Mountain': 0, 'Forest': 0
-  };
-  
-  // Calculate pip ratios
-  const totalPips = analysis.colors.reduce((sum, c) => sum + c.pips, 0);
-  
-  if (totalPips === 0) {
-      showToast({ message: 'No colored mana requirements found to distribute lands.', type: 'warning' });
-      return;
-  }
-
-  // Distribute lands based on pip ratio
-  let assigned = 0;
-  for (const color of analysis.colors) {
-      const ratio = color.pips / totalPips;
-      const count = Math.floor(needed * ratio);
-      const landName = {
-          'W': 'Plains', 'U': 'Island', 'B': 'Swamp', 'R': 'Mountain', 'G': 'Forest'
-      }[color.color];
-      
-      if (landName) {
-          landsToAdd[landName] += count;
-          assigned += count;
-      }
-  }
-  
-  // Assign remainder to the color with most pips
-  if (assigned < needed) {
-      const topColor = analysis.colors.sort((a,b) => b.pips - a.pips)[0];
-      if (topColor) {
-           const landName = {
-              'W': 'Plains', 'U': 'Island', 'B': 'Swamp', 'R': 'Mountain', 'G': 'Forest'
-          }[topColor.color];
-          if (landName) {
-              landsToAdd[landName] += (needed - assigned);
-          }
-      }
-  }
-
-  // 2. Build confirmation message
-  const summary: string[] = [];
-  for (const [name, qty] of Object.entries(landsToAdd)) {
-    if (qty > 0) summary.push(`${qty}x ${name}`);
-  }
-
-  if (summary.length === 0) {
-     showToast({ message: 'Calculation resulted in no lands to add.', type: 'warning' });
-     return;
-  }
-
-  const confirmed = await showConfirmModal({
-    title: 'Review Changes',
-    message: `Add the following ${needed} lands?\n\n${summary.join('\n')}`,
-    confirmLabel: 'Add Lands',
-  });
-
-  if (!confirmed) return;
-
-  // Apply changes
-  let changes = 0;
-  for (const [name, qty] of Object.entries(landsToAdd)) {
-      if (qty > 0) {
-          upsertEntry('mainboard', name, qty);
-          changes++;
-      }
-  }
-
-  if (changes > 0) {
-      saveAndRender();
-      showToast({ message: `Added ${needed} basic lands.`, type: 'success' });
-  }
-}
-
-// ==================== F3: Light Theme Toggle ====================
-
 function initThemeToggle(): void {
   // Load persisted theme
   const savedTheme = storageGet<string>(STORAGE_KEYS.THEME, 'dark');
@@ -5663,18 +4808,8 @@ function init(): void {
     selectedSearchIndex = -1;
     byId<HTMLInputElement>('searchInput').value = '';
   });
-  byId<HTMLButtonElement>('btnSuggestCards').addEventListener('click', () => {
-    void runSuggestCards();
-  });
   bindGlobalShortcuts();
   bindDeckMetaEvents();
-
-  // Optimize CTA button
-  byId<HTMLButtonElement>('btnOptimize').addEventListener('click', () => {
-    if (!currentDeck) return;
-    trackPremiumFeatureUse('optimization_wizard');
-    openOptimizationWizard(getWizardCallbacks());
-  });
 
   bindImportEvents();
   bindExportEvents();
@@ -5773,10 +4908,6 @@ function init(): void {
       }
       return `https://scryfall.com/search?q=${encodeURIComponent(name)}`;
     },
-    onPingCard: (name, board) => {
-      sendCardPing(board, name);
-    },
-    isCollabActive: () => isCollabActive(),
     onFindSimilar: (name) => {
       const card = resolvedCardByName[normalizeNameKey(name)];
       if (!card) return;
@@ -5868,92 +4999,38 @@ function init(): void {
   });
   applyDensityClass(savedDensity);
 
-  // ─── Collaborative Editing ───
-  initCollabUI();
-  initCollabCursors();
-  initCollabDrawing();
-  initCollabChat();
-  initCollabPing();
-  initCollabVoting();
-  setVoteRenderCallback(() => scheduleRenderBoardRows());
-  setupCollabEventHandlers();
-
-  // Check for ?collab= FIRST — if joining, create placeholder deck if needed
-  const collabSessionId = checkCollabUrlParam();
-  if (collabSessionId) {
-    // User B joining: try loading local deck, but don't bail if it's missing
-    if (!initDeck()) {
-      // Deck doesn't exist locally — create an empty placeholder.
-      // The sync-response from the Durable Object will overwrite it with the real deck.
-      const placeholder = createEmptyDeck('Loading...');
-      currentDeck = placeholder;
-    }
-
-    // Load card data FIRST, then set board and render
-    void (async () => {
-      try {
-        await refreshMissingCardData(true);
-      } catch (e) {
-        console.error('[Deckbuilder] Failed to load card data:', e);
-      } finally {
-        // Always set board and render after attempting to load data
-        activeBoard = 'mainboard';
-        // Update board button states
-        for (const key of BOARD_ORDER) {
-          const btn = byId<HTMLButtonElement>(`boardBtn-${key}`);
-          btn.classList.toggle('active', key === activeBoard);
-          btn.setAttribute('aria-selected', String(key === activeBoard));
-        }
-        invalidateViewMemo();
-        analyticsCache = null;
-        powerLevelCache = null;
-        saveAndRender();
-      }
-    })();
-    joinCollabSession(collabSessionId);
-  } else {
-    // Normal flow: load deck from localStorage
-    if (!initDeck()) {
-      return;
-    }
-
-    // Load card data FIRST, then set board and render
-    void (async () => {
-      try {
-        await refreshMissingCardData(true);
-      } catch (e) {
-        console.error('[Deckbuilder] Failed to load card data:', e);
-      } finally {
-        // Always set board and render after attempting to load data
-        activeBoard = 'mainboard';
-        // Update board button states
-        for (const key of BOARD_ORDER) {
-          const btn = byId<HTMLButtonElement>(`boardBtn-${key}`);
-          btn.classList.toggle('active', key === activeBoard);
-          btn.setAttribute('aria-selected', String(key === activeBoard));
-        }
-        invalidateViewMemo();
-        analyticsCache = null;
-        powerLevelCache = null;
-        saveAndRender();
-      }
-    })();
+  // Normal flow: load deck from localStorage
+  if (!initDeck()) {
+    return;
   }
 
-  // Load meta badges asynchronously (non-blocking)
-  void loadMetaData().then(() => scheduleRenderBoardRows());
+  // Load card data FIRST, then set board and render
+  void (async () => {
+    try {
+      await refreshMissingCardData(true);
+    } catch (e) {
+      console.error('[Deckbuilder] Failed to load card data:', e);
+    } finally {
+      // Always set board and render after attempting to load data
+      activeBoard = 'mainboard';
+      // Update board button states
+      for (const key of BOARD_ORDER) {
+        const btn = byId<HTMLButtonElement>(`boardBtn-${key}`);
+        btn.classList.toggle('active', key === activeBoard);
+        btn.setAttribute('aria-selected', String(key === activeBoard));
+      }
+      invalidateViewMemo();
+      analyticsCache = null;
+      powerLevelCache = null;
+      saveAndRender();
+    }
+  })();
+
 
   // Initialize layout mode (classic vs grid) - deferred to allow DOM to settle
   setTimeout(() => initLayoutMode(), 100);
 
-  // Initialize Git repo panel + command palette
-  initRepoPanel(() => currentDeck);
   initCommandPalette();
-
-  // When repo widget becomes visible via layout system, trigger its init
-  document.addEventListener('layout-widget-shown', (e) => {
-    if ((e as CustomEvent).detail?.widgetId === 'repo') onRepoTabActive();
-  });
 
   // First-time user onboarding (delayed to let UI settle)
   if (shouldShowOnboarding()) {

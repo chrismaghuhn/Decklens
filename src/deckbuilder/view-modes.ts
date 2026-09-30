@@ -3,8 +3,6 @@ import { normalizeNameKey } from '../shared/utils.js';
 import { STORAGE_KEYS, storageGet, storageSet } from '../shared/storage.js';
 import type { DeckBoard, DeckbuilderCardEntry, DeckbuilderDeck, DeckbuilderCardView, CustomCategory } from './types.js';
 import { getAutoTagForEntry, CATEGORY_PRIORITY, CATEGORY_COLORS, type CardCategory } from './auto-categories.js';
-import { getTeamOwnership } from './collab-collection.js';
-import { isCollabActive } from './collab-ui.js';
 
 // ==================== Types ====================
 
@@ -154,17 +152,8 @@ export function loadViewModePreference(): void {
   }
 }
 
-/** Render team ownership badge if collab is active and team has collection data */
-function teamOwnBadge(cardName: string): HTMLElement | string {
-  if (!isCollabActive()) return '';
-  const data = getTeamOwnership(cardName);
-  if (!data || data.total === 0) return '';
-  const ownerCount = data.owners.length;
-  const cls = ownerCount >= 3 ? 'team-own-full' : ownerCount >= 1 ? 'team-own-partial' : 'team-own-none';
-  return h('span', {
-    className: `team-own-badge ${cls}`,
-    title: data.owners.map((o) => `${o.name}: ${o.qty}x`).join(', '),
-  }, `\u2713 ${data.total}`);
+function teamOwnBadge(_cardName: string): HTMLElement | string {
+  return '';
 }
 
 function getCardImage(card: DeckbuilderCardView | undefined, size: 'normal' | 'small' = 'normal'): string {
