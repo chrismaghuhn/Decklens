@@ -1,7 +1,7 @@
 /* ═══ TYPOGRAPHY ═══ */
 h2,
 h3 {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   font-weight: 600;
   letter-spacing: 0.03em;
 }
@@ -61,7 +61,7 @@ h3 {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.82rem;
   font-weight: 500;
   letter-spacing: 0.02em;
@@ -135,7 +135,7 @@ textarea {
   color: var(--text);
   border-radius: var(--radius-sm);
   padding: 9px 12px;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.85rem;
   transition:
     border-color 0.2s var(--ease),
@@ -170,7 +170,7 @@ select {
   padding: 4px 10px;
   font-size: 0.75rem;
   font-weight: 500;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   color: var(--text-dim);
   cursor: pointer;
   letter-spacing: 0.03em;

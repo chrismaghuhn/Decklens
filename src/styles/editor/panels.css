@@ -100,7 +100,7 @@
   padding: 8px 14px;
   border-radius: var(--radius-sm);
   font-size: 0.82rem;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   animation: fadeInDown 0.25s ease-out;
 }
 .import-summary-banner--ok {
@@ -272,7 +272,7 @@
   overflow: visible;
 }
 .chart-box h4 {
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--gold-dim);
@@ -314,20 +314,20 @@
   filter: brightness(1.2);
 }
 .mc-bar-count {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.62rem;
   color: var(--text-dim);
   font-weight: 500;
   text-align: center;
 }
 .mc-bar-label {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.6rem;
   color: var(--muted);
   text-align: center;
 }
 .mc-avg {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.7rem;
   color: var(--text-dim);
   text-align: center;
@@ -362,7 +362,7 @@
   flex-shrink: 0;
 }
 .donut-legend-item .donut-val {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-weight: 500;
   color: var(--text);
   font-size: 0.68rem;
@@ -403,7 +403,7 @@
 }
 .td-count {
   min-width: 28px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.68rem;
   font-weight: 500;
   color: var(--text-dim);
@@ -419,7 +419,7 @@
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: rgba(12, 14, 22, 0.5);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.82rem;
   font-weight: 600;
 }
@@ -427,7 +427,7 @@
   font-size: 1.1rem;
 }
 .power-badge .power-label {
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.72rem;
   font-weight: 500;
   color: var(--text-dim);
@@ -477,17 +477,17 @@
 }
 .factor-plus {
   color: var(--ok);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
 }
 .factor-minus {
   color: var(--danger);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
 }
 .factor-neutral {
   color: var(--text-dim);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
 }
 .factor-detail {
@@ -596,7 +596,7 @@
   cursor: pointer;
   font-size: 0.72rem;
   color: var(--gold);
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-weight: 500;
   transition: background 0.15s ease;
 }
@@ -644,7 +644,7 @@
 .history-time {
   font-size: 0.64rem;
   color: var(--text-dim);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
 }
 .history-changes {
   font-size: 0.64rem;
@@ -656,7 +656,7 @@
 .history-diff-row {
   font-size: 0.72rem;
   padding: 1px 0;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
 }
 .history-added {
   color: var(--ok-soft);
@@ -678,7 +678,7 @@
   border-radius: 50px;
   font-size: 0.6rem;
   font-weight: 600;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -767,7 +767,7 @@
 .version-entry-time {
   font-size: 0.62rem;
   color: var(--text-dim);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   white-space: nowrap;
 }
 .version-entry-badges {
@@ -778,7 +778,7 @@
 .version-entry-changes {
   font-size: 0.62rem;
   color: var(--gold-dim);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
 }
 .version-entry-body {
   padding: 8px 12px;
@@ -798,7 +798,7 @@
   margin-bottom: 10px;
 }
 .budget-total-price strong {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   color: var(--gold);
   font-size: 0.9rem;
 }
@@ -811,7 +811,7 @@
   margin-bottom: 8px;
 }
 .budget-summary strong {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   color: var(--danger);
 }
 .budget-table {
@@ -839,7 +839,7 @@
   font-weight: 500;
 }
 .budget-price {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   text-align: right;
   font-size: 0.68rem;
 }
@@ -885,7 +885,7 @@
   margin-bottom: 10px;
 }
 .mana-calc-summary strong {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
 }
 .mana-calc-warn {
   font-size: 0.72rem;
@@ -936,7 +936,7 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 .mana-calc-status {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
   font-size: 0.72rem;
 }
@@ -991,7 +991,7 @@
   min-width: 40px;
 }
 .mana-pip-legend-val {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.68rem;
   color: var(--text-dim);
   opacity: 0.8;
@@ -1050,7 +1050,7 @@
   background: rgba(201, 168, 76, 0.35);
 }
 .mana-compare-bar-val {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.64rem;
   color: var(--text-dim);
   min-width: 64px;
@@ -1125,7 +1125,7 @@
   color: var(--text);
 }
 .matchup-relevance {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   font-weight: 600;
 }
@@ -1342,7 +1342,7 @@
   color: var(--text-dim);
 }
 .whatif-value {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.68rem;
 }
 
@@ -1452,7 +1452,7 @@
   text-decoration: line-through;
 }
 .combo-status {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.65rem;
   font-weight: 600;
   padding: 2px 6px;
@@ -1611,7 +1611,7 @@
   margin-bottom: 16px;
 }
 .hand-tester-header h3 {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   font-weight: 600;
   font-size: 1rem;
   color: var(--gold-bright);
@@ -1757,7 +1757,7 @@
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--gold);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
 }
 .sim-stat-label {
   display: block;
@@ -1804,7 +1804,7 @@
 .health-tooltip-row span:last-child {
   width: 24px;
   text-align: right;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
   color: var(--text);
 }
@@ -1845,7 +1845,7 @@
   gap: 6px;
 }
 .fingerprint-desc {
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.76rem;
   font-weight: 500;
   color: var(--gold);

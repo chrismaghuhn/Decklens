@@ -49,7 +49,8 @@
   "author": { "@type": "Organization", "name": "DeckLens" }
 }
 </script>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/src/styles/theme.css" />
 <link href="shared.css" rel="stylesheet">
 <style>
 :root {
@@ -81,8 +82,8 @@
  --radius: 14px;
  --radius-sm: 8px;
  --shadow: 0 4px 24px rgba(0,0,0,0.5);
- --font-display: 'Outfit', sans-serif;
- --font-body: 'DM Sans', sans-serif;
+ --font-display: var(--font-ui);
+ --font-body: var(--font-ui);
  --transition: 0.2s ease;
 }
 
@@ -170,7 +171,7 @@ body::before {
  transition:border var(--transition);
 }
 .import-alt input:focus,.import-alt textarea:focus { outline:none; border-color:rgba(255,255,255,0.2); box-shadow:0 0 0 3px rgba(255,255,255,0.04); }
-.import-alt textarea { resize:vertical; min-height:60px; font-family:'JetBrains Mono','Courier New',monospace; font-size:0.78rem; }
+.import-alt textarea { resize:vertical; min-height:60px; font-family: var(--font-mono); font-size:0.78rem; }
 
 .import-btn {
  background:var(--gold); border:none;

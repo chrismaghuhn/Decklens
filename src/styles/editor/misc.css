@@ -197,12 +197,12 @@
 }
 .diff-delta-positive {
   color: var(--ok);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
 }
 .diff-delta-negative {
   color: var(--warn);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
 }
 
@@ -275,7 +275,7 @@
   border-top: 1px solid var(--line-light, var(--surface-4));
 }
 .rec-history-title {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--gold, var(--accent));
@@ -443,7 +443,7 @@
   background: transparent;
   border: none; border-bottom: 1px solid var(--border, var(--surface-4));
   color: var(--text, var(--text-bright));
-  font-size: 16px; font-family: Outfit, sans-serif;
+  font-size: 16px; font-family: var(--font-ui);
   outline: none;
 }
 .cmd-palette__results {
@@ -466,7 +466,7 @@
 .cmd-palette__item-label { color: var(--text, var(--text-bright)); }
 .cmd-palette__item-shortcut {
   font-size: 11px; color: var(--text-muted, #666);
-  font-family: JetBrains Mono, monospace;
+  font-family: var(--font-mono);
   background: var(--bg-3, var(--surface-4)); padding: 2px 6px; border-radius: 4px;
 }
 
@@ -514,7 +514,7 @@
   width: 100%; background: var(--bg-3, var(--surface-4)); color: var(--text, var(--text-bright));
   border: 1px solid var(--border, var(--surface-4)); border-radius: 8px;
   padding: 8px 12px; font-size: 13px; resize: vertical;
-  font-family: Outfit, sans-serif;
+  font-family: var(--font-ui);
 }
 .pr-page__comment-submit {
   background: var(--gold, var(--accent)); color: #000; border: none;
@@ -535,7 +535,7 @@
 .pr-page__diff-update { color: var(--warn); }
 .pr-page__diff-line {
   display: flex; gap: 8px; padding: 4px 8px; font-size: 12px;
-  font-family: JetBrains Mono, monospace; border-radius: 4px;
+  font-family: var(--font-mono); border-radius: 4px;
 }
 .pr-page__diff-line--add { background: rgba(52, 211, 153, 0.08); color: var(--ok); }
 .pr-page__diff-line--remove { background: rgba(239, 68, 68, 0.08); color: var(--danger); }
@@ -571,7 +571,7 @@
 /* ═══════════════════════════════════════════
    CONFLICT RESOLVER (conflict-resolver.ts)
    ═══════════════════════════════════════════ */
-.conflict-resolver__header h3 { color: var(--gold, var(--accent)); font-family: Cinzel, serif; }
+.conflict-resolver__header h3 { color: var(--gold, var(--accent)); font-family: var(--font-ui); }
 .conflict-resolver__help { font-size: 13px; color: var(--text-muted, #888); margin-top: 4px; }
 .conflict-resolver__progress { display: flex; align-items: center; gap: 10px; margin: 12px 0; }
 .conflict-resolver__progress-bar {
@@ -749,7 +749,7 @@
   padding: 6px 8px; font-weight: 600; text-align: center;
 }
 .mc-heatmap__container td {
-  padding: 4px 6px; text-align: center; font-family: JetBrains Mono, monospace;
+  padding: 4px 6px; text-align: center; font-family: var(--font-mono);
   font-size: 11px;
 }
 
@@ -764,7 +764,7 @@
 .cut-assistant__candidate-header { display: flex; justify-content: space-between; }
 .cut-assistant__candidate-name { font-weight: 600; color: var(--text, var(--text-bright)); }
 .cut-assistant__candidate-score {
-  font-family: JetBrains Mono, monospace; font-size: 12px;
+  font-family: var(--font-mono); font-size: 12px;
 }
 .cut-assistant__reason {
   font-size: 12px; padding: 2px 0; color: var(--text-muted, #888);

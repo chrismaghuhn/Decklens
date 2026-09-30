@@ -26,7 +26,7 @@
   border-bottom: 1px solid rgba(100, 116, 139, 0.3);
   color: var(--text-lo);
   font-size: 0.8rem;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
 }
 
 @keyframes collabToastIn {
@@ -153,7 +153,7 @@
   border-radius: 6px;
   color: var(--text-dim, var(--text-lo));
   font-size: 0.7rem;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   cursor: pointer;
   transition: all 0.12s;
   white-space: nowrap;
@@ -247,7 +247,7 @@
 .diff-card-qty {
   font-weight: 700;
   min-width: 36px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
 }
 
@@ -279,7 +279,7 @@
   flex-direction: column;
   z-index: 910;
   box-shadow: -4px 0 24px rgba(0, 0, 0, 0.5);
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
 }.task-panel-header {
   display: flex;
   align-items: center;
@@ -349,7 +349,7 @@
   background: rgba(0, 0, 0, 0.3);
   color: #eee;
   font-size: 13px;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
 }.task-textarea {
   resize: vertical;
   min-height: 60px;
@@ -549,7 +549,7 @@
   background: rgba(201, 168, 76, 0.05);
 }
 .team-collection-title {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   font-size: 0.95rem;
   color: var(--accent);
 }
@@ -659,7 +659,7 @@
   background: rgba(201, 168, 76, 0.05);
 }
 .constraint-title {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   font-size: 0.95rem;
   color: var(--accent);
 }
@@ -802,7 +802,7 @@
   background: rgba(201, 168, 76, 0.05);
 }
 .package-title {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   font-size: 0.95rem;
   color: var(--accent);
 }
@@ -975,7 +975,7 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 .package-modal h3 {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   color: var(--accent);
   margin: 0 0 16px;
 }
@@ -995,7 +995,7 @@
   padding: 8px 12px;
   border-radius: 8px;
   font-size: 0.85rem;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   box-sizing: border-box;
 }
 .package-textarea {
@@ -1127,7 +1127,7 @@
   color: var(--accent);
   font-weight: 700;
   min-width: 28px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
 }
 .goldfish-log-action {
   color: rgba(255, 255, 255, 0.7);
@@ -1218,7 +1218,7 @@
   background: rgba(201, 168, 76, 0.04);
 }
 .test-log-title {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   font-size: 0.85rem;
   color: var(--accent);
 }
@@ -1283,7 +1283,7 @@
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 .test-log-stat-value {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 1.1rem;
   color: var(--accent);
   font-weight: 700;
@@ -1382,7 +1382,7 @@
 .test-log-moment-turn {
   color: var(--accent);
   font-weight: 700;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   min-width: 24px;
 }
 
@@ -1413,7 +1413,7 @@
   max-width: 90vw;
 }
 .test-log-modal h3 {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   color: var(--accent);
   margin: 0 0 14px;
   font-size: 0.95rem;
@@ -1490,7 +1490,7 @@
   background: rgba(201, 168, 76, 0.04);
 }
 .sideboard-plan-title {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   font-size: 0.85rem;
   color: var(--accent);
 }
@@ -1645,7 +1645,7 @@
   max-width: 90vw;
 }
 .sideboard-modal h3 {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   color: var(--accent);
   margin: 0 0 14px;
   font-size: 0.95rem;
@@ -1669,7 +1669,7 @@
 }
 .sideboard-modal-textarea {
   resize: vertical;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
 }
 .sideboard-modal-actions {
@@ -1807,7 +1807,7 @@
   color: var(--text-hi);
   text-align: center;
   outline: none;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
 }
 .gf-life-input:focus {
   box-shadow: 0 0 6px rgba(201, 168, 76, 0.3);

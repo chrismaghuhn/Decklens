@@ -183,11 +183,7 @@ html {
 body {
   background: var(--void);
   color: var(--text);
-  font-family:
-    "Outfit",
-    system-ui,
-    -apple-system,
-    sans-serif;
+  font-family: var(--font-ui);
   font-weight: 400;
   line-height: 1.5;
   min-height: 100vh;

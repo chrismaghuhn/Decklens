@@ -21,7 +21,7 @@
   background: rgba(18, 20, 30, 0.96);
   backdrop-filter: blur(12px);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.82rem;
   color: var(--text, var(--text-hi));
   animation: toast-enter 0.3s
@@ -76,7 +76,7 @@
   border: 1px solid rgba(201, 168, 76, 0.25);
   color: var(--gold-bright, var(--accent-strong));
   cursor: pointer;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.03em;
@@ -128,7 +128,7 @@
   padding: 4px 10px;
   border-radius: 50px;
   font-size: 0.72rem;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-weight: 500;
   transition: all 0.3s var(--ease, ease);
   white-space: nowrap;
@@ -249,7 +249,7 @@
   border: 1px solid var(--line, rgba(255, 255, 255, 0.06));
   background: var(--abyss, var(--surface-1));
   color: var(--text-dim, var(--text-lo));
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.72rem;
   cursor: pointer;
   transition: all 0.15s var(--ease, ease);
@@ -291,7 +291,7 @@
   background: rgba(201, 168, 76, 0.08);
   border: 1px solid rgba(201, 168, 76, 0.2);
   color: var(--gold, var(--accent));
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.68rem;
   font-weight: 600;
   white-space: nowrap;
@@ -345,7 +345,7 @@
   border: 1px solid var(--line, rgba(255, 255, 255, 0.06));
   background: transparent;
   color: var(--text-dim, var(--text-lo));
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.72rem;
   font-weight: 600;
   cursor: pointer;
@@ -364,7 +364,7 @@
   width: 100%;
   resize: vertical;
   min-height: 80px;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.85rem;
   background: var(--abyss, var(--surface-1));
   border: 1px solid var(--line, rgba(255, 255, 255, 0.06));
@@ -419,7 +419,7 @@
   background: transparent;
   color: var(--text-dim);
   cursor: pointer;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-weight: 500;
   transition: all 0.15s ease;
 }
@@ -444,7 +444,7 @@
   transition: width 0.3s var(--ease, ease);
 }
 .salt-bar-label {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.68rem;
   font-weight: 600;
   margin-top: 4px;
@@ -496,7 +496,7 @@
   border-color: var(--danger);
 }
 .bracket-number {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 1.4rem;
   font-weight: 700;
 }
@@ -516,7 +516,7 @@
   color: var(--danger);
 }
 .bracket-label {
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.82rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -550,7 +550,7 @@
   color: var(--text);
 }
 .bracket-signal-impact {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.68rem;
   padding: 1px 6px;
   border-radius: 4px;
@@ -607,7 +607,7 @@
   margin-bottom: 16px;
 }
 .shortcut-help-header h3 {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   color: var(--gold, var(--accent));
   font-size: 1rem;
   margin: 0;
@@ -634,7 +634,7 @@
   display: contents;
 }
 .shortcut-key {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   font-weight: 600;
   padding: 3px 8px;
@@ -756,7 +756,7 @@
   animation: confirmEnter 0.25s ease forwards;
 }
 .onboarding-tooltip__title {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   color: var(--gold);
   font-size: 0.95rem;
   margin-bottom: 6px;
@@ -776,7 +776,7 @@
 .onboarding-tooltip__progress {
   font-size: 0.68rem;
   color: var(--muted);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
 }
 
 /* ═══ CONFIRM / PROMPT MODAL ═══ */
@@ -805,7 +805,7 @@
   animation: confirmEnter 0.2s ease forwards;
 }
 .confirm-modal__title {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   color: var(--gold);
   font-size: 1rem;
   margin: 0 0 8px;
@@ -824,7 +824,7 @@
   border: 1px solid var(--line);
   background: var(--input-bg);
   color: var(--text);
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.82rem;
   outline: none;
   box-sizing: border-box;
@@ -873,7 +873,7 @@
   background: var(--bg-2);
   border-radius: 8px;
   margin-top: 8px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--text-dim);
   align-items: center;
@@ -987,7 +987,7 @@
   color: var(--text);
   min-width: 36px;
   text-align: right;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
 }
 .prob-custom-row {
   display: flex;
@@ -1007,7 +1007,7 @@
   border: 1px solid var(--border);
   background: var(--bg-1);
   color: var(--text);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
 }
 .prob-custom-result {
@@ -1046,7 +1046,7 @@
   color: var(--ok);
 }
 .budget-savings-banner strong {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.88rem;
   color: var(--ok);
 }
@@ -1079,7 +1079,7 @@
   letter-spacing: 0.03em;
 }
 .budget-alt-price {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
   color: var(--crimson, var(--danger));
   min-width: 54px;
@@ -1119,7 +1119,7 @@
   color: var(--text-dim);
 }
 .budget-alt-suggestion-price {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--text-dim);
   min-width: 48px;
@@ -1169,7 +1169,7 @@
   color: var(--text);
 }
 .collection-pct {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
 }
 .collection-progress-bar {
@@ -1216,7 +1216,7 @@
   border-bottom: 1px solid var(--border);
 }
 .collection-missing-cost {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   color: var(--crimson, var(--danger));
 }
 .collection-missing-list {
@@ -1235,7 +1235,7 @@
   color: var(--text);
 }
 .collection-missing-price {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--text-dim);
   min-width: 48px;
@@ -1269,7 +1269,7 @@
   line-height: 1.2;
 }
 .collection-qty-label {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.7rem;
   min-width: 18px;
   text-align: center;
@@ -1338,7 +1338,7 @@
   border: 1px solid var(--border);
   background: var(--bg-1);
   color: var(--text);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   resize: vertical;
   margin-bottom: 10px;
@@ -1422,7 +1422,7 @@
 .collapsible-trigger h4 {
   flex: 1;
   margin: 0;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--text);
@@ -1466,7 +1466,7 @@
   color: var(--text-dim);
   cursor: pointer;
   background: transparent;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-weight: 500;
   border: 1px solid transparent;
   transition: all 0.15s var(--ease);
@@ -1505,7 +1505,7 @@
   color: var(--text-dim);
   cursor: pointer;
   background: transparent;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
   border: none;
   transition: all 0.15s var(--ease);
@@ -1540,7 +1540,7 @@
   font-weight: 600;
   text-decoration: none;
   transition: all 0.15s;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
 }
 .price-buy-cm {
   background: rgba(52, 211, 153, 0.1);

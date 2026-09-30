@@ -22,7 +22,7 @@
   padding: 9px 12px;
   margin-top: 5px;
   cursor: pointer;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.84rem;
   transition: all 0.15s var(--ease);
 }
@@ -112,7 +112,7 @@
 }
 .syntax-help-row code {
   color: var(--gold);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.7rem;
   min-width: 64px;
 }
@@ -146,7 +146,7 @@
   background: var(--abyss);
   color: var(--text-dim);
   cursor: pointer;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   font-weight: 600;
   transition: all 0.15s var(--ease);
@@ -227,7 +227,7 @@
   flex-shrink: 0;
 }
 .search-sidebar-header h3 {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   font-weight: 600;
   font-size: 0.92rem;
   color: var(--gold-bright);
@@ -236,7 +236,7 @@
   margin: 0;
 }
 .search-sidebar-header span {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   color: var(--muted);
   font-weight: 500;
@@ -279,7 +279,7 @@
   border-radius: 8px;
   color: var(--text-dim);
   padding: 12px;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
@@ -375,7 +375,7 @@
   color: var(--text-dim);
   cursor: pointer;
   font-size: 0.72rem;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-weight: 500;
   border-radius: 4px;
   transition: all 0.15s var(--ease);

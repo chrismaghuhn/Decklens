@@ -50,7 +50,8 @@
   "author": { "@type": "Organization", "name": "DeckLens" }
 }
 </script>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/src/styles/theme.css" />
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -77,7 +78,7 @@ html { scroll-behavior: smooth; }
 body {
   background: var(--void);
   color: var(--text-primary);
-  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-family: var(--font-ui);
   overflow-x: hidden;
   line-height: 1.6;
   min-height: 100vh;
@@ -114,7 +115,7 @@ nav.scrolled {
   border-bottom-color: rgba(201,168,76,0.12);
 }
 .nav-logo {
-  font-family: 'Cinzel', serif;
+  font-family: var(--font-ui);
   font-size: 1.2rem; font-weight: 700;
   background: linear-gradient(135deg, var(--gold-bright), var(--gold), var(--gold-dim));
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
@@ -127,7 +128,7 @@ nav.scrolled {
 .nav-right { display: flex; gap: 2rem; align-items: center; }
 .nav-links { display: flex; gap: 2rem; list-style: none; }
 .nav-links a {
-  font-family: 'Outfit', sans-serif; font-weight: 400; font-size: 0.78rem;
+  font-family: var(--font-ui); font-weight: 400; font-size: 0.78rem;
   color: var(--text-secondary); text-decoration: none;
   letter-spacing: 0.1em; text-transform: uppercase;
   position: relative; transition: color 0.3s;
@@ -169,7 +170,7 @@ nav.scrolled {
   position: relative; z-index: 2; max-width: 860px; padding: 0 2rem;
 }
 .hero-badge {
-  font-family: 'Outfit', sans-serif; font-size: 0.65rem; font-weight: 500;
+  font-family: var(--font-ui); font-size: 0.65rem; font-weight: 500;
   letter-spacing: 0.35em; text-transform: uppercase; color: var(--gold);
   margin-bottom: 1.8rem;
   opacity: 0; animation: fade-in 1s 0.3s forwards;
@@ -193,7 +194,7 @@ nav.scrolled {
 }
 
 .hero h1 {
-  font-family: 'Cinzel', serif;
+  font-family: var(--font-ui);
   font-size: clamp(2.8rem, 7vw, 5rem); font-weight: 900;
   line-height: 1.05; margin-bottom: 0.3rem;
   opacity: 0; animation: fade-in 1s 0.6s forwards;
@@ -205,7 +206,7 @@ nav.scrolled {
 }
 
 .hero-tagline {
-  font-family: 'Outfit', sans-serif; font-size: 0.85rem; font-weight: 400;
+  font-family: var(--font-ui); font-size: 0.85rem; font-weight: 400;
   color: var(--text-dim); letter-spacing: 0.15em; text-transform: uppercase;
   margin-bottom: 1.8rem;
   opacity: 0; animation: fade-in 1s 0.8s forwards;
@@ -275,7 +276,7 @@ nav.scrolled {
 .portal:hover .portal-icon { transform: scale(1.1); }
 
 .portal-title {
-  font-family: 'Cinzel', serif; font-weight: 700;
+  font-family: var(--font-ui); font-weight: 700;
   font-size: 1.15rem; color: var(--text-primary); letter-spacing: 0.02em;
   transition: color 0.3s;
 }
@@ -283,7 +284,7 @@ nav.scrolled {
 .portal.ygo:hover .portal-title { color: var(--gold-bright); }
 
 .portal-subtitle {
-  font-family: 'Outfit', sans-serif; font-size: 0.7rem;
+  font-family: var(--font-ui); font-size: 0.7rem;
   color: var(--text-dim); letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500;
 }
 
@@ -293,14 +294,14 @@ nav.scrolled {
 .feat-tag {
   background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
   border-radius: 100px; padding: 0.18rem 0.6rem;
-  font-family: 'Outfit', sans-serif; font-size: 0.65rem; color: var(--text-dim); font-weight: 500;
+  font-family: var(--font-ui); font-size: 0.65rem; color: var(--text-dim); font-weight: 500;
   transition: all 0.3s;
 }
 .portal.mtg:hover .feat-tag { border-color: rgba(168,32,53,0.3); color: var(--text-secondary); }
 .portal.ygo:hover .feat-tag { border-color: rgba(201,168,76,0.25); color: var(--text-secondary); }
 
 .portal-arrow {
-  font-family: 'Outfit', sans-serif; font-size: 1.1rem; color: var(--text-dim);
+  font-family: var(--font-ui); font-size: 1.1rem; color: var(--text-dim);
   transition: all 0.3s; opacity: 0.4; margin-top: auto; padding-top: 0.3rem;
 }
 .portal.mtg:hover .portal-arrow { color: var(--crimson-glow); transform: translateX(4px); opacity: 1; }
@@ -326,7 +327,7 @@ nav.scrolled {
   opacity: 0; animation: fade-in 1s 2s forwards;
 }
 .hero-scroll span {
-  font-family: 'Outfit', sans-serif; font-size: 0.6rem;
+  font-family: var(--font-ui); font-size: 0.6rem;
   letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-dim);
 }
 .scroll-line {
@@ -349,12 +350,12 @@ nav.scrolled {
   text-align: center; margin-bottom: 3.5rem;
 }
 .section-label {
-  font-family: 'Outfit', sans-serif; font-size: 0.62rem; font-weight: 500;
+  font-family: var(--font-ui); font-size: 0.62rem; font-weight: 500;
   letter-spacing: 0.4em; text-transform: uppercase; color: var(--gold-dim);
   margin-bottom: 0.8rem;
 }
 .section-title {
-  font-family: 'Cinzel', serif;
+  font-family: var(--font-ui);
   font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 700; margin-bottom: 0.8rem;
   color: var(--text-primary);
 }
@@ -393,11 +394,11 @@ nav.scrolled {
   border-radius: 10px;
 }
 .feature-title {
-  font-family: 'Cinzel', serif; font-weight: 700;
+  font-family: var(--font-ui); font-weight: 700;
   font-size: 1rem; margin-bottom: 0.5rem; color: var(--text-primary);
 }
 .feature-text {
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6;
 }
 
@@ -439,7 +440,7 @@ nav.scrolled {
   background: rgba(201,168,76,0.12); border: 1px solid rgba(201,168,76,0.25);
 }
 .world-title {
-  font-family: 'Cinzel', serif;
+  font-family: var(--font-ui);
   font-size: clamp(1.4rem, 2.5vw, 2rem); font-weight: 700;
   margin-bottom: 1.2rem; line-height: 1.2;
 }
@@ -457,16 +458,16 @@ nav.scrolled {
 }
 .world-stats { display: flex; gap: 2rem; margin-bottom: 2rem; }
 .stat-num {
-  font-family: 'Cinzel', serif; font-size: 1.5rem; font-weight: 700;
+  font-family: var(--font-ui); font-size: 1.5rem; font-weight: 700;
 }
 .world-mtg .stat-num { color: var(--crimson-glow); }
 .world-ygo .stat-num { color: var(--gold); }
 .stat-label {
-  font-family: 'Outfit', sans-serif; font-size: 0.62rem;
+  font-family: var(--font-ui); font-size: 0.62rem;
   letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-top: 0.2rem;
 }
 .world-link {
-  font-family: 'Outfit', sans-serif; font-size: 0.75rem; font-weight: 500;
+  font-family: var(--font-ui); font-size: 0.75rem; font-weight: 500;
   letter-spacing: 0.1em; text-transform: uppercase;
   text-decoration: none; display: inline-flex; align-items: center;
   gap: 0.7rem; transition: all 0.3s;
@@ -514,11 +515,11 @@ nav.scrolled {
   transform: translateY(-2px);
 }
 .seo-card h3 {
-  font-family: 'Cinzel', serif; font-size: 0.95rem;
+  font-family: var(--font-ui); font-size: 0.95rem;
   font-weight: 700; color: var(--gold); margin-bottom: 0.6rem;
 }
 .seo-card p {
-  font-family: 'Outfit', sans-serif; font-size: 0.8rem;
+  font-family: var(--font-ui); font-size: 0.8rem;
   color: var(--text-secondary); line-height: 1.6;
 }
 
@@ -544,16 +545,16 @@ nav.scrolled {
   display: flex; justify-content: center; gap: 4rem; margin-bottom: 2.5rem; flex-wrap: wrap;
 }
 .cta-stat-num {
-  font-family: 'Cinzel', serif; font-size: 2rem; font-weight: 900;
+  font-family: var(--font-ui); font-size: 2rem; font-weight: 900;
   background: linear-gradient(135deg, var(--text-primary), var(--gold));
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
 .cta-stat-label {
-  font-family: 'Outfit', sans-serif; font-size: 0.65rem;
+  font-family: var(--font-ui); font-size: 0.65rem;
   letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-top: 0.2rem;
 }
 .btn-cta {
-  font-family: 'Outfit', sans-serif; font-size: 0.78rem; font-weight: 600;
+  font-family: var(--font-ui); font-size: 0.78rem; font-weight: 600;
   letter-spacing: 0.12em; text-transform: uppercase;
   padding: 0.9rem 2.2rem; border: none; border-radius: 3px; cursor: pointer;
   text-decoration: none; transition: all 0.4s ease;
@@ -584,14 +585,14 @@ footer {
   max-width: 260px; line-height: 1.6; margin-top: 0.8rem;
 }
 .footer-col h4 {
-  font-family: 'Outfit', sans-serif; font-size: 0.65rem; font-weight: 600;
+  font-family: var(--font-ui); font-size: 0.65rem; font-weight: 600;
   letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-dim);
   margin-bottom: 1rem;
 }
 .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
 .footer-col a {
   color: var(--text-secondary); text-decoration: none;
-  font-family: 'Outfit', sans-serif; font-size: 0.82rem;
+  font-family: var(--font-ui); font-size: 0.82rem;
   transition: color 0.3s; cursor: pointer;
 }
 .footer-col a:hover { color: var(--gold); }
@@ -603,19 +604,19 @@ footer {
   flex-wrap: wrap; gap: 0.8rem;
 }
 .footer-copy {
-  font-family: 'Outfit', sans-serif; font-size: 0.7rem; color: var(--text-dim);
+  font-family: var(--font-ui); font-size: 0.7rem; color: var(--text-dim);
 }
 .footer-legal {
   display: flex; gap: 1.2rem; align-items: center;
 }
 .footer-legal a {
-  font-family: 'Outfit', sans-serif; font-size: 0.7rem;
+  font-family: var(--font-ui); font-size: 0.7rem;
   color: var(--text-dim); text-decoration: none; cursor: pointer; transition: color 0.3s;
 }
 .footer-legal a:hover { color: var(--gold); }
 .footer-legal .sep { color: rgba(255,255,255,0.1); font-size: 0.6rem; }
 .footer-note {
-  font-family: 'Outfit', sans-serif; font-size: 0.65rem;
+  font-family: var(--font-ui); font-size: 0.65rem;
   color: var(--text-dim); opacity: 0.5; margin-top: 0.8rem;
 }
 
@@ -645,20 +646,20 @@ footer {
 .modal-close:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
 .legal-content { padding: 2rem; }
 .legal-content h2 {
-  font-family: 'Cinzel', serif; font-weight: 700; font-size: 1.2rem;
+  font-family: var(--font-ui); font-weight: 700; font-size: 1.2rem;
   color: var(--text-primary); margin-bottom: 1rem;
 }
 .legal-content h3 {
-  font-family: 'Cinzel', serif; font-weight: 600; font-size: 0.95rem;
+  font-family: var(--font-ui); font-weight: 600; font-size: 0.95rem;
   color: var(--text-primary); margin: 1.2rem 0 0.5rem;
 }
 .legal-content p {
-  font-family: 'Outfit', sans-serif; font-size: 0.85rem;
+  font-family: var(--font-ui); font-size: 0.85rem;
   line-height: 1.7; color: var(--text-secondary); margin-bottom: 0.6rem;
 }
 .legal-content ul {
   margin: 0.4rem 0 0.8rem 1.2rem;
-  font-family: 'Outfit', sans-serif; font-size: 0.82rem;
+  font-family: var(--font-ui); font-size: 0.82rem;
   line-height: 1.6; color: var(--text-secondary);
 }
 .legal-content li { margin-bottom: 0.3rem; }

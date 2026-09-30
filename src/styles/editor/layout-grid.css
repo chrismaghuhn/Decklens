@@ -19,7 +19,7 @@
   background: var(--abyss);
 }
 .editor-header-title {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--gold);
@@ -35,7 +35,7 @@
   border: 1px solid transparent;
   border-radius: 6px;
   color: var(--text);
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-weight: 500;
 }
 .header-deck-name:hover {
@@ -62,7 +62,7 @@
 .header-counts {
   font-size: 0.72rem;
   color: var(--muted);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   white-space: nowrap;
 }
 .header-status {
@@ -79,7 +79,7 @@
   padding: 4px 8px;
   font-size: 0.75rem;
   cursor: pointer;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-weight: 500;
   border-radius: 4px;
   transition: all 0.15s var(--ease);
@@ -148,7 +148,7 @@
   border-radius: 6px;
   color: var(--text);
   font-size: 0.85rem;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   text-align: left;
   cursor: pointer;
   transition: all 0.15s;
@@ -200,7 +200,7 @@
   cursor: pointer;
   transition: all 0.2s var(--ease);
   white-space: nowrap;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
 }
 
 .mode-btn:hover {
@@ -259,7 +259,7 @@
   border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--text);
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
 }
 .toolbar-filter:focus {
   border-color: var(--gold-dim);
@@ -271,7 +271,7 @@
 .toolbar-filter-count {
   font-size: 0.65rem;
   color: var(--muted);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   white-space: nowrap;
 }
 .toolbar-sort {
@@ -328,7 +328,7 @@
   cursor: pointer;
   font-size: 0.68rem;
   font-weight: 600;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   transition: all 0.15s var(--ease);
 }
 .st-btn:hover {
@@ -527,7 +527,7 @@
   max-height: 24px;
 }
 .search-syntax-hint code {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.66rem;
   background: rgba(255, 255, 255, 0.05);
   padding: 1px 4px;
@@ -687,7 +687,7 @@
     rgba(201,168,76,0.03) 100%
   );
   border-bottom: 1px solid rgba(201,168,76,0.15);
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--gold);
@@ -891,7 +891,7 @@
   border: 2px solid var(--accent);
 }
 .doctor-name {
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-weight: 700;
   font-size: 1.2rem;
   color: var(--text-bright);
@@ -1028,7 +1028,7 @@
   flex-shrink: 0;
 }
 .layout-toolbar-label {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--gold, var(--accent));
@@ -1093,7 +1093,7 @@
 
 /* Toolbar counter */
 .layout-toolbar-counter {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   color: var(--gold, var(--accent));
   background: rgba(201, 168, 76, 0.08);
@@ -1183,7 +1183,7 @@
 }
 
 .preset-modal-header h2 {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   font-size: 1.5rem;
   font-weight: 600;
   color: var(--gold);
@@ -1245,7 +1245,7 @@
 }
 
 .preset-name {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--gold);

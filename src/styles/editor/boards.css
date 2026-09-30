@@ -37,7 +37,7 @@
 .qty-pill {
   min-width: 24px;
   text-align: center;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   font-weight: 500;
   color: var(--gold-bright);
@@ -105,7 +105,7 @@
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(4px);
   color: var(--gold-bright);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
   font-size: 0.72rem;
   padding: 2px 7px;
@@ -140,7 +140,7 @@
   flex-shrink: 0;
 }
 .pile-header {
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--gold);
@@ -183,7 +183,7 @@
   right: 4px;
   background: rgba(0, 0, 0, 0.85);
   color: var(--gold-bright);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
   font-size: 0.68rem;
   padding: 2px 6px;
@@ -320,7 +320,7 @@
   min-width: 0;
 }
 .detail-info h2 {
-  font-family: "Cinzel", serif;
+  font-family: var(--font-ui);
   font-size: 1.2rem;
   margin: 0 0 4px;
 }
@@ -328,7 +328,7 @@
   margin-top: 14px;
 }
 .detail-section h4 {
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   margin: 0 0 4px;
   font-size: 0.78rem;
   color: var(--gold-dim);
@@ -392,7 +392,7 @@
   border-radius: 6px;
   cursor: pointer;
   font-size: 0.82rem;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   text-decoration: none;
   transition: background 0.1s;
 }
