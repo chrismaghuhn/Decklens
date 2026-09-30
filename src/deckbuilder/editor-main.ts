@@ -2478,7 +2478,17 @@ async function applyImportText(): Promise<void> {
   }
 
   const names = Array.from(new Set(parsed.lines.map((line) => line.name)));
-  const resolvedResponse = await resolveDeckbuilderCards(names);
+  let resolvedResponse: Awaited<ReturnType<typeof resolveDeckbuilderCards>>;
+  try {
+    resolvedResponse = await resolveDeckbuilderCards(names);
+  } catch (error) {
+    showToast({
+      message: error instanceof Error ? error.message : 'Could not load card data. Please try again.',
+      type: 'error',
+      duration: 6000,
+    });
+    return;
+  }
 
   const suggestionsByName: Record<string, string[]> = {};
   for (const missing of resolvedResponse.missing.slice(0, 20)) {

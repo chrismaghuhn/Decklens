@@ -102,10 +102,6 @@ function init(): void {
     }
   });
 
-  byId<HTMLButtonElement>('btnBrowsePublic').addEventListener('click', () => {
-    window.location.href = '/decks/public';
-  });
-
   renderDeckList();
 }
 
