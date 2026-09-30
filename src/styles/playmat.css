@@ -222,3 +222,83 @@ body {
   .pm-search-slot { width: 100%; order: 10; }
   .pm-header { flex-wrap: wrap; }
 }
+
+/* ── Commander zone ── */
+.pm-cmdzone { position: absolute; left: 18px; top: 22px; width: 122px; z-index: 5; }
+.pm-cmdzone.hidden { display: none; }
+.pm-zone-label { font: 600 0.56rem var(--font-mono); letter-spacing: 0.16em; color: var(--text-muted); margin-bottom: 6px; }
+.pm-cmdslot {
+  width: 112px; aspect-ratio: 63/88; display: grid; place-items: center; gap: 4px;
+  background: rgba(224, 82, 44, 0.07); border: 2px dashed var(--accent); border-radius: 8px;
+  color: var(--accent-strong); font: 600 0.72rem var(--font-ui); cursor: pointer; text-align: center;
+}
+.pm-cmdslot:hover { background: rgba(224, 82, 44, 0.14); }
+.pm-cmdslot .ui-ic { width: 1.4em; height: 1.4em; }
+.pm-cmdcard { width: 112px; position: relative; cursor: pointer; }
+.pm-cmdcard img { width: 100%; border-radius: 7px; border: 2px solid var(--accent); box-shadow: 0 10px 26px rgba(0,0,0,0.5), 0 0 18px var(--accent-glow); display: block; }
+.pm-cmdcard .pm-cmdname { display: block; margin-top: 6px; font: 600 0.66rem var(--font-ui); color: var(--text-hi); }
+
+/* ── Field / piles ── */
+.pm-field { margin-left: 158px; display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; min-height: 300px; }
+.pm-mat-free .pm-field { display: block; position: relative; margin-left: 158px; }
+.pm-mat-free .pm-pile { position: absolute; }
+.pm-pile { width: 130px; }
+.pm-pile-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font: 600 0.6rem var(--font-mono); letter-spacing: 0.1em; color: var(--text-lo);
+  margin-bottom: 8px; padding: 2px 3px; border-radius: 5px;
+}
+.pm-pile-head b { color: var(--accent-strong); }
+.pm-pile-head[data-drag] { cursor: grab; }
+.pm-pile-head[data-drag]:hover { background: var(--accent-glow); color: var(--text-hi); }
+.pm-stack { position: relative; }
+.pm-card {
+  width: 130px; aspect-ratio: 63/88; border-radius: 7px; position: relative;
+  background: linear-gradient(165deg, var(--surface-4), var(--surface-2));
+  border: 1px solid rgba(0, 0, 0, 0.55); box-shadow: 0 4px 10px rgba(0,0,0,0.45);
+  cursor: pointer; transition: transform 0.12s var(--ease);
+}
+.pm-card img { width: 100%; height: 100%; object-fit: cover; border-radius: 7px; display: block; }
+.pm-stack .pm-card { margin-top: -138px; }
+.pm-stack .pm-card:first-child { margin-top: 0; }
+.pm-stack .pm-card:hover { transform: translateY(-16px) rotate(-1deg); z-index: 9; outline: 2px solid var(--accent); }
+.pm-card-text { display: grid; place-items: center; padding: 8px; }
+.pm-card-name { font: 600 0.66rem var(--font-ui); color: var(--text-mid); text-align: center; }
+.pm-qty {
+  position: absolute; top: 5px; right: 5px; font: 700 0.62rem var(--font-mono);
+  color: #fff; background: rgba(0,0,0,0.72); border-radius: 999px; padding: 2px 7px;
+}
+
+.pm-ghost-pile {
+  width: 130px; aspect-ratio: 63/88; display: grid; place-items: center; gap: 4px; align-content: center;
+  border: 2px dashed var(--line-light); border-radius: 8px; background: none;
+  color: var(--text-muted); font: 500 0.66rem var(--font-mono); cursor: pointer;
+}
+.pm-ghost-pile:hover { border-color: var(--accent); color: var(--text-lo); }
+.pm-mat-free .pm-ghost-pile { position: absolute; right: 16px; top: 0; }
+
+/* ── Docks ── */
+.pm-docks { position: absolute; right: 16px; top: 22px; display: flex; flex-direction: column; gap: 8px; z-index: 6; align-items: flex-end; }
+.pm-dock-chip {
+  display: flex; align-items: center; gap: 7px; font: 600 0.68rem var(--font-ui);
+  color: var(--text-lo); background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 999px; padding: 6px 12px; cursor: pointer;
+}
+.pm-dock-chip b { color: var(--accent-strong); }
+.pm-dock-chip:hover { border-color: var(--accent); color: var(--text-hi); }
+.pm-dock-tray {
+  margin-top: 6px; width: 250px; max-height: 320px; overflow-y: auto;
+  background: var(--surface-2); border: 1px solid var(--line-light); border-radius: 10px; padding: 8px;
+}
+.pm-dock-row { display: flex; align-items: center; gap: 8px; font: 500 0.76rem var(--font-ui); color: var(--text-mid); padding: 5px 6px; border-radius: 6px; }
+.pm-dock-row:hover { background: var(--surface-3); }
+.pm-dock-row .q { font: 600 0.68rem var(--font-mono); color: var(--text-muted); }
+.pm-dock-row .n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-dock-row button { font: 600 0.62rem var(--font-mono); color: var(--accent-strong); background: none; border: 1px solid var(--line); border-radius: 5px; padding: 3px 7px; cursor: pointer; }
+.pm-dock-empty { font: 400 0.7rem var(--font-ui); color: var(--text-muted); padding: 6px; display: block; }
+
+@media (max-width: 899px) {
+  .pm-cmdzone { position: static; margin-bottom: 14px; }
+  .pm-field { margin-left: 0; }
+  .pm-docks { position: static; flex-direction: row; margin-top: 14px; }
+}
