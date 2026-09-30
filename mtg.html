@@ -58,15 +58,6 @@
    OBSIDIAN FORGE — DeckLens MTG Theme
    Rich, atmospheric, premium dark design
    ══════════════════════════════════════════════════════════════ */
-[data-theme="light"] {
- --bg-0: #f4f5f8; --bg-1: #ffffff; --bg-2: #ebedf3; --bg-3: #dde0e9; --bg-4: #c5c9d6;
- --text: #2d3250; --text-dim: #6b7394; --text-bright: #0d0f1a;
- --border: rgba(13,15,26,0.07); --border-light: rgba(13,15,26,0.13);
- --gold-glow: rgba(240,168,48,0.12); --gold-ember: rgba(240,168,48,0.20);
- --shadow: 0 4px 24px rgba(0,0,0,0.08);
- --glass: rgba(255,255,255,0.85); --glass-border: rgba(13,15,26,0.08);
- --glow-purple: rgba(139,92,246,0.05); --glow-blue: rgba(59,130,246,0.04);
-}
 
 /* ── RESET & BASE ──────────────────────────────────────────── */
 *,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
@@ -522,7 +513,6 @@ body.public-report-mode .wishlist-panel,
 body.public-report-mode .test-hand-panel,
 body.public-report-mode .proxy-overlay,
 body.public-report-mode #headerMore,
-body.public-report-mode #btnTheme,
 body.public-report-mode #btnPrint,
 body.public-report-mode .action-group,
 body.public-report-mode .tools-toggle-btn {
@@ -3123,8 +3113,6 @@ body { font-size: 15px; line-height: 1.65; }
       <button data-action="show-share" data-close-menu><svg class="ui-icon"><use href="#i-link"></use></svg>Share</button>
    </div>
  </div>
- 
- <button class="icon-btn" id="btnTheme" data-action="toggle-theme" title="Toggle light/dark theme" aria-label="Toggle light/dark theme">☀</button>
  <button class="icon-btn" id="btnPrint" title="Print Deck"><svg class="ui-icon"><use href="#i-printer"></use></svg></button>
  </div>
  </header>

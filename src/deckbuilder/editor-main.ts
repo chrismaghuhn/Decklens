@@ -1679,7 +1679,7 @@ function renderPowerBracket(deck: DeckbuilderDeck): void {
 
   const archLabel = document.createElement('span');
   archLabel.className = 'power-label';
-  archLabel.style.color = 'var(--gold-dim)';
+  archLabel.style.color = 'var(--accent-dim, #5b4fc0)';
   archLabel.textContent = `${est.dominant} \u00B7 ${est.saltLabel}`;
 
   info.append(bracketLabel, archLabel);
@@ -4707,7 +4707,7 @@ function showCompareModal(): void {
   pasteLabel.style.cssText = 'font-size: 0.72rem; margin-bottom: 4px;';
   pasteLabel.textContent = 'Paste a decklist in any format (1 Card Name, MTGO, Arena):';
   const textarea = document.createElement('textarea');
-  textarea.style.cssText = 'width: 100%; height: 180px; background: var(--abyss); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-family: "JetBrains Mono", monospace; font-size: 0.78rem; resize: vertical;';
+  textarea.style.cssText = 'width: 100%; height: 180px; background: var(--surface-1, #0b0c10); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-family: "JetBrains Mono", monospace; font-size: 0.78rem; resize: vertical;';
   textarea.placeholder = '1 Sol Ring\n1 Command Tower\n1 Swords to Plowshares\n...';
   const compareBtn = document.createElement('button');
   compareBtn.className = 'btn primary';

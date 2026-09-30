@@ -222,7 +222,7 @@ export function renderDeckFingerprint(
     text.setAttribute('y', String(y));
     text.setAttribute('text-anchor', 'middle');
     text.setAttribute('dominant-baseline', 'central');
-    text.setAttribute('fill', 'var(--text-dim)');
+    text.setAttribute('fill', 'var(--text-lo, #9aa0ae)');
     text.setAttribute('font-family', "'Inter', system-ui, sans-serif");
     text.setAttribute('font-size', '9');
     text.setAttribute('font-weight', '500');

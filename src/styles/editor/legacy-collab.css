@@ -96,7 +96,7 @@
 
 /* Context menu ping item */
 .ctx-ping {
-  color: var(--accent)) !important;
+  color: var(--accent) !important;
 }
 
 /* ──── Phase 1: Diff Panel ──── */
@@ -161,7 +161,7 @@
 
 .diff-action-btn:hover {
   background: rgba(201, 168, 76, 0.1);
-  color: var(--accent));
+  color: var(--accent);
   border-color: rgba(201, 168, 76, 0.3);
 }
 
@@ -1802,7 +1802,7 @@
   padding: 2px 4px;
   font-size: 0.85rem;
   background: rgba(0, 0, 0, 0.4);
-  border: 1px solid var(--accent));
+  border: 1px solid var(--accent);
   border-radius: 6px;
   color: var(--text-hi);
   text-align: center;

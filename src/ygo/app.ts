@@ -300,22 +300,9 @@ function registerLazyPanel(elementId: string, initFn: () => void): void {
 }
 
 // ==================== THEME ====================
-export function toggleTheme(): void {
-  const body = document.body;
-  const isDark = body.dataset.theme === 'dark';
-  body.dataset.theme = isDark ? 'light' : 'dark';
-  const btn = $('btnTheme');
-  if (btn) btn.textContent = isDark ? 'â˜€ï¸' : 'ðŸŒ™';
-  storageSet(STORAGE_KEYS.THEME, body.dataset.theme);
-}
-
+// Dark only: the light theme was removed in the Linear Dark redesign.
 function initTheme(): void {
-  const saved = storageGet<string>(STORAGE_KEYS.THEME, '');
-  if (saved) {
-    document.body.dataset.theme = saved;
-    const btn = $('btnTheme');
-    if (btn) btn.textContent = saved === 'dark' ? 'ðŸŒ™' : 'â˜€ï¸';
-  }
+  document.body.dataset.theme = 'dark';
 }
 
 // ==================== RECENT DECKS ====================
@@ -910,7 +897,7 @@ function renderExtendedStats(): void {
     const maxAttr = Math.max(...sortedAttrs.map(s => s[1]), 1);
     
     if (sortedAttrs.length === 0) {
-      replaceChildren(attrEl, h('div', { className: 'empty', style: 'color:var(--text-dim);font-size:0.8rem;' }, 'No monsters'));
+      replaceChildren(attrEl, h('div', { className: 'empty', style: 'color:var(--text-lo, #9aa0ae);font-size:0.8rem;' }, 'No monsters'));
     } else {
       const attrColors: Record<string, string> = {
         'DARK': '#8B5CF6',
@@ -923,7 +910,7 @@ function renderExtendedStats(): void {
       };
       replaceChildren(attrEl, ...sortedAttrs.map(([attr, count]) => {
         const pct = Math.round((count / maxAttr) * 100);
-        const color = attrColors[attr] || 'var(--gold)';
+        const color = attrColors[attr] || 'var(--accent, #7c6cf6)';
         return h('div', { className: 'ext-bar-row' },
           h('span', { className: 'ext-bar-label' }, attr),
           h('div', { className: 'ext-bar-track' },
@@ -943,7 +930,7 @@ function renderExtendedStats(): void {
     const maxRace = Math.max(...sortedRaces.map(s => s[1]), 1);
     
     if (sortedRaces.length === 0) {
-      replaceChildren(raceEl, h('div', { className: 'empty', style: 'color:var(--text-dim);font-size:0.8rem;' }, 'No monsters'));
+      replaceChildren(raceEl, h('div', { className: 'empty', style: 'color:var(--text-lo, #9aa0ae);font-size:0.8rem;' }, 'No monsters'));
     } else {
       replaceChildren(raceEl, ...sortedRaces.map(([race, count]) => {
         const pct = Math.round((count / maxRace) * 100);
@@ -965,7 +952,7 @@ function renderExtendedStats(): void {
     const sortedHT = Object.entries(handTrapCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
     
     if (sortedHT.length === 0) {
-      replaceChildren(htEl, h('div', { className: 'empty', style: 'color:var(--text-dim);font-size:0.8rem;' }, 'No hand traps detected'));
+      replaceChildren(htEl, h('div', { className: 'empty', style: 'color:var(--text-lo, #9aa0ae);font-size:0.8rem;' }, 'No hand traps detected'));
     } else {
       replaceChildren(htEl, ...sortedHT.map(([name, count]) =>
         h('span', { className: 'ht-badge' },
@@ -997,7 +984,7 @@ function detectArchetypes(): void {
   const tagsEl = $('archetypeTags');
   if (tagsEl) {
     if (sorted.length === 0) {
-      replaceChildren(tagsEl, h('div', { className: 'empty', style: 'color:var(--text-dim);font-size:0.85rem;padding:0.5rem;' }, 'No archetypes detected'));
+      replaceChildren(tagsEl, h('div', { className: 'empty', style: 'color:var(--text-lo, #9aa0ae);font-size:0.85rem;padding:0.5rem;' }, 'No archetypes detected'));
     } else {
       replaceChildren(tagsEl, ...sorted.slice(0, 8).map(([name, ids]) =>
         h('span', { className: 'archetype-tag', title: `${ids.length} cards` },
@@ -1022,17 +1009,17 @@ function detectArchetypes(): void {
           return h('div', { className: 'arch-bar-row' },
             h('span', { className: 'arch-bar-name' }, name),
             h('div', { className: 'arch-bar-track' },
-              h('div', { className: 'arch-bar-fill', style: `width:${pct}%; background:var(--gold);` })
+              h('div', { className: 'arch-bar-fill', style: `width:${pct}%; background:var(--accent, #7c6cf6);` })
             ),
             h('span', { className: 'arch-bar-pct' }, `${pct}%`)
           );
         }),
         otherCount > 0 ? h('div', { className: 'arch-bar-row' },
-          h('span', { className: 'arch-bar-name', style: 'color:var(--text-dim);' }, 'Other'),
+          h('span', { className: 'arch-bar-name', style: 'color:var(--text-lo, #9aa0ae);' }, 'Other'),
           h('div', { className: 'arch-bar-track' },
             h('div', { className: 'arch-bar-fill', style: `width:${Math.round((otherCount / total) * 100)}%; background:var(--bg-3);` })
           ),
-          h('span', { className: 'arch-bar-pct', style: 'color:var(--text-dim);' }, `${Math.round((otherCount / total) * 100)}%`)
+          h('span', { className: 'arch-bar-pct', style: 'color:var(--text-lo, #9aa0ae);' }, `${Math.round((otherCount / total) * 100)}%`)
         ) : ''
       )
     );
@@ -1931,7 +1918,7 @@ export function showQrCode(): void {
       h('div', { style: 'text-align:center;padding:1rem;' },
         h('h3', { style: 'margin-bottom:1rem;' }, 'Deck QR Code'),
         img,
-        h('p', { style: 'margin-top:1rem;font-size:0.8rem;color:var(--text-dim);' }, 'Scan to import deck in EDOPro'),
+        h('p', { style: 'margin-top:1rem;font-size:0.8rem;color:var(--text-lo, #9aa0ae);' }, 'Scan to import deck in EDOPro'),
       )
     );
     modal.classList.add('active');
@@ -2050,7 +2037,7 @@ export function toggleComparePanel(): void {
     const diffEl = $('compareDiff');
     if (diffEl) {
       replaceChildren(diffEl, 
-        h('p', { className: 'compare-hint', style: 'color:var(--text-dim);font-size:0.9rem;text-align:center;' },
+        h('p', { className: 'compare-hint', style: 'color:var(--text-lo, #9aa0ae);font-size:0.9rem;text-align:center;' },
           currentDeck ? 'Drop or select a .YDK file to compare with your current deck' : 'Load a deck first, then drop another .YDK file to compare'
         )
       );
@@ -2742,7 +2729,7 @@ export function detectEngines(): void {
     const sorted = Object.entries(archetypes).sort((a, b) => b[1] - a[1]);
     if (sorted.length === 0) {
       replaceChildren(results,
-        h('div', { style: 'color:var(--text-dim);' }, 'No clear engine detected')
+        h('div', { style: 'color:var(--text-lo, #9aa0ae);' }, 'No clear engine detected')
       );
     } else {
       replaceChildren(results, fragment(
@@ -2840,7 +2827,7 @@ export function calculateCraftCost(): void {
         rarityBox('R', costs.R, 'linear-gradient(135deg,#0099ff,#0066cc)'),
         rarityBox('N', costs.N, 'var(--bg-3)'),
       ),
-      h('div', { style: 'margin-top:0.5rem;text-align:center;color:var(--text-dim);font-size:0.8rem;' },
+      h('div', { style: 'margin-top:0.5rem;text-align:center;color:var(--text-lo, #9aa0ae);font-size:0.8rem;' },
         `Total: ~${totalCp} CP estimated`
       ),
     ));
@@ -2886,13 +2873,13 @@ export function calculateSalt(): void {
     const rating = salt > 30 ? '🧂🧂🧂 Very Salty' : salt > 15 ? '🧂🧂 Moderately Salty' : '🧂 Low Salt';
     const children: (HTMLElement | Text)[] = [
       h('div', { style: 'text-align:center;font-size:1.5rem;margin:0.5rem 0;' }, `${salt} Salt Points`),
-      h('div', { style: 'text-align:center;color:var(--gold);' }, rating),
+      h('div', { style: 'text-align:center;color:var(--accent, #7c6cf6);' }, rating),
     ];
     if (saltCards.length > 0) {
       const uniqueSalty = [...new Set(saltCards)];
       const preview = uniqueSalty.slice(0, 5).join(', ') + (uniqueSalty.length > 5 ? '...' : '');
       children.push(
-        h('div', { style: 'margin-top:0.5rem;font-size:0.8rem;color:var(--text-dim);' }, `Salty cards: ${preview}`)
+        h('div', { style: 'margin-top:0.5rem;font-size:0.8rem;color:var(--text-lo, #9aa0ae);' }, `Salty cards: ${preview}`)
       );
     }
     replaceChildren(display, fragment(...children));

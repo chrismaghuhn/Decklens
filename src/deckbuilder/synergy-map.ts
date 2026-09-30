@@ -465,7 +465,7 @@ export function renderSynergyMap(
     label.setAttribute('x', String(node.x));
     label.setAttribute('y', String(node.y + r + 10));
     label.setAttribute('text-anchor', 'middle');
-    label.setAttribute('fill', 'var(--text-dim)');
+    label.setAttribute('fill', 'var(--text-lo, #9aa0ae)');
     label.setAttribute('font-size', '7');
     label.setAttribute('font-family', "'Inter', system-ui, sans-serif");
     label.setAttribute('data-node', node.name);

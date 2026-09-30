@@ -58,13 +58,13 @@ export async function generateDeckImage(
   ctx.fillRect(0, 0, totalW, totalH);
 
   // Title
-  ctx.fillStyle = '#f5c04a';
+  ctx.fillStyle = '#a89cff';
   ctx.font = 'bold 24px "Inter", sans-serif';
   ctx.textBaseline = 'top';
   ctx.fillText(deck.name, PAD, PAD + 8);
 
   // Card count
-  ctx.fillStyle = '#9a94a8';
+  ctx.fillStyle = '#9aa0ae';
   ctx.font = '14px "Inter", sans-serif';
   const totalQty = mainCards.reduce((s, e) => s + e.qty, 0) + deck.boards.commander.reduce((s, e) => s + e.qty, 0);
   ctx.fillText(`${totalQty} cards`, PAD, PAD + 38);
@@ -112,9 +112,9 @@ export async function generateDeckImage(
       ctx.drawImage(result.value, x, y, CARD_W, CARD_H);
     } else {
       // Placeholder
-      ctx.fillStyle = '#1a1d2a';
+      ctx.fillStyle = '#161920';
       ctx.fillRect(x, y, CARD_W, CARD_H);
-      ctx.fillStyle = '#706b7f';
+      ctx.fillStyle = '#7d8494';
       ctx.font = '10px "Inter", sans-serif';
       ctx.textBaseline = 'middle';
       ctx.fillText(allCards[i].name.slice(0, 18), x + 4, y + CARD_H / 2);
@@ -124,7 +124,7 @@ export async function generateDeckImage(
 
   // Footer
   const footerY = totalH - PAD - 16;
-  ctx.fillStyle = '#706b7f';
+  ctx.fillStyle = '#7d8494';
   ctx.font = '11px "Inter", sans-serif';
   ctx.fillText('Built with DeckLens', PAD, footerY);
 

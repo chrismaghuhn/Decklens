@@ -61,7 +61,7 @@
   background: var(--emerald, var(--ok));
 }
 .toast--info .toast__msg::before {
-  background: var(--accent));
+  background: var(--accent);
 }
 .toast--warning .toast__msg::before {
   background: var(--amber, var(--warn));
@@ -74,7 +74,7 @@
   border-radius: 50px;
   background: rgba(201, 168, 76, 0.12);
   border: 1px solid rgba(201, 168, 76, 0.25);
-  color: var(--accent));
+  color: var(--accent);
   cursor: pointer;
   font-family: var(--font-ui);
   font-size: 0.72rem;
@@ -151,14 +151,14 @@
   color: var(--text-dim, var(--text-lo));
 }
 .save-indicator--saving .save-indicator__dot {
-  background: var(--accent));
+  background: var(--accent);
   animation: save-pulse 1s var(--ease, ease) infinite;
 }
 .save-indicator--unsaved {
-  color: var(--accent));
+  color: var(--accent);
 }
 .save-indicator--unsaved .save-indicator__dot {
-  background: var(--accent));
+  background: var(--accent);
   animation: save-pulse 1.5s var(--ease, ease) infinite;
 }
 .save-indicator--error {
@@ -257,7 +257,7 @@
 }
 .search-history-chip:hover {
   border-color: rgba(201, 168, 76, 0.3);
-  color: var(--accent));
+  color: var(--accent);
   background: rgba(201, 168, 76, 0.06);
 }
 
@@ -290,7 +290,7 @@
   border-radius: 50px;
   background: rgba(201, 168, 76, 0.08);
   border: 1px solid rgba(201, 168, 76, 0.2);
-  color: var(--accent));
+  color: var(--accent);
   font-family: var(--font-mono);
   font-size: 0.68rem;
   font-weight: 600;
@@ -353,7 +353,7 @@
 }
 .desc-tab.active {
   border-color: rgba(201, 168, 76, 0.3);
-  color: var(--accent));
+  color: var(--accent);
   background: rgba(201, 168, 76, 0.06);
 }
 .desc-tab:hover:not(.active) {
@@ -380,7 +380,7 @@
   line-height: 1.6;
 }
 .description-preview .md-heading {
-  color: var(--accent));
+  color: var(--accent);
   margin: 12px 0 6px;
 }
 .description-preview .md-paragraph {
@@ -391,12 +391,12 @@
   padding-left: 18px;
 }
 .description-preview .md-card-link {
-  color: var(--accent));
+  color: var(--accent);
   text-decoration: underline;
   text-decoration-color: rgba(201, 168, 76, 0.3);
 }
 .description-preview .md-card-link:hover {
-  text-decoration-color: var(--accent));
+  text-decoration-color: var(--accent);
 }
 
 .primer-templates {
@@ -608,7 +608,7 @@
 }
 .shortcut-help-header h3 {
   font-family: var(--font-ui);
-  color: var(--accent));
+  color: var(--accent);
   font-size: 1rem;
   margin: 0;
 }
@@ -641,7 +641,7 @@
   border-radius: 5px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--accent));
+  color: var(--accent);
   white-space: nowrap;
   text-align: center;
 }
@@ -668,12 +668,12 @@
 
 /* F4: Custom shortcut badges */
 .shortcut-customized .shortcut-key {
-  border-color: var(--accent));
+  border-color: var(--accent);
   background: var(--gold-glow, rgba(201, 168, 76, 0.12));
 }
 .shortcut-custom-badge {
   font-size: 0.65rem;
-  color: var(--accent));
+  color: var(--accent);
   margin-left: 6px;
   font-style: italic;
 }
@@ -701,14 +701,14 @@
   color: var(--text, var(--text-hi));
 }
 .shortcut-rebind-active {
-  outline: 2px solid var(--accent));
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
   animation: pulse-gold 1s infinite;
 }
 @keyframes pulse-gold {
   0%,
   100% {
-    outline-color: var(--accent));
+    outline-color: var(--accent);
   }
   50% {
     outline-color: transparent;

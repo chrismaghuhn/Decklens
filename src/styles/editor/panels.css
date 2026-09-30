@@ -1548,7 +1548,7 @@
 .synergy-tooltip {
   position: absolute;
   background: var(--bg-2, #141924);
-  border: 1px solid var(--accent));
+  border: 1px solid var(--accent);
   border-radius: 10px;
   padding: 10px 14px;
   font-size: 0.78rem;

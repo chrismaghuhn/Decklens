@@ -2328,7 +2328,7 @@ function renderTypeBars(): void {
   
   replaceChildren(el, ...entries.map(([type, count]) => {
     const pct = Math.round((count / max) * 100);
-    const color = typeColors[type] || 'var(--gold)';
+    const color = typeColors[type] || 'var(--accent, #7c6cf6)';
     return h('div', { className: 'type-bar-row' },
       h('span', { className: 'type-bar-label' }, type),
       h('div', { className: 'type-bar-track' },
@@ -2862,15 +2862,6 @@ export function hideSymbolTooltip(): void {
 }
 
 // ==================== THEME ====================
-export function toggleTheme(): void {
-  const isDark = !document.documentElement.hasAttribute('data-theme');
-  if (isDark) document.documentElement.setAttribute('data-theme', 'light');
-  else document.documentElement.removeAttribute('data-theme');
-  
-  const btn = $('btnTheme');
-  if (btn) btn.textContent = isDark ? '☀️' : '🌙';
-}
-
 // ==================== PANELS ====================
 export function goToFlowStep(step: ImportFlowStep): void {
   emitWizardStepEvent(step, 'entered');
@@ -3470,7 +3461,7 @@ export function calculateSalt(): void {
   
   if (scoreEl) {
     scoreEl.textContent = analysis.score.toFixed(1);
-    scoreEl.style.color = analysis.score > 7 ? 'var(--banned)' : analysis.score > 4 ? 'var(--gold)' : 'var(--legal)';
+    scoreEl.style.color = analysis.score > 7 ? 'var(--banned)' : analysis.score > 4 ? 'var(--accent, #7c6cf6)' : 'var(--legal)';
   }
   if (labelEl) {
     labelEl.textContent = analysis.label;
@@ -4213,7 +4204,7 @@ function renderRecommendationPanels(): void {
         // Archetype Detection Display (only if enabled and detected)
         useArchetypeDetection && currentArchetypeDetection?.primaryArchetype
           ? h('div', { className: 'archetype-detection', style: 'margin-top:1rem;padding:0.75rem;background:rgba(201,168,76,0.1);border-radius:8px;border:1px solid rgba(201,168,76,0.3);' },
-              h('div', { style: 'font-weight:600;color:var(--gold);margin-bottom:0.5rem;' }, '🎯 Detected Archetype'),
+              h('div', { style: 'font-weight:600;color:var(--accent, #7c6cf6);margin-bottom:0.5rem;' }, '🎯 Detected Archetype'),
               h('div', { style: 'font-size:1.1rem;margin-bottom:0.25rem;' }, 
                 getArchetypeById(currentArchetypeDetection.primaryArchetype)?.name || currentArchetypeDetection.primaryArchetype
               ),
@@ -4223,7 +4214,7 @@ function renderRecommendationPanels(): void {
                   )
                 : null,
               currentArchetypeDetection.hybridArchetype
-                ? h('div', { style: 'font-size:0.8rem;color:var(--gold);margin-top:0.25rem;' }, '(Hybrid Strategy)')
+                ? h('div', { style: 'font-size:0.8rem;color:var(--accent, #7c6cf6);margin-top:0.25rem;' }, '(Hybrid Strategy)')
                 : null
             )
           : null,
@@ -4246,7 +4237,7 @@ function renderRecommendationPanels(): void {
                       style: `font-size:0.8rem;padding:0.25rem 0.5rem;margin:0.25rem 0;border-radius:4px;display:inline-block;margin-right:0.5rem;${counter.fitsColorIdentity ? 'background:rgba(31,168,85,0.2);' : 'background:rgba(255,255,255,0.05);'}`,
                     },
                       `${counter.cardName} ${counter.fitsColorIdentity ? '✓' : '⚠'}`,
-                      h('span', { style: 'font-size:0.7rem;color:var(--text-dim);margin-left:0.25rem;' }, `${counter.effectiveness}%`)
+                      h('span', { style: 'font-size:0.7rem;color:var(--text-lo, #9aa0ae);margin-left:0.25rem;' }, `${counter.effectiveness}%`)
                     )
                   )
                 )
@@ -4737,7 +4728,7 @@ function openRecommendationApplyModal(preview: RecommendationApplyPreviewState):
           h('span', { className: 'rec-source-attribution__tag' }, formatLogicTag(tag))
         )
       ),
-      h('div', { className: 'rec-source-attribution__breakdown', style: 'margin-top: 0.5rem; font-size: 0.78rem; color: var(--text-dim);' },
+      h('div', { className: 'rec-source-attribution__breakdown', style: 'margin-top: 0.5rem; font-size: 0.78rem; color: var(--text-lo, #9aa0ae);' },
         h('div', {}, `Signal Strength: ${Math.round(preview.confidenceBreakdown.signalStrength * 100)}%`),
         h('div', {}, `Data Coverage: ${Math.round(preview.confidenceBreakdown.dataCoverage * 100)}%`),
         h('div', {}, `Heuristic Consensus: ${Math.round(preview.confidenceBreakdown.heuristicConsensus * 100)}%`)
@@ -5470,7 +5461,7 @@ function renderComboResults(results: { found: ComboMatch[]; nearMiss: ComboMatch
     const comboCardCount = comboCardNames.size;
     const density = deckSize > 0 ? ((comboCardCount / deckSize) * 100) : 0;
     const densityLabel = density >= 15 ? 'High' : density >= 5 ? 'Medium' : density > 0 ? 'Low' : 'None';
-    const densityColor = density >= 15 ? 'var(--banned)' : density >= 5 ? 'var(--gold)' : 'var(--text-dim)';
+    const densityColor = density >= 15 ? 'var(--banned)' : density >= 5 ? 'var(--accent, #7c6cf6)' : 'var(--text-lo, #9aa0ae)';
 
     container.appendChild(h('div', { className: 'combo-density-card' },
       h('div', { className: 'combo-density-score-wrap' },

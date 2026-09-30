@@ -313,7 +313,7 @@ export function renderHealthScore(
   labelText.setAttribute('x', '40');
   labelText.setAttribute('y', '62');
   labelText.setAttribute('text-anchor', 'middle');
-  labelText.setAttribute('fill', 'var(--text-dim)');
+  labelText.setAttribute('fill', 'var(--text-lo, #9aa0ae)');
   labelText.setAttribute('font-family', "'Inter', system-ui, sans-serif");
   labelText.setAttribute('font-size', '8');
   labelText.setAttribute('font-weight', '500');

@@ -991,7 +991,7 @@
 
 /* Placeholder (ghost during drag) */
 .layout-placeholder {
-  border: 2px dashed var(--accent));
+  border: 2px dashed var(--accent);
   border-radius: 12px;
   background: rgba(201, 168, 76, 0.04);
   pointer-events: none;
@@ -1031,7 +1031,7 @@
   font-family: var(--font-ui);
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--accent));
+  color: var(--accent);
   white-space: nowrap;
 }
 .layout-toolbar-btn {
@@ -1070,7 +1070,7 @@
 }
 .layout-widget-pill.lwp-active {
   background: rgba(201, 168, 76, 0.12);
-  color: var(--accent));
+  color: var(--accent);
   border-color: rgba(201, 168, 76, 0.3);
 }
 .layout-widget-pill:hover {
@@ -1095,7 +1095,7 @@
 .layout-toolbar-counter {
   font-family: var(--font-mono);
   font-size: 0.72rem;
-  color: var(--accent));
+  color: var(--accent);
   background: rgba(201, 168, 76, 0.08);
   padding: 2px 8px;
   border-radius: 50px;
@@ -1112,7 +1112,7 @@
 .layout-preset-btn:hover {
   background: rgba(201, 168, 76, 0.12) !important;
   border-color: rgba(201, 168, 76, 0.3) !important;
-  color: var(--accent)) !important;
+  color: var(--accent) !important;
 }
 
 /* Collapse button chevron animation */
@@ -1129,7 +1129,7 @@
   transition: all 0.2s var(--ease, cubic-bezier(0.4, 0, 0.2, 1));
 }
 .layout-toggle-btn.layout-toggle-active {
-  color: var(--accent)) !important;
+  color: var(--accent) !important;
   background: rgba(201, 168, 76, 0.12) !important;
   border-color: rgba(201, 168, 76, 0.3) !important;
   box-shadow: 0 0 8px rgba(201, 168, 76, 0.15);
