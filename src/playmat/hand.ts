@@ -12,6 +12,7 @@ import { EV_OPEN_COMMANDER_SEARCH, normalizeNameKey, type PlaymatState } from '.
 import { addCardToDeck, setCommander } from './mat.js';
 
 const PAGE_SIZE = 7;
+const DEFAULT_PLACEHOLDER = 'Search cards … Enter adds the top hit';
 
 let stateRef: PlaymatState;
 let results: DeckbuilderSearchCard[] = [];
@@ -33,6 +34,7 @@ function addResult(card: DeckbuilderSearchCard): void {
     setCommander(card.name);
     commanderMode = false;
     inputEl.value = '';
+    inputEl.placeholder = DEFAULT_PLACEHOLDER;
     results = [];
     renderHand();
     return;
@@ -137,7 +139,7 @@ export function initHand(state: PlaymatState): void {
   slot.innerHTML = `
     <div class="pm-search">
       <span class="pm-search-lens">${iconSvg('search')}</span>
-      <input type="search" placeholder="Search cards … Enter adds the top hit" aria-label="Card search">
+      <input type="search" id="searchInput" placeholder="${DEFAULT_PLACEHOLDER}" aria-label="Card search">
       <span class="pm-kbd">/</span>
     </div>`;
   inputEl = slot.querySelector('input')!;
@@ -154,6 +156,7 @@ export function initHand(state: PlaymatState): void {
     if (e.key === 'Escape') {
       commanderMode = false;
       inputEl.value = '';
+      inputEl.placeholder = DEFAULT_PLACEHOLDER;
       results = [];
       renderHand();
       inputEl.blur();

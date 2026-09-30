@@ -58,7 +58,12 @@ body {
   border-radius: 999px;
   padding: 3px 10px;
   flex: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
 }
+.pm-format:hover { color: var(--text-hi); border-color: var(--accent); }
+.pm-format option { background: var(--surface-2); color: var(--text-hi); }
 .pm-spacer { flex: 1; }
 .pm-search-slot { width: min(460px, 40vw); }
 .pm-progress {
@@ -142,6 +147,25 @@ body {
   border-color: var(--accent);
   box-shadow: 2px 2px 0 rgba(74, 36, 24, 0.9);
 }
+.pm-density {
+  margin-left: 18px;
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  flex: none;
+}
+.pm-density button {
+  all: unset;
+  cursor: pointer;
+  padding: 3px 9px;
+  font: 600 0.62rem var(--font-mono);
+  color: var(--text-muted);
+  transition: color 0.12s, background 0.12s;
+}
+.pm-density button:hover { color: var(--text-hi); }
+.pm-density button.on { color: #fff; background: var(--accent); }
+
 .pm-hud {
   margin-left: auto;
   display: flex;
@@ -436,8 +460,40 @@ body {
 }
 .pm-card img { width: 100%; height: 100%; object-fit: cover; border-radius: 7px; display: block; }
 .pm-stack .pm-card { margin-top: -138px; }
+.pm-density-compact .pm-stack .pm-card { margin-top: -160px; }
+.pm-density-loose .pm-stack .pm-card { margin-top: -104px; }
 .pm-stack .pm-card:first-child { margin-top: 0; }
 .pm-stack .pm-card:hover { transform: translateY(-16px) rotate(-1deg); z-index: 9; outline: 2px solid var(--accent); }
+
+.pm-pile-collapsed .pm-pile-head { opacity: 0.75; }
+.pm-pile-collapsed .pm-pile-head b { color: var(--text-hi); }
+
+.pm-card-qtybar {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.12s;
+  z-index: 3;
+}
+.pm-card:hover .pm-card-qtybar { opacity: 1; }
+.pm-card-qtybar button {
+  all: unset;
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  font: 700 0.85rem var(--font-mono);
+  color: var(--text-hi);
+  background: rgba(10, 8, 7, 0.85);
+  border: 1px solid var(--line-light);
+  border-radius: 5px;
+}
+.pm-card-qtybar button:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+body.pm-dragging .pm-card-qtybar { opacity: 0 !important; }
 .pm-card-text { display: grid; place-items: center; padding: 8px; }
 .pm-card-name { font: 600 0.66rem var(--font-ui); color: var(--text-mid); text-align: center; }
 .pm-qty {

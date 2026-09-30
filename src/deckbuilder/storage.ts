@@ -21,11 +21,13 @@ function normalizeVisibility(raw: unknown): DeckVisibility {
 function normalizeTags(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   const out: string[] = [];
+  const seen = new Set<string>();
   for (const item of raw) {
     if (typeof item !== 'string') continue;
-    const normalized = item.trim().toLowerCase().slice(0, MAX_TAG_LENGTH);
+    const normalized = item.trim().slice(0, MAX_TAG_LENGTH);
     if (!normalized) continue;
-    if (!out.includes(normalized)) out.push(normalized);
+    const key = normalized.toLowerCase();
+    if (!seen.has(key)) { seen.add(key); out.push(normalized); }
     if (out.length >= MAX_TAGS_PER_CARD) break;
   }
   return out;

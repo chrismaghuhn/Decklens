@@ -28,8 +28,9 @@ import type { DeckbuilderImportUnresolved } from '../deckbuilder/types.js';
 import type { DeckEntry } from '../shared/types.js';
 import {
   EV_DECK_CHANGED, EV_CARDS_RESOLVED, EV_SORT_CHANGED, mutateDeck, resolveMissing,
-  normalizeNameKey, type PlaymatState,
+  normalizeNameKey, isTypingContext, type PlaymatState,
 } from './state.js';
+import { isDragging } from './drag.js';
 
 type DrawerKind = 'analyse' | 'share' | 'import';
 
@@ -37,6 +38,7 @@ let stateRef: PlaymatState;
 let drawerEl: HTMLElement;
 let openDrawer: DrawerKind | null = null;
 let unresolvedRows: DeckbuilderImportUnresolved[] = [];
+let importDraft = '';
 
 // ── small local tallies ──
 
@@ -346,17 +348,21 @@ function renderImport(body: HTMLElement): void {
   const textarea = body.querySelector<HTMLTextAreaElement>('#pmImportText')!;
   const fileInput = body.querySelector<HTMLInputElement>('#pmImportFile')!;
 
+  // keep the typed list across drawer closes
+  textarea.value = importDraft;
+  textarea.addEventListener('input', () => { importDraft = textarea.value; });
+
   fileInput.addEventListener('change', () => {
     const file = fileInput.files?.[0];
     if (!file) return;
-    void file.text().then((text) => { textarea.value = text; });
+    void file.text().then((text) => { textarea.value = text; importDraft = text; });
   });
   textarea.addEventListener('dragover', (e) => e.preventDefault());
   textarea.addEventListener('drop', (e) => {
     const file = e.dataTransfer?.files?.[0];
     if (!file) return;
     e.preventDefault();
-    void file.text().then((text) => { textarea.value = text; });
+    void file.text().then((text) => { textarea.value = text; importDraft = text; });
   });
 
   body.querySelector('#pmImportRun')!.addEventListener('click', () => {
@@ -553,7 +559,13 @@ export function initDrawers(state: PlaymatState): void {
   actions.append(analyseBtn, goldfishBtn, shareBtn, importBtn);
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && openDrawer) closeDrawer();
+    if (e.key !== 'Escape' || !openDrawer) return;
+    if (isDragging()) return; // the drag controller owns this Escape
+    if (isTypingContext(e.target)) {
+      (e.target as HTMLElement).blur(); // first Escape leaves the field
+      return;
+    }
+    closeDrawer();
   });
 
   // #pmHud is re-created by every sortbar render — delegate the click.

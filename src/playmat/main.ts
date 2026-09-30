@@ -42,9 +42,23 @@ function renderHeader(root: HTMLElement, state: PlaymatState): void {
     mutateDeck(state, (d) => { d.name = name.value.trim() || 'Untitled Deck'; });
   });
 
-  const fmt = document.createElement('span');
+  const fmt = document.createElement('select');
   fmt.className = 'pm-format';
-  fmt.textContent = (state.deck.format || 'commander').toUpperCase();
+  fmt.setAttribute('aria-label', 'Deck format');
+  const FORMATS: Array<[string, string]> = [
+    ['commander', 'COMMANDER'], ['standard', 'STANDARD'], ['modern', 'MODERN'],
+    ['pioneer', 'PIONEER'], ['legacy', 'LEGACY'], ['pauper', 'PAUPER'], ['none', 'CASUAL'],
+  ];
+  for (const [value, label] of FORMATS) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = label;
+    fmt.appendChild(opt);
+  }
+  fmt.value = state.deck.format || 'commander';
+  fmt.addEventListener('change', () => {
+    mutateDeck(state, (d) => { d.format = fmt.value as typeof d.format; });
+  });
 
   const spacer = document.createElement('div');
   spacer.className = 'pm-spacer';
@@ -130,6 +144,20 @@ function openMoreMenu(anchor: HTMLElement, state: PlaymatState): void {
   setTimeout(() => document.addEventListener('mousedown', close), 0);
 }
 
+type Density = 'compact' | 'normal' | 'loose';
+const DENSITY_KEY = 'dl_pm_density';
+
+function currentDensity(): Density {
+  const v = localStorage.getItem(DENSITY_KEY);
+  return v === 'compact' || v === 'loose' ? v : 'normal';
+}
+
+function applyDensity(density: Density): void {
+  const mat = document.getElementById('pmMat')!;
+  mat.classList.toggle('pm-density-compact', density === 'compact');
+  mat.classList.toggle('pm-density-loose', density === 'loose');
+}
+
 function renderSortbar(root: HTMLElement, state: PlaymatState): void {
   root.textContent = '';
   const lbl = document.createElement('span');
@@ -145,6 +173,25 @@ function renderSortbar(root: HTMLElement, state: PlaymatState): void {
     b.addEventListener('click', () => setSortMode(state, mode));
     root.appendChild(b);
   }
+
+  const density = document.createElement('div');
+  density.className = 'pm-density';
+  density.title = 'Pile density';
+  const options: Array<[Density, string]> = [['compact', 'S'], ['normal', 'M'], ['loose', 'L']];
+  for (const [value, label] of options) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.className = currentDensity() === value ? 'on' : '';
+    b.setAttribute('aria-label', `${value} pile density`);
+    b.addEventListener('click', () => {
+      localStorage.setItem(DENSITY_KEY, value);
+      applyDensity(value);
+      density.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+    });
+    density.appendChild(b);
+  }
+  root.appendChild(density);
 
   const hud = document.createElement('div');
   hud.className = 'pm-hud';
@@ -196,6 +243,7 @@ async function boot(): Promise<void> {
   // seed first snapshot so Ctrl+Z has a floor
   pushSnapshot(state.deck);
 
+  applyDensity(currentDensity());
   initMat(document.getElementById('pmMat')!, state);
   initDrag(document.getElementById('pmMat')!, state);
   initHand(state);

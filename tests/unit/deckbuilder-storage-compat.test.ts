@@ -36,4 +36,24 @@ describe('deck storage compatibility', () => {
     expect(loaded?.boards.mainboard[0].name).toBe('Sol Ring');
     expect(loaded?.boards.commander[0].qty).toBe(1);
   });
+
+  test('tags keep their casing and dedupe case-insensitively', () => {
+    const deck = {
+      id: 'deck_tags_1',
+      name: 'Tag Deck',
+      visibility: 'private',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      boards: {
+        commander: [],
+        mainboard: [{ name: 'Sol Ring', qty: 1, set: null, collectorNumber: null, tags: ['Combo-Teile', 'combo-teile', 'Ramp'] }],
+        sideboard: [],
+        maybeboard: [],
+      },
+    };
+    localStorage.setItem(STORAGE_KEYS.DECKBUILDER_DECKS, JSON.stringify([deck]));
+
+    const loaded = getDeckById('deck_tags_1');
+    expect(loaded?.boards.mainboard[0].tags).toEqual(['Combo-Teile', 'Ramp']);
+  });
 });

@@ -25,6 +25,29 @@ let stateRef: PlaymatState;
 let rootRef: HTMLElement;
 let openDock: DeckBoard | null = null;
 const pendingTags = new Set<string>();
+let collapsedPiles = new Set<string>();
+
+function collapsedStorageKey(): string {
+  return `dl_pm_collapsed_${stateRef.deck.id}`;
+}
+
+function loadCollapsedPiles(): void {
+  try {
+    const raw = localStorage.getItem(collapsedStorageKey());
+    collapsedPiles = new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    collapsedPiles = new Set();
+  }
+}
+
+function toggleCollapsed(pileId: string): void {
+  if (collapsedPiles.has(pileId)) collapsedPiles.delete(pileId);
+  else collapsedPiles.add(pileId);
+  try {
+    localStorage.setItem(collapsedStorageKey(), JSON.stringify([...collapsedPiles]));
+  } catch { /* storage unavailable */ }
+  renderMat(rootRef, stateRef);
+}
 
 function pileIdFor(label: string): string {
   return `pile-${label.toLowerCase().replace(/[^a-z0-9+]+/g, '-')}`;
@@ -128,6 +151,22 @@ function cardEl(entry: DeckbuilderCardEntry, opts: { eager: boolean; board: Deck
     el.appendChild(q);
   }
 
+  const qtybar = document.createElement('div');
+  qtybar.className = 'pm-card-qtybar';
+  for (const [glyph, delta, title] of [['−', -1, 'Remove one copy'], ['+', 1, 'Add one copy']] as const) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = glyph;
+    b.title = title;
+    b.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      changeQty(entry.name, opts.board, delta);
+    });
+    b.addEventListener('pointerdown', (ev) => ev.stopPropagation());
+    qtybar.appendChild(b);
+  }
+  el.appendChild(qtybar);
+
   el.addEventListener('click', () => {
     const c = cardFor(stateRef, entry.name);
     if (c) showDetailModal(entry.name, c, entryOf(opts.board, entry.name), opts.board);
@@ -150,18 +189,25 @@ function pileEl(pile: Pile, opts: { free: boolean }): HTMLElement {
   el.dataset.pile = pile.id;
   el.dataset.pileLabel = pile.label;
 
+  const collapsed = collapsedPiles.has(pile.id);
+  if (collapsed) el.classList.add('pm-pile-collapsed');
+
   const head = document.createElement('header');
   head.className = 'pm-pile-head';
   head.dataset.drag = 'pile';
+  head.title = 'Drag to move · double-click to collapse';
   head.innerHTML = `<span>${escapeHtml(pile.label.toUpperCase())}</span><b>${pile.count}</b>`;
+  head.addEventListener('dblclick', () => toggleCollapsed(pile.id));
   el.appendChild(head);
 
-  const stack = document.createElement('div');
-  stack.className = 'pm-stack';
-  pile.entries.forEach((entry, i) => {
-    stack.appendChild(cardEl(entry, { eager: i === pile.entries.length - 1, board: 'mainboard' }));
-  });
-  el.appendChild(stack);
+  if (!collapsed) {
+    const stack = document.createElement('div');
+    stack.className = 'pm-stack';
+    pile.entries.forEach((entry, i) => {
+      stack.appendChild(cardEl(entry, { eager: i === pile.entries.length - 1, board: 'mainboard' }));
+    });
+    el.appendChild(stack);
+  }
   return el;
 }
 
@@ -322,6 +368,7 @@ export function renderMat(root: HTMLElement, state: PlaymatState): void {
 export function initMat(root: HTMLElement, state: PlaymatState): void {
   stateRef = state;
   rootRef = root;
+  loadCollapsedPiles();
 
   initContextMenu({
     onMoveTo: (name, from, to) => moveTo(name, from, to),

@@ -85,6 +85,11 @@ interface DragSession {
 }
 
 let session: DragSession | null = null;
+
+/** True while a drag is past the threshold — Escape then belongs to the drag. */
+export function isDragging(): boolean {
+  return session?.active === true;
+}
 let hintEl: HTMLElement | null = null;
 let matRootRef: HTMLElement;
 let stateRef: PlaymatState;
