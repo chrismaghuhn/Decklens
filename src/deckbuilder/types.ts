@@ -45,6 +45,8 @@ export interface DeckbuilderDeck {
   customCategories?: CustomCategory[];
   /** Playmat free-mode pile positions (grid coordinates) */
   matLayout?: MatLayout;
+  /** Playmat pile order per sort mode, set by dragging pile headers */
+  pileOrders?: Record<string, string[]>;
 }
 
 export interface MatLayout {

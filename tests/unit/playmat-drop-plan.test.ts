@@ -72,3 +72,44 @@ describe('rememberCard', () => {
     expect((state as { cardByName: Record<string, unknown> }).cardByName['fyndhorn elves']).toBe(card);
   });
 });
+
+describe('pile reordering in sorted modes', () => {
+  test('pile onto another pile inserts before it', () => {
+    expect(planDrop('pile', true, { kind: 'pile', id: 'pile-b' }, 'type', 'pile-a'))
+      .toEqual({ type: 'reorder-pile', beforeId: 'pile-b' });
+  });
+
+  test('pile onto itself is a no-op', () => {
+    expect(planDrop('pile', true, { kind: 'pile', id: 'pile-a' }, 'type', 'pile-a'))
+      .toEqual({ type: 'none' });
+  });
+
+  test('pile onto empty mat area moves it to the end', () => {
+    expect(planDrop('pile', true, null, 'type', 'pile-a'))
+      .toEqual({ type: 'reorder-pile', beforeId: null });
+  });
+
+  test('free mode still moves piles to cells, never reorders', () => {
+    expect(planDrop('pile', true, { kind: 'cell', col: 4, row: 2 }, 'free', 'pile-a'))
+      .toEqual({ type: 'move-pile', col: 4, row: 2 });
+    expect(planDrop('pile', true, { kind: 'pile', id: 'pile-b' }, 'free', 'pile-a'))
+      .toEqual({ type: 'none' });
+  });
+});
+
+describe('applyPileOrder', () => {
+  test('sorts piles by the saved order, unknown ids keep default order at the end', async () => {
+    const { applyPileOrder } = await import('../../src/playmat/sort.js');
+    const mk = (id: string) => ({ id, label: id, entries: [], count: 0 });
+    const piles = [mk('pile-a'), mk('pile-b'), mk('pile-c'), mk('pile-d')];
+    const out = applyPileOrder(piles, ['pile-c', 'pile-a']);
+    expect(out.map((p) => p.id)).toEqual(['pile-c', 'pile-a', 'pile-b', 'pile-d']);
+  });
+
+  test('without a saved order the projection order stands', async () => {
+    const { applyPileOrder } = await import('../../src/playmat/sort.js');
+    const mk = (id: string) => ({ id, label: id, entries: [], count: 0 });
+    const piles = [mk('pile-a'), mk('pile-b')];
+    expect(applyPileOrder(piles, undefined).map((p) => p.id)).toEqual(['pile-a', 'pile-b']);
+  });
+});

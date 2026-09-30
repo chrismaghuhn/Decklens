@@ -97,6 +97,9 @@ function normalizeDeck(raw: unknown): DeckbuilderDeck | null {
   const format = typeof obj.format === 'string' ? (obj.format as DeckbuilderDeck['format']) : undefined;
   const customCategories = Array.isArray(obj.customCategories) ? obj.customCategories : undefined;
   const matLayout = obj.matLayout && Array.isArray(obj.matLayout.piles) ? obj.matLayout : undefined;
+  const pileOrders = obj.pileOrders && typeof obj.pileOrders === 'object' && !Array.isArray(obj.pileOrders)
+    ? obj.pileOrders
+    : undefined;
 
   return {
     id,
@@ -110,6 +113,7 @@ function normalizeDeck(raw: unknown): DeckbuilderDeck | null {
     boards: normalizeBoards(obj.boards),
     customCategories,
     matLayout,
+    pileOrders,
   };
 }
 

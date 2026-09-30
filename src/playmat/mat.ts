@@ -4,7 +4,7 @@
 // maybeboard/sideboard docks and the "New pile" target.
 
 import type { DeckBoard, DeckbuilderCardEntry } from '../deckbuilder/types.js';
-import { projectPiles, type Pile } from './sort.js';
+import { projectPiles, applyPileOrder, type Pile } from './sort.js';
 import { layoutFor, GRID_CELL } from './layout.js';
 import { mutateDeck, cardFor, normalizeNameKey,
   EV_OPEN_COMMANDER_SEARCH, type PlaymatState } from './state.js';
@@ -152,7 +152,7 @@ function pileEl(pile: Pile, opts: { free: boolean }): HTMLElement {
 
   const head = document.createElement('header');
   head.className = 'pm-pile-head';
-  if (opts.free) head.dataset.drag = 'pile';
+  head.dataset.drag = 'pile';
   head.innerHTML = `<span>${escapeHtml(pile.label.toUpperCase())}</span><b>${pile.count}</b>`;
   el.appendChild(head);
 
@@ -250,7 +250,10 @@ export function renderMat(root: HTMLElement, state: PlaymatState): void {
   root.appendChild(commanderZone());
 
   const mode = state.sortMode === 'free' ? 'type' : state.sortMode;
-  const piles = projectPiles(state.deck, state.cardByName, mode);
+  let piles = projectPiles(state.deck, state.cardByName, mode);
+  if (state.sortMode !== 'free') {
+    piles = applyPileOrder(piles, state.deck.pileOrders?.[state.sortMode]);
+  }
 
   // Freshly created (still empty) tag piles live only in this session;
   // once a card carries the tag, the projection takes over.

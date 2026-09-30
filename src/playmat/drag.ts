@@ -39,7 +39,8 @@ export type DropAction =
   | { type: 'add' }
   | { type: 'add-to-pile'; pileId: string }
   | { type: 'assign-to-pile'; pileId: string }
-  | { type: 'move-pile'; col: number; row: number };
+  | { type: 'move-pile'; col: number; row: number }
+  | { type: 'reorder-pile'; beforeId: string | null };
 
 /**
  * Pure drop semantics: a release outside the mat cancels everything;
@@ -50,6 +51,7 @@ export function planDrop(
   inMat: boolean,
   target: DropTarget,
   mode: SortMode,
+  selfPileId?: string,
 ): DropAction {
   if (!inMat) return { type: 'none' };
   if (kind === 'hand-card') {
@@ -60,9 +62,16 @@ export function planDrop(
     if (target?.kind === 'pile' && mode === 'tags') return { type: 'assign-to-pile', pileId: target.id };
     return { type: 'none' };
   }
-  // pile
-  if (target?.kind === 'cell') return { type: 'move-pile', col: target.col, row: target.row };
-  return { type: 'none' };
+  // pile: free mode moves to grid cells, sorted modes reorder the flow
+  if (mode === 'free') {
+    if (target?.kind === 'cell') return { type: 'move-pile', col: target.col, row: target.row };
+    return { type: 'none' };
+  }
+  if (target?.kind === 'pile') {
+    if (target.id === selfPileId) return { type: 'none' };
+    return { type: 'reorder-pile', beforeId: target.id };
+  }
+  return { type: 'reorder-pile', beforeId: null };
 }
 
 interface DragSession {
@@ -148,7 +157,7 @@ function finishDrop(e: PointerEvent): void {
   // Pile hit-testing uses the real pointer position: snapped cell centers
   // miss short piles (e.g. a freshly created empty tag pile).
   const target = resolveDrop(pt.x, pt.y, stateRef.sortMode, () => pileIdAtPoint(e.clientX, e.clientY));
-  const action = planDrop(current.kind, inMat, target, stateRef.sortMode);
+  const action = planDrop(current.kind, inMat, target, stateRef.sortMode, current.pileId);
 
   if (action.type === 'none') return;
 
@@ -168,13 +177,27 @@ function finishDrop(e: PointerEvent): void {
     return;
   }
 
-  // move-pile (free mode only)
-  if (current.pileId) {
+  if (action.type === 'move-pile' && current.pileId) {
     mutateDeck(stateRef, (d) => {
       if (!d.matLayout) d.matLayout = { piles: [] };
       const entry = d.matLayout.piles.find((p) => p.id === current.pileId);
       if (entry) { entry.col = action.col; entry.row = action.row; }
       else d.matLayout.piles.push({ id: current.pileId!, col: action.col, row: action.row });
+    });
+    return;
+  }
+
+  // reorder-pile (sorted modes): rebuild the id order from the rendered flow
+  if (action.type === 'reorder-pile' && current.pileId) {
+    const ids = Array.from(matRootRef.querySelectorAll<HTMLElement>('.pm-field > [data-pile]'))
+      .map((el) => el.dataset.pile!)
+      .filter((id) => id !== 'pile-new' && id !== current.pileId);
+    const at = action.beforeId ? ids.indexOf(action.beforeId) : -1;
+    if (at >= 0) ids.splice(at, 0, current.pileId);
+    else ids.push(current.pileId);
+    const mode = stateRef.sortMode;
+    mutateDeck(stateRef, (d) => {
+      d.pileOrders = { ...(d.pileOrders || {}), [mode]: ids };
     });
   }
 }
@@ -188,7 +211,7 @@ export function initDrag(matRoot: HTMLElement, state: PlaymatState): void {
     const target = (e.target as HTMLElement).closest?.('[data-drag]') as HTMLElement | null;
     if (!target || e.button !== 0) return;
     const kind = target.dataset.drag as DragSession['kind'];
-    if (kind === 'pile' && state.sortMode !== 'free') return;
+    // pile headers drag in every mode: free repositions, sorted modes reorder
     const holder = kind === 'pile'
       ? (target.closest('[data-pile]') as HTMLElement | null)
       : target;

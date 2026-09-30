@@ -91,6 +91,15 @@ function orderFor(mode: Exclude<SortMode, 'free'>): string[] {
   }
 }
 
+/** Reorder piles by a saved id order; ids not in the order keep their
+ * projection order after the ordered ones. */
+export function applyPileOrder(piles: Pile[], order?: string[]): Pile[] {
+  if (!order?.length) return piles;
+  const pos = new Map(order.map((id, i) => [id, i]));
+  return [...piles].sort((a, b) =>
+    (pos.get(a.id) ?? Infinity) - (pos.get(b.id) ?? Infinity));
+}
+
 export function projectPiles(
   deck: DeckbuilderDeck,
   cardByName: Record<string, DeckbuilderSearchCard | undefined>,
