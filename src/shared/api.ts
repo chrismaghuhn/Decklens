@@ -114,14 +114,11 @@ function processMoxfieldBoard(board: MoxfieldBoard | undefined, target: DeckEntr
 export async function fetchMoxfieldDeck(deckId: string, apiUrl: string): Promise<{ deck: Deck; name: string }> {
   let data: MoxfieldDeck;
   try {
-    data = await fetchDeckJson([
-      ...buildApiFallbackPaths(`/api/deck/moxfield/${deckId}`),
-      apiUrl,
-    ]) as MoxfieldDeck;
+    data = await fetchDeckJson([apiUrl]) as MoxfieldDeck;
   } catch (err) {
     throw new Error(
-      'Could not fetch from Moxfield (Cloudflare/CORS blocked). ' +
-      'Use Export -> MTGO on Moxfield and paste the decklist here, or configure the /api/deck/moxfield proxy worker.'
+      'Could not fetch from Moxfield (their API blocks browser requests). ' +
+      'Use Export -> MTGO on Moxfield and paste the decklist here.'
     );
   }
 
@@ -161,14 +158,11 @@ interface ArchidektDeck {
 export async function fetchArchidektDeck(deckId: string, apiUrl: string): Promise<{ deck: Deck; name: string }> {
   let data: ArchidektDeck;
   try {
-    data = await fetchDeckJson([
-      ...buildApiFallbackPaths(`/api/deck/archidekt/${deckId}`),
-      apiUrl,
-    ]) as ArchidektDeck;
+    data = await fetchDeckJson([apiUrl]) as ArchidektDeck;
   } catch (err) {
     throw new Error(
       'Could not fetch from Archidekt. ' +
-      'Try Export -> Copy to Clipboard on Archidekt and paste here, or configure the /api/deck/archidekt proxy worker.'
+      'Try Export -> Copy to Clipboard on Archidekt and paste here.'
     );
   }
 

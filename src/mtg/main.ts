@@ -399,16 +399,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==================== MOXFIELD EXPORT ====================
   document.getElementById('btnMoxfield')?.addEventListener('click', () => app.exportMoxfield());
 
-  // ==================== BETA DASHBOARD + FEEDBACK ====================
-  document.getElementById('btnRefreshBetaDashboard')?.addEventListener('click', () => void app.refreshBetaDashboard());
-  document.getElementById('btnSubmitBetaFeedback')?.addEventListener('click', () => app.submitBetaFeedback());
-  const betaFeedbackInput = document.getElementById('betaFeedbackInput') as HTMLTextAreaElement | null;
-  betaFeedbackInput?.addEventListener('keydown', (event: KeyboardEvent) => {
-    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-      event.preventDefault();
-      app.submitBetaFeedback();
-    }
-  });
   
   // ==================== VERSION MANAGEMENT ====================
   document.getElementById('btnSaveVersion2')?.addEventListener('click', () => {
@@ -519,13 +509,7 @@ function handleAction(action: string, el: HTMLElement, e: MouseEvent): void {
     case 'flow-top3-continue': app.continueFlowFromTop3Modal(); break;
     case 'close-flow-analysis': app.closeFlowAnalysisSpotlight(); break;
     case 'show-trend-dashboard': app.showTrendDashboard(); break;
-    case 'open-community-page': app.openCommunityPage(); break;
-    case 'community-share-deck': void app.shareCurrentDeckToCommunity(); break;
-    case 'community-refresh': void app.refreshCommunityFeatures(); break;
-    case 'community-upvote': void app.upvoteCommunityDeckById(el.dataset.deckId || ''); break;
     case 'undo-rec-apply': app.undoLastRecommendationApply(); break;
-    case 'refresh-beta-dashboard': void app.refreshBetaDashboard(); break;
-    case 'submit-beta-feedback': app.submitBetaFeedback(); break;
     case 'card-hover': app.showPreview(el.dataset.card || '', e); break;
     case 'card-leave': app.hidePreview(); break;
     case 'show-share': void app.copyShareUrl(); break;
