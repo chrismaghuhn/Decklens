@@ -144,11 +144,35 @@ function openMoreMenu(anchor: HTMLElement, state: PlaymatState): void {
   setTimeout(() => document.addEventListener('mousedown', close), 0);
 }
 
-type Density = 'compact' | 'normal' | 'loose';
-const DENSITY_KEY = 'dl_pm_density';
 const ZOOM_KEY = 'dl_pm_zoom';
 const ZOOM_MIN = 0.5;
-const ZOOM_MAX = 1.2;
+const ZOOM_MAX = 1.5;
+
+// Visible strip per stacked card (px of the card that peeks out).
+const STRIP_KEY = 'dl_pm_strip';
+const STRIP_MIN = 16;
+const STRIP_MAX = 88;
+const STRIP_DEFAULT = 44;
+
+function currentStrip(): number {
+  const v = Number(localStorage.getItem(STRIP_KEY));
+  if (Number.isFinite(v) && v >= STRIP_MIN && v <= STRIP_MAX) return v;
+  // migrate the old S/M/L preset
+  const legacy = localStorage.getItem('dl_pm_density');
+  if (legacy === 'compact') return 22;
+  if (legacy === 'loose') return 78;
+  return STRIP_DEFAULT;
+}
+
+function applyStrip(px: number): void {
+  (document.getElementById('pmMat') as HTMLElement).style.setProperty('--pm-strip', `${px}px`);
+}
+
+function setStrip(px: number): void {
+  const clamped = Math.min(STRIP_MAX, Math.max(STRIP_MIN, Math.round(px)));
+  localStorage.setItem(STRIP_KEY, String(clamped));
+  applyStrip(clamped);
+}
 
 function currentZoom(): number {
   const v = Number(localStorage.getItem(ZOOM_KEY));
@@ -164,20 +188,11 @@ function applyZoom(zoom: number): void {
 }
 
 function setZoom(zoom: number): void {
-  const clamped = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(zoom * 10) / 10));
+  const clamped = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(zoom * 20) / 20));
   localStorage.setItem(ZOOM_KEY, String(clamped));
   applyZoom(clamped);
-}
-
-function currentDensity(): Density {
-  const v = localStorage.getItem(DENSITY_KEY);
-  return v === 'compact' || v === 'loose' ? v : 'normal';
-}
-
-function applyDensity(density: Density): void {
-  const mat = document.getElementById('pmMat')!;
-  mat.classList.toggle('pm-density-compact', density === 'compact');
-  mat.classList.toggle('pm-density-loose', density === 'loose');
+  const slider = document.getElementById('pmZoomSlider') as HTMLInputElement | null;
+  if (slider) slider.value = String(Math.round(clamped * 100));
 }
 
 function renderSortbar(root: HTMLElement, state: PlaymatState): void {
@@ -196,41 +211,40 @@ function renderSortbar(root: HTMLElement, state: PlaymatState): void {
     root.appendChild(b);
   }
 
-  const density = document.createElement('div');
-  density.className = 'pm-density';
-  density.title = 'Pile density';
-  const options: Array<[Density, string]> = [['compact', 'S'], ['normal', 'M'], ['loose', 'L']];
-  for (const [value, label] of options) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = label;
-    b.className = currentDensity() === value ? 'on' : '';
-    b.setAttribute('aria-label', `${value} pile density`);
-    b.addEventListener('click', () => {
-      localStorage.setItem(DENSITY_KEY, value);
-      applyDensity(value);
-      density.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
-    });
-    density.appendChild(b);
-  }
-  root.appendChild(density);
+  const strip = document.createElement('div');
+  strip.className = 'pm-zoom pm-stripctl';
+  strip.title = 'Stack spacing — how much of each card peeks out';
+  strip.innerHTML = iconSvg('layers');
+  const stripSlider = document.createElement('input');
+  stripSlider.type = 'range';
+  stripSlider.min = String(STRIP_MIN);
+  stripSlider.max = String(STRIP_MAX);
+  stripSlider.step = '4';
+  stripSlider.value = String(currentStrip());
+  stripSlider.setAttribute('aria-label', 'Stack spacing');
+  stripSlider.addEventListener('input', () => setStrip(Number(stripSlider.value)));
+  strip.appendChild(stripSlider);
+  root.appendChild(strip);
 
   const zoom = document.createElement('div');
   zoom.className = 'pm-zoom';
-  zoom.title = 'Mat zoom';
-  const zoomBtn = (label: string, fn: () => void, cls = ''): HTMLButtonElement => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = label;
-    if (cls) b.className = cls;
-    b.addEventListener('click', fn);
-    return b;
-  };
-  zoom.append(
-    zoomBtn('−', () => setZoom(currentZoom() - 0.1)),
-    zoomBtn(`${Math.round(currentZoom() * 100)}%`, () => setZoom(1), 'pm-zoom-value'),
-    zoomBtn('+', () => setZoom(currentZoom() + 0.1)),
-  );
+  zoom.title = 'Card size — drag to scale, click the % to reset';
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.id = 'pmZoomSlider';
+  slider.min = String(ZOOM_MIN * 100);
+  slider.max = String(ZOOM_MAX * 100);
+  slider.step = '5';
+  slider.value = String(Math.round(currentZoom() * 100));
+  slider.setAttribute('aria-label', 'Card size');
+  slider.addEventListener('input', () => setZoom(Number(slider.value) / 100));
+  const value = document.createElement('button');
+  value.type = 'button';
+  value.className = 'pm-zoom-value';
+  value.textContent = `${Math.round(currentZoom() * 100)}%`;
+  value.title = 'Reset to 100%';
+  value.addEventListener('click', () => setZoom(1));
+  zoom.append(slider, value);
   root.appendChild(zoom);
 
   const hud = document.createElement('div');
@@ -283,7 +297,7 @@ async function boot(): Promise<void> {
   // seed first snapshot so Ctrl+Z has a floor
   pushSnapshot(state.deck);
 
-  applyDensity(currentDensity());
+  applyStrip(currentStrip());
   applyZoom(currentZoom());
   initMat(document.getElementById('pmMat')!, state);
   initDrag(document.getElementById('pmMat')!, state);

@@ -147,44 +147,54 @@ body {
   border-color: var(--accent);
   box-shadow: 2px 2px 0 rgba(74, 36, 24, 0.9);
 }
-.pm-density {
-  margin-left: 18px;
-  display: flex;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  overflow: hidden;
-  flex: none;
-}
-.pm-density button {
-  all: unset;
-  cursor: pointer;
-  padding: 3px 9px;
-  font: 600 0.62rem var(--font-mono);
-  color: var(--text-muted);
-  transition: color 0.12s, background 0.12s;
-}
-.pm-density button:hover { color: var(--text-hi); }
-.pm-density button.on { color: #fff; background: var(--accent); }
+.pm-stripctl { margin-left: 18px; }
+.pm-stripctl .ui-ic { width: 0.95em; height: 0.95em; color: var(--text-muted); flex: none; }
+.pm-stripctl input[type="range"] { width: 72px; }
 
 .pm-zoom {
   margin-left: 10px;
   display: flex;
   align-items: center;
+  gap: 8px;
+  padding: 3px 10px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  overflow: hidden;
   flex: none;
 }
-.pm-zoom button {
+.pm-zoom input[type="range"] {
+  appearance: none;
+  width: 92px;
+  height: 3px;
+  background: var(--surface-3);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.pm-zoom input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  transition: transform 0.1s;
+}
+.pm-zoom input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.25); }
+.pm-zoom input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+}
+.pm-zoom-value {
   all: unset;
   cursor: pointer;
-  padding: 3px 8px;
+  min-width: 32px;
+  text-align: center;
   font: 600 0.62rem var(--font-mono);
-  color: var(--text-muted);
-  transition: color 0.12s;
+  color: var(--text-mid);
 }
-.pm-zoom button:hover { color: var(--text-hi); }
-.pm-zoom .pm-zoom-value { min-width: 34px; text-align: center; color: var(--text-mid); }
+.pm-zoom-value:hover { color: var(--accent-strong); }
 
 .pm-hud {
   margin-left: auto;
@@ -543,9 +553,9 @@ body {
   cursor: pointer; transition: transform 0.12s var(--ease);
 }
 .pm-card img { width: 100%; height: 100%; object-fit: cover; border-radius: 7px; display: block; }
-.pm-stack .pm-card { margin-top: -138px; }
-.pm-density-compact .pm-stack .pm-card { margin-top: -160px; }
-.pm-density-loose .pm-stack .pm-card { margin-top: -104px; }
+/* card height at 130px width (63/88 ratio) is ~182px; --pm-strip is the
+   visible sliver per stacked card, set by the sortbar spacing slider */
+.pm-stack .pm-card { margin-top: calc(var(--pm-strip, 44px) - 182px); }
 .pm-stack .pm-card:first-child { margin-top: 0; }
 .pm-stack .pm-card:hover { transform: translateY(-16px) rotate(-1deg); z-index: 9; outline: 2px solid var(--accent); }
 
