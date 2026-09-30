@@ -52,14 +52,16 @@ export function layoutFor(deck: DeckbuilderDeck, piles: Pile[]): MatLayout {
   }
 
   if (newPiles.length > 0) {
-    const maxCol = result.piles.reduce((m, p) => Math.max(m, p.col), FIRST_FREE_COL - PILE_SPAN);
-    newPiles.forEach((pile, i) => {
-      result.piles.push({
-        id: pile.id,
-        col: maxCol + PILE_SPAN * (i + 1),
-        row: 0,
-      });
-    });
+    // fill free columns from the left so a shared pile id parked far
+    // right (e.g. pile-lands across groupings) cannot push everything out
+    const used = result.piles.map((p) => p.col);
+    const isFree = (c: number): boolean => used.every((u) => Math.abs(u - c) >= PILE_SPAN);
+    for (const pile of newPiles) {
+      let col = FIRST_FREE_COL;
+      while (!isFree(col)) col += PILE_SPAN;
+      used.push(col);
+      result.piles.push({ id: pile.id, col, row: 0 });
+    }
   }
 
   return result;

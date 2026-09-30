@@ -28,14 +28,22 @@ describe('playmat layout', () => {
     expect(new Set(cols).size).toBe(cols.length); // no column collisions
   });
 
-  test('reconcile keeps existing positions, appends new top-right, drops vanished', () => {
+  test('reconcile keeps existing positions, fills new piles into free columns from the left', () => {
     const deck = createEmptyDeck('L');
     deck.matLayout = { piles: [{ id: 'a', col: 5, row: 3 }, { id: 'gone', col: 9, row: 9 }] } as MatLayout;
     const layout = layoutFor(deck, [pile('a'), pile('b')]);
     expect(layout.piles.find((p) => p.id === 'a')).toMatchObject({ col: 5, row: 3 });
-    // new piles start at row 0, right of the occupied columns
-    expect(layout.piles.find((p) => p.id === 'b')).toMatchObject({ row: 0, col: 7 });
+    // 'b' takes the leftmost free slot (col 2 is clear of 'a' at col 5)
+    expect(layout.piles.find((p) => p.id === 'b')).toMatchObject({ row: 0, col: 2 });
     expect(layout.piles.find((p) => p.id === 'gone')).toBeUndefined();
+  });
+
+  test('a far-right shared pile does not push new piles to the right', () => {
+    const deck = createEmptyDeck('S');
+    deck.matLayout = { piles: [{ id: 'pile-lands', col: 20, row: 0 }] } as MatLayout;
+    const layout = layoutFor(deck, [pile('pile-lands'), pile('pile-1'), pile('pile-2')]);
+    expect(layout.piles.find((p) => p.id === 'pile-1')).toMatchObject({ row: 0, col: 2 });
+    expect(layout.piles.find((p) => p.id === 'pile-2')).toMatchObject({ row: 0, col: 4 });
   });
 
   test('storage roundtrip preserves matLayout', () => {
