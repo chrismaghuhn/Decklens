@@ -1,3 +1,4 @@
+import { iconSvg } from '../shared/icons.js';
 import {
   fetchDeckbuilderAutocomplete,
   resolveDeckbuilderCards,
@@ -238,7 +239,7 @@ function showLayoutModeOnboarding(): void {
 
   if (!hasSeenOnboarding.layoutMode) {
     showToast({
-      message: '💡 New: Switch between Classic and Grid layouts using the toggle in the header!',
+      message: 'New: Switch between Classic and Grid layouts using the toggle in the header!',
       type: 'info',
       duration: 8000,
     });
@@ -272,7 +273,7 @@ function showPresetPicker(): void {
       const card = document.createElement('button');
       card.className = 'preset-card';
       card.innerHTML = `
-        <div class="preset-icon">${preset.icon}</div>
+        <div class="preset-icon">${iconSvg(preset.icon)}</div>
         <div class="preset-name">${preset.name}</div>
         <div class="preset-desc">${preset.description}</div>
       `;
@@ -280,7 +281,7 @@ function showPresetPicker(): void {
         applyPreset(preset.id);
         closePresetPicker();
         showToast({
-          message: `✨ Applied "${preset.name}" layout`,
+          message: `Applied "${preset.name}" layout`,
           type: 'success',
           duration: 3000,
         });
@@ -566,7 +567,7 @@ function detectAndPromoteCommander(
         onClick: () => {
           moveEntry('mainboard', 'commander', candidate.name);
           saveAndRender();
-          showToast({ message: `✅ ${candidate.name} set as commander.`, type: 'success' });
+          showToast({ message: `${candidate.name} set as commander.`, type: 'success' });
         },
       },
     });
@@ -588,7 +589,7 @@ function detectAndPromoteCommander(
       onClick: () => {
         moveEntry('mainboard', 'commander', top.name);
         saveAndRender();
-        showToast({ message: `✅ ${top.name} set as commander.`, type: 'success' });
+        showToast({ message: `${top.name} set as commander.`, type: 'success' });
       },
     },
   });
@@ -837,7 +838,7 @@ function renderDeckOverview(): void {
 
   // Progress bar: X/100 cards
   const progressPct = Math.min(100, Math.round((deckTotal / 100) * 100));
-  const progressColor = deckTotal > 100 ? '#f87171' : deckTotal >= 99 ? '#34d399' : 'var(--accent, #7c6cf6)';
+  const progressColor = deckTotal > 100 ? '#f87171' : deckTotal >= 99 ? '#34d399' : 'var(--accent, #e0522c)';
   const progressWrap = document.createElement('div');
   progressWrap.className = 'overview-progress';
   progressWrap.innerHTML =
@@ -1573,7 +1574,7 @@ function generateContextualTips(
     .map((f) => f.detail);
   if (reasons.length > 0) {
     tips.push({
-      icon: '\uD83C\uDFC6',
+      icon: 'trophy',
       text: `Bracket ${est.bracket} (${bracketLabels[est.bracket]}): ${reasons.join('. ')}.`,
     });
   }
@@ -1581,12 +1582,12 @@ function generateContextualTips(
   // CMC tips
   if (est.avgCmc < 2.5) {
     tips.push({
-      icon: '\u26A1',
+      icon: 'bolt',
       text: `Avg CMC ${est.avgCmc.toFixed(1)} is very aggressive. Consider adding card draw to sustain pressure past turn 5.`,
     });
   } else if (est.avgCmc > 4.0) {
     tips.push({
-      icon: '\uD83D\uDC22',
+      icon: 'gauge',
       text: `Avg CMC ${est.avgCmc.toFixed(1)} is high. You'll need strong ramp to keep up. Consider cutting cards above 6 CMC.`,
     });
   }
@@ -1594,7 +1595,7 @@ function generateContextualTips(
   // Tutor tip
   if (est.tutorCount >= 5) {
     tips.push({
-      icon: '\uD83D\uDD0D',
+      icon: 'search',
       text: `${est.tutorCount} tutors detected \u2014 this significantly raises consistency and power level.`,
     });
   }
@@ -1602,7 +1603,7 @@ function generateContextualTips(
   // Salt tip
   if (est.salt > 7) {
     tips.push({
-      icon: '\uD83E\uDDE2',
+      icon: 'tag',
       text: `Salt score ${est.salt.toFixed(1)}/10 is very high. Expect focused targeting from opponents. Consider your table's social contract.`,
     });
   }
@@ -1611,7 +1612,7 @@ function generateContextualTips(
   for (const comp of health.components) {
     if (comp.score < 40 && comp.recommendations.length > 0) {
       tips.push({
-        icon: '\u26A0\uFE0F',
+        icon: 'warn',
         text: `${comp.label}: ${comp.recommendations[0].text}`,
       });
     }
@@ -1636,7 +1637,7 @@ function renderDeckTips(deck: DeckbuilderDeck): void {
 
     const icon = document.createElement('span');
     icon.className = 'tip-icon';
-    icon.textContent = tip.icon;
+    icon.innerHTML = iconSvg(tip.icon);
 
     const text = document.createElement('span');
     text.textContent = tip.text;
@@ -1679,7 +1680,7 @@ function renderPowerBracket(deck: DeckbuilderDeck): void {
 
   const archLabel = document.createElement('span');
   archLabel.className = 'power-label';
-  archLabel.style.color = 'var(--accent-dim, #5b4fc0)';
+  archLabel.style.color = 'var(--accent-dim, #8a3c22)';
   archLabel.textContent = `${est.dominant} \u00B7 ${est.saltLabel}`;
 
   info.append(bracketLabel, archLabel);
@@ -2321,9 +2322,9 @@ function renderPricing(): void {
       saveAndRender();
       // Show toast with synergy impact
       if (delta > 0) {
-        showToast({ message: `Swapped ${cutName} → ${addName}  ⬆ Health +${delta}`, type: 'success' });
+        showToast({ message: `Swapped ${cutName} → ${addName}  Health +${delta}`, type: 'success' });
       } else if (delta < 0) {
-        showToast({ message: `Swapped ${cutName} → ${addName}  ⬇ Health ${delta}`, type: 'warning' });
+        showToast({ message: `Swapped ${cutName} → ${addName}  Health ${delta}`, type: 'warning' });
       } else {
         showToast({ message: `Swapped ${cutName} → ${addName}  → Health unchanged`, type: 'info' });
       }

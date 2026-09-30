@@ -666,11 +666,11 @@ function renderBanlistBadge(): void {
   if (!badge) return;
   if (issues.length > 0) {
     badge.className = 'banlist-badge illegal';
-    badge.textContent = `⚠ ${label} — ${issues.length} issue${issues.length > 1 ? 's' : ''}`;
+    badge.textContent = `${label} — ${issues.length} issue${issues.length > 1 ? 's' : ''}`;
     badge.title = issues.join('\n');
   } else {
     badge.className = 'banlist-badge legal';
-    badge.textContent = `✓ ${label} Legal`;
+    badge.textContent = `${label} Legal`;
     badge.title = '';
   }
   badge.style.display = 'inline-flex';
@@ -910,7 +910,7 @@ function renderExtendedStats(): void {
       };
       replaceChildren(attrEl, ...sortedAttrs.map(([attr, count]) => {
         const pct = Math.round((count / maxAttr) * 100);
-        const color = attrColors[attr] || 'var(--accent, #7c6cf6)';
+        const color = attrColors[attr] || 'var(--accent, #e0522c)';
         return h('div', { className: 'ext-bar-row' },
           h('span', { className: 'ext-bar-label' }, attr),
           h('div', { className: 'ext-bar-track' },
@@ -1009,7 +1009,7 @@ function detectArchetypes(): void {
           return h('div', { className: 'arch-bar-row' },
             h('span', { className: 'arch-bar-name' }, name),
             h('div', { className: 'arch-bar-track' },
-              h('div', { className: 'arch-bar-fill', style: `width:${pct}%; background:var(--accent, #7c6cf6);` })
+              h('div', { className: 'arch-bar-fill', style: `width:${pct}%; background:var(--accent, #e0522c);` })
             ),
             h('span', { className: 'arch-bar-pct' }, `${pct}%`)
           );
@@ -1190,7 +1190,7 @@ export function openModal(id: number): void {
           h('div', { className: 'card-meta' },
             h('span', { className: 'type' }, card.type),
             card.attribute ? h('span', { className: `attr attr-${card.attribute.toLowerCase()}` }, card.attribute) : null,
-            card.level ? h('span', { className: 'level' }, `★${card.level}`) : null
+            card.level ? h('span', { className: 'level' }, `${card.level}`) : null
           ),
           card.atk !== undefined ? h('div', { className: 'stats' }, `ATK ${card.atk} / DEF ${card.def ?? '?'}`) : null,
           h('p', { className: 'desc' }, card.desc),
@@ -1815,9 +1815,9 @@ function renderDeckSummaryToCanvas(
   ctx.fillText('Type Breakdown', 30, 230);
   
   const typeY = 255;
-  drawStatBox(ctx, 30, typeY, 160, 60, '🐲 Monsters', String(stats.monsters), '#e74c3c');
-  drawStatBox(ctx, 210, typeY, 160, 60, '✨ Spells', String(stats.spells), '#2ecc71');
-  drawStatBox(ctx, 390, typeY, 160, 60, '🪤 Traps', String(stats.traps), '#e91e63');
+  drawStatBox(ctx, 30, typeY, 160, 60, 'Monsters', String(stats.monsters), '#e74c3c');
+  drawStatBox(ctx, 210, typeY, 160, 60, 'Spells', String(stats.spells), '#2ecc71');
+  drawStatBox(ctx, 390, typeY, 160, 60, 'Traps', String(stats.traps), '#e91e63');
   
   // Stats section
   ctx.fillStyle = '#fff';
@@ -2700,9 +2700,9 @@ export function generateDNA(): void {
     const pct = (n: number) => total > 0 ? ((n / total) * 100).toFixed(0) : '0';
     replaceChildren(profile,
       h('div', { style: 'margin-top:0.5rem;' },
-        h('div', {}, `🐲 Monsters: ${counts.monster} (${pct(counts.monster)}%)`),
-        h('div', {}, `✨ Spells: ${counts.spell} (${pct(counts.spell)}%)`),
-        h('div', {}, `🪤 Traps: ${counts.trap} (${pct(counts.trap)}%)`),
+        h('div', {}, `Monsters: ${counts.monster} (${pct(counts.monster)}%)`),
+        h('div', {}, `Spells: ${counts.spell} (${pct(counts.spell)}%)`),
+        h('div', {}, `Traps: ${counts.trap} (${pct(counts.trap)}%)`),
       )
     );
   }
@@ -2734,7 +2734,7 @@ export function detectEngines(): void {
     } else {
       replaceChildren(results, fragment(
         ...sorted.slice(0, 5).map(([name, count]) =>
-          h('div', { style: 'margin:0.3rem 0;' }, `⚙️ ${name}: ${count} cards`)
+          h('div', { style: 'margin:0.3rem 0;' }, `${name}: ${count} cards`)
         )
       ));
     }
@@ -2870,10 +2870,10 @@ export function calculateSalt(): void {
   
   const display = $('saltDisplay');
   if (display) {
-    const rating = salt > 30 ? '🧂🧂🧂 Very Salty' : salt > 15 ? '🧂🧂 Moderately Salty' : '🧂 Low Salt';
+    const rating = salt > 30 ? 'Very Salty' : salt > 15 ? 'Moderately Salty' : 'Low Salt';
     const children: (HTMLElement | Text)[] = [
       h('div', { style: 'text-align:center;font-size:1.5rem;margin:0.5rem 0;' }, `${salt} Salt Points`),
-      h('div', { style: 'text-align:center;color:var(--accent, #7c6cf6);' }, rating),
+      h('div', { style: 'text-align:center;color:var(--accent, #e0522c);' }, rating),
     ];
     if (saltCards.length > 0) {
       const uniqueSalty = [...new Set(saltCards)];

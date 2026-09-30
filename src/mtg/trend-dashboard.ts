@@ -65,7 +65,7 @@ export class TrendDashboard {
 
     const dashboard = h('div', { className: 'trend-dashboard' },
       h('div', { className: 'dashboard-header' },
-        h('h2', {}, '📊 Meta Trends & Analytics'),
+        h('h2', {}, 'Meta Trends & Analytics'),
         h('button', {
           className: 'close-btn',
           onclick: () => this.hide(),
@@ -82,7 +82,7 @@ export class TrendDashboard {
 
       // Top Cards Section
       h('div', { className: 'dashboard-section' },
-        h('h3', {}, '⭐ Your Top Cards'),
+        h('h3', {}, 'Your Top Cards'),
         analytics.topCards.length > 0
           ? h('div', { className: 'card-list' },
               analytics.topCards.map(card => 
@@ -97,7 +97,7 @@ export class TrendDashboard {
 
       // Disliked Cards Section
       analytics.worstCards.length > 0 && h('div', { className: 'dashboard-section' },
-        h('h3', {}, '❌ Cards to Avoid'),
+        h('h3', {}, 'Cards to Avoid'),
         h('div', { className: 'card-list' },
           analytics.worstCards.map(card => 
             h('div', { className: 'trend-card negative' },
@@ -110,7 +110,7 @@ export class TrendDashboard {
 
       // Meta Trends Section
       h('div', { className: 'dashboard-section' },
-        h('h3', {}, '📈 Archetype Trends'),
+        h('h3', {}, 'Archetype Trends'),
         trends.length > 0
           ? h('div', { className: 'trend-list' },
               trends.map(trend => this.renderTrendItem(trend))
@@ -120,7 +120,7 @@ export class TrendDashboard {
 
       // Archetype Preferences
       Object.keys(analytics.archetypePreferences).length > 0 && h('div', { className: 'dashboard-section' },
-        h('h3', {}, '🎯 Your Archetype Preferences'),
+        h('h3', {}, 'Your Archetype Preferences'),
         h('div', { className: 'archetype-preferences' },
           Object.entries(analytics.archetypePreferences)
             .sort((a, b) => b[1] - a[1])
@@ -160,7 +160,7 @@ export class TrendDashboard {
    * Render a trend item
    */
   private renderTrendItem(trend: TrendData): HTMLElement {
-    const trendIcon = trend.trend === 'rising' ? '📈' : trend.trend === 'falling' ? '📉' : '➡️';
+    const trendIcon = trend.trend === 'rising' ? '↑' : trend.trend === 'falling' ? '↓' : '→';
     const weekChangeClass = trend.weekChange > 0 ? 'positive' : trend.weekChange < 0 ? 'negative' : 'neutral';
     const monthChangeClass = trend.monthChange > 0 ? 'positive' : trend.monthChange < 0 ? 'negative' : 'neutral';
 
@@ -196,27 +196,27 @@ export class TrendDashboard {
     const insights: string[] = [];
 
     if (analytics.applyRate > 0.5) {
-      insights.push('🎉 Great! You apply more than 50% of recommendations.');
+      insights.push('Great! You apply more than 50% of recommendations.');
     } else if (analytics.applyRate < 0.2) {
-      insights.push('💡 Tip: Try applying more recommendations to improve your deck.');
+      insights.push('Tip: Try applying more recommendations to improve your deck.');
     }
 
     if (analytics.averageRating > 0.3) {
-      insights.push('😊 You seem happy with the recommendations overall!');
+      insights.push('You seem happy with the recommendations overall!');
     } else if (analytics.averageRating < -0.2) {
-      insights.push('🤔 The recommendations might not match your style. Try adjusting the meta mode.');
+      insights.push('The recommendations might not match your style. Try adjusting the meta mode.');
     }
 
     const topArchetype = Object.entries(analytics.archetypePreferences)
       .sort((a, b) => b[1] - a[1])[0];
     if (topArchetype) {
-      insights.push(`🏆 Your favorite archetype: ${this.formatArchetypeName(topArchetype[0])}`);
+      insights.push(`Your favorite archetype: ${this.formatArchetypeName(topArchetype[0])}`);
     }
 
     if (insights.length === 0) return null;
 
     return h('div', { className: 'dashboard-section insights' },
-      h('h3', {}, '💡 Insights'),
+      h('h3', {}, 'Insights'),
       h('ul', {},
         insights.map(insight => h('li', {}, insight))
       )

@@ -125,7 +125,7 @@ export function showContextMenu(cardName: string, board: DeckBoard, event: Mouse
                 className: 'ctx-color-dot',
                 style: `background: ${cat.color}`,
               }),
-              currentCatId === cat.id ? `${cat.name} ✓` : cat.name,
+              currentCatId === cat.id ? `${cat.name} ` : cat.name,
             ),
           ),
           h('button', {

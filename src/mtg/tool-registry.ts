@@ -34,7 +34,7 @@ export const MTG_TOOLS: readonly MTGToolDefinition[] = [
     description: 'Track cards you own and check buildability',
     panelId: 'collectionPanel',
     defaultEnabled: true,
-    icon: '📦',
+    icon: 'package',
     category: 'primary',
   },
   {
@@ -43,7 +43,7 @@ export const MTG_TOOLS: readonly MTGToolDefinition[] = [
     description: 'Find best prices across vendors',
     panelId: 'buyPanel',
     defaultEnabled: true,
-    icon: '🛒',
+    icon: 'coin',
     category: 'primary',
   },
   {
@@ -52,7 +52,7 @@ export const MTG_TOOLS: readonly MTGToolDefinition[] = [
     description: 'AI-powered card recommendations',
     panelId: 'recsPanel',
     defaultEnabled: true,
-    icon: '💡',
+    icon: 'lamp',
     category: 'primary',
   },
   {
@@ -61,7 +61,7 @@ export const MTG_TOOLS: readonly MTGToolDefinition[] = [
     description: 'Track cards you want to acquire',
     panelId: 'wishlistPanel',
     defaultEnabled: true,
-    icon: '⭐',
+    icon: 'sparkle',
     category: 'primary',
   },
   {
@@ -70,7 +70,7 @@ export const MTG_TOOLS: readonly MTGToolDefinition[] = [
     description: 'Draw and evaluate opening hands',
     panelId: 'testHandPanel',
     defaultEnabled: true,
-    icon: '✋',
+    icon: 'hand',
     category: 'primary',
   },
   {
@@ -79,7 +79,7 @@ export const MTG_TOOLS: readonly MTGToolDefinition[] = [
     description: 'Mana curve, type breakdown, statistics',
     panelId: 'analysisPanel',
     defaultEnabled: true,
-    icon: '📊',
+    icon: 'chart',
     category: 'primary',
   },
   {
@@ -88,7 +88,7 @@ export const MTG_TOOLS: readonly MTGToolDefinition[] = [
     description: 'Test deck solo gameplay',
     panelId: 'goldfishPanel',
     defaultEnabled: true,
-    icon: '🐟',
+    icon: 'dice',
     category: 'primary',
   },
   {
@@ -97,7 +97,7 @@ export const MTG_TOOLS: readonly MTGToolDefinition[] = [
     description: 'Find cheaper card replacements',
     panelId: 'budgetPanel',
     defaultEnabled: true,
-    icon: '💰',
+    icon: 'coin',
     category: 'primary',
   },
   {
@@ -106,7 +106,7 @@ export const MTG_TOOLS: readonly MTGToolDefinition[] = [
     description: 'Compare two deck lists side-by-side',
     panelId: 'comparePanel',
     defaultEnabled: true,
-    icon: '⇄',
+    icon: 'scale',
     category: 'primary',
   },
   {
@@ -115,7 +115,7 @@ export const MTG_TOOLS: readonly MTGToolDefinition[] = [
     description: 'Export deck in various formats',
     panelId: 'exportPanel',
     defaultEnabled: true,
-    icon: '💾',
+    icon: 'save',
     category: 'primary',
   },
   
@@ -126,7 +126,7 @@ export const MTG_TOOLS: readonly MTGToolDefinition[] = [
     description: 'Hypergeometric probability calculations',
     panelId: 'hyperPanel',
     defaultEnabled: true,
-    icon: '🎯',
+    icon: 'target',
     category: 'secondary',
   },
   {
@@ -135,7 +135,7 @@ export const MTG_TOOLS: readonly MTGToolDefinition[] = [
     description: 'Find tokens your deck creates',
     panelId: 'tokensPanel',
     defaultEnabled: true,
-    icon: '🎭',
+    icon: 'mask',
     category: 'secondary',
   },
   {
@@ -144,7 +144,7 @@ export const MTG_TOOLS: readonly MTGToolDefinition[] = [
     description: 'Estimate deck power level',
     panelId: 'powerPanel',
     defaultEnabled: false,
-    icon: '⚡',
+    icon: 'bolt',
     category: 'secondary',
   },
   {
@@ -153,7 +153,7 @@ export const MTG_TOOLS: readonly MTGToolDefinition[] = [
     description: 'How frustrating is your deck?',
     panelId: 'saltPanel',
     defaultEnabled: false,
-    icon: '🧂',
+    icon: 'salt',
     category: 'secondary',
   },
   {
@@ -162,7 +162,7 @@ export const MTG_TOOLS: readonly MTGToolDefinition[] = [
     description: 'Find infinite combos in your deck',
     panelId: 'combosPanel',
     defaultEnabled: true,
-    icon: '♾️',
+    icon: 'infinity',
     category: 'secondary',
   },
   {
@@ -171,7 +171,7 @@ export const MTG_TOOLS: readonly MTGToolDefinition[] = [
     description: 'Sideboard and gameplan plans',
     panelId: 'matchupPanel',
     defaultEnabled: true,
-    icon: '🧭',
+    icon: 'target',
     category: 'secondary',
   },
   {
@@ -180,7 +180,7 @@ export const MTG_TOOLS: readonly MTGToolDefinition[] = [
     description: 'Deck archetype fingerprint',
     panelId: 'dnaPanel',
     defaultEnabled: true,
-    icon: '🧬',
+    icon: 'dna',
     category: 'secondary',
   },
   {
@@ -189,7 +189,7 @@ export const MTG_TOOLS: readonly MTGToolDefinition[] = [
     description: 'Discover card interactions',
     panelId: 'synergyPanel',
     defaultEnabled: true,
-    icon: '🔗',
+    icon: 'link',
     category: 'secondary',
   },
   {
@@ -198,7 +198,7 @@ export const MTG_TOOLS: readonly MTGToolDefinition[] = [
     description: 'Save and restore deck versions',
     panelId: 'versionsPanel',
     defaultEnabled: true,
-    icon: '📚',
+    icon: 'book',
     category: 'secondary',
   },
 ] as const;

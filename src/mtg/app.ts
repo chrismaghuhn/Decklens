@@ -4,6 +4,7 @@
 // Sprint 2 S2-A3: Using STORAGE_KEYS instead of magic strings.
 
 import { h, replaceChildren, fragment, mapChildren } from '../shared/dom.js';
+import { iconEl } from '../shared/icons.js';
 import { STORAGE_KEYS, storageGet, storageSet } from '../shared/storage.js';
 import { fetchRobust } from '../shared/fetch.js';
 import { importDeckFromUrl } from '../shared/api.js';
@@ -1934,7 +1935,7 @@ export function openCardMenu(cardName: string, zone: string, anchorEl: HTMLEleme
   if (!entry) return;
   
   const zones = ['main', 'sideboard', 'commander'] as const;
-  const labels: Record<string, string> = { main: '📋 Main Deck', sideboard: '📁 Sideboard', commander: '👑 Commander' };
+  const labels: Record<string, string> = { main: 'Main Deck', sideboard: 'Sideboard', commander: 'Commander' };
   const moveTargets = zones.filter(z => z !== zone);
   
   // Build menu items
@@ -1982,7 +1983,7 @@ export function openCardMenu(cardName: string, zone: string, anchorEl: HTMLEleme
     'data-action': 'remove-card', 
     'data-card': cardName, 
     'data-zone': zone
-  }, '🗑 Remove'));
+  }, 'Remove'));
   
   const menu = h('div', { className: 'card-menu' }, ...items);
   
@@ -2328,7 +2329,7 @@ function renderTypeBars(): void {
   
   replaceChildren(el, ...entries.map(([type, count]) => {
     const pct = Math.round((count / max) * 100);
-    const color = typeColors[type] || 'var(--accent, #7c6cf6)';
+    const color = typeColors[type] || 'var(--accent, #e0522c)';
     return h('div', { className: 'type-bar-row' },
       h('span', { className: 'type-bar-label' }, type),
       h('div', { className: 'type-bar-track' },
@@ -2398,7 +2399,7 @@ function renderColorSources(): void {
   if (!el) return;
   
   const sources: Record<string, number> = { W: 0, U: 0, B: 0, R: 0, G: 0 };
-  const colorNames: Record<string, string> = { W: '☀️', U: '💧', B: '💀', R: '🔥', G: '🌲' };
+  const colorNames: Record<string, string> = { W: 'W', U: 'U', B: 'B', R: 'R', G: 'G' };
   const needs: Record<string, number> = { W: 0, U: 0, B: 0, R: 0, G: 0 };
   
   // Count pips needed in mana costs
@@ -3461,7 +3462,7 @@ export function calculateSalt(): void {
   
   if (scoreEl) {
     scoreEl.textContent = analysis.score.toFixed(1);
-    scoreEl.style.color = analysis.score > 7 ? 'var(--banned)' : analysis.score > 4 ? 'var(--accent, #7c6cf6)' : 'var(--legal)';
+    scoreEl.style.color = analysis.score > 7 ? 'var(--banned)' : analysis.score > 4 ? 'var(--accent, #e0522c)' : 'var(--legal)';
   }
   if (labelEl) {
     labelEl.textContent = analysis.label;
@@ -3497,7 +3498,7 @@ export function findSynergies(): void {
           'div',
           { className: 'tool-result-list' },
           ...synergies.slice(0, 10).map(s =>
-            h('div', { className: 'tool-result-item compact' }, `🔗 ${s}`)
+            h('div', { className: 'tool-result-item compact' }, `${s}`)
           )
         )
       );
@@ -4065,7 +4066,7 @@ function renderRecommendationPanels(): void {
           'data-card-name': item.cardName,
           title: 'This recommendation is helpful',
           style: 'background:rgba(31,168,85,0.2);border:1px solid rgba(31,168,85,0.4);border-radius:4px;padding:0.25rem 0.5rem;cursor:pointer;',
-        }, '👍'),
+        }, iconEl('thumbs-up')),
         h('button', {
           className: 'feedback-btn thumbs-down',
           'data-action': 'feedback-thumbs-down',
@@ -4073,7 +4074,7 @@ function renderRecommendationPanels(): void {
           'data-card-name': item.cardName,
           title: 'This recommendation is not helpful',
           style: 'background:rgba(168,32,53,0.2);border:1px solid rgba(168,32,53,0.4);border-radius:4px;padding:0.25rem 0.5rem;cursor:pointer;',
-        }, '👎'),
+        }, iconEl('thumbs-down')),
       ),
     );
   };
@@ -4100,25 +4101,25 @@ function renderRecommendationPanels(): void {
             title: useArchetypeDetection
               ? 'Archetype detection: analyzes deck and shows counter-cards'
               : 'Enable archetype detection for anti-meta recommendations',
-          }, useArchetypeDetection ? '🎯 Archetype Detection: On' : '🎯 Archetype Detection: Off'),
+          }, useArchetypeDetection ? 'Archetype Detection: On' : 'Archetype Detection: Off'),
           h('button', {
             className: 'hand-btn',
             type: 'button',
             'data-action': 'show-trend-dashboard',
             title: 'View meta trends and your analytics',
-          }, '📊 Trends'),
+          }, 'Trends'),
           h('button', {
             className: 'hand-btn',
             type: 'button',
             'data-action': 'open-community-page',
             title: 'Open dedicated community page',
-          }, '🧭 Community'),
+          }, 'Community'),
           h('button', {
             className: 'hand-btn',
             type: 'button',
             'data-action': 'community-share-deck',
             title: 'Share current deck to community feed',
-          }, '🌍 Share Deck'),
+          }, 'Share Deck'),
           h('button', {
             className: 'hand-btn',
             type: 'button',
@@ -4204,7 +4205,7 @@ function renderRecommendationPanels(): void {
         // Archetype Detection Display (only if enabled and detected)
         useArchetypeDetection && currentArchetypeDetection?.primaryArchetype
           ? h('div', { className: 'archetype-detection', style: 'margin-top:1rem;padding:0.75rem;background:rgba(201,168,76,0.1);border-radius:8px;border:1px solid rgba(201,168,76,0.3);' },
-              h('div', { style: 'font-weight:600;color:var(--accent, #7c6cf6);margin-bottom:0.5rem;' }, '🎯 Detected Archetype'),
+              h('div', { style: 'font-weight:600;color:var(--accent, #e0522c);margin-bottom:0.5rem;' }, 'Detected Archetype'),
               h('div', { style: 'font-size:1.1rem;margin-bottom:0.25rem;' }, 
                 getArchetypeById(currentArchetypeDetection.primaryArchetype)?.name || currentArchetypeDetection.primaryArchetype
               ),
@@ -4214,14 +4215,14 @@ function renderRecommendationPanels(): void {
                   )
                 : null,
               currentArchetypeDetection.hybridArchetype
-                ? h('div', { style: 'font-size:0.8rem;color:var(--accent, #7c6cf6);margin-top:0.25rem;' }, '(Hybrid Strategy)')
+                ? h('div', { style: 'font-size:0.8rem;color:var(--accent, #e0522c);margin-top:0.25rem;' }, '(Hybrid Strategy)')
                 : null
             )
           : null,
         // Anti-Meta Recommendations (only if enabled and available)
         useArchetypeDetection && currentAntiMetaRecommendations.length > 0
           ? h('div', { className: 'anti-meta-section', style: 'margin-top:1rem;' },
-              h('div', { style: 'font-weight:600;color:var(--crimson-glow);margin-bottom:0.5rem;' }, '🛡️ Anti-Meta Recommendations'),
+              h('div', { style: 'font-weight:600;color:var(--crimson-glow);margin-bottom:0.5rem;' }, 'Anti-Meta Recommendations'),
               ...currentAntiMetaRecommendations.map(rec => 
                 h('div', { 
                   className: 'anti-meta-item',
@@ -4236,7 +4237,7 @@ function renderRecommendationPanels(): void {
                       key: counter.cardName,
                       style: `font-size:0.8rem;padding:0.25rem 0.5rem;margin:0.25rem 0;border-radius:4px;display:inline-block;margin-right:0.5rem;${counter.fitsColorIdentity ? 'background:rgba(31,168,85,0.2);' : 'background:rgba(255,255,255,0.05);'}`,
                     },
-                      `${counter.cardName} ${counter.fitsColorIdentity ? '✓' : '⚠'}`,
+                      `${counter.cardName} ${counter.fitsColorIdentity ? '' : ''}`,
                       h('span', { style: 'font-size:0.7rem;color:var(--text-lo, #9aa0ae);margin-left:0.25rem;' }, `${counter.effectiveness}%`)
                     )
                   )
@@ -4316,8 +4317,8 @@ export async function toggleArchetypeDetection(mode: string): Promise<void> {
 
   renderRecommendationPanels();
   showToast(useArchetypeDetection
-    ? '🎯 Archetype detection enabled: analyzes deck for anti-meta recommendations'
-    : '🎯 Archetype detection disabled');
+    ? 'Archetype detection enabled: analyzes deck for anti-meta recommendations'
+    : 'Archetype detection disabled');
 
   // If we have a deck loaded, refresh recommendations
   if (currentDeck && recommendationItemsCache.length > 0) {
@@ -4352,8 +4353,8 @@ export function trackRecommendationFeedback(
 
   // Show toast
   showToast(rating === 'up' 
-    ? `👍 Thanks for the feedback! We'll recommend more cards like ${cardName}.`
-    : `👎 Thanks for the feedback! We'll recommend fewer cards like ${cardName}.`
+    ? `Thanks for the feedback! We'll recommend more cards like ${cardName}.`
+    : `Thanks for the feedback! We'll recommend fewer cards like ${cardName}.`
   );
 
   // Update button appearance
@@ -5197,7 +5198,7 @@ function updateToolsState(): void {
         h(
           'div',
           { className: 'tool-result-list' },
-          ...tokenCards.map(t => h('div', { className: 'tool-result-item compact' }, `🎭 ${t}`))
+          ...tokenCards.map(t => h('div', { className: 'tool-result-item compact' }, `${t}`))
         )
       );
     } else {
@@ -5306,14 +5307,14 @@ interface ComboMatch {
 
 // Category definitions for filtering
 const COMBO_CATEGORIES: Record<string, { label: string; icon: string; keywords: string[] }> = {
-  mana:    { label: 'Infinite Mana',     icon: '💎', keywords: ['infinite mana', 'infinite colored mana', 'infinite colorless mana'] },
-  damage:  { label: 'Infinite Damage',   icon: '💀', keywords: ['infinite damage', 'infinite lifeloss', 'win the game'] },
-  tokens:  { label: 'Infinite Tokens',   icon: '👥', keywords: ['infinite creature tokens', 'infinite tokens', 'infinite etb'] },
-  draw:    { label: 'Card Draw',         icon: '📖', keywords: ['infinite card draw', 'infinite draw', 'exile your library'] },
-  mill:    { label: 'Mill',              icon: '📚', keywords: ['infinite mill', 'mill', 'exile'] },
+  mana:    { label: 'Infinite Mana',     icon: 'gem', keywords: ['infinite mana', 'infinite colored mana', 'infinite colorless mana'] },
+  damage:  { label: 'Infinite Damage',   icon: 'bolt', keywords: ['infinite damage', 'infinite lifeloss', 'win the game'] },
+  tokens:  { label: 'Infinite Tokens',   icon: 'cards', keywords: ['infinite creature tokens', 'infinite tokens', 'infinite etb'] },
+  draw:    { label: 'Card Draw',         icon: 'book', keywords: ['infinite card draw', 'infinite draw', 'exile your library'] },
+  mill:    { label: 'Mill',              icon: 'layers', keywords: ['infinite mill', 'mill', 'exile'] },
   turns:   { label: 'Extra Turns',       icon: '⏰', keywords: ['infinite turns'] },
-  combat:  { label: 'Combat',            icon: '⚔️', keywords: ['infinite combat phases', 'infinite combat'] },
-  lock:    { label: 'Lock / Stax',       icon: '🔒', keywords: ['lock', 'opponents can'] },
+  combat:  { label: 'Combat',            icon: 'sword', keywords: ['infinite combat phases', 'infinite combat'] },
+  lock:    { label: 'Lock / Stax',       icon: 'shield', keywords: ['lock', 'opponents can'] },
 };
 
 function categorizeCombo(results: string[]): string[] {
@@ -5461,7 +5462,7 @@ function renderComboResults(results: { found: ComboMatch[]; nearMiss: ComboMatch
     const comboCardCount = comboCardNames.size;
     const density = deckSize > 0 ? ((comboCardCount / deckSize) * 100) : 0;
     const densityLabel = density >= 15 ? 'High' : density >= 5 ? 'Medium' : density > 0 ? 'Low' : 'None';
-    const densityColor = density >= 15 ? 'var(--banned)' : density >= 5 ? 'var(--accent, #7c6cf6)' : 'var(--text-lo, #9aa0ae)';
+    const densityColor = density >= 15 ? 'var(--banned)' : density >= 5 ? 'var(--accent, #e0522c)' : 'var(--text-lo, #9aa0ae)';
 
     container.appendChild(h('div', { className: 'combo-density-card' },
       h('div', { className: 'combo-density-score-wrap' },
@@ -5491,11 +5492,11 @@ function renderComboResults(results: { found: ComboMatch[]; nearMiss: ComboMatch
       filterRow.appendChild(allBtn);
 
       for (const cat of allCats) {
-        const def = COMBO_CATEGORIES[cat] || { label: 'Other', icon: '🔮' };
+        const def = COMBO_CATEGORIES[cat] || { label: 'Other', icon: 'sparkle' };
         const isActive = activeComboFilter === cat;
         const btn = h('button', {
           className: `combo-filter-btn ${isActive ? 'active' : ''}`,
-        }, `${def.icon} ${def.label}`);
+        }, iconEl(def.icon), ' ' + def.label);
         btn.addEventListener('click', () => { activeComboFilter = cat; reRenderCombos(); });
         filterRow.appendChild(btn);
       }
@@ -5515,7 +5516,7 @@ function renderComboResults(results: { found: ComboMatch[]; nearMiss: ComboMatch
   if (filteredFound.length > 0) {
     container.appendChild(
       h('div', { className: 'combo-section-title' },
-        `♾️ ${filteredFound.length} Combo${filteredFound.length > 1 ? 's' : ''} in Your Deck`)
+        `${filteredFound.length} Combo${filteredFound.length > 1 ? 's' : ''} in Your Deck`)
     );
     for (const match of filteredFound) {
       container.appendChild(renderComboItem(match, false));
@@ -5526,7 +5527,7 @@ function renderComboResults(results: { found: ComboMatch[]; nearMiss: ComboMatch
   if (filteredNearMiss.length > 0) {
     container.appendChild(
       h('div', { className: 'combo-section-title muted' },
-        `💡 ${filteredNearMiss.length} Near-Miss Combo${filteredNearMiss.length > 1 ? 's' : ''} (add 1 card)`)
+        `${filteredNearMiss.length} Near-Miss Combo${filteredNearMiss.length > 1 ? 's' : ''} (add 1 card)`)
     );
     for (const match of filteredNearMiss) {
       container.appendChild(renderComboItem(match, true));
@@ -5545,7 +5546,7 @@ function renderComboResults(results: { found: ComboMatch[]; nearMiss: ComboMatch
   const csLink = h('div', { className: 'combo-footer' });
   const btn = h('button', {
     className: 'combo-open-btn',
-  }, '🔍 Full Search on Commander Spellbook');
+  }, 'Full Search on Commander Spellbook');
   btn.addEventListener('click', () => {
     if (currentDeck) {
       const lines: string[] = [];
@@ -5590,8 +5591,8 @@ function renderComboItem(match: ComboMatch, isNearMiss: boolean): HTMLElement {
   const cats = categorizeCombo(combo.r);
   const badgeRow = h('div', { className: 'combo-badge-row' });
   for (const cat of cats) {
-    const def = COMBO_CATEGORIES[cat] || { icon: '🔮', label: 'Other' };
-    badgeRow.appendChild(h('span', { className: 'combo-cat-icon', title: def.label }, def.icon));
+    const def = COMBO_CATEGORIES[cat] || { icon: 'sparkle', label: 'Other' };
+    badgeRow.appendChild(h('span', { className: 'combo-cat-icon', title: def.label }, iconEl(def.icon)));
   }
   badgeRow.appendChild(
     h('span', { className: 'combo-result combo-result-inline' }, combo.r.join(' + '))
@@ -5614,7 +5615,7 @@ function renderComboItem(match: ComboMatch, isNearMiss: boolean): HTMLElement {
   if (isNearMiss && missingCards.length > 0) {
     const addBtn = h('button', {
       className: 'combo-add-btn',
-    }, `➕ Add ${missingCards[0]} to deck`);
+    }, `Add ${missingCards[0]} to deck`);
     addBtn.addEventListener('click', () => {
       if (!currentDeck) return;
       // Add missing card to main deck
@@ -5656,7 +5657,7 @@ function highlightComboCards(): void {
       const badge = h('span', {
         className: 'combo-badge',
         title: 'Part of a combo — check Combos tab',
-      }, '♾️');
+      }, iconEl('infinity'));
       el.appendChild(badge);
     } else if (!comboCardNames.has(name) && existingBadge) {
       existingBadge.remove();

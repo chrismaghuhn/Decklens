@@ -1,4 +1,5 @@
 import type { DeckbuilderDeck } from './types.js';
+import { iconSvg } from '../shared/icons.js';
 import type { DeckbuilderSearchCard } from '../shared/scryfall-client.js';
 import { analyzeManaBase } from './mana-calc.js';
 import { parseDeckDSL } from './deck-dsl-parser.js';
@@ -169,7 +170,7 @@ export function renderDoctorModal(
   
   const avatar = document.createElement('div');
   avatar.className = 'doctor-avatar';
-  avatar.textContent = '👨‍🏫'; // Professor emoji
+  avatar.innerHTML = iconSvg('gauge');
   
   const titleBlock = document.createElement('div');
   const name = document.createElement('div');
@@ -198,7 +199,7 @@ export function renderDoctorModal(
         
         const icon = document.createElement('span');
         icon.className = 'doctor-item-icon';
-        icon.textContent = d.severity === 'critical' ? '🚨' : '⚠️';
+        icon.innerHTML = iconSvg('warn');
         
         const details = document.createElement('div');
         details.className = 'doctor-item-details';

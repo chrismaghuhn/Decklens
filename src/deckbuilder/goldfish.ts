@@ -755,7 +755,7 @@ export function openGoldfishPlaytest(
 
     const title = document.createElement('div');
     title.className = 'gf-zone-modal-title';
-    title.textContent = '🎭 Create Token';
+    title.textContent = 'Create Token';
     modal.appendChild(title);
 
     // ── Collect ALL available tokens: from deck oracle text + battlefield ──
@@ -898,7 +898,7 @@ export function openGoldfishPlaytest(
     customActions.className = 'gf-token-actions';
     const customCreateBtn = document.createElement('button');
     customCreateBtn.className = 'btn gf-btn';
-    customCreateBtn.style.background = 'var(--accent, #7c6cf6)';
+    customCreateBtn.style.background = 'var(--accent, #e0522c)';
     customCreateBtn.style.color = '#000';
     customCreateBtn.textContent = 'Create Custom';
     customCreateBtn.addEventListener('click', () => {
@@ -1114,7 +1114,7 @@ export function openGoldfishPlaytest(
 
     const p1Look = document.createElement('button');
     p1Look.className = 'btn gf-btn';
-    p1Look.style.background = 'var(--accent, #7c6cf6)';
+    p1Look.style.background = 'var(--accent, #e0522c)';
     p1Look.style.color = '#000';
     p1Look.textContent = 'Look';
     p1Look.addEventListener('click', () => {
@@ -1244,7 +1244,7 @@ export function openGoldfishPlaytest(
 
     const confirmBtn = document.createElement('button');
     confirmBtn.className = 'btn gf-btn';
-    confirmBtn.style.background = 'var(--accent, #7c6cf6)';
+    confirmBtn.style.background = 'var(--accent, #e0522c)';
     confirmBtn.style.color = '#000';
     confirmBtn.textContent = 'Confirm';
     confirmBtn.addEventListener('click', () => {
@@ -1534,7 +1534,7 @@ export function openGoldfishPlaytest(
         if (cardData?.oracle_text) {
           const detectedTokens = extractTokensFromOracle(cardData.oracle_text);
           if (detectedTokens.length > 0) {
-            items.push({ label: '🎭 Create Token...', action: () => {}, divider: true });
+            items.push({ label: 'Create Token...', action: () => {}, divider: true });
             for (const dt of detectedTokens) {
               const dtLabel = dt.power ? `  ${dt.name} ${dt.power}/${dt.toughness}` : `  ${dt.name}`;
               items.push({ label: dtLabel, action: () => {
@@ -1563,8 +1563,8 @@ export function openGoldfishPlaytest(
       }
       // Copy Token (tokens only)
       if (p.isToken) {
-        items.push({ label: '📋 Copy Token', action: () => duplicateToken(bfIdx, 1), divider: true });
-        items.push({ label: '📋 Copy x5', action: () => duplicateToken(bfIdx, 5) });
+        items.push({ label: 'Copy Token', action: () => duplicateToken(bfIdx, 1), divider: true });
+        items.push({ label: 'Copy x5', action: () => duplicateToken(bfIdx, 5) });
       }
       items.push({ label: '→ Graveyard', action: () => bfToGraveyard(bfIdx), divider: true, danger: true });
       items.push({ label: '→ Exile', action: () => bfToExile(bfIdx), danger: true });
@@ -1753,7 +1753,7 @@ export function openGoldfishPlaytest(
     // Poison counter button
     const poisonBtn = document.createElement('button');
     poisonBtn.className = `btn gf-btn-sm gf-poison${state.poisonCounters >= 10 ? ' gf-poison-lethal' : ''}`;
-    poisonBtn.textContent = state.poisonCounters > 0 ? `☠ ${state.poisonCounters}` : '+P';
+    poisonBtn.textContent = state.poisonCounters > 0 ? `${state.poisonCounters}` : '+P';
     poisonBtn.title = `Poison counters: ${state.poisonCounters}`;
     poisonBtn.addEventListener('click', () => {
       pushUndo();
@@ -1865,7 +1865,7 @@ export function openGoldfishPlaytest(
         if (handCardData?.oracle_text) {
           const handTokens = extractTokensFromOracle(handCardData.oracle_text);
           if (handTokens.length > 0) {
-            handItems.push({ label: '🎭 Create Token...', action: () => {}, divider: true });
+            handItems.push({ label: 'Create Token...', action: () => {}, divider: true });
             for (const dt of handTokens) {
               const dtLabel = dt.power ? `  ${dt.name} ${dt.power}/${dt.toughness}` : `  ${dt.name}`;
               handItems.push({ label: dtLabel, action: () => {
@@ -1914,7 +1914,7 @@ export function openGoldfishPlaytest(
 
       const czTitle = document.createElement('div');
       czTitle.className = 'gf-zone-title';
-      czTitle.textContent = `⚔ Command Zone (${state.commandZone.length})`;
+      czTitle.textContent = `Command Zone (${state.commandZone.length})`;
       if (state.commanderTax > 0) {
         const taxEl = document.createElement('span');
         taxEl.className = 'gf-commander-tax';
@@ -1976,7 +1976,7 @@ export function openGoldfishPlaytest(
 
     const libTitle = document.createElement('div');
     libTitle.className = 'gf-zone-title';
-    libTitle.textContent = `📚 Library (${state.library.length})`;
+    libTitle.textContent = `Library (${state.library.length})`;
     libSection.appendChild(libTitle);
 
     // Visual card-back stack
@@ -2003,9 +2003,9 @@ export function openGoldfishPlaytest(
       e.preventDefault();
       e.stopPropagation();
       const items: GfCtxItem[] = [
-        { label: '🔍 Search Library', action: () => showLibrarySearch() },
-        { label: '👁 Look at Top N', action: () => { if (state.library.length > 0) showTopNModal(); } },
-        { label: '🔀 Shuffle', action: () => shuffleLibrary(), divider: true },
+        { label: 'Search Library', action: () => showLibrarySearch() },
+        { label: 'Look at Top N', action: () => { if (state.library.length > 0) showTopNModal(); } },
+        { label: 'Shuffle', action: () => shuffleLibrary(), divider: true },
         { label: `Draw (${state.library.length} left)`, action: () => { pushUndo(); drawCard(); render(); } },
       ];
       showCtxMenu(e, items);

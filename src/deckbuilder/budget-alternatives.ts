@@ -343,7 +343,7 @@ export function renderBudgetAlternatives(
   if (totalSavings > 0) {
     const savingsBanner = document.createElement('div');
     savingsBanner.className = 'budget-savings-banner';
-    savingsBanner.innerHTML = `<span>💰 Potential Savings</span><strong>€${totalSavings.toFixed(2)}</strong>`;
+    savingsBanner.innerHTML = `<span>Potential Savings</span><strong>€${totalSavings.toFixed(2)}</strong>`;
     container.appendChild(savingsBanner);
   }
 

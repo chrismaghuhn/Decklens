@@ -58,7 +58,7 @@ export async function generateDeckImage(
   ctx.fillRect(0, 0, totalW, totalH);
 
   // Title
-  ctx.fillStyle = '#a89cff';
+  ctx.fillStyle = '#f08a64';
   ctx.font = 'bold 24px "Inter", sans-serif';
   ctx.textBaseline = 'top';
   ctx.fillText(deck.name, PAD, PAD + 8);
@@ -86,7 +86,7 @@ export async function generateDeckImage(
         ctx.font = 'bold 16px "Inter", sans-serif';
         ctx.fillText(commander.name, PAD + cmdW + 12, yOff + 10);
 
-        ctx.fillStyle = '#7c6cf6';
+        ctx.fillStyle = '#e0522c';
         ctx.font = '12px "Inter", sans-serif';
         ctx.fillText('COMMANDER', PAD + cmdW + 12, yOff + 32);
       } catch {

@@ -194,7 +194,7 @@ export function renderDeckFingerprint(
   const dataPoly = document.createElementNS(svgNs, 'polygon');
   dataPoly.setAttribute('points', dataPoints.join(' '));
   dataPoly.setAttribute('fill', 'rgba(201,168,76,0.15)');
-  dataPoly.setAttribute('stroke', '#7c6cf6');
+  dataPoly.setAttribute('stroke', '#e0522c');
   dataPoly.setAttribute('stroke-width', '2');
   svg.appendChild(dataPoly);
 

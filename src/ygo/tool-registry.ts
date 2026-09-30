@@ -33,7 +33,7 @@ export const YGO_TOOLS: readonly ToolDefinition[] = [
     description: 'Visual chart of monster levels and ranks',
     section: 'analysis',
     defaultEnabled: true,
-    icon: '📊',
+    icon: 'chart',
   },
   {
     id: 'typeBars',
@@ -41,7 +41,7 @@ export const YGO_TOOLS: readonly ToolDefinition[] = [
     description: 'Monster, Spell, Trap distribution',
     section: 'analysis',
     defaultEnabled: true,
-    icon: '📈',
+    icon: 'chart-line',
   },
   {
     id: 'handCalc',
@@ -49,7 +49,7 @@ export const YGO_TOOLS: readonly ToolDefinition[] = [
     description: 'Hypergeometric probability for specific cards',
     section: 'analysis',
     defaultEnabled: true,
-    icon: '🎯',
+    icon: 'target',
   },
   {
     id: 'formatLegality',
@@ -57,7 +57,7 @@ export const YGO_TOOLS: readonly ToolDefinition[] = [
     description: 'Check legality across TCG/OCG formats',
     section: 'analysis',
     defaultEnabled: true,
-    icon: '✓',
+    icon: 'check',
   },
   {
     id: 'testHand',
@@ -65,7 +65,7 @@ export const YGO_TOOLS: readonly ToolDefinition[] = [
     description: 'Draw and evaluate opening hands',
     section: 'analysis',
     defaultEnabled: true,
-    icon: '🃏',
+    icon: 'cards',
   },
   {
     id: 'extStats',
@@ -73,7 +73,7 @@ export const YGO_TOOLS: readonly ToolDefinition[] = [
     description: 'Attributes, races, hand traps breakdown',
     section: 'analysis',
     defaultEnabled: true,
-    icon: '📉',
+    icon: 'chart-line',
   },
   {
     id: 'hyperCalc',
@@ -81,7 +81,7 @@ export const YGO_TOOLS: readonly ToolDefinition[] = [
     description: 'Complex opening hand calculations',
     section: 'analysis',
     defaultEnabled: true,
-    icon: '🧮',
+    icon: 'calc',
   },
   {
     id: 'archetype',
@@ -89,7 +89,7 @@ export const YGO_TOOLS: readonly ToolDefinition[] = [
     description: 'Identify archetypes in your deck',
     section: 'analysis',
     defaultEnabled: true,
-    icon: '🏷️',
+    icon: 'tag',
   },
   
   // === Tools Panel Tools ===
@@ -99,7 +99,7 @@ export const YGO_TOOLS: readonly ToolDefinition[] = [
     description: 'Playstyle profile analysis',
     section: 'tools',
     defaultEnabled: true,
-    icon: '🧬',
+    icon: 'dna',
   },
   {
     id: 'engines',
@@ -107,7 +107,7 @@ export const YGO_TOOLS: readonly ToolDefinition[] = [
     description: 'Detect engines and consistency',
     section: 'tools',
     defaultEnabled: true,
-    icon: '⚙️',
+    icon: 'gear',
   },
   {
     id: 'combos',
@@ -115,7 +115,7 @@ export const YGO_TOOLS: readonly ToolDefinition[] = [
     description: 'Define and calculate combo probabilities',
     section: 'tools',
     defaultEnabled: true,
-    icon: '🔗',
+    icon: 'link',
   },
   {
     id: 'handgrade',
@@ -123,7 +123,7 @@ export const YGO_TOOLS: readonly ToolDefinition[] = [
     description: 'Simulate and grade opening hands A-F',
     section: 'tools',
     defaultEnabled: false,
-    icon: '📝',
+    icon: 'note',
   },
   {
     id: 'collection',
@@ -131,7 +131,7 @@ export const YGO_TOOLS: readonly ToolDefinition[] = [
     description: 'Track owned cards and missing pieces',
     section: 'tools',
     defaultEnabled: false,
-    icon: '📦',
+    icon: 'package',
   },
   {
     id: 'craft',
@@ -139,7 +139,7 @@ export const YGO_TOOLS: readonly ToolDefinition[] = [
     description: 'UR/SR/R/N crafting requirements',
     section: 'tools',
     defaultEnabled: false,
-    icon: '💎',
+    icon: 'gem',
   },
   {
     id: 'crossformat',
@@ -147,7 +147,7 @@ export const YGO_TOOLS: readonly ToolDefinition[] = [
     description: 'Card status across all formats',
     section: 'tools',
     defaultEnabled: false,
-    icon: '🌐',
+    icon: 'globe',
   },
   {
     id: 'tags',
@@ -155,7 +155,7 @@ export const YGO_TOOLS: readonly ToolDefinition[] = [
     description: 'Organize decks with tags and folders',
     section: 'tools',
     defaultEnabled: false,
-    icon: '🏷️',
+    icon: 'tag',
   },
   {
     id: 'versions',
@@ -163,7 +163,7 @@ export const YGO_TOOLS: readonly ToolDefinition[] = [
     description: 'Save and restore deck snapshots',
     section: 'tools',
     defaultEnabled: true,
-    icon: '📚',
+    icon: 'book',
   },
   {
     id: 'salt',
@@ -171,7 +171,7 @@ export const YGO_TOOLS: readonly ToolDefinition[] = [
     description: 'How frustrating is your deck?',
     section: 'tools',
     defaultEnabled: false,
-    icon: '🧂',
+    icon: 'salt',
   },
 ] as const;
 
