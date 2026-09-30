@@ -628,6 +628,16 @@ export function initMat(root: HTMLElement, state: PlaymatState): void {
   });
 
   initSelection(root, state);
+  // with an active selection, right-clicking mat space opens the bulk
+  // menu instead of the browser menu (cards have their own handler)
+  root.addEventListener('contextmenu', (e) => {
+    const t = e.target as HTMLElement;
+    if (t.closest('.pm-card, .pm-dock-row, input, select, textarea, a')) return;
+    if (selectionSize() > 0) {
+      e.preventDefault();
+      showBulkMenu(e);
+    }
+  });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Delete' && selectionSize() > 0 && !isTypingContext(e.target)) {
       e.preventDefault();
