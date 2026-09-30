@@ -1,5 +1,5 @@
 import type { DeckbuilderDeck } from './types.js';
-import type { DeckbuilderSearchCard } from '../shared/api.js';
+import type { DeckbuilderSearchCard } from '../shared/scryfall-client.js';
 import type { Deck } from '../shared/types.js';
 import {
   generateRecommendationEngineV1,

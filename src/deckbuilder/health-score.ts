@@ -1,5 +1,5 @@
 import type { DeckbuilderDeck } from './types.js';
-import type { DeckbuilderSearchCard } from '../shared/api.js';
+import type { DeckbuilderSearchCard } from '../shared/scryfall-client.js';
 
 interface HealthRecommendation {
   text: string;

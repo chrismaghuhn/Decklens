@@ -20,26 +20,6 @@ function decklensSpaRewrites(): Plugin {
 
         if (path.startsWith('/decks/id/')) {
           req.url = '/deck-editor.html' + (url.includes('?') ? '?' + url.split('?')[1] : '');
-        } else if (path === '/decks/public' || path === '/decks/public/') {
-          req.url = '/decks-public.html';
-        } else if (path.startsWith('/d/')) {
-          req.url = '/deck-public.html';
-        } else if (path === '/dashboard' || path === '/dashboard/') {
-          req.url = '/dashboard-hub.html';
-        } else if (path === '/dashboard/executive' || path === '/dashboard/executive/') {
-          req.url = '/executive-dashboard.html';
-        } else if (path === '/dashboard/growth' || path === '/dashboard/growth/') {
-          req.url = '/growth-dashboard.html';
-        } else if (path === '/dashboard/technical' || path === '/dashboard/technical/') {
-          req.url = '/technical-dashboard.html';
-        } else if (path === '/dashboard/community' || path === '/dashboard/community/') {
-          req.url = '/community-dashboard.html';
-        } else if (path === '/dashboard/public' || path === '/dashboard/public/') {
-          req.url = '/public-dashboard.html';
-        } else if (path === '/deckhub' || path.startsWith('/deckhub/')) {
-          req.url = '/deckhub.html' + (url.includes('?') ? '?' + url.split('?')[1] : '');
-        } else if (path === '/simulator' || path === '/simulator/' || path.startsWith('/simulator/')) {
-          req.url = '/rules-engine.html';
         }
         // /play route disabled - WIP
         // else if (path === '/play' || path === '/play/' || path.startsWith('/play/')) {
@@ -70,19 +50,8 @@ export default defineConfig(({ mode }) => {
           index: resolve(__dirname, 'index.html'),
           mtg: resolve(__dirname, 'mtg.html'),
           yugioh: resolve(__dirname, 'yugioh.html'),
-          community: resolve(__dirname, 'community.html'),
           decks: resolve(__dirname, 'decks.html'),
           deckEditor: resolve(__dirname, 'deck-editor.html'),
-          decksPublic: resolve(__dirname, 'decks-public.html'),
-          deckPublic: resolve(__dirname, 'deck-public.html'),
-          dashboardHub: resolve(__dirname, 'dashboard-hub.html'),
-          executiveDashboard: resolve(__dirname, 'executive-dashboard.html'),
-          growthDashboard: resolve(__dirname, 'growth-dashboard.html'),
-          technicalDashboard: resolve(__dirname, 'technical-dashboard.html'),
-          communityDashboard: resolve(__dirname, 'community-dashboard.html'),
-          publicDashboard: resolve(__dirname, 'public-dashboard.html'),
-          deckhub: resolve(__dirname, 'deckhub.html'),
-          rulesEngine: resolve(__dirname, 'rules-engine.html'),
           // playVsBot: resolve(__dirname, 'play-vs-bot.html'), // WIP - not ready
           // trainBot: resolve(__dirname, 'train-bot.html'), // WIP - not ready
         },

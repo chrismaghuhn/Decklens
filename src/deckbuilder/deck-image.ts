@@ -1,5 +1,5 @@
 import type { DeckbuilderDeck } from './types.js';
-import type { DeckbuilderSearchCard } from '../shared/api.js';
+import type { DeckbuilderSearchCard } from '../shared/scryfall-client.js';
 
 const CARD_W = 146;
 const CARD_H = 204;

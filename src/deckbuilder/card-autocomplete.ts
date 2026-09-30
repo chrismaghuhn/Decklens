@@ -7,7 +7,7 @@
  */
 
 import { h } from '../shared/dom.js';
-import { fetchDeckbuilderAutocomplete } from '../shared/api.js';
+import { fetchDeckbuilderAutocomplete } from '../shared/scryfall-client.js';
 import { showHoverPreviewByName, hideHoverPreview } from './card-preview.js';
 
 // ───── Types ─────
