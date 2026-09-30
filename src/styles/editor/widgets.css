@@ -93,52 +93,9 @@
   font-size: 0.82rem;
   font-weight: 600;
 }
-
-/* ── Player Avatars ── */
-.mp-player-avatars {
-  display: flex;
-  gap: 8px;
-  margin-left: auto;
-}
-.mp-player-avatar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border-radius: 50px;
-  border: 2px solid;
-  background: rgba(255, 255, 255, 0.03);
-  font-size: 0.75rem;
-  transition: all 0.2s ease;
-  cursor: default;
-}
-.mp-player-avatar.active {
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 0 12px rgba(201, 168, 76, 0.15);
-}
-.mp-player-avatar.eliminated {
-  opacity: 0.35;
-  text-decoration: line-through;
-}
-.mp-player-avatar.mp-attackable {
-  cursor: crosshair;
-  animation: mp-attack-pulse 1.2s ease infinite;
-}
 @keyframes mp-attack-pulse {
   0%, 100% { box-shadow: 0 0 0 rgba(239, 68, 68, 0); }
   50% { box-shadow: 0 0 16px rgba(239, 68, 68, 0.4); }
-}
-.mp-avatar-name {
-  font-weight: 600;
-}
-.mp-avatar-life {
-  font-weight: 700;
-  color: var(--text, #e2e8f0);
-  font-size: 0.88rem;
-}
-.mp-avatar-poison {
-  color: #34d399;
-  font-size: 0.68rem;
 }
 
 /* ── Top Actions ── */
@@ -491,11 +448,6 @@
 .mp-can-block {
   outline: 2px solid rgba(96, 165, 250, 0.7) !important;
   box-shadow: 0 0 10px rgba(96, 165, 250, 0.3);
-}
-.mp-block-target {
-  cursor: crosshair !important;
-  outline: 2px dashed rgba(251, 191, 36, 0.7) !important;
-  animation: mp-pulse-target 1s ease-in-out infinite;
 }
 @keyframes mp-pulse-target {
   0%, 100% { box-shadow: 0 0 6px rgba(251, 191, 36, 0.3); }
@@ -1825,13 +1777,6 @@
 }
 .mp-tool-item.active {
   color: #34d399;
-}
-
-/* ── Attack Target Selection ── */
-.mp-player-avatar.mp-attack-selected {
-  outline: 3px solid #ef4444 !important;
-  box-shadow: 0 0 20px rgba(239, 68, 68, 0.5), inset 0 0 15px rgba(239, 68, 68, 0.15) !important;
-  animation: attack-target-pulse 1s ease-in-out infinite;
 }
 @keyframes attack-target-pulse {
   0%, 100% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.5); }

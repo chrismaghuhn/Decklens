@@ -667,29 +667,6 @@
 .history-changed {
   color: #e8c84a;
 }
-
-/* ═══ ENHANCED VERSION PANEL ═══ */
-.version-branch-bar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-.version-branch-select {
-  flex: 1;
-  background: var(--abyss);
-  border: 1px solid var(--line);
-  color: var(--text);
-  font-size: 0.75rem;
-  padding: 5px 10px;
-  border-radius: 8px;
-  font-family: "Outfit", sans-serif;
-}
-.version-new-branch-btn {
-  font-size: 0.68rem !important;
-  padding: 4px 10px !important;
-  white-space: nowrap;
-}
 .version-actions {
   display: flex;
   align-items: center;

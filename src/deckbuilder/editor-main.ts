@@ -3782,7 +3782,7 @@ function bindDeckMetaEvents(): void {
     });
   }
 
-  // Primer section templates (shared with collab-chat)
+  // Primer section templates
   for (const btn of Array.from(document.querySelectorAll<HTMLButtonElement>('.primer-tpl-btn'))) {
     btn.addEventListener('click', () => {
       const key = btn.dataset.template || '';
