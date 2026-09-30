@@ -379,7 +379,7 @@ const COMPARISON_STYLES = `
 .diff-stats__similarity-value {
   font-size: 2rem;
   font-weight: 700;
-  color: var(--gold, #e2b340);
+  color: var(--accent, #7c6cf6);
 }
 
 .diff-stats__similarity-label {

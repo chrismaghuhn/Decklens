@@ -93,7 +93,7 @@ function renderProbSparkline(deckSize: number, copies: number, maxTurn: number =
   const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
   line.setAttribute('points', polyPoints);
   line.setAttribute('fill', 'none');
-  line.setAttribute('stroke', '#c9a84c');
+  line.setAttribute('stroke', '#7c6cf6');
   line.setAttribute('stroke-width', '1.5');
   line.setAttribute('stroke-linejoin', 'round');
   svg.appendChild(line);
@@ -119,7 +119,7 @@ function renderProbSparkline(deckSize: number, copies: number, maxTurn: number =
     dot.setAttribute('cx', String(cx));
     dot.setAttribute('cy', String(cy));
     dot.setAttribute('r', '2.5');
-    dot.setAttribute('fill', '#c9a84c');
+    dot.setAttribute('fill', '#7c6cf6');
     svg.appendChild(dot);
   }
 
@@ -161,7 +161,7 @@ interface ProbabilityPreset {
 
 function probColor(p: number): string {
   if (p >= 0.7) return '#34d399';
-  if (p >= 0.4) return '#e8c84a';
+  if (p >= 0.4) return '#f5c04a';
   return '#ef4444';
 }
 

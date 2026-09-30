@@ -164,7 +164,7 @@ export function renderBudgetOptimizer(
       slider.max = String(maxBudget);
       slider.value = String(maxBudget);
       slider.className = 'budget-slider';
-      slider.style.cssText = 'width:100%; accent-color:var(--gold, #e2b340);';
+      slider.style.cssText = 'width:100%; accent-color:var(--accent, #7c6cf6);';
 
       const previewBox = document.createElement('div');
       previewBox.className = 'budget-slider-preview';

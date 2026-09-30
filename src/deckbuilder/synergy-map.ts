@@ -383,7 +383,7 @@ export function renderSynergyMap(
     circle.setAttribute('cy', String(node.y));
     circle.setAttribute('r', String(r));
     circle.setAttribute('fill', 'rgba(201,168,76,0.15)');
-    circle.setAttribute('stroke', '#c9a84c');
+    circle.setAttribute('stroke', '#7c6cf6');
     circle.setAttribute('stroke-width', '1.5');
     circle.setAttribute('data-node', node.name);
     circle.style.cursor = 'pointer';
@@ -467,7 +467,7 @@ export function renderSynergyMap(
     label.setAttribute('text-anchor', 'middle');
     label.setAttribute('fill', 'var(--text-dim)');
     label.setAttribute('font-size', '7');
-    label.setAttribute('font-family', "'Outfit', sans-serif");
+    label.setAttribute('font-family', "'Inter', system-ui, sans-serif");
     label.setAttribute('data-node', node.name);
     label.style.transition = 'opacity 0.15s';
     label.textContent = node.name.length > 16 ? node.name.slice(0, 15) + '\u2026' : node.name;

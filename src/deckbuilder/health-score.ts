@@ -253,7 +253,7 @@ export function renderHealthScore(
   // Color based on score
   let color: string;
   if (score >= 70) color = '#34d399';
-  else if (score >= 40) color = '#e8c84a';
+  else if (score >= 40) color = '#f5c04a';
   else color = '#ef4444';
 
   // SVG Gauge
@@ -314,7 +314,7 @@ export function renderHealthScore(
   labelText.setAttribute('y', '62');
   labelText.setAttribute('text-anchor', 'middle');
   labelText.setAttribute('fill', 'var(--text-dim)');
-  labelText.setAttribute('font-family', "'Outfit', sans-serif");
+  labelText.setAttribute('font-family', "'Inter', system-ui, sans-serif");
   labelText.setAttribute('font-size', '8');
   labelText.setAttribute('font-weight', '500');
   labelText.textContent = 'HEALTH';
@@ -339,7 +339,7 @@ export function renderHealthScore(
     const fill = document.createElement('div');
     fill.className = 'health-tooltip-fill';
     fill.style.width = `${comp.score}%`;
-    fill.style.background = comp.score >= 70 ? '#34d399' : comp.score >= 40 ? '#e8c84a' : '#ef4444';
+    fill.style.background = comp.score >= 70 ? '#34d399' : comp.score >= 40 ? '#f5c04a' : '#ef4444';
     bar.appendChild(fill);
 
     const val = document.createElement('span');

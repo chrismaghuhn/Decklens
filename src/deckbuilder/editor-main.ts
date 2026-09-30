@@ -837,7 +837,7 @@ function renderDeckOverview(): void {
 
   // Progress bar: X/100 cards
   const progressPct = Math.min(100, Math.round((deckTotal / 100) * 100));
-  const progressColor = deckTotal > 100 ? '#f87171' : deckTotal >= 99 ? '#34d399' : 'var(--gold, #c9a84c)';
+  const progressColor = deckTotal > 100 ? '#f87171' : deckTotal >= 99 ? '#34d399' : 'var(--accent, #7c6cf6)';
   const progressWrap = document.createElement('div');
   progressWrap.className = 'overview-progress';
   progressWrap.innerHTML =
@@ -1653,7 +1653,7 @@ function renderPowerBracket(deck: DeckbuilderDeck): void {
   if (deck.boards.mainboard.length === 0) return;
 
   const est = estimatePowerLevelCached(deck);
-  const bracketColors = ['', '#34d399', '#e8c84a', '#f59e0b', '#ef4444'];
+  const bracketColors = ['', '#34d399', '#f5c04a', '#f59e0b', '#ef4444'];
 
   // Wrapper for hover tooltip
   const wrapper = document.createElement('div');
@@ -1739,7 +1739,7 @@ function renderPowerBracket(deck: DeckbuilderDeck): void {
   saltBar.title = `Salt Score: ${est.salt.toFixed(1)}/10 \u2013 How controversial your deck is to play against`;
   saltBar.style.cursor = 'pointer';
 
-  const saltFillColor = est.salt <= 3 ? '#34d399' : est.salt <= 6 ? '#e8c84a' : est.salt <= 8 ? '#f59e0b' : '#ef4444';
+  const saltFillColor = est.salt <= 3 ? '#34d399' : est.salt <= 6 ? '#f5c04a' : est.salt <= 8 ? '#f59e0b' : '#ef4444';
   const saltFill = document.createElement('div');
   saltFill.className = 'salt-bar-fill';
   saltFill.style.width = `${Math.min(100, (est.salt / 10) * 100)}%`;
@@ -4523,7 +4523,7 @@ function showManageCategoriesModal(): void {
 
   const colorInput = document.createElement('input');
   colorInput.type = 'color';
-  colorInput.value = '#e2b340';
+  colorInput.value = '#f5c04a';
   colorInput.style.cssText = 'width: 32px; height: 28px; border: none; border-radius: 4px; cursor: pointer; padding: 0;';
 
   const addBtn = document.createElement('button');

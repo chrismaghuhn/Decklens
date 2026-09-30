@@ -69,7 +69,7 @@ export const CATEGORY_COLORS: Record<CardCategory, string> = {
   'Token Generator': '#f59e0b',
   'Tribal Payoff': '#14b8a6',
   'Lifegain': '#34d399',
-  'Finisher': '#e2b340',
+  'Finisher': '#f5c04a',
   'Combo Piece': '#ec4899',
   'Utility': '#94a3b8',
 };
