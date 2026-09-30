@@ -120,7 +120,7 @@ function openDrawerPanel(kind: DrawerKind): void {
   drawerEl.setAttribute('aria-hidden', 'false');
   document.querySelector(`.pm-action-btn[data-drawer="${kind}"]`)?.classList.add('active');
 
-  const titles: Record<DrawerKind, string> = { analyse: 'Analyse', share: 'Teilen & Export', import: 'Import' };
+  const titles: Record<DrawerKind, string> = { analyse: 'Analytics', share: 'Share & Export', import: 'Import' };
   const head = document.createElement('div');
   head.className = 'pm-drawer-head';
   head.innerHTML = `<h2>${titles[kind]}</h2>`;
@@ -128,7 +128,7 @@ function openDrawerPanel(kind: DrawerKind): void {
   close.type = 'button';
   close.className = 'pm-drawer-close';
   close.innerHTML = iconSvg('x');
-  close.setAttribute('aria-label', 'Schließen');
+  close.setAttribute('aria-label', 'Close');
   close.addEventListener('click', closeDrawer);
   head.appendChild(close);
 
@@ -151,9 +151,9 @@ function renderAnalyse(body: HTMLElement): void {
   const statCard = (label: string, value: string): string =>
     `<div class="pm-stat-card"><span class="pm-stat-value">${value}</span><span class="pm-stat-label">${label}</span></div>`;
   cards.innerHTML =
-    statCard('Karten', String(stats.total)) +
-    statCard('Ø Manawert', stats.avgMv.toFixed(1)) +
-    statCard('Länder', String(stats.lands));
+    statCard('Cards', String(stats.total)) +
+    statCard('Avg Mana Value', stats.avgMv.toFixed(1)) +
+    statCard('Lands', String(stats.lands));
   body.appendChild(cards);
 
   // Curve
@@ -161,7 +161,7 @@ function renderAnalyse(body: HTMLElement): void {
   const maxCurve = Math.max(...curve, 1);
   const curveBox = document.createElement('div');
   curveBox.className = 'pm-analyse-section';
-  curveBox.innerHTML = '<h3>Mana-Kurve</h3>';
+  curveBox.innerHTML = '<h3>Mana Curve</h3>';
   const bars = document.createElement('div');
   bars.className = 'pm-curve';
   curve.forEach((count, i) => {
@@ -181,7 +181,7 @@ function renderAnalyse(body: HTMLElement): void {
   const colorTotal = COLOR_ORDER.reduce((s, c) => s + colors[c], 0);
   const colorBox = document.createElement('div');
   colorBox.className = 'pm-analyse-section';
-  colorBox.innerHTML = '<h3>Farben</h3>';
+  colorBox.innerHTML = '<h3>Colors</h3>';
   const dots = document.createElement('div');
   dots.className = 'pm-colors';
   for (const c of COLOR_ORDER) {
@@ -196,14 +196,14 @@ function renderAnalyse(body: HTMLElement): void {
       <span class="pm-color-pct">${pct}%</span>`;
     dots.appendChild(row);
   }
-  if (colorTotal === 0) dots.innerHTML = '<span class="pm-muted">Noch keine Farbdaten.</span>';
+  if (colorTotal === 0) dots.innerHTML = '<span class="pm-muted">No color data yet.</span>';
   colorBox.appendChild(dots);
   body.appendChild(colorBox);
 
   // Health
   const healthBox = document.createElement('div');
   healthBox.className = 'pm-analyse-section';
-  healthBox.innerHTML = '<h3>Deck-Gesundheit</h3>';
+  healthBox.innerHTML = '<h3>Deck Health</h3>';
   const healthHost = document.createElement('div');
   renderHealthScore(healthHost, stateRef.deck, stateRef.cardByName);
   healthBox.appendChild(healthHost);
@@ -212,7 +212,7 @@ function renderAnalyse(body: HTMLElement): void {
   // Mehr: synergy map + draw probability
   const more = document.createElement('details');
   more.className = 'pm-analyse-more';
-  more.innerHTML = '<summary>Mehr Analysen</summary>';
+  more.innerHTML = '<summary>More analytics</summary>';
   const moreBody = document.createElement('div');
   more.appendChild(moreBody);
   let moreRendered = false;
@@ -221,13 +221,13 @@ function renderAnalyse(body: HTMLElement): void {
     moreRendered = true;
     const syn = document.createElement('div');
     syn.className = 'pm-analyse-section';
-    syn.innerHTML = '<h3>Synergien</h3>';
+    syn.innerHTML = '<h3>Synergies</h3>';
     const synHost = document.createElement('div');
     renderSynergyMap(synHost, stateRef.deck, stateRef.cardByName);
     syn.appendChild(synHost);
     const draw = document.createElement('div');
     draw.className = 'pm-analyse-section';
-    draw.innerHTML = '<h3>Ziehwahrscheinlichkeit</h3>';
+    draw.innerHTML = '<h3>Draw Probability</h3>';
     const drawHost = document.createElement('div');
     renderDrawProbability(drawHost, roleTagTally(stateRef), deckStats(stateRef).total, stateRef.deck.boards.mainboard);
     draw.appendChild(drawHost);
@@ -251,7 +251,7 @@ async function copyText(text: string, okMessage: string): Promise<void> {
     await navigator.clipboard.writeText(text);
     showToast({ message: okMessage, type: 'success', duration: 1800 });
   } catch {
-    showToast({ message: 'Kopieren fehlgeschlagen — bitte manuell markieren.', type: 'error' });
+    showToast({ message: 'Copy failed — please select the text manually.', type: 'error' });
   }
 }
 
@@ -268,12 +268,12 @@ function renderShare(body: HTMLElement): void {
         <option value="json">JSON</option>
       </select>
     </div>
-    <textarea id="pmExportText" class="pm-export-text" readonly rows="14" aria-label="Deck-Export"></textarea>
+    <textarea id="pmExportText" class="pm-export-text" readonly rows="14" aria-label="Deck export"></textarea>
     <div class="pm-share-actions">
-      <button type="button" id="pmCopyExport" class="pm-btn">${iconSvg('clipboard')} Kopieren</button>
-      <button type="button" id="pmShareLink" class="pm-btn">${iconSvg('link')} Share-Link</button>
-      <button type="button" id="pmDeckImage" class="pm-btn">${iconSvg('image')} Bild (PNG)</button>
-      <button type="button" id="pmPrintProxies" class="pm-btn">${iconSvg('printer')} Drucken</button>
+      <button type="button" id="pmCopyExport" class="pm-btn">${iconSvg('clipboard')} Copy</button>
+      <button type="button" id="pmShareLink" class="pm-btn">${iconSvg('link')} Share link</button>
+      <button type="button" id="pmDeckImage" class="pm-btn">${iconSvg('image')} Image (PNG)</button>
+      <button type="button" id="pmPrintProxies" class="pm-btn">${iconSvg('printer')} Print</button>
     </div>`;
 
   const select = body.querySelector<HTMLSelectElement>('#pmExportFormat')!;
@@ -283,7 +283,7 @@ function renderShare(body: HTMLElement): void {
   refresh();
 
   body.querySelector('#pmCopyExport')!.addEventListener('click', () => {
-    void copyText(textarea.value, 'Deckliste kopiert.');
+    void copyText(textarea.value, 'Deck list copied.');
   });
 
   body.querySelector('#pmShareLink')!.addEventListener('click', () => {
@@ -295,16 +295,16 @@ function renderShare(body: HTMLElement): void {
         sideboard: toExportEntries(b.sideboard),
         commander: toExportEntries(b.commander),
       }, 'mtg');
-      void copyText(result.url, 'Share-Link kopiert.');
+      void copyText(result.url, 'Share link copied.');
     } catch (err) {
-      showToast({ message: err instanceof Error ? err.message : 'Share-Link fehlgeschlagen.', type: 'error' });
+      showToast({ message: err instanceof Error ? err.message : 'Could not create share link.', type: 'error' });
     }
   });
 
   body.querySelector('#pmDeckImage')!.addEventListener('click', () => {
-    showToast({ message: 'Bild wird erstellt …', type: 'info', duration: 1500 });
+    showToast({ message: 'Creating image …', type: 'info', duration: 1500 });
     downloadDeckImage(stateRef.deck, stateRef.cardByName).catch((err) => {
-      showToast({ message: err instanceof Error ? err.message : 'Bild-Export fehlgeschlagen.', type: 'error' });
+      showToast({ message: err instanceof Error ? err.message : 'Image export failed.', type: 'error' });
     });
   });
 
@@ -316,12 +316,12 @@ function renderShare(body: HTMLElement): void {
       imageUrl: stateRef.cardByName[normalizeNameKey(e.name)]?.image_uris?.normal,
     }));
     if (entries.length === 0) {
-      showToast({ message: 'Keine Karten zum Drucken.', type: 'info' });
+      showToast({ message: 'No cards to print.', type: 'info' });
       return;
     }
     const win = window.open('', '_blank');
     if (!win) {
-      showToast({ message: 'Popup blockiert — bitte Popups erlauben.', type: 'error' });
+      showToast({ message: 'Popup blocked — please allow popups.', type: 'error' });
       return;
     }
     win.document.write(generatePrintHTML(entries, { showNames: true }));
@@ -333,13 +333,13 @@ function renderShare(body: HTMLElement): void {
 
 function renderImport(body: HTMLElement): void {
   body.innerHTML = `
-    <p class="pm-muted">Eine Karte pro Zeile, z.&nbsp;B. <code>1 Sol Ring</code>. Abschnitte wie <code>Commander:</code> oder <code>Sideboard:</code> werden erkannt.</p>
+    <p class="pm-muted">One card per line, e.g. <code>1 Sol Ring</code>. Section headers like <code>Commander:</code> or <code>Sideboard:</code> are recognized.</p>
     <textarea id="pmImportText" class="pm-import-text" rows="12" placeholder="4 Lightning Bolt&#10;1 Sol Ring&#10;Sideboard:&#10;2 Negate"></textarea>
     <div class="pm-share-actions">
-      <label class="pm-btn pm-file-btn">${iconSvg('file')} Datei laden
+      <label class="pm-btn pm-file-btn">${iconSvg('file')} Load file
         <input type="file" id="pmImportFile" accept=".txt,.dec,.dek,.csv" hidden>
       </label>
-      <button type="button" id="pmImportRun" class="pm-btn pm-btn-primary">${iconSvg('import')} Importieren</button>
+      <button type="button" id="pmImportRun" class="pm-btn pm-btn-primary">${iconSvg('import')} Import</button>
     </div>
     <div id="pmImportUnresolved" class="pm-import-unresolved"></div>`;
 
@@ -370,7 +370,7 @@ async function runImport(raw: string): Promise<void> {
     showToast({ message: parsed.errors.slice(0, 3).join(' | '), type: 'error' });
   }
   if (parsed.lines.length === 0) {
-    showToast({ message: 'Keine Import-Zeilen gefunden.', type: 'info' });
+    showToast({ message: 'No import lines found.', type: 'info' });
     return;
   }
 
@@ -380,7 +380,7 @@ async function runImport(raw: string): Promise<void> {
     resolvedResponse = await resolveDeckbuilderCards(names);
   } catch (error) {
     showToast({
-      message: error instanceof Error ? error.message : 'Kartendaten konnten nicht geladen werden.',
+      message: error instanceof Error ? error.message : 'Could not load card data.',
       type: 'error',
       duration: 6000,
     });
@@ -417,7 +417,7 @@ async function runImport(raw: string): Promise<void> {
   unresolvedRows = resolution.unresolved;
   renderUnresolvedRows();
   showToast({
-    message: `${resolution.resolved.length} Zeilen importiert${resolution.unresolved.length > 0 ? `, ${resolution.unresolved.length} offen` : ''}.`,
+    message: `${resolution.resolved.length} lines imported${resolution.unresolved.length > 0 ? `, ${resolution.unresolved.length} unresolved` : ''}.`,
     type: resolution.unresolved.length > 0 ? 'info' : 'success',
   });
 }
@@ -429,7 +429,7 @@ function renderUnresolvedRows(): void {
   if (unresolvedRows.length === 0) return;
 
   const head = document.createElement('h3');
-  head.textContent = `Nicht eindeutig (${unresolvedRows.length})`;
+  head.textContent = `Unresolved (${unresolvedRows.length})`;
   container.appendChild(head);
 
   for (const row of unresolvedRows) {
@@ -441,7 +441,7 @@ function renderUnresolvedRows(): void {
     select.dataset.lineNumber = String(row.lineNumber);
     const empty = document.createElement('option');
     empty.value = '';
-    empty.textContent = row.reason === 'missing' ? 'Kein Treffer' : 'Karte wählen';
+    empty.textContent = row.reason === 'missing' ? 'No match' : 'Choose a card';
     select.appendChild(empty);
     for (const candidate of row.candidates) {
       const option = document.createElement('option');
@@ -456,7 +456,7 @@ function renderUnresolvedRows(): void {
   const apply = document.createElement('button');
   apply.type = 'button';
   apply.className = 'pm-btn pm-btn-primary';
-  apply.textContent = 'Auswahl übernehmen';
+  apply.textContent = 'Apply selection';
   apply.addEventListener('click', applyUnresolvedSelection);
   container.appendChild(apply);
 }
@@ -507,22 +507,22 @@ function renderHud(): void {
     const result = evaluateEdhRules(stateRef.deck, stateRef.cardByName);
     const errors = result.issues.filter((i) => i.severity === 'error');
     legalityOk = errors.length === 0;
-    legalityText = legalityOk ? 'Legal' : `${errors.length} Regel-Probleme`;
+    legalityText = legalityOk ? 'Legal' : `${errors.length} rule issue${errors.length === 1 ? '' : 's'}`;
   } else if (format !== 'none') {
     const rules = getFormatRules(format);
     legalityOk = stats.total >= rules.minDeckSize;
-    legalityText = legalityOk ? 'Legal' : `Min. ${rules.minDeckSize} Karten`;
+    legalityText = legalityOk ? 'Legal' : `Min. ${rules.minDeckSize} cards`;
   } else {
     legalityOk = true;
-    legalityText = 'Frei';
+    legalityText = 'Open';
   }
 
   hud.innerHTML = `
     <span class="pm-hud-item">Health <strong>${health.total}</strong></span>
-    <span class="pm-hud-item">Ø MW <strong>${stats.avgMv.toFixed(1)}</strong></span>
-    <span class="pm-hud-item">Länder <strong>${stats.lands}</strong></span>
+    <span class="pm-hud-item">Avg MV <strong>${stats.avgMv.toFixed(1)}</strong></span>
+    <span class="pm-hud-item">Lands <strong>${stats.lands}</strong></span>
     <span class="pm-hud-item ${legalityOk ? 'pm-hud-ok' : 'pm-hud-warn'}">${legalityOk ? iconSvg('check') : iconSvg('warn')} ${legalityText}</span>`;
-  hud.title = 'Klick für Analyse';
+  hud.title = 'Click to open analytics';
 }
 
 // ── init ──
@@ -542,11 +542,11 @@ export function initDrawers(state: PlaymatState): void {
     return btn;
   };
 
-  const analyseBtn = actionBtn('analyse', 'chart', 'Analyse');
+  const analyseBtn = actionBtn('analyse', 'chart', 'Analytics');
   analyseBtn.addEventListener('click', () => openDrawerPanel('analyse'));
   const goldfishBtn = actionBtn('goldfish', 'dice', 'Goldfish');
   goldfishBtn.addEventListener('click', () => openGoldfishPlaytest(state.deck, state.cardByName));
-  const shareBtn = actionBtn('share', 'export', 'Teilen');
+  const shareBtn = actionBtn('share', 'export', 'Share');
   shareBtn.addEventListener('click', () => openDrawerPanel('share'));
   const importBtn = actionBtn('import', 'import', 'Import');
   importBtn.addEventListener('click', () => openDrawerPanel('import'));

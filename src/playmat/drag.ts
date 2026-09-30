@@ -132,7 +132,7 @@ function abort(): void {
 
 function pileLabelOf(pileId: string): string | undefined {
   const label = matRootRef.querySelector<HTMLElement>(`[data-pile="${pileId}"]`)?.dataset.pileLabel;
-  return label && label !== 'Ohne Tag' ? label : undefined;
+  return label && label !== 'Untagged' ? label : undefined;
 }
 
 function finishDrop(e: PointerEvent): void {
@@ -157,12 +157,13 @@ function finishDrop(e: PointerEvent): void {
     if (card) rememberCard(stateRef, card);
     const tag = action.type === 'add-to-pile' ? pileLabelOf(action.pileId) : undefined;
     addCardToDeck(current.name, 'mainboard', tag);
-    showToast({ message: `${current.name} hinzugefügt.`, type: 'success', duration: 1500 });
+    showToast({ message: `${current.name} added.`, type: 'success', duration: 1500 });
     return;
   }
 
   if (action.type === 'assign-to-pile') {
-    const label = pileLabelOf(action.pileId);
+    // raw label on purpose: dropping on "Untagged" clears the card's tags
+    const label = matRootRef.querySelector<HTMLElement>(`[data-pile="${action.pileId}"]`)?.dataset.pileLabel;
     if (label) assignTag(current.name, label);
     return;
   }

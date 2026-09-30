@@ -42,27 +42,27 @@ describe('projectPiles', () => {
 
   test('mana mode buckets 7+ and puts lands in their own pile', () => {
     const piles = projectPiles(deckWith([entry('Sol Ring'), entry('Expensive Thing'), entry('Forest', 3)]), cards, 'mana');
-    expect(labels(piles)).toEqual(['1', '7+', 'Länder']);
+    expect(labels(piles)).toEqual(['1', '7+', 'Lands']);
   });
 
   test('color mode: multicolor and colorless buckets', () => {
     const piles = projectPiles(deckWith([entry('Sol Ring'), entry('Counterspell'), entry('Golgari Charm')]), cards, 'color');
-    expect(labels(piles)).toEqual(['Blau', 'Mehrfarbig', 'Farblos']);
+    expect(labels(piles)).toEqual(['Blue', 'Multicolor', 'Colorless']);
   });
 
   test('role mode uses classifier', () => {
     const piles = projectPiles(deckWith([entry('Counterspell'), entry('Wrath of God'), entry('Sol Ring')]), cards, 'role');
-    expect(labels(piles)).toEqual(['Board Wipes', 'Counter', 'Rampe']);
+    expect(labels(piles)).toEqual(['Board Wipes', 'Counterspells', 'Ramp']);
   });
 
   test('tags mode: untagged pile last', () => {
     const piles = projectPiles(deckWith([entry('Sol Ring', 1, ['Combo']), entry('Counterspell')]), cards, 'tags');
-    expect(labels(piles)).toEqual(['Combo', 'Ohne Tag']);
+    expect(labels(piles)).toEqual(['Combo', 'Untagged']);
   });
 
-  test('unresolved card never crashes and lands in Unbekannt (last)', () => {
+  test('unresolved card never crashes and lands in Unknown (last)', () => {
     const piles = projectPiles(deckWith([entry('Sol Ring'), entry('Mystery Card')]), cards, 'type');
-    expect(labels(piles)[labels(piles).length - 1]).toBe('Unbekannt');
-    expect(find(piles, 'Unbekannt')?.entries[0].name).toBe('Mystery Card');
+    expect(labels(piles)[labels(piles).length - 1]).toBe('Unknown');
+    expect(find(piles, 'Unknown')?.entries[0].name).toBe('Mystery Card');
   });
 });

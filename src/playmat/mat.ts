@@ -1,7 +1,7 @@
 // ==================== Playmat Mat Rendering ====================
 // Renders the commander zone, the pile projection of the current sort
 // mode (flow layout, or absolute grid positions in free mode), the
-// maybeboard/sideboard docks and the "Neuer Stapel" target.
+// maybeboard/sideboard docks and the "New pile" target.
 
 import type { DeckBoard, DeckbuilderCardEntry } from '../deckbuilder/types.js';
 import { projectPiles, type Pile } from './sort.js';
@@ -62,8 +62,8 @@ async function editTags(name: string, board: DeckBoard): Promise<void> {
   const entry = entryOf(board, name);
   if (!entry) return;
   const input = await showPromptModal({
-    title: `Tags für ${name}`,
-    message: 'Kommagetrennt, z.B. Combo, Removal',
+    title: `Tags for ${name}`,
+    message: 'Comma-separated, e.g. Combo, Removal',
     placeholder: 'Tag1, Tag2',
     defaultValue: (entry.tags || []).join(', '),
   });
@@ -91,7 +91,7 @@ export function setCommander(name: string): void {
   mutateDeck(stateRef, (d) => {
     d.boards.commander = [{ name, qty: 1, set: null, collectorNumber: null, tags: [] }];
   });
-  showToast({ message: `${name} ist jetzt dein Commander.`, type: 'success' });
+  showToast({ message: `${name} is now your commander.`, type: 'success' });
 }
 
 /** Assign a tag by dropping onto a pile in tags mode. */
@@ -99,7 +99,7 @@ export function assignTag(name: string, tag: string): void {
   const entry = entryOf('mainboard', name);
   if (!entry) return;
   mutateDeck(stateRef, () => {
-    if (tag === 'Ohne Tag') entry.tags = [];
+    if (tag === 'Untagged') entry.tags = [];
     else if (!entry.tags?.includes(tag)) entry.tags = [...(entry.tags || []), tag];
   });
 }
@@ -195,7 +195,7 @@ function commanderZone(): HTMLElement {
     const slot = document.createElement('button');
     slot.type = 'button';
     slot.className = 'pm-cmdslot';
-    slot.innerHTML = `${iconSvg('sparkle')}<span>Commander<br>wählen</span>`;
+    slot.innerHTML = `${iconSvg('sparkle')}<span>Choose<br>commander</span>`;
     slot.addEventListener('click', () => document.dispatchEvent(new CustomEvent(EV_OPEN_COMMANDER_SEARCH)));
     zone.appendChild(slot);
   }
@@ -221,7 +221,7 @@ function dockEl(board: 'maybeboard' | 'sideboard'): HTMLElement {
     const tray = document.createElement('div');
     tray.className = 'pm-dock-tray';
     if (entries.length === 0) {
-      tray.innerHTML = '<span class="pm-dock-empty">Leer — Karten per Kontextmenü hierher verschieben.</span>';
+      tray.innerHTML = '<span class="pm-dock-empty">Empty — move cards here via the context menu.</span>';
     }
     for (const e of entries) {
       const row = document.createElement('div');
@@ -229,7 +229,7 @@ function dockEl(board: 'maybeboard' | 'sideboard'): HTMLElement {
       row.innerHTML = `<span class="q">${e.qty}</span><span class="n">${escapeHtml(e.name)}</span>`;
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.title = 'In Mainboard verschieben';
+      btn.title = 'Move to mainboard';
       btn.textContent = '→ Main';
       btn.addEventListener('click', () => moveTo(e.name, board, 'mainboard'));
       row.appendChild(btn);
@@ -290,22 +290,22 @@ export function renderMat(root: HTMLElement, state: PlaymatState): void {
     const ghost = document.createElement('button');
     ghost.type = 'button';
     ghost.className = 'pm-ghost-pile';
-    ghost.innerHTML = `${iconSvg('plus')}<span>Neuer Stapel</span>`;
+    ghost.innerHTML = `${iconSvg('plus')}<span>New pile</span>`;
     ghost.dataset.pile = 'pile-new';
     ghost.addEventListener('click', async () => {
       const tag = (await showPromptModal({
-        title: 'Neuer Stapel',
-        message: 'Name des Tags für diesen Stapel:',
-        placeholder: 'z.B. Combo-Teile',
+        title: 'New pile',
+        message: 'Tag name for this pile:',
+        placeholder: 'e.g. Combo pieces',
       }))?.trim();
       if (!tag) return;
       if (state.sortMode !== 'tags') {
-        showToast({ message: 'Wechsle zu „Eigene Tags“, um Tag-Stapel zu nutzen.', type: 'info' });
+        showToast({ message: 'Switch to "Custom Tags" to use tag piles.', type: 'info' });
         return;
       }
       pendingTags.add(tag);
       renderMat(rootRef, stateRef);
-      showToast({ message: `Stapel „${tag}“ angelegt — Karten per Drag hinein taggen.`, type: 'success' });
+      showToast({ message: `Pile "${tag}" created — drag cards onto it to tag them.`, type: 'success' });
     });
     field.appendChild(ghost);
   }

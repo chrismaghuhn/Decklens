@@ -1,7 +1,7 @@
 // ==================== Playmat Pile Projection ====================
 // Pure projection of a deck's mainboard into labeled piles for the
 // active sort mode. The commander lives in its own zone and is never
-// part of a pile. Unresolved cards fall into a trailing "Unbekannt"
+// part of a pile. Unresolved cards fall into a trailing "Unknown"
 // pile instead of crashing a mode that needs card data.
 
 import type { DeckbuilderDeck, DeckbuilderCardEntry } from '../deckbuilder/types.js';
@@ -29,10 +29,10 @@ const TYPE_ORDER: Array<[string, string]> = [
 ];
 
 const COLOR_ORDER: Array<[string, string]> = [
-  ['W', 'Weiß'], ['U', 'Blau'], ['B', 'Schwarz'], ['R', 'Rot'], ['G', 'Grün'],
+  ['W', 'White'], ['U', 'Blue'], ['B', 'Black'], ['R', 'Red'], ['G', 'Green'],
 ];
 
-const UNKNOWN = 'Unbekannt';
+const UNKNOWN = 'Unknown';
 
 function lookup(
   cardByName: Record<string, DeckbuilderSearchCard | undefined>,
@@ -71,9 +71,9 @@ function bucketOf(
   // color
   if (typeLine.includes('land')) return ROLE_LABELS.land;
   const ci = card.color_identity || [];
-  if (ci.length === 0) return 'Farblos';
-  if (ci.length > 1) return 'Mehrfarbig';
-  return COLOR_ORDER.find(([c]) => c === ci[0])?.[1] ?? 'Farblos';
+  if (ci.length === 0) return 'Colorless';
+  if (ci.length > 1) return 'Multicolor';
+  return COLOR_ORDER.find(([c]) => c === ci[0])?.[1] ?? 'Colorless';
 }
 
 function orderFor(mode: Exclude<SortMode, 'free'>): string[] {
@@ -83,7 +83,7 @@ function orderFor(mode: Exclude<SortMode, 'free'>): string[] {
     case 'mana':
       return ['0', '1', '2', '3', '4', '5', '6', '7+', ROLE_LABELS.land, UNKNOWN];
     case 'color':
-      return [...COLOR_ORDER.map(([, l]) => l), 'Mehrfarbig', 'Farblos', ROLE_LABELS.land, UNKNOWN];
+      return [...COLOR_ORDER.map(([, l]) => l), 'Multicolor', 'Colorless', ROLE_LABELS.land, UNKNOWN];
     case 'role':
       return [...ROLE_PRIORITY.map((r) => ROLE_LABELS[r]), ROLE_LABELS.utility, ROLE_LABELS.land, UNKNOWN];
     case 'tags':
@@ -110,7 +110,7 @@ export function projectPiles(
       if (tags) {
         for (const t of tags) put(t, entry);
       } else {
-        put('Ohne Tag', entry);
+        put('Untagged', entry);
       }
       continue;
     }
@@ -119,8 +119,8 @@ export function projectPiles(
 
   let labels: string[];
   if (mode === 'tags') {
-    labels = [...buckets.keys()].filter((l) => l !== 'Ohne Tag').sort((a, b) => a.localeCompare(b));
-    if (buckets.has('Ohne Tag')) labels.push('Ohne Tag');
+    labels = [...buckets.keys()].filter((l) => l !== 'Untagged').sort((a, b) => a.localeCompare(b));
+    if (buckets.has('Untagged')) labels.push('Untagged');
   } else {
     labels = orderFor(mode).filter((l) => buckets.has(l));
   }

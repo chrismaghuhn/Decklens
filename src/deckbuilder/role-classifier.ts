@@ -13,15 +13,15 @@ export type Role =
 export const ROLE_LABELS: Record<Role, string> = {
   wincon: 'Wincons',
   wipe: 'Board Wipes',
-  counter: 'Counter',
+  counter: 'Counterspells',
   removal: 'Removal',
-  tutor: 'Tutoren',
-  ramp: 'Rampe',
-  draw: 'Kartenzug',
+  tutor: 'Tutors',
+  ramp: 'Ramp',
+  draw: 'Card Draw',
   recursion: 'Recursion',
-  protection: 'Schutz',
+  protection: 'Protection',
   utility: 'Utility',
-  land: 'Länder',
+  land: 'Lands',
 };
 
 /** English keys the draw-probability presets expect (renderDrawProbability). */

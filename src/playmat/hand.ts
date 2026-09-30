@@ -38,7 +38,7 @@ function addResult(card: DeckbuilderSearchCard): void {
     return;
   }
   addCardToDeck(card.name);
-  showToast({ message: `${card.name} hinzugefügt.`, type: 'success', duration: 1600 });
+  showToast({ message: `${card.name} added.`, type: 'success', duration: 1600 });
 }
 
 async function runSearch(query: string): Promise<void> {
@@ -61,7 +61,7 @@ async function runSearch(query: string): Promise<void> {
     renderHand();
   } catch (err) {
     if (seq !== searchSeq) return;
-    showToast({ message: err instanceof Error ? err.message : 'Suche fehlgeschlagen.', type: 'error' });
+    showToast({ message: err instanceof Error ? err.message : 'Search failed.', type: 'error' });
   }
 }
 
@@ -76,8 +76,8 @@ function renderHand(): void {
   const label = document.createElement('div');
   label.className = 'pm-hand-label';
   label.textContent = commanderMode
-    ? `COMMANDER WÄHLEN — ${results.length} TREFFER`
-    : `DEINE HAND — ${results.length} TREFFER · + ODER ZIEHEN`;
+    ? `CHOOSE A COMMANDER — ${results.length} HITS`
+    : `YOUR HAND — ${results.length} HITS · + OR DRAG`;
   handRoot.appendChild(label);
 
   const fan = document.createElement('div');
@@ -106,7 +106,7 @@ function renderHand(): void {
     add.type = 'button';
     add.className = 'pm-hand-add';
     add.textContent = '+';
-    add.title = commanderMode ? 'Als Commander setzen' : 'Zum Deck hinzufügen';
+    add.title = commanderMode ? 'Set as commander' : 'Add to deck';
     add.addEventListener('click', (e) => { e.stopPropagation(); addResult(card); });
     el.appendChild(add);
 
@@ -137,7 +137,7 @@ export function initHand(state: PlaymatState): void {
   slot.innerHTML = `
     <div class="pm-search">
       <span class="pm-search-lens">${iconSvg('search')}</span>
-      <input type="search" placeholder="Karte suchen … Enter fügt Top-Treffer hinzu" aria-label="Kartensuche">
+      <input type="search" placeholder="Search cards … Enter adds the top hit" aria-label="Card search">
       <span class="pm-kbd">/</span>
     </div>`;
   inputEl = slot.querySelector('input')!;
@@ -172,9 +172,9 @@ export function initHand(state: PlaymatState): void {
   document.addEventListener(EV_OPEN_COMMANDER_SEARCH, () => {
     commanderMode = true;
     inputEl.focus();
-    inputEl.placeholder = 'Commander suchen (legendäre Kreatur) …';
+    inputEl.placeholder = 'Search commander (legendary creature) …';
     if (inputEl.value.trim().length >= 2) void runSearch(inputEl.value);
-    else showToast({ message: 'Tippe einen Namen — nur legendäre Kreaturen werden gesucht.', type: 'info' });
+    else showToast({ message: 'Type a name — only legendary creatures are searched.', type: 'info' });
   });
 }
 

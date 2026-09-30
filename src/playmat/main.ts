@@ -22,12 +22,12 @@ function parseDeckIdFromPath(): string | null {
 }
 
 const SORT_MODES: Array<{ mode: SortMode; label: string }> = [
-  { mode: 'type', label: 'Kartentyp' },
-  { mode: 'mana', label: 'Manakosten' },
-  { mode: 'color', label: 'Farbe' },
-  { mode: 'role', label: 'Funktion' },
-  { mode: 'tags', label: 'Eigene Tags' },
-  { mode: 'free', label: 'Frei' },
+  { mode: 'type', label: 'Card Type' },
+  { mode: 'mana', label: 'Mana Value' },
+  { mode: 'color', label: 'Color' },
+  { mode: 'role', label: 'Function' },
+  { mode: 'tags', label: 'Custom Tags' },
+  { mode: 'free', label: 'Free' },
 ];
 
 function renderHeader(root: HTMLElement, state: PlaymatState): void {
@@ -37,7 +37,7 @@ function renderHeader(root: HTMLElement, state: PlaymatState): void {
   name.className = 'pm-name';
   name.value = state.deck.name;
   name.maxLength = 100;
-  name.setAttribute('aria-label', 'Deckname');
+  name.setAttribute('aria-label', 'Deck name');
   name.addEventListener('change', () => {
     mutateDeck(state, (d) => { d.name = name.value.trim() || 'Untitled Deck'; });
   });
@@ -60,7 +60,7 @@ function renderHeader(root: HTMLElement, state: PlaymatState): void {
   const more = document.createElement('button');
   more.className = 'pm-more';
   more.type = 'button';
-  more.title = 'Deck-Aktionen';
+  more.title = 'Deck actions';
   more.textContent = '⋯';
   more.addEventListener('click', () => openMoreMenu(more, state));
 
@@ -90,8 +90,8 @@ function renderProgress(state: PlaymatState): void {
     <span class="pm-ring-label">${total}${hasCap ? `<em>/${rules.maxDeckSize}</em>` : ''}</span>
   `;
   host.title = missingCmd
-    ? 'Commander fehlt noch — Slot links oben auf der Matte'
-    : hasCap ? `${total} von ${rules.maxDeckSize} Karten` : `${total} Karten (min. ${rules.minDeckSize})`;
+    ? 'Commander missing — use the slot in the top-left of the mat'
+    : hasCap ? `${total} of ${rules.maxDeckSize} cards` : `${total} cards (min. ${rules.minDeckSize})`;
 }
 
 function openMoreMenu(anchor: HTMLElement, state: PlaymatState): void {
@@ -99,16 +99,16 @@ function openMoreMenu(anchor: HTMLElement, state: PlaymatState): void {
   const menu = document.createElement('div');
   menu.className = 'pm-menu';
   const items: Array<[string, () => void]> = [
-    ['Zur Deck-Liste', () => { window.location.href = '/decks'; }],
-    ['Deck duplizieren', () => {
+    ['Back to decks', () => { window.location.href = '/decks'; }],
+    ['Duplicate deck', () => {
       const copy = duplicateDeck(state.deck.id);
       if (copy) window.location.href = `/decks/id/${copy.id}`;
     }],
-    ['Deck löschen', async () => {
+    ['Delete deck', async () => {
       const ok = await showConfirmModal({
-        title: 'Deck löschen?',
-        message: `„${state.deck.name}“ wird dauerhaft gelöscht.`,
-        confirmLabel: 'Löschen',
+        title: 'Delete deck?',
+        message: `"${state.deck.name}" will be deleted permanently.`,
+        confirmLabel: 'Delete',
       });
       if (ok) { deleteDeck(state.deck.id); window.location.href = '/decks'; }
     }],
@@ -134,7 +134,7 @@ function renderSortbar(root: HTMLElement, state: PlaymatState): void {
   root.textContent = '';
   const lbl = document.createElement('span');
   lbl.className = 'pm-sort-label';
-  lbl.textContent = 'SORTIEREN NACH';
+  lbl.textContent = 'SORT BY';
   root.appendChild(lbl);
 
   for (const { mode, label } of SORT_MODES) {
@@ -160,7 +160,7 @@ async function boot(): Promise<void> {
   const state = deckId ? initState(deckId) : null;
   if (!state) {
     document.getElementById('pmMat')!.innerHTML =
-      `<div class="pm-notfound">${iconSvg('cards')}<p>Deck nicht gefunden auf diesem Gerät.</p><a href="/decks">Zur Deck-Liste</a></div>`;
+      `<div class="pm-notfound">${iconSvg('cards')}<p>Deck not found on this device.</p><a href="/decks">Back to decks</a></div>`;
     return;
   }
 
@@ -171,11 +171,11 @@ async function boot(): Promise<void> {
     if (isTypingContext(e.target)) return; // native text undo stays native
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
       e.preventDefault();
-      if (undo(state.deck)) { persistDeck(state); showToast({ message: 'Rückgängig.', type: 'info', duration: 1500 }); }
+      if (undo(state.deck)) { persistDeck(state); showToast({ message: 'Undone.', type: 'info', duration: 1500 }); }
     }
     if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
       e.preventDefault();
-      if (redo(state.deck)) { persistDeck(state); showToast({ message: 'Wiederhergestellt.', type: 'info', duration: 1500 }); }
+      if (redo(state.deck)) { persistDeck(state); showToast({ message: 'Redone.', type: 'info', duration: 1500 }); }
     }
   });
 
@@ -202,7 +202,7 @@ async function boot(): Promise<void> {
   initDrawers(state);
 
   void resolveMissing(state).catch(() => {
-    showToast({ message: 'Kartendaten konnten nicht geladen werden.', type: 'error' });
+    showToast({ message: 'Could not load card data.', type: 'error' });
   });
 
   // expose for debugging
