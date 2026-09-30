@@ -11,23 +11,11 @@ interface Env {
 // Rewrite rules: [pattern, target HTML file]
 // Order matters – more specific patterns first
 const REWRITES: [RegExp, string][] = [
-  [/^\/simulator\/?$/, '/rules-engine.html'],
-  [/^\/simulator\/.+/, '/rules-engine.html'],
-  [/^\/play\/?$/, '/play-vs-bot.html'],
-  [/^\/play\/.+/, '/play-vs-bot.html'],
-  [/^\/train-bot\/?$/, '/train-bot.html'],
   [/^\/deck-editor\/?$/, '/deck-editor.html'],
-  [/^\/decks\/public\/?$/, '/decks-public.html'],
   [/^\/decks\/.+/, '/deck-editor.html'],
-  [/^\/d\/.+/, '/deck-public.html'],
-  [/^\/dashboard\/executive\/?$/, '/executive-dashboard.html'],
-  [/^\/dashboard\/growth\/?$/, '/growth-dashboard.html'],
-  [/^\/dashboard\/technical\/?$/, '/technical-dashboard.html'],
-  [/^\/dashboard\/community\/?$/, '/community-dashboard.html'],
-  [/^\/dashboard\/public\/?$/, '/public-dashboard.html'],
-  [/^\/dashboard\/?$/, '/dashboard-hub.html'],
-  [/^\/dashboard\/.+/, '/dashboard-hub.html'],
-  [/^\/deckhub\/?/, '/deckhub.html'],
+  [/^\/decks\/?$/, '/decks.html'],
+  [/^\/mtg\/?$/, '/mtg.html'],
+  [/^\/yugioh\/?$/, '/yugioh.html'],
 ];
 
 export default {

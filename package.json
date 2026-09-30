@@ -7,17 +7,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "train:cli": "npx tsx scripts/train-bot-cli.ts",
-    "train:gpu": "npx tsx scripts/train-bot-cli.ts --backend gpu",
-    "train:cpu": "npx tsx scripts/train-bot-cli.ts --backend cpu",
-    "eval:cli": "npx tsx scripts/eval-bot-cli.ts"
+    "test": "vitest run"
   },
   "dependencies": {
-    "@tensorflow/tfjs": "^4.17.0",
-    "@tensorflow/tfjs-backend-wasm": "^4.22.0",
-    "@tensorflow/tfjs-backend-webgl": "^4.17.0",
-    "@tensorflow/tfjs-node": "^4.22.0",
-    "@tensorflow/tfjs-node-gpu": "^4.22.0",
     "lz-string": "^1.5.0",
     "wrangler": "^4.65.0"
   },

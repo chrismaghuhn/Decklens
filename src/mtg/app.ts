@@ -5817,7 +5817,7 @@ export async function copyShareUrl(): Promise<void> {
 
   try {
     const result = generateShareUrl({
-      deckName: currentDeckName || 'Shared Deck',
+      name: currentDeckName || 'Shared Deck',
       main: currentDeck.main,
       sideboard: currentDeck.sideboard,
       commander: currentDeck.commander,

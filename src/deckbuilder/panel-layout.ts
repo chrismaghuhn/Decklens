@@ -26,14 +26,8 @@ export type WidgetId =
   | 'summary-bar'
   | 'price-summary' | 'collection' | 'budget'
   | 'export' | 'version-history'
-  | 'matchups' | 'smart-recs' | 'rec-history'
-  | 'edhrec' | 'import'
-  | 'repo'
-  | 'coach'
-  | 'matchup-strategy'
-  | 'deck-solver'
-  | 'cut-suggestions'
-  | 'simulation';
+  | 'matchups' | 'smart-recs'
+  | 'import';
 
 interface WidgetPlacement {
   widgetId: WidgetId;
@@ -126,7 +120,6 @@ const LAYOUT_PRESETS: LayoutPreset[] = [
     icon: '🎮',
     widgets: [
       { widgetId: 'cards', col: 0, row: 0, colSpan: 8, rowSpan: 10, visible: true, collapsed: false },
-      { widgetId: 'coach', col: 8, row: 0, colSpan: 4, rowSpan: 6, visible: true, collapsed: false },
       { widgetId: 'draw-probability', col: 8, row: 6, colSpan: 4, rowSpan: 4, visible: true, collapsed: false },
       { widgetId: 'search', col: 0, row: 10, colSpan: 6, rowSpan: 5, visible: true, collapsed: false },
       { widgetId: 'mana-curve', col: 6, row: 10, colSpan: 3, rowSpan: 3, visible: true, collapsed: false },
@@ -218,8 +211,6 @@ const WIDGET_REGISTRY: WidgetRegistryEntry[] = [
     extractSelectors: ['.sidebar-search', '#searchFilters', '#activeFilterPills', '#searchResults'] },
 
   // Analytics
-  { id: 'commander-stats', label: 'Commander Stats', icon: '👑', minColSpan: 3, minRowSpan: 3, defaultVisible: true,
-    extractSelectors: ['#commanderStatsWidget'] },
   { id: 'mana-curve', label: 'Mana Curve', icon: '📊', minColSpan: 3, minRowSpan: 2, defaultVisible: true,
     extractSelectors: ['#manaCurveChart', '#manaCurveAvg'] },
   { id: 'color-pie', label: 'Color Distribution', icon: '🎨', minColSpan: 2, minRowSpan: 2, defaultVisible: true,
@@ -270,38 +261,20 @@ const WIDGET_REGISTRY: WidgetRegistryEntry[] = [
     extractSelectors: ['#matchupPanelContainer'] },
   { id: 'smart-recs', label: 'Smart Recs', icon: '🧠', minColSpan: 3, minRowSpan: 3, defaultVisible: false,
     extractSelectors: ['#smartRecsContainer'] },
-  { id: 'rec-history', label: 'Rec History', icon: '📚', minColSpan: 3, minRowSpan: 2, defaultVisible: false,
-    extractSelectors: ['#recHistoryContainer'] },
 
   // Other
-  { id: 'edhrec', label: 'EDHREC Recs', icon: '🎯', minColSpan: 3, minRowSpan: 3, defaultVisible: false,
-    extractSelectors: ['#edhrecPanelContainer'] },
   { id: 'import', label: 'Import Decklist', icon: '📥', minColSpan: 3, minRowSpan: 2, defaultVisible: false,
     extractSelectors: [] }, // Special: takes entire import tab
 
   // Git / Repo
-  { id: 'repo', label: 'Repo', icon: '🔀', minColSpan: 4, minRowSpan: 4, defaultVisible: false,
-    extractSelectors: [] }, // Special: takes entire repo tab
-
-  // Playtest Coach
-  { id: 'coach', label: 'Playtest Coach', icon: '🎓', minColSpan: 3, minRowSpan: 3, defaultVisible: false,
-    extractSelectors: ['#goldfishCoachWidget'] },
 
   // Matchup Strategy
-  { id: 'matchup-strategy', label: 'Matchup Strategy', icon: '⚔️', minColSpan: 3, minRowSpan: 4, defaultVisible: false,
-    extractSelectors: ['#matchupStrategyWidget'] },
 
   // Deck Solver
-  { id: 'deck-solver', label: 'Deck Solver', icon: '🧮', minColSpan: 3, minRowSpan: 3, defaultVisible: false,
-    extractSelectors: ['#deckSolverWidget'] },
 
   // Cut Suggestions
-  { id: 'cut-suggestions', label: 'Cut Suggestions', icon: '✂️', minColSpan: 3, minRowSpan: 4, defaultVisible: false,
-    extractSelectors: ['#cutSuggestionsWidget'] },
 
   // Simulation
-  { id: 'simulation', label: 'Digital Twin', icon: '🎲', minColSpan: 4, minRowSpan: 5, defaultVisible: false,
-    extractSelectors: ['#simulationWidget'] },
 ];
 
 const REGISTRY_MAP = new Map<WidgetId, WidgetRegistryEntry>(
@@ -348,15 +321,7 @@ function createDefaultLayout(): LayoutConfig {
       { widgetId: 'version-history', col: 6, row: 20, colSpan: 3, rowSpan: 2, visible: false, collapsed: false },
       { widgetId: 'matchups', col: 0, row: 24, colSpan: 4, rowSpan: 3, visible: false, collapsed: false },
       { widgetId: 'smart-recs', col: 4, row: 24, colSpan: 4, rowSpan: 3, visible: false, collapsed: false },
-      { widgetId: 'rec-history', col: 8, row: 24, colSpan: 4, rowSpan: 2, visible: false, collapsed: false },
-      { widgetId: 'edhrec', col: 0, row: 27, colSpan: 4, rowSpan: 3, visible: false, collapsed: false },
       { widgetId: 'import', col: 4, row: 27, colSpan: 4, rowSpan: 2, visible: false, collapsed: false },
-      { widgetId: 'repo', col: 8, row: 27, colSpan: 4, rowSpan: 4, visible: false, collapsed: false },
-      { widgetId: 'coach', col: 0, row: 31, colSpan: 6, rowSpan: 4, visible: false, collapsed: false },
-      { widgetId: 'matchup-strategy', col: 6, row: 31, colSpan: 6, rowSpan: 4, visible: false, collapsed: false },
-      { widgetId: 'deck-solver', col: 0, row: 35, colSpan: 4, rowSpan: 3, visible: false, collapsed: false },
-      { widgetId: 'cut-suggestions', col: 4, row: 35, colSpan: 4, rowSpan: 4, visible: false, collapsed: false },
-      { widgetId: 'simulation', col: 8, row: 35, colSpan: 4, rowSpan: 5, visible: false, collapsed: false },
     ],
   };
 }
@@ -468,14 +433,6 @@ function extractWidgetContent(entry: WidgetRegistryEntry): HTMLElement | null {
   }
   if (entry.id === 'import') {
     const panel = document.querySelector<HTMLElement>('[data-tab-panel="deck"]');
-    if (panel) {
-      while (panel.firstChild) body.appendChild(panel.firstChild);
-      return body;
-    }
-    return null;
-  }
-  if (entry.id === 'repo') {
-    const panel = document.querySelector<HTMLElement>('[data-tab-panel="repo"]');
     if (panel) {
       while (panel.firstChild) body.appendChild(panel.firstChild);
       return body;
@@ -1464,8 +1421,6 @@ function createAnalyticsPreset(): WidgetPlacement[] {
     { widgetId: 'version-history', col: 6, row: 21, colSpan: 3, rowSpan: 2, visible: false, collapsed: false },
     { widgetId: 'matchups', col: 0, row: 25, colSpan: 4, rowSpan: 3, visible: false, collapsed: false },
     { widgetId: 'smart-recs', col: 4, row: 25, colSpan: 4, rowSpan: 3, visible: false, collapsed: false },
-    { widgetId: 'rec-history', col: 8, row: 25, colSpan: 4, rowSpan: 2, visible: false, collapsed: false },
-    { widgetId: 'edhrec', col: 0, row: 28, colSpan: 4, rowSpan: 3, visible: false, collapsed: false },
     { widgetId: 'import', col: 4, row: 28, colSpan: 4, rowSpan: 2, visible: false, collapsed: false },
   ];
 }
@@ -1498,8 +1453,6 @@ function createCompactPreset(): WidgetPlacement[] {
     { widgetId: 'version-history', col: 6, row: 16, colSpan: 3, rowSpan: 2, visible: false, collapsed: false },
     { widgetId: 'matchups', col: 0, row: 19, colSpan: 4, rowSpan: 3, visible: false, collapsed: false },
     { widgetId: 'smart-recs', col: 4, row: 19, colSpan: 4, rowSpan: 3, visible: false, collapsed: false },
-    { widgetId: 'rec-history', col: 8, row: 19, colSpan: 4, rowSpan: 2, visible: false, collapsed: false },
-    { widgetId: 'edhrec', col: 0, row: 22, colSpan: 4, rowSpan: 3, visible: false, collapsed: false },
     { widgetId: 'import', col: 4, row: 22, colSpan: 4, rowSpan: 2, visible: false, collapsed: false },
   ];
 }

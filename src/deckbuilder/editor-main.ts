@@ -233,8 +233,8 @@ function initLayoutMode(): void {
 
 function showLayoutModeOnboarding(): void {
   // Always treat as object, never boolean
-  const stored = storageGet(STORAGE_KEYS.DECKBUILDER_ONBOARDING, {});
-  const hasSeenOnboarding = typeof stored === 'object' && stored !== null ? stored : {};
+  const stored = storageGet<Record<string, boolean>>(STORAGE_KEYS.DECKBUILDER_ONBOARDING, {});
+  const hasSeenOnboarding: Record<string, boolean> = typeof stored === 'object' && stored !== null ? stored : {};
 
   if (!hasSeenOnboarding.layoutMode) {
     showToast({
@@ -244,7 +244,7 @@ function showLayoutModeOnboarding(): void {
     });
 
     // Safely update onboarding state
-    const current = typeof stored === 'object' && stored !== null ? {...stored} : {};
+    const current: Record<string, boolean> = typeof stored === 'object' && stored !== null ? { ...stored } : {};
     current.layoutMode = true;
     storageSet(STORAGE_KEYS.DECKBUILDER_ONBOARDING, current);
   }
@@ -395,7 +395,7 @@ function saveCurrentDeck(): void {
     console.error('[Deckbuilder] Failed to save deck:', err);
     lastSaveError = errorMsg;
     updateSaveIndicator('error');
-    showToast('Failed to save deck: ' + errorMsg, 'error', 5000);
+    showToast({ message: 'Failed to save deck: ' + errorMsg, type: 'error', duration: 5000 });
   }
 }
 
@@ -480,7 +480,7 @@ function setActiveBoard(board: DeckBoard): void {
       localStorage.setItem(`dl_board_${currentDeck.id}`, board);
     } catch (err) {
       console.error('[Deckbuilder] Failed to persist board preference:', err);
-      showToast('Warning: Board preference not saved', 'warning', 3000);
+      showToast({ message: 'Warning: Board preference not saved', type: 'warning', duration: 3000 });
     }
   }
   scheduleRenderBoardRows();
@@ -2329,19 +2329,6 @@ function renderPricing(): void {
       }
     },
   });
-}
-
-function toSharePayload(deck: DeckbuilderDeck): DeckbuilderShareDeckPayload {
-  return {
-    name: deck.name,
-    description: deck.description || undefined,
-    boards: {
-      commander: deck.boards.commander,
-      mainboard: deck.boards.mainboard,
-      sideboard: deck.boards.sideboard,
-      maybeboard: deck.boards.maybeboard,
-    },
-  };
 }
 
 function buildPlainTextExport(deck: DeckbuilderDeck): string {
@@ -4307,7 +4294,7 @@ function bindBulkActions(): void {
     }
     clearSelection();
     saveAndRender();
-    showToast(`Removed ${count} card${count > 1 ? 's' : ''}`, 'success', 2000);
+    showToast({ message: `Removed ${count} card${count > 1 ? 's' : ''}`, type: 'success', duration: 2000 });
   });
 
   byId<HTMLInputElement>('bulkTags').addEventListener('change', (e) => {
@@ -4759,6 +4746,108 @@ function showCompareModal(): void {
   });
 
   document.body.appendChild(modal);
+}
+
+async function fillBasicLands(): Promise<void> {
+  if (!currentDeck) return;
+  
+  const analysis = analyzeManaBase(currentDeck, resolvedCardByName);
+  const currentLands = analysis.totalLands;
+
+  // 1. Prompt for target land count
+  const targetStr = await showPromptModal({
+    title: 'Fill Basic Lands',
+    message: `Current Lands: ${currentLands}\nTarget Land Count:`,
+    defaultValue: '37',
+    placeholder: '37',
+    confirmLabel: 'Next',
+  });
+
+  if (!targetStr) return; // User cancelled
+  const targetLands = parseInt(targetStr, 10);
+  if (isNaN(targetLands) || targetLands < 0) {
+    showToast({ message: 'Invalid land count.', type: 'error' });
+    return;
+  }
+  
+  if (currentLands >= targetLands) {
+    showToast({ message: `Deck already has ${currentLands} lands (Target: ${targetLands})`, type: 'info' });
+    return;
+  }
+  
+  const needed = targetLands - currentLands;
+  const landsToAdd: Record<string, number> = {
+    'Plains': 0, 'Island': 0, 'Swamp': 0, 'Mountain': 0, 'Forest': 0
+  };
+  
+  // Calculate pip ratios
+  const totalPips = analysis.colors.reduce((sum, c) => sum + c.pips, 0);
+  
+  if (totalPips === 0) {
+      showToast({ message: 'No colored mana requirements found to distribute lands.', type: 'warning' });
+      return;
+  }
+
+  // Distribute lands based on pip ratio
+  let assigned = 0;
+  for (const color of analysis.colors) {
+      const ratio = color.pips / totalPips;
+      const count = Math.floor(needed * ratio);
+      const landName = {
+          'W': 'Plains', 'U': 'Island', 'B': 'Swamp', 'R': 'Mountain', 'G': 'Forest'
+      }[color.color];
+      
+      if (landName) {
+          landsToAdd[landName] += count;
+          assigned += count;
+      }
+  }
+  
+  // Assign remainder to the color with most pips
+  if (assigned < needed) {
+      const topColor = analysis.colors.sort((a,b) => b.pips - a.pips)[0];
+      if (topColor) {
+           const landName = {
+              'W': 'Plains', 'U': 'Island', 'B': 'Swamp', 'R': 'Mountain', 'G': 'Forest'
+          }[topColor.color];
+          if (landName) {
+              landsToAdd[landName] += (needed - assigned);
+          }
+      }
+  }
+
+  // 2. Build confirmation message
+  const summary: string[] = [];
+  for (const [name, qty] of Object.entries(landsToAdd)) {
+    if (qty > 0) summary.push(`${qty}x ${name}`);
+  }
+
+  if (summary.length === 0) {
+     showToast({ message: 'Calculation resulted in no lands to add.', type: 'warning' });
+     return;
+  }
+
+  const confirmed = await showConfirmModal({
+    title: 'Review Changes',
+    message: `Add the following ${needed} lands?\n\n${summary.join('\n')}`,
+    confirmLabel: 'Add Lands',
+  });
+
+  if (!confirmed) return;
+
+  // Apply changes
+  let changes = 0;
+  for (const [name, qty] of Object.entries(landsToAdd)) {
+      if (qty > 0) {
+          upsertEntry('mainboard', name, qty);
+          changes++;
+      }
+  }
+
+  if (changes > 0) {
+      saveAndRender();
+      showToast({ message: `Added ${needed} basic lands.`, type: 'success' });
+  }
 }
 
 function initThemeToggle(): void {
