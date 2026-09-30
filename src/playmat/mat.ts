@@ -296,7 +296,8 @@ export function renderMat(root: HTMLElement, state: PlaymatState): void {
 
   root.appendChild(commanderZone());
 
-  const mode = state.sortMode === 'free' ? 'type' : state.sortMode;
+  // free mode inherits the grouping of the last non-free sort mode
+  const mode = state.sortMode === 'free' ? state.freeBase : state.sortMode;
   let piles = projectPiles(state.deck, state.cardByName, mode);
   if (state.sortMode !== 'free') {
     piles = applyPileOrder(piles, state.deck.pileOrders?.[state.sortMode]);

@@ -210,6 +210,10 @@ function renderSortbar(root: HTMLElement, state: PlaymatState): void {
     b.type = 'button';
     b.className = 'pm-sort-opt' + (state.sortMode === mode ? ' on' : '');
     b.textContent = label;
+    if (mode === 'free') {
+      const baseLabel = SORT_MODES.find((m) => m.mode === state.freeBase)?.label ?? 'Card Type';
+      b.title = `Free placement — grouped by ${baseLabel}`;
+    }
     b.addEventListener('click', () => setSortMode(state, mode));
     root.appendChild(b);
   }

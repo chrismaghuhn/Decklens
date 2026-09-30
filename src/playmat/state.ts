@@ -13,6 +13,8 @@ export interface PlaymatState {
   deck: DeckbuilderDeck;
   cardByName: Record<string, DeckbuilderSearchCard | undefined>;
   sortMode: SortMode;
+  /** Grouping the free mode inherits: the last non-free sort mode. */
+  freeBase: Exclude<SortMode, 'free'>;
 }
 
 export const EV_DECK_CHANGED = 'pm-deck-changed';
@@ -40,11 +42,20 @@ export function initState(deckId: string): PlaymatState | null {
   const stored = localStorage.getItem(`dl_pm_sort_${deck.id}`);
   const sortMode: SortMode = (['type', 'mana', 'color', 'role', 'tags', 'free'] as SortMode[])
     .includes(stored as SortMode) ? (stored as SortMode) : 'type';
-  return { deck, cardByName: {}, sortMode };
+  const storedBase = localStorage.getItem(`dl_pm_freebase_${deck.id}`);
+  const freeBase = (['type', 'mana', 'color', 'role', 'tags'] as Array<Exclude<SortMode, 'free'>>)
+    .includes(storedBase as Exclude<SortMode, 'free'>)
+    ? (storedBase as Exclude<SortMode, 'free'>)
+    : (sortMode !== 'free' ? sortMode : 'type');
+  return { deck, cardByName: {}, sortMode, freeBase };
 }
 
 export function setSortMode(state: PlaymatState, mode: SortMode): void {
   state.sortMode = mode;
+  if (mode !== 'free') {
+    state.freeBase = mode;
+    try { localStorage.setItem(`dl_pm_freebase_${state.deck.id}`, mode); } catch { /* quota */ }
+  }
   try { localStorage.setItem(`dl_pm_sort_${state.deck.id}`, mode); } catch { /* quota */ }
   document.dispatchEvent(new CustomEvent(EV_SORT_CHANGED));
 }
