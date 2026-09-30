@@ -31,8 +31,10 @@ import {
   normalizeNameKey, isTypingContext, type PlaymatState,
 } from './state.js';
 import { isDragging } from './drag.js';
+import { listVersions, saveVersion, deleteVersion, diffBoards, type DeckVersion } from './versions.js';
+import { showPromptModal, showConfirmModal } from '../deckbuilder/confirm-modal.js';
 
-type DrawerKind = 'analyse' | 'share' | 'import';
+type DrawerKind = 'analyse' | 'share' | 'import' | 'history';
 
 let stateRef: PlaymatState;
 let drawerEl: HTMLElement;
@@ -122,7 +124,7 @@ function openDrawerPanel(kind: DrawerKind): void {
   drawerEl.setAttribute('aria-hidden', 'false');
   document.querySelector(`.pm-action-btn[data-drawer="${kind}"]`)?.classList.add('active');
 
-  const titles: Record<DrawerKind, string> = { analyse: 'Analytics', share: 'Share & Export', import: 'Import' };
+  const titles: Record<DrawerKind, string> = { analyse: 'Analytics', share: 'Share & Export', import: 'Import', history: 'Versions' };
   const head = document.createElement('div');
   head.className = 'pm-drawer-head';
   head.innerHTML = `<h2>${titles[kind]}</h2>`;
@@ -140,6 +142,7 @@ function openDrawerPanel(kind: DrawerKind): void {
 
   if (kind === 'analyse') renderAnalyse(body);
   else if (kind === 'share') renderShare(body);
+  else if (kind === 'history') renderHistory(body);
   else renderImport(body);
 }
 
@@ -498,6 +501,128 @@ function applyUnresolvedSelection(): void {
   renderUnresolvedRows();
 }
 
+// ── Versions ──
+
+function fmtTime(iso: string): string {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+function diffList(entries: Array<{ name: string; qty: number; board: string }>, sign: string, cls: string): string {
+  return entries.map((e) =>
+    `<div class="pm-ver-diffrow ${cls}">${sign}${e.qty} ${e.name.replace(/</g, '&lt;')}${e.board !== 'mainboard' ? ` <em>(${e.board})</em>` : ''}</div>`,
+  ).join('');
+}
+
+function renderHistory(body: HTMLElement): void {
+  body.innerHTML = '';
+
+  const saveRow = document.createElement('div');
+  saveRow.className = 'pm-share-actions';
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className = 'pm-btn pm-btn-primary';
+  saveBtn.innerHTML = `${iconSvg('save')} Save version`;
+  saveBtn.addEventListener('click', async () => {
+    const label = await showPromptModal({
+      title: 'Save version',
+      message: 'Label for this version:',
+      placeholder: 'e.g. Before ramp rework',
+    });
+    if (label === null) return;
+    const saved = saveVersion(stateRef.deck, label || 'Snapshot');
+    showToast(saved
+      ? { message: `Version "${saved.label}" saved.`, type: 'success' }
+      : { message: 'No changes since the newest version.', type: 'info' });
+    renderHistory(body);
+  });
+  saveRow.appendChild(saveBtn);
+  body.appendChild(saveRow);
+
+  const versions = listVersions(stateRef.deck.id);
+  if (versions.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'pm-muted';
+    empty.textContent = 'No versions yet. One is saved automatically with your first change each session — or save one manually above.';
+    body.appendChild(empty);
+    return;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'pm-ver-list';
+  for (const version of versions) {
+    list.appendChild(versionRow(version, body));
+  }
+  body.appendChild(list);
+}
+
+function versionRow(version: DeckVersion, drawerBody: HTMLElement): HTMLElement {
+  const diff = diffBoards(version.boards, stateRef.deck.boards);
+  const changes = diff.added.length + diff.removed.length;
+
+  const row = document.createElement('details');
+  row.className = 'pm-ver';
+  const addedN = diff.added.reduce((s, e) => s + e.qty, 0);
+  const removedN = diff.removed.reduce((s, e) => s + e.qty, 0);
+  row.innerHTML = `
+    <summary>
+      <span class="pm-ver-label">${version.label.replace(/</g, '&lt;')}</span>
+      <span class="pm-ver-meta">${fmtTime(version.ts)} · ${version.total} cards</span>
+      <span class="pm-ver-delta">${changes === 0 ? '= current' : `+${addedN} / −${removedN}`}</span>
+    </summary>`;
+
+  const detail = document.createElement('div');
+  detail.className = 'pm-ver-detail';
+  if (changes === 0) {
+    detail.innerHTML = '<span class="pm-muted">Identical to the current deck.</span>';
+  } else {
+    detail.innerHTML = `
+      <div class="pm-ver-diffhead">To get from this version to the current deck:</div>
+      ${diffList(diff.added, '+', 'add')}
+      ${diffList(diff.removed, '−', 'rem')}`;
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'pm-share-actions';
+  const restore = document.createElement('button');
+  restore.type = 'button';
+  restore.className = 'pm-btn';
+  restore.textContent = 'Restore';
+  restore.addEventListener('click', async () => {
+    const ok = await showConfirmModal({
+      title: 'Restore version?',
+      message: `The deck will be set back to "${version.label}" (${fmtTime(version.ts)}). The current state is saved as a version first.`,
+      confirmLabel: 'Restore',
+    });
+    if (!ok) return;
+    saveVersion(stateRef.deck, 'Before restore');
+    mutateDeck(stateRef, (d) => {
+      d.boards = JSON.parse(JSON.stringify(version.boards));
+    });
+    void resolveMissing(stateRef);
+    showToast({ message: `Restored "${version.label}".`, type: 'success' });
+    renderHistory(drawerBody);
+  });
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'pm-btn';
+  del.textContent = 'Delete';
+  del.addEventListener('click', async () => {
+    const ok = await showConfirmModal({
+      title: 'Delete version?',
+      message: `"${version.label}" (${fmtTime(version.ts)}) will be removed permanently.`,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
+    deleteVersion(stateRef.deck.id, version.id);
+    renderHistory(drawerBody);
+  });
+  actions.append(restore, del);
+  detail.appendChild(actions);
+  row.appendChild(detail);
+  return row;
+}
+
 // ── HUD ──
 
 function renderHud(): void {
@@ -556,7 +681,9 @@ export function initDrawers(state: PlaymatState): void {
   shareBtn.addEventListener('click', () => openDrawerPanel('share'));
   const importBtn = actionBtn('import', 'import', 'Import');
   importBtn.addEventListener('click', () => openDrawerPanel('import'));
-  actions.append(analyseBtn, goldfishBtn, shareBtn, importBtn);
+  const historyBtn = actionBtn('history', 'save', 'Versions');
+  historyBtn.addEventListener('click', () => openDrawerPanel('history'));
+  actions.append(analyseBtn, goldfishBtn, historyBtn, shareBtn, importBtn);
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape' || !openDrawer) return;

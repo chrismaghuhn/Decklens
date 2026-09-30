@@ -4,7 +4,7 @@
 // Listening to EV_OPEN_COMMANDER_SEARCH switches the hand into
 // commander-pick mode (legendary creatures, + sets the commander).
 
-import { searchDeckbuilderCards, type DeckbuilderSearchCard } from '../shared/scryfall-client.js';
+import { searchDeckbuilderCards, type DeckbuilderSearchCard, type DeckbuilderSearchParams } from '../shared/scryfall-client.js';
 import { showToast } from '../deckbuilder/toast.js';
 import { showHoverPreview, hideHoverPreview } from '../deckbuilder/card-preview.js';
 import { iconSvg } from '../shared/icons.js';
@@ -22,6 +22,26 @@ let inputEl: HTMLInputElement;
 let handRoot: HTMLElement;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let searchSeq = 0;
+let hideInDeck = localStorage.getItem('dl_pm_filter_indeck') === '1';
+let ciOnly = localStorage.getItem('dl_pm_filter_ci') === '1';
+
+function deckNameKeys(): Set<string> {
+  const keys = new Set<string>();
+  const b = stateRef.deck.boards;
+  for (const entry of [...b.commander, ...b.mainboard, ...b.sideboard, ...b.maybeboard]) {
+    keys.add(normalizeNameKey(entry.name));
+    keys.add(normalizeNameKey(entry.name.split('//')[0]));
+  }
+  return keys;
+}
+
+function commanderIdentity(): string | undefined {
+  const cmd = stateRef.deck.boards.commander[0];
+  if (!cmd) return undefined;
+  const card = stateRef.cardByName[normalizeNameKey(cmd.name)];
+  const ci = card?.color_identity;
+  return ci && ci.length > 0 ? ci.join('') : undefined;
+}
 
 /** Register a search result so the mat can render it with full card data. */
 export function rememberCard(state: PlaymatState, card: DeckbuilderSearchCard): void {
@@ -55,10 +75,14 @@ async function runSearch(query: string): Promise<void> {
     const res = await searchDeckbuilderCards(
       commanderMode
         ? { q, type: 'legendary creature', legality: 'commander' }
-        : { q },
+        : { q, colorIdentity: ciOnly ? commanderIdentity() : undefined },
     );
     if (seq !== searchSeq) return; // stale response
     results = res.items;
+    if (hideInDeck && !commanderMode) {
+      const inDeck = deckNameKeys();
+      results = results.filter((c) => !inDeck.has(normalizeNameKey(c.name)));
+    }
     page = 0;
     renderHand();
   } catch (err) {
@@ -141,8 +165,27 @@ export function initHand(state: PlaymatState): void {
       <span class="pm-search-lens">${iconSvg('search')}</span>
       <input type="search" id="searchInput" placeholder="${DEFAULT_PLACEHOLDER}" aria-label="Card search">
       <span class="pm-kbd">/</span>
+    </div>
+    <div class="pm-search-filters">
+      <button type="button" data-filter="indeck" class="${hideInDeck ? 'on' : ''}" title="Hide cards already in this deck">Hide in deck</button>
+      <button type="button" data-filter="ci" class="${ciOnly ? 'on' : ''}" title="Only cards inside your commander's color identity">Color identity</button>
     </div>`;
   inputEl = slot.querySelector('input')!;
+
+  slot.querySelectorAll<HTMLButtonElement>('.pm-search-filters button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.filter === 'indeck') {
+        hideInDeck = !hideInDeck;
+        localStorage.setItem('dl_pm_filter_indeck', hideInDeck ? '1' : '0');
+        btn.classList.toggle('on', hideInDeck);
+      } else {
+        ciOnly = !ciOnly;
+        localStorage.setItem('dl_pm_filter_ci', ciOnly ? '1' : '0');
+        btn.classList.toggle('on', ciOnly);
+      }
+      if (inputEl.value.trim().length >= 2) void runSearch(inputEl.value);
+    });
+  });
 
   inputEl.addEventListener('input', () => {
     if (debounceTimer) clearTimeout(debounceTimer);
@@ -184,4 +227,27 @@ export function initHand(state: PlaymatState): void {
 /** Used by drag.ts to look up a dragged hand card. */
 export function handCardByName(name: string): DeckbuilderSearchCard | undefined {
   return results.find((c) => c.name === name);
+}
+
+/** Run a preset search (e.g. from a role-target chip) and open the hand. */
+export function openPresetSearch(params: DeckbuilderSearchParams, label: string): void {
+  inputEl.value = label;
+  commanderMode = false;
+  const seq = ++searchSeq;
+  void searchDeckbuilderCards({
+    ...params,
+    colorIdentity: params.colorIdentity ?? (commanderIdentity() || undefined),
+  }).then((res) => {
+    if (seq !== searchSeq) return;
+    results = res.items;
+    if (hideInDeck) {
+      const inDeck = deckNameKeys();
+      results = results.filter((c) => !inDeck.has(normalizeNameKey(c.name)));
+    }
+    page = 0;
+    renderHand();
+  }).catch((err) => {
+    if (seq !== searchSeq) return;
+    showToast({ message: err instanceof Error ? err.message : 'Search failed.', type: 'error' });
+  });
 }

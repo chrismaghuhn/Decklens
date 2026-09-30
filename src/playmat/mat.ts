@@ -14,6 +14,9 @@ import { showPromptModal } from '../deckbuilder/confirm-modal.js';
 import { showToast } from '../deckbuilder/toast.js';
 import { iconSvg } from '../shared/icons.js';
 import { openArtPicker } from './art-picker.js';
+import { openPresetSearch } from './hand.js';
+import { classifyRole, ROLE_LABELS, type Role } from '../deckbuilder/role-classifier.js';
+import type { DeckbuilderSearchParams } from '../shared/scryfall-client.js';
 
 const BOARD_LABELS: Record<DeckBoard, string> = {
   commander: 'Commander',
@@ -126,6 +129,121 @@ export function assignTag(name: string, tag: string): void {
     if (tag === 'Untagged') entry.tags = [];
     else if (!entry.tags?.includes(tag)) entry.tags = [...(entry.tags || []), tag];
   });
+}
+
+// ── Role targets (Command Zone style template, editable per deck) ──
+
+const DEFAULT_TARGETS: Partial<Record<Role, number>> = {
+  ramp: 10, draw: 12, removal: 12, wipe: 6, land: 38,
+};
+
+// Scryfall's curated oracle tags give far better role hits than
+// hand-rolled oracle-text heuristics.
+const ROLE_SEARCH: Partial<Record<Role, DeckbuilderSearchParams>> = {
+  ramp: { q: '', raw: 'otag:ramp' },
+  draw: { q: '', raw: 'otag:draw' },
+  removal: { q: '', raw: 'otag:removal' },
+  wipe: { q: '', raw: 'otag:board-wipe' },
+  counter: { q: '', raw: 'otag:counterspell' },
+  tutor: { q: '', raw: 'otag:tutor' },
+  recursion: { q: '', raw: 'otag:recursion' },
+  protection: { q: '', raw: 'otag:protection' },
+  wincon: { q: '', raw: 'otag:win-condition' },
+  land: { q: '', type: 'land' },
+};
+
+function targetsKey(): string {
+  return `dl_pm_targets_${stateRef.deck.id}`;
+}
+
+function loadTargets(): Partial<Record<Role, number>> {
+  try {
+    const raw = localStorage.getItem(targetsKey());
+    if (raw) return JSON.parse(raw) as Partial<Record<Role, number>>;
+  } catch { /* corrupt or unavailable */ }
+  return { ...DEFAULT_TARGETS };
+}
+
+function roleCounts(): Partial<Record<Role, number>> {
+  const counts: Partial<Record<Role, number>> = {};
+  for (const entry of stateRef.deck.boards.mainboard) {
+    const card = cardFor(stateRef, entry.name);
+    if (!card) continue;
+    const role = classifyRole(card);
+    counts[role] = (counts[role] || 0) + entry.qty;
+  }
+  return counts;
+}
+
+function targetsStrip(): HTMLElement {
+  const strip = document.createElement('div');
+  strip.className = 'pm-targets';
+  const targets = loadTargets();
+  const counts = roleCounts();
+  const roles = (Object.keys(ROLE_LABELS) as Role[]).filter((r) => (targets[r] ?? 0) > 0);
+
+  const label = document.createElement('span');
+  label.className = 'pm-targets-label';
+  label.textContent = 'TARGETS';
+  label.title = 'Click a chip to search for that role · double-click to edit the target';
+  strip.appendChild(label);
+
+  for (const role of roles) {
+    const have = counts[role] || 0;
+    const want = targets[role]!;
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'pm-target-chip' + (have >= want ? ' met' : '');
+    chip.innerHTML = `${ROLE_LABELS[role]} <b>${have}/${want}</b>`;
+    chip.title = have >= want
+      ? `${ROLE_LABELS[role]}: target met`
+      : `${ROLE_LABELS[role]}: ${want - have} missing — click to search`;
+    chip.addEventListener('click', () => {
+      const params = ROLE_SEARCH[role];
+      if (params) openPresetSearch(params, `» ${ROLE_LABELS[role]}`);
+    });
+    chip.addEventListener('dblclick', async () => {
+      const input = await showPromptModal({
+        title: `Target for ${ROLE_LABELS[role]}`,
+        message: 'How many cards of this role should the deck run? (0 hides the chip)',
+        defaultValue: String(want),
+      });
+      if (input === null) return;
+      const n = Math.max(0, Math.min(99, Math.round(Number(input)) || 0));
+      const next = loadTargets();
+      next[role] = n;
+      try { localStorage.setItem(targetsKey(), JSON.stringify(next)); } catch { /* quota */ }
+      renderMat(rootRef, stateRef);
+    });
+    strip.appendChild(chip);
+  }
+
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'pm-target-chip pm-target-add';
+  add.innerHTML = iconSvg('plus');
+  add.title = 'Set a target for another role';
+  add.addEventListener('click', async () => {
+    const targetsNow = loadTargets();
+    const options = (Object.keys(ROLE_LABELS) as Role[])
+      .filter((r) => !(targetsNow[r] ?? 0))
+      .map((r) => ROLE_LABELS[r]).join(', ');
+    const input = await showPromptModal({
+      title: 'Add role target',
+      message: `Role name (${options}):`,
+      placeholder: 'e.g. Counterspells',
+    });
+    if (!input?.trim()) return;
+    const role = (Object.keys(ROLE_LABELS) as Role[])
+      .find((r) => ROLE_LABELS[r].toLowerCase() === input.trim().toLowerCase());
+    if (!role) { showToast({ message: 'Unknown role.', type: 'error' }); return; }
+    targetsNow[role] = targetsNow[role] || 5;
+    try { localStorage.setItem(targetsKey(), JSON.stringify(targetsNow)); } catch { /* quota */ }
+    renderMat(rootRef, stateRef);
+  });
+  strip.appendChild(add);
+
+  return strip;
 }
 
 // ── Rendering ──
@@ -298,6 +416,7 @@ export function renderMat(root: HTMLElement, state: PlaymatState): void {
 
   // free mode inherits the grouping of the last non-free sort mode
   const mode = state.sortMode === 'free' ? state.freeBase : state.sortMode;
+  if (mode === 'role') root.appendChild(targetsStrip());
   let piles = projectPiles(state.deck, state.cardByName, mode);
   if (state.sortMode !== 'free') {
     piles = applyPileOrder(piles, state.deck.pileOrders?.[state.sortMode]);

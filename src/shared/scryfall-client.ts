@@ -52,6 +52,8 @@ export interface DeckbuilderSearchParams {
   keyword?: string;
   legality?: 'commander';
   sort?: 'name' | 'mv' | 'price';
+  /** Trusted raw Scryfall syntax appended verbatim (internal presets only). */
+  raw?: string;
 }
 
 const SCRYFALL_API = 'https://api.scryfall.com';
@@ -215,6 +217,10 @@ function buildScryfallSearchQuery(params: DeckbuilderSearchParams): { query: str
 
   if (params.legality === 'commander') {
     tokens.push('legal:commander');
+  }
+
+  if (params.raw?.trim()) {
+    tokens.push(params.raw.trim());
   }
 
   const order = params.sort === 'mv' ? 'cmc' : params.sort === 'price' ? 'eur' : 'name';

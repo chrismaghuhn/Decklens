@@ -7,6 +7,7 @@ import type { DeckbuilderSearchCard } from '../shared/scryfall-client.js';
 import { resolveDeckbuilderCards, resolveDeckbuilderPrintings } from '../shared/scryfall-client.js';
 import { getDeckById, upsertDeck, setLastOpenedDeckId } from '../deckbuilder/storage.js';
 import { pushSnapshot } from '../deckbuilder/undo-stack.js';
+import { saveVersion } from './versions.js';
 import type { SortMode } from './sort.js';
 
 export interface PlaymatState {
@@ -60,7 +61,14 @@ export function setSortMode(state: PlaymatState, mode: SortMode): void {
   document.dispatchEvent(new CustomEvent(EV_SORT_CHANGED));
 }
 
+let sessionBaselineSaved = false;
+
 export function mutateDeck(state: PlaymatState, fn: (deck: DeckbuilderDeck) => void): void {
+  if (!sessionBaselineSaved) {
+    // first change this session: keep the pre-edit state as a version
+    sessionBaselineSaved = true;
+    saveVersion(state.deck, 'Session start');
+  }
   pushSnapshot(state.deck);
   fn(state.deck);
   state.deck = upsertDeck(state.deck);
