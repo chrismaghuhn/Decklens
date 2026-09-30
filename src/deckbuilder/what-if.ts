@@ -161,7 +161,7 @@ export function renderWhatIfPreview(container: HTMLElement, metrics: WhatIfMetri
 
   // CMC delta
   const cmcSign = metrics.avgCmcDelta > 0 ? '+' : '';
-  const cmcColor = metrics.avgCmcDelta < -0.05 ? '#34d399' : metrics.avgCmcDelta > 0.05 ? '#f59e0b' : 'var(--text-dim)';
+  const cmcColor = metrics.avgCmcDelta < -0.05 ? '#34d399' : metrics.avgCmcDelta > 0.05 ? '#f59e0b' : 'var(--text-lo, #9aa0ae)';
   rows.push({
     label: 'Avg CMC',
     value: `${metrics.avgCmcBefore.toFixed(2)} → ${metrics.avgCmcAfter.toFixed(2)} (${cmcSign}${metrics.avgCmcDelta.toFixed(2)})`,

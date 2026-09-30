@@ -837,7 +837,7 @@ function renderDeckOverview(): void {
 
   // Progress bar: X/100 cards
   const progressPct = Math.min(100, Math.round((deckTotal / 100) * 100));
-  const progressColor = deckTotal > 100 ? '#f87171' : deckTotal >= 99 ? '#34d399' : 'var(--gold, #c9a84c)';
+  const progressColor = deckTotal > 100 ? '#f87171' : deckTotal >= 99 ? '#34d399' : 'var(--accent, #7c6cf6)';
   const progressWrap = document.createElement('div');
   progressWrap.className = 'overview-progress';
   progressWrap.innerHTML =
@@ -1653,7 +1653,7 @@ function renderPowerBracket(deck: DeckbuilderDeck): void {
   if (deck.boards.mainboard.length === 0) return;
 
   const est = estimatePowerLevelCached(deck);
-  const bracketColors = ['', '#34d399', '#e8c84a', '#f59e0b', '#ef4444'];
+  const bracketColors = ['', '#34d399', '#f5c04a', '#f59e0b', '#ef4444'];
 
   // Wrapper for hover tooltip
   const wrapper = document.createElement('div');
@@ -1679,7 +1679,7 @@ function renderPowerBracket(deck: DeckbuilderDeck): void {
 
   const archLabel = document.createElement('span');
   archLabel.className = 'power-label';
-  archLabel.style.color = 'var(--gold-dim)';
+  archLabel.style.color = 'var(--accent-dim, #5b4fc0)';
   archLabel.textContent = `${est.dominant} \u00B7 ${est.saltLabel}`;
 
   info.append(bracketLabel, archLabel);
@@ -1739,7 +1739,7 @@ function renderPowerBracket(deck: DeckbuilderDeck): void {
   saltBar.title = `Salt Score: ${est.salt.toFixed(1)}/10 \u2013 How controversial your deck is to play against`;
   saltBar.style.cursor = 'pointer';
 
-  const saltFillColor = est.salt <= 3 ? '#34d399' : est.salt <= 6 ? '#e8c84a' : est.salt <= 8 ? '#f59e0b' : '#ef4444';
+  const saltFillColor = est.salt <= 3 ? '#34d399' : est.salt <= 6 ? '#f5c04a' : est.salt <= 8 ? '#f59e0b' : '#ef4444';
   const saltFill = document.createElement('div');
   saltFill.className = 'salt-bar-fill';
   saltFill.style.width = `${Math.min(100, (est.salt / 10) * 100)}%`;
@@ -3782,7 +3782,7 @@ function bindDeckMetaEvents(): void {
     });
   }
 
-  // Primer section templates (shared with collab-chat)
+  // Primer section templates
   for (const btn of Array.from(document.querySelectorAll<HTMLButtonElement>('.primer-tpl-btn'))) {
     btn.addEventListener('click', () => {
       const key = btn.dataset.template || '';
@@ -4523,7 +4523,7 @@ function showManageCategoriesModal(): void {
 
   const colorInput = document.createElement('input');
   colorInput.type = 'color';
-  colorInput.value = '#e2b340';
+  colorInput.value = '#f5c04a';
   colorInput.style.cssText = 'width: 32px; height: 28px; border: none; border-radius: 4px; cursor: pointer; padding: 0;';
 
   const addBtn = document.createElement('button');
@@ -4707,7 +4707,7 @@ function showCompareModal(): void {
   pasteLabel.style.cssText = 'font-size: 0.72rem; margin-bottom: 4px;';
   pasteLabel.textContent = 'Paste a decklist in any format (1 Card Name, MTGO, Arena):';
   const textarea = document.createElement('textarea');
-  textarea.style.cssText = 'width: 100%; height: 180px; background: var(--abyss); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-family: "JetBrains Mono", monospace; font-size: 0.78rem; resize: vertical;';
+  textarea.style.cssText = 'width: 100%; height: 180px; background: var(--surface-1, #0b0c10); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-family: "JetBrains Mono", monospace; font-size: 0.78rem; resize: vertical;';
   textarea.placeholder = '1 Sol Ring\n1 Command Tower\n1 Swords to Plowshares\n...';
   const compareBtn = document.createElement('button');
   compareBtn.className = 'btn primary';
@@ -4860,33 +4860,11 @@ async function fillBasicLands(): Promise<void> {
   }
 }
 
-function initThemeToggle(): void {
-  // Load persisted theme
-  const savedTheme = storageGet<string>(STORAGE_KEYS.THEME, 'dark');
-  if (savedTheme === 'light') {
-    document.body.classList.add('theme-light');
-  }
-
-  // Create toggle button in header
-  const header = document.querySelector('.editor-header-actions') || document.querySelector('.editor-header');
-  if (!header) return;
-
-  const toggleBtn = document.createElement('button');
-  toggleBtn.className = 'theme-toggle-btn';
-  toggleBtn.title = 'Toggle light/dark theme';
-  toggleBtn.textContent = savedTheme === 'light' ? '\u{1F319}' : '\u2600\uFE0F';
-  toggleBtn.addEventListener('click', () => {
-    const isLight = document.body.classList.toggle('theme-light');
-    storageSet(STORAGE_KEYS.THEME, isLight ? 'light' : 'dark');
-    toggleBtn.textContent = isLight ? '\u{1F319}' : '\u2600\uFE0F';
-  });
-  header.appendChild(toggleBtn);
-}
-
 function init(): void {
   initToastContainer();
   initSaveIndicator();
-  initThemeToggle();
+  // Dark only: clear any persisted light-theme preference from the old design
+  document.body.classList.remove('theme-light');
   initShortcutHelp();
   loadViewModePreference();
   loadCollection();

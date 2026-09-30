@@ -58,14 +58,14 @@ export async function generateDeckImage(
   ctx.fillRect(0, 0, totalW, totalH);
 
   // Title
-  ctx.fillStyle = '#e8c84a';
-  ctx.font = 'bold 24px "Cinzel", serif';
+  ctx.fillStyle = '#a89cff';
+  ctx.font = 'bold 24px "Inter", sans-serif';
   ctx.textBaseline = 'top';
   ctx.fillText(deck.name, PAD, PAD + 8);
 
   // Card count
-  ctx.fillStyle = '#9a94a8';
-  ctx.font = '14px "Outfit", sans-serif';
+  ctx.fillStyle = '#9aa0ae';
+  ctx.font = '14px "Inter", sans-serif';
   const totalQty = mainCards.reduce((s, e) => s + e.qty, 0) + deck.boards.commander.reduce((s, e) => s + e.qty, 0);
   ctx.fillText(`${totalQty} cards`, PAD, PAD + 38);
 
@@ -82,12 +82,12 @@ export async function generateDeckImage(
         const cmdH = 237;
         ctx.drawImage(img, PAD, yOff, cmdW, cmdH);
 
-        ctx.fillStyle = '#e8e2d6';
-        ctx.font = 'bold 16px "Outfit", sans-serif';
+        ctx.fillStyle = '#f4f5f8';
+        ctx.font = 'bold 16px "Inter", sans-serif';
         ctx.fillText(commander.name, PAD + cmdW + 12, yOff + 10);
 
-        ctx.fillStyle = '#c9a84c';
-        ctx.font = '12px "Outfit", sans-serif';
+        ctx.fillStyle = '#7c6cf6';
+        ctx.font = '12px "Inter", sans-serif';
         ctx.fillText('COMMANDER', PAD + cmdW + 12, yOff + 32);
       } catch {
         // Skip if image fails
@@ -112,10 +112,10 @@ export async function generateDeckImage(
       ctx.drawImage(result.value, x, y, CARD_W, CARD_H);
     } else {
       // Placeholder
-      ctx.fillStyle = '#1a1d2a';
+      ctx.fillStyle = '#161920';
       ctx.fillRect(x, y, CARD_W, CARD_H);
-      ctx.fillStyle = '#706b7f';
-      ctx.font = '10px "Outfit", sans-serif';
+      ctx.fillStyle = '#7d8494';
+      ctx.font = '10px "Inter", sans-serif';
       ctx.textBaseline = 'middle';
       ctx.fillText(allCards[i].name.slice(0, 18), x + 4, y + CARD_H / 2);
       ctx.textBaseline = 'top';
@@ -124,8 +124,8 @@ export async function generateDeckImage(
 
   // Footer
   const footerY = totalH - PAD - 16;
-  ctx.fillStyle = '#706b7f';
-  ctx.font = '11px "Outfit", sans-serif';
+  ctx.fillStyle = '#7d8494';
+  ctx.font = '11px "Inter", sans-serif';
   ctx.fillText('Built with DeckLens', PAD, footerY);
 
   return new Promise((resolve, reject) => {

@@ -195,7 +195,7 @@ export function renderManaCalc(
   const landRow = document.createElement('div');
   landRow.className = 'mana-calc-summary';
   const landDiff = analysis.totalLands - analysis.landTarget;
-  const landColor = Math.abs(landDiff) <= 2 ? '#34d399' : Math.abs(landDiff) <= 4 ? '#e8c84a' : '#ef4444';
+  const landColor = Math.abs(landDiff) <= 2 ? '#34d399' : Math.abs(landDiff) <= 4 ? '#f5c04a' : '#ef4444';
   landRow.innerHTML = `<span>Lands: <strong style="color:${landColor}">${analysis.totalLands}</strong> / ${analysis.landTarget} target</span>`;
   if (landDiff < -2) {
     landRow.innerHTML += `<span class="mana-calc-warn">Need ${Math.abs(landDiff)} more lands</span>`;
@@ -240,7 +240,7 @@ export function renderManaCalc(
       status.style.color = '#34d399';
     } else if (color.status === 'tight') {
       status.textContent = `-${color.deficit}`;
-      status.style.color = '#e8c84a';
+      status.style.color = '#f5c04a';
     } else {
       status.textContent = `-${color.deficit}`;
       status.style.color = '#ef4444';
@@ -381,7 +381,7 @@ export function renderManaCalc(
       supplyTrack.className = 'mana-compare-bar-track';
       const supplyFill = document.createElement('div');
       const supplyStatusColor =
-        color.status === 'ok' ? '#34d399' : color.status === 'tight' ? '#e8c84a' : '#ef4444';
+        color.status === 'ok' ? '#34d399' : color.status === 'tight' ? '#f5c04a' : '#ef4444';
       supplyFill.className = 'mana-compare-bar-fill';
       supplyFill.style.width = `${(color.sources / maxVal) * 100}%`;
       supplyFill.style.background = supplyStatusColor;

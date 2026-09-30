@@ -1,0 +1,208 @@
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* ── Design tokens (Phase R: values = old palette; flipped in Phase D) ── */
+  --surface-0: #08090a;
+  --surface-1: #0b0c10;
+  --surface-2: #111318;
+  --surface-3: #161920;
+  --surface-4: #1c2028;
+  --accent: #7c6cf6;
+  --accent-strong: #8f82f8;
+  --accent-dim: #5b4fc0;
+  --accent-glow: rgba(124, 108, 246, 0.22);
+  --ok: #34d399;
+  --ok-soft: #6ee7b7;
+  --danger: #ef4444;
+  --danger-soft: #f87171;
+  --warn: #f59e0b;
+  --info: #60a5fa;
+  --info-violet: #a78bfa;
+  --text-hi: #f4f5f8;
+  --text-bright: #eceef2;
+  --text-lo: #9aa0ae;
+  --text-muted: #7d8494;
+  /* Arcane Forge palette */
+  --line: rgba(255, 255, 255, 0.06);
+  --line-light: rgba(255, 255, 255, 0.1);
+
+  /* Accent spectrum */
+
+  /* Text */
+  --text: var(--text-hi);
+
+  /* Semantic */
+
+  /* Surface */
+  --panel: rgba(18, 20, 30, 0.85);
+  --panel-hover: rgba(26, 29, 42, 0.95);
+  --input-bg: rgba(8, 9, 15, 0.6);
+
+  /* Shape */
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-pill: 50px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Aliases for legacy/component CSS */
+  --border: rgba(255, 255, 255, 0.06);
+  --bg-1: var(--surface-2);
+  --bg-2: var(--surface-3);
+  --bg-card: rgba(18, 20, 30, 0.85);
+  --bg-deeper: var(--surface-1);
+
+  /* Type scale */
+  --text-xs: 0.65rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.85rem;
+  --text-lg: 1rem;
+  --text-xl: 1.25rem;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--surface-0);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-weight: 400;
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Atmospheric background */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(
+      ellipse 900px 500px at 15% -5%,
+      rgba(124, 108, 246, 0.05) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 700px 400px at 85% 20%,
+      rgba(52, 211, 153, 0.04) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 1200px 800px at 50% 100%,
+      rgba(18, 20, 30, 0.5) 0%,
+      transparent 50%
+    );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Noise texture */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: var(--surface-0);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--accent-dim);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* ── Grid Hover Actions ── */
+.gcard {
+  position: relative;
+}
+.gcard-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(12, 14, 22, 0.85);
+  border-radius: 4.5% / 3.5%; /* Matches typical card radius */
+  opacity: 0;
+  transition: opacity 0.15s var(--ease);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
+  z-index: 10;
+  backdrop-filter: blur(2px);
+}
+.gcard:hover .gcard-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.gcard-actions-row {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-overlay {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  border: 1px solid var(--line-light);
+  color: var(--text);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.1s;
+  font-size: 1.1rem;
+  line-height: 1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.btn-overlay:hover {
+  background: var(--accent);
+  color: var(--surface-0);
+  transform: scale(1.1);
+  border-color: var(--accent);
+}
+.btn-overlay.danger:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+}
+
+.btn-overlay-text {
+  padding: 4px 10px;
+  height: auto;
+  width: auto;
+  font-size: 0.65rem;
+  border-radius: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: var(--surface-2);
+  border: 1px solid var(--line-light);
+}
+.btn-overlay-text:hover {
+  background: var(--surface-3);
+  border-color: var(--text-lo);
+}

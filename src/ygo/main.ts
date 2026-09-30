@@ -18,7 +18,6 @@ import {
   handleFile,
   importYDKE,
   importPaste,
-  toggleTheme,
   loadRecentDeck,
   removeRecent,
   setTypeFilter,
@@ -125,7 +124,6 @@ window._ygo = {
 // ==================== EVENT BINDINGS ====================
 function bindEvents(): void {
   // Theme toggle
-  $('btnTheme')?.addEventListener('click', toggleTheme);
 
   // Print button
   $('btnPrint')?.addEventListener('click', () => window.print());

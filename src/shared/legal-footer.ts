@@ -60,7 +60,7 @@ export function injectLegalFooterStyles(): void {
       border-top: 1px solid var(--border, #2a2f3e);
       padding: 32px 20px 24px;
       margin-top: 60px;
-      font-family: 'Outfit', sans-serif;
+      font-family: 'Inter', system-ui, sans-serif;
     }
 
     .legal-footer-content {
@@ -73,10 +73,10 @@ export function injectLegalFooterStyles(): void {
     }
 
     .legal-title {
-      font-family: 'Cinzel', serif;
+      font-family: 'Inter', sans-serif;
       font-size: 14px;
       font-weight: 600;
-      color: var(--gold, #c9a84c);
+      color: var(--accent, #7c6cf6);
       margin: 0 0 12px 0;
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -101,7 +101,7 @@ export function injectLegalFooterStyles(): void {
     }
 
     .legal-text a {
-      color: var(--gold, #c9a84c);
+      color: var(--accent, #7c6cf6);
       text-decoration: none;
       transition: color 0.2s;
     }
@@ -121,7 +121,7 @@ export function injectLegalFooterStyles(): void {
     }
 
     .legal-links a {
-      color: var(--gold, #c9a84c);
+      color: var(--accent, #7c6cf6);
       text-decoration: none;
       display: flex;
       align-items: center;

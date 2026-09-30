@@ -1,0 +1,13 @@
+/* Deck editor styles — extracted from deck-editor.html (order preserved for cascade parity) */
+@import './base.css';
+@import './layout-grid.css';
+@import './controls.css';
+@import './search.css';
+@import './boards.css';
+@import './panels.css';
+@import './goldfish.css';
+@import './widgets.css';
+@import './modals.css';
+@import './responsive.css';
+@import './legacy-collab.css';
+@import './misc.css';

@@ -265,7 +265,7 @@ export function renderEngineGraph(
 // ==================== Helpers ====================
 
 function getNodeColor(board: DeckBoard, tags: string[]): string {
-  if (board === 'commander') return '#c9a84c'; // gold
+  if (board === 'commander') return '#7c6cf6'; // gold
   if (tags.includes('ramp') || tags.includes('land')) return '#34d399'; // green
   if (tags.includes('draw') || tags.includes('card_advantage')) return '#60a5fa'; // blue
   if (tags.includes('removal') || tags.includes('board_wipe')) return '#f87171'; // red

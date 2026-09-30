@@ -43,7 +43,7 @@ function deckToShared(deck: DeckbuilderDeck): Deck {
 
 function heuristicColor(value: number): string {
   if (value >= 0.6) return '#34d399';
-  if (value >= 0.3) return '#e8c84a';
+  if (value >= 0.3) return '#f5c04a';
   return 'rgba(255,255,255,0.1)';
 }
 

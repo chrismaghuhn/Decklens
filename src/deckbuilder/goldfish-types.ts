@@ -299,7 +299,7 @@ export interface GfCtxItem {
 // ───── Player Colors ─────
 
 export const PLAYER_COLORS = [
-  '#c9a84c',  // Gold (Player 1)
+  '#7c6cf6',  // Gold (Player 1)
   '#34d399',  // Emerald (Player 2)
   '#60a5fa',  // Blue (Player 3)
   '#f472b6',  // Pink (Player 4)

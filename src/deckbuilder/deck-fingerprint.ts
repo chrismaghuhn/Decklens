@@ -194,7 +194,7 @@ export function renderDeckFingerprint(
   const dataPoly = document.createElementNS(svgNs, 'polygon');
   dataPoly.setAttribute('points', dataPoints.join(' '));
   dataPoly.setAttribute('fill', 'rgba(201,168,76,0.15)');
-  dataPoly.setAttribute('stroke', '#c9a84c');
+  dataPoly.setAttribute('stroke', '#7c6cf6');
   dataPoly.setAttribute('stroke-width', '2');
   svg.appendChild(dataPoly);
 
@@ -206,7 +206,7 @@ export function renderDeckFingerprint(
     circle.setAttribute('cx', String(cx + r * Math.cos(angle)));
     circle.setAttribute('cy', String(cy + r * Math.sin(angle)));
     circle.setAttribute('r', '3');
-    circle.setAttribute('fill', '#e8c84a');
+    circle.setAttribute('fill', '#f5c04a');
     svg.appendChild(circle);
   }
 
@@ -222,8 +222,8 @@ export function renderDeckFingerprint(
     text.setAttribute('y', String(y));
     text.setAttribute('text-anchor', 'middle');
     text.setAttribute('dominant-baseline', 'central');
-    text.setAttribute('fill', 'var(--text-dim)');
-    text.setAttribute('font-family', "'Outfit', sans-serif");
+    text.setAttribute('fill', 'var(--text-lo, #9aa0ae)');
+    text.setAttribute('font-family', "'Inter', system-ui, sans-serif");
     text.setAttribute('font-size', '9');
     text.setAttribute('font-weight', '500');
     text.textContent = axes[i].label;

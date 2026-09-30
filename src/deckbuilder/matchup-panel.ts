@@ -56,7 +56,7 @@ function buildGuide(
 
 function relevanceColor(score: number): string {
   if (score >= 0.7) return '#34d399';
-  if (score >= 0.4) return '#e8c84a';
+  if (score >= 0.4) return '#f5c04a';
   return '#ef4444';
 }
 

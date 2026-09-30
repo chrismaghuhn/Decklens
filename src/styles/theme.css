@@ -1,0 +1,139 @@
+/* ════════════════════════════════════════════════════════════════════
+   DeckLens "Linear Dark" design system
+   Loaded by every page BEFORE its page-specific styles.
+   Source of truth for colors, typography, shape and shared components.
+   ════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Surfaces */
+  --surface-0: #08090a;
+  --surface-1: #0b0c10;
+  --surface-2: #111318;
+  --surface-3: #161920;
+  --surface-4: #1c2028;
+
+  /* Accent (Indigo/Violett) */
+  --accent: #7c6cf6;
+  --accent-strong: #8f82f8;
+  --accent-soft: #a89cff;
+  --accent-dim: #5b4fc0;
+  --accent-glow: rgba(124, 108, 246, 0.25);
+
+  /* Text */
+  --text-hi: #f4f5f8;
+  --text-mid: #e7e9ee;
+  --text-lo: #9aa0ae;
+  --text-muted: #7d8494;
+
+  /* Borders */
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.12);
+
+  /* Semantics */
+  --ok: #34d399;
+  --ok-soft: #6ee7b7;
+  --danger: #ef4444;
+  --danger-soft: #f87171;
+  --warn: #f59e0b;
+  --info: #60a5fa;
+  --info-violet: #a78bfa;
+
+  /* Shape */
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 14px;
+
+  /* Type */
+  --font-ui: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Motion */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Base ── */
+html { background: var(--surface-1); }
+body {
+  background: var(--surface-1);
+  color: var(--text-mid);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-ui);
+  color: var(--text-hi);
+  letter-spacing: -0.01em;
+}
+
+a { color: var(--accent-soft); }
+a:hover { color: var(--accent-strong); }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface-4); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent-dim); }
+* { scrollbar-color: var(--surface-4) transparent; scrollbar-width: thin; }
+
+::selection { background: var(--accent-glow); color: var(--text-hi); }
+
+/* ── Shared components (Mockup Variante A) ── */
+.btn {
+  font-family: var(--font-ui);
+  font-size: 14.5px;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: var(--r-md);
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease),
+    color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 6px 20px var(--accent-glow);
+}
+.btn-primary:hover { background: var(--accent-strong); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-mid);
+  border: 1px solid var(--border-strong);
+}
+.btn-ghost:hover { border-color: var(--accent); color: var(--text-hi); }
+
+.input {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  background: var(--surface-0);
+  border: 1px solid var(--border-strong);
+  color: var(--text-mid);
+  outline: none;
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.input::placeholder { color: var(--text-muted); }
+
+.card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 22px;
+  transition: border-color 0.15s var(--ease);
+}
+.card:hover { border-color: rgba(124, 108, 246, 0.33); }
+
+.pill {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  color: var(--text-lo);
+}

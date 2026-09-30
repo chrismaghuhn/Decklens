@@ -898,7 +898,7 @@ export function openGoldfishPlaytest(
     customActions.className = 'gf-token-actions';
     const customCreateBtn = document.createElement('button');
     customCreateBtn.className = 'btn gf-btn';
-    customCreateBtn.style.background = 'var(--gold, #c9a84c)';
+    customCreateBtn.style.background = 'var(--accent, #7c6cf6)';
     customCreateBtn.style.color = '#000';
     customCreateBtn.textContent = 'Create Custom';
     customCreateBtn.addEventListener('click', () => {
@@ -1114,7 +1114,7 @@ export function openGoldfishPlaytest(
 
     const p1Look = document.createElement('button');
     p1Look.className = 'btn gf-btn';
-    p1Look.style.background = 'var(--gold, #c9a84c)';
+    p1Look.style.background = 'var(--accent, #7c6cf6)';
     p1Look.style.color = '#000';
     p1Look.textContent = 'Look';
     p1Look.addEventListener('click', () => {
@@ -1244,7 +1244,7 @@ export function openGoldfishPlaytest(
 
     const confirmBtn = document.createElement('button');
     confirmBtn.className = 'btn gf-btn';
-    confirmBtn.style.background = 'var(--gold, #c9a84c)';
+    confirmBtn.style.background = 'var(--accent, #7c6cf6)';
     confirmBtn.style.color = '#000';
     confirmBtn.textContent = 'Confirm';
     confirmBtn.addEventListener('click', () => {

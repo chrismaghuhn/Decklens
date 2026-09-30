@@ -231,7 +231,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnFlowRetry')?.addEventListener('click', () => app.retryLastImport());
   
   // ==================== THEME & PRINT ====================
-  document.getElementById('btnTheme')?.addEventListener('click', () => app.toggleTheme());
   document.getElementById('btnPrint')?.addEventListener('click', () => window.print());
   
   // ==================== VIEW BUTTONS ====================
@@ -476,7 +475,6 @@ function handleAction(action: string, el: HTMLElement, e: MouseEvent): void {
     case 'import-paste': app.importPaste(); break;
     case 'import-url': app.importUrl(); break;
     case 'import-file': app.triggerFileInput(); break;
-    case 'toggle-theme': app.toggleTheme(); break;
     case 'toggle-panel': app.togglePanel(el.dataset.panel || ''); break;
     case 'set-view': app.setView(el.dataset.view || 'card'); break;
     case 'open-modal': app.openModal(el.dataset.card || ''); break;

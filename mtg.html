@@ -49,7 +49,8 @@
   "author": { "@type": "Organization", "name": "DeckLens" }
 }
 </script>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/src/styles/theme.css" />
 <link href="shared.css" rel="stylesheet">
 <!-- Aether — Modern DeckLens MTG Theme -->
 <style>
@@ -57,15 +58,6 @@
    OBSIDIAN FORGE — DeckLens MTG Theme
    Rich, atmospheric, premium dark design
    ══════════════════════════════════════════════════════════════ */
-[data-theme="light"] {
- --bg-0: #f4f5f8; --bg-1: #ffffff; --bg-2: #ebedf3; --bg-3: #dde0e9; --bg-4: #c5c9d6;
- --text: #2d3250; --text-dim: #6b7394; --text-bright: #0d0f1a;
- --border: rgba(13,15,26,0.07); --border-light: rgba(13,15,26,0.13);
- --gold-glow: rgba(240,168,48,0.12); --gold-ember: rgba(240,168,48,0.20);
- --shadow: 0 4px 24px rgba(0,0,0,0.08);
- --glass: rgba(255,255,255,0.85); --glass-border: rgba(13,15,26,0.08);
- --glow-purple: rgba(139,92,246,0.05); --glow-blue: rgba(59,130,246,0.04);
-}
 
 /* ── RESET & BASE ──────────────────────────────────────────── */
 *,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
@@ -521,7 +513,6 @@ body.public-report-mode .wishlist-panel,
 body.public-report-mode .test-hand-panel,
 body.public-report-mode .proxy-overlay,
 body.public-report-mode #headerMore,
-body.public-report-mode #btnTheme,
 body.public-report-mode #btnPrint,
 body.public-report-mode .action-group,
 body.public-report-mode .tools-toggle-btn {
@@ -1096,8 +1087,8 @@ body.flow-analysis-open { overflow:hidden; }
  display:inline-flex; align-items:center; justify-content:center;
  min-width:1.4em; height:1.4em; padding:0 0.35em;
  border-radius:999px;
- border:1px solid rgba(201,168,76,0.34);
- background:linear-gradient(180deg, rgba(201,168,76,0.18), rgba(201,168,76,0.08));
+ border:1px solid rgba(124, 108, 246, 0.34);
+ background:linear-gradient(180deg, rgba(124, 108, 246, 0.18), rgba(124, 108, 246, 0.08));
  color:var(--text-bright);
  font-family:var(--font-body);
  font-size:0.78em;
@@ -1108,13 +1099,13 @@ body.flow-analysis-open { overflow:hidden; }
  cursor:default;
 }
 .mtg-symbol-token:hover {
- border-color:rgba(201,168,76,0.52);
- box-shadow:0 0 0 2px rgba(201,168,76,0.16);
+ border-color:rgba(124, 108, 246, 0.52);
+ box-shadow:0 0 0 2px rgba(124, 108, 246, 0.16);
 }
 .mtg-symbol-token:focus-visible {
  outline:none;
- border-color:rgba(201,168,76,0.58);
- box-shadow:0 0 0 2px rgba(201,168,76,0.24);
+ border-color:rgba(124, 108, 246, 0.58);
+ box-shadow:0 0 0 2px rgba(124, 108, 246, 0.24);
 }
 .symbol-tooltip {
  position:fixed;
@@ -1126,7 +1117,7 @@ body.flow-analysis-open { overflow:hidden; }
  pointer-events:none;
  z-index:3000;
  background:rgba(10,10,18,0.96);
- border:1px solid rgba(201,168,76,0.32);
+ border:1px solid rgba(124, 108, 246, 0.32);
  color:var(--text-bright);
  border-radius:8px;
  font-family:var(--font-body);
@@ -1218,7 +1209,7 @@ body.flow-analysis-open { overflow:hidden; }
  font-size: 0.75rem;
  font-weight: 700;
  color: var(--gold-light);
- background: rgba(201, 168, 76, 0.12);
+ background: rgba(124, 108, 246, 0.12);
 }
 .flow-top3-main { min-width: 0; }
 .flow-top3-add,
@@ -1792,28 +1783,28 @@ body.flow-analysis-open { overflow:hidden; }
 <style>
 /* Index-style MTG redesign layer */
 :root {
-  --void: #06060e;
-  --abyss: #0c0b18;
-  --obsidian: #141225;
-  --smoke: #1e1b33;
-  --gold: #c9a84c;
-  --gold-light: #e8c84a;
-  --gold-dark: #8a7230;
-  --text-bright: #ece4d4;
-  --text: #cec5b2;
-  --text-dim: #8f879f;
-  --border: rgba(201, 168, 76, 0.16);
-  --border-light: rgba(201, 168, 76, 0.32);
-  --glass: rgba(14, 13, 28, 0.7);
-  --glass-border: rgba(201, 168, 76, 0.14);
-  --bg-0: var(--void);
-  --bg-1: var(--abyss);
-  --bg-2: var(--obsidian);
-  --bg-3: #201c37;
-  --bg-4: #2c2748;
-  --font-display: 'Cinzel', Georgia, serif;
-  --font-serif: 'Cormorant Garamond', Georgia, serif;
-  --font-body: 'Outfit', system-ui, sans-serif;
+  --void: var(--surface-0);
+  --abyss: var(--surface-1);
+  --obsidian: var(--surface-2);
+  --smoke: var(--surface-3);
+  --gold: var(--accent);
+  --gold-light: var(--accent-strong);
+  --gold-dark: var(--accent-dim);
+  --text-bright: var(--text-hi);
+  --text: var(--text-mid);
+  --text-dim: var(--text-lo);
+  --border: rgba(124, 108, 246, 0.16);
+  --border-light: rgba(124, 108, 246, 0.32);
+  --glass: rgba(17, 19, 24, 0.72);
+  --glass-border: rgba(124, 108, 246, 0.14);
+  --bg-0: var(--surface-0);
+  --bg-1: var(--surface-1);
+  --bg-2: var(--surface-2);
+  --bg-3: var(--surface-3);
+  --bg-4: var(--surface-4);
+  --font-display: var(--font-ui);
+  --font-serif: var(--font-ui);
+  --font-body: var(--font-ui);
 }
 
 body {
@@ -1827,7 +1818,7 @@ body {
 
 body::before {
   background:
-    radial-gradient(ellipse 80% 55% at 50% 0%, rgba(201, 168, 76, 0.05) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 55% at 50% 0%, rgba(124, 108, 246, 0.05) 0%, transparent 60%),
     radial-gradient(ellipse 45% 45% at 85% 20%, rgba(168, 32, 53, 0.07) 0%, transparent 60%);
 }
 
@@ -1877,8 +1868,8 @@ body { font-size: 15px; line-height: 1.65; }
   display: none;
   padding: 0.2rem 0.55rem;
   border-radius: 999px;
-  border: 1px solid rgba(201, 168, 76, 0.34);
-  background: rgba(201, 168, 76, 0.11);
+  border: 1px solid rgba(124, 108, 246, 0.34);
+  background: rgba(124, 108, 246, 0.11);
   color: var(--gold-light);
   font-family: var(--font-body);
   font-size: 0.62rem;
@@ -1913,8 +1904,8 @@ body { font-size: 15px; line-height: 1.65; }
 .meta-pill.active { display: inline-flex; }
 
 .meta-pill.commander {
-  border-color: rgba(201, 168, 76, 0.38);
-  background: rgba(201, 168, 76, 0.14);
+  border-color: rgba(124, 108, 246, 0.38);
+  background: rgba(124, 108, 246, 0.14);
   color: var(--gold-light);
 }
 
@@ -2055,7 +2046,7 @@ body { font-size: 15px; line-height: 1.65; }
 .coll-tab:hover {
   border-color: var(--border-light);
   color: var(--gold-light);
-  background: rgba(201, 168, 76, 0.08);
+  background: rgba(124, 108, 246, 0.08);
 }
 
 .coming-soon {
@@ -2070,8 +2061,8 @@ body { font-size: 15px; line-height: 1.65; }
   margin-left: 0.4rem;
   padding: 0.08rem 0.35rem;
   border-radius: 999px;
-  border: 1px solid rgba(201, 168, 76, 0.35);
-  background: rgba(201, 168, 76, 0.1);
+  border: 1px solid rgba(124, 108, 246, 0.35);
+  background: rgba(124, 108, 246, 0.1);
   color: var(--gold-light);
   font-size: 0.6rem;
   letter-spacing: 0.08em;
@@ -2115,7 +2106,7 @@ body { font-size: 15px; line-height: 1.65; }
 }
 
 .tools-tab-group.secondary {
-  border-top: 1px dashed rgba(201, 168, 76, 0.18);
+  border-top: 1px dashed rgba(124, 108, 246, 0.18);
   padding-top: 0.5rem;
 }
 
@@ -2467,7 +2458,7 @@ body { font-size: 15px; line-height: 1.65; }
   color: #130f06;
   border-color: transparent;
   font-weight: 700;
-  box-shadow: 0 6px 24px rgba(201, 168, 76, 0.3);
+  box-shadow: 0 6px 24px rgba(124, 108, 246, 0.3);
 }
 
 .tools-toggle-btn,
@@ -2482,18 +2473,18 @@ body { font-size: 15px; line-height: 1.65; }
 .modal-close:hover {
   color: var(--text-bright);
   border-color: var(--border-light);
-  background: rgba(201, 168, 76, 0.08);
+  background: rgba(124, 108, 246, 0.08);
 }
 
 .dropzone {
   border-style: solid;
   border-width: 1px;
-  border-image: linear-gradient(135deg, rgba(201, 168, 76, 0.12), rgba(168, 32, 53, 0.2), rgba(64, 128, 255, 0.15)) 1;
+  border-image: linear-gradient(135deg, rgba(124, 108, 246, 0.12), rgba(168, 32, 53, 0.2), rgba(64, 128, 255, 0.15)) 1;
 }
 
 .dropzone:hover,
 .dropzone.dragover {
-  box-shadow: 0 0 0 1px rgba(201, 168, 76, 0.35) inset, 0 20px 44px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 0 1px rgba(124, 108, 246, 0.35) inset, 0 20px 44px rgba(0, 0, 0, 0.35);
 }
 
 .import-alt label,
@@ -2541,7 +2532,7 @@ body { font-size: 15px; line-height: 1.65; }
 .deck-table td,
 .share-bar input {
   background: rgba(12, 11, 24, 0.86);
-  border-color: rgba(201, 168, 76, 0.2);
+  border-color: rgba(124, 108, 246, 0.2);
   color: var(--text);
   font-family: var(--font-body);
 }
@@ -2553,7 +2544,7 @@ body { font-size: 15px; line-height: 1.65; }
 .coll-search:focus,
 .coll-import-area textarea:focus {
   border-color: var(--gold-light);
-  box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.14);
+  box-shadow: 0 0 0 3px rgba(124, 108, 246, 0.14);
 }
 
 .tools-content,
@@ -2589,14 +2580,14 @@ body { font-size: 15px; line-height: 1.65; }
 
 .app-footer {
   background: transparent;
-  border-top-color: rgba(201, 168, 76, 0.2);
+  border-top-color: rgba(124, 108, 246, 0.2);
   margin-top: 2.8rem;
 }
 
 .footer-inner {
   max-width: 1200px;
   margin: 0 auto;
-  border-top: 1px solid rgba(201, 168, 76, 0.12);
+  border-top: 1px solid rgba(124, 108, 246, 0.12);
   padding-top: 1.2rem;
 }
 
@@ -2722,7 +2713,7 @@ body { font-size: 15px; line-height: 1.65; }
 .workspace-advanced-head {
   margin-bottom: 0.85rem;
   padding: 0.7rem 0.9rem;
-  border: 1px dashed rgba(201, 168, 76, 0.3);
+  border: 1px dashed rgba(124, 108, 246, 0.3);
   border-radius: 10px;
   background: rgba(17, 15, 32, 0.55);
 }
@@ -2959,7 +2950,7 @@ body { font-size: 15px; line-height: 1.65; }
   text-align: left;
 }
 .onboard-method {
-  background: rgba(201, 168, 76, 0.04);
+  background: rgba(124, 108, 246, 0.04);
   border: 1px solid var(--glass-border);
   border-radius: 10px;
   padding: 0.85rem;
@@ -2982,7 +2973,7 @@ body { font-size: 15px; line-height: 1.65; }
 .onboard-tip {
   font-size: 0.72rem;
   color: var(--text-dim);
-  border: 1px dashed rgba(201, 168, 76, 0.2);
+  border: 1px dashed rgba(124, 108, 246, 0.2);
   border-radius: 8px;
   padding: 0.6rem 1rem;
   display: inline-block;
@@ -3002,7 +2993,7 @@ body { font-size: 15px; line-height: 1.65; }
   cursor: pointer;
   letter-spacing: 0.04em;
 }
-.toolbar-format-select:focus { outline: none; box-shadow: 0 0 0 2px rgba(201,168,76,0.2); }
+.toolbar-format-select:focus { outline: none; box-shadow: 0 0 0 2px rgba(124, 108, 246, 0.2); }
 
 /* ── IMPORT TABS ─────────────────────────────────── */
 /* Override the old 2-col grid layout for tabbed import */
@@ -3036,12 +3027,12 @@ body { font-size: 15px; line-height: 1.65; }
 .import-tab-btn:hover {
   border-color: var(--border-light);
   color: var(--gold-light);
-  background: rgba(201, 168, 76, 0.06);
+  background: rgba(124, 108, 246, 0.06);
 }
 .import-tab-btn.active {
   border-color: var(--gold);
   color: var(--gold);
-  background: rgba(201, 168, 76, 0.1);
+  background: rgba(124, 108, 246, 0.1);
 }
 .import-pane { display: none; }
 .import-pane.active { display: block; }
@@ -3122,8 +3113,6 @@ body { font-size: 15px; line-height: 1.65; }
       <button data-action="show-share" data-close-menu><svg class="ui-icon"><use href="#i-link"></use></svg>Share</button>
    </div>
  </div>
- 
- <button class="icon-btn" id="btnTheme" data-action="toggle-theme" title="Toggle light/dark theme" aria-label="Toggle light/dark theme">☀</button>
  <button class="icon-btn" id="btnPrint" title="Print Deck"><svg class="ui-icon"><use href="#i-printer"></use></svg></button>
  </div>
  </header>

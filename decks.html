@@ -15,36 +15,35 @@
     base-uri 'self';
     form-action 'self';
   " />
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/src/styles/theme.css" />
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --void: #08090f;
-      --abyss: #0c0e16;
-      --obsidian: #12141e;
-      --smoke: #1a1d2a;
-      --slate: #252838;
-      --line: rgba(255,255,255,0.06);
-      --line-light: rgba(255,255,255,0.10);
+      --void: var(--surface-0);
+      --abyss: var(--surface-1);
+      --obsidian: var(--surface-2);
+      --smoke: var(--surface-3);
+      --slate: var(--surface-4);
+      --line: var(--border);
+      --line-light: var(--border-strong);
 
-      --gold: #c9a84c;
-      --gold-bright: #e8c84a;
-      --gold-dim: #8a7230;
-      --gold-glow: rgba(201,168,76,0.12);
-      --emerald: #34d399;
+      --gold: var(--accent);
+      --gold-bright: var(--accent-strong);
+      --gold-dim: var(--accent-dim);
+      --gold-glow: var(--accent-glow);
+      --emerald: var(--ok);
       --emerald-glow: rgba(52,211,153,0.10);
-      --accent: #34d399;
-      --crimson: #ef4444;
+      --crimson: var(--danger);
       --crimson-glow: rgba(239,68,68,0.12);
 
-      --text: #e8e2d6;
-      --text-dim: #9a94a8;
-      --muted: #706b7f;
+      --text: var(--text-hi);
+      --text-dim: var(--text-lo);
+      --muted: var(--text-muted);
 
-      --danger: #ef4444;
-      --panel: rgba(18,20,30,0.85);
-      --input-bg: rgba(8,9,15,0.6);
+      --panel: var(--surface-2);
+      --input-bg: var(--surface-0);
 
       --radius: 12px;
       --radius-sm: 8px;
@@ -57,7 +56,7 @@
     body {
       background: var(--void);
       color: var(--text);
-      font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+      font-family: var(--font-ui);
       font-weight: 400;
       line-height: 1.5;
       min-height: 100vh;
@@ -101,7 +100,7 @@
       gap: 16px; flex-wrap: wrap; margin-bottom: 16px;
     }
     .top h1 {
-      font-family: 'Cinzel', serif;
+      font-family: var(--font-ui);
       font-weight: 600;
       font-size: 1.5rem;
       letter-spacing: 0.04em;
@@ -148,7 +147,7 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      font-family: 'Outfit', sans-serif;
+      font-family: var(--font-ui);
       font-size: 0.84rem;
       font-weight: 500;
       letter-spacing: 0.02em;
@@ -177,7 +176,7 @@
       color: var(--text);
       border-radius: var(--radius-sm);
       padding: 10px 14px;
-      font-family: 'Outfit', sans-serif;
+      font-family: var(--font-ui);
       font-size: 0.88rem;
       min-width: 260px;
       transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);

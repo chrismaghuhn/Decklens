@@ -1,0 +1,73 @@
+/* ═══ RESPONSIVE ═══ */
+@media (max-width: 768px) {
+  .editor-main {
+    grid-template-columns: 1fr;
+  }
+  .editor-left {
+    padding: 0 8px;
+  }
+  .editor-right {
+    border-left: none;
+    padding: 0 8px;
+    border-top: 1px solid var(--line);
+    padding-top: 8px;
+    max-height: 60vh;
+  }
+  .pile-column {
+    min-width: 95px;
+    max-width: 125px;
+  }
+  .pile-view--compact .pile-column {
+    min-width: 72px;
+    max-width: 95px;
+  }
+  .card-grid-img {
+    grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
+    gap: 4px;
+  }
+  .density-compact .card-grid-img {
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  }
+  .density-compact .pile-column {
+    min-width: 60px;
+    max-width: 80px;
+  }
+  .board-nav {
+    flex-wrap: wrap;
+  }
+  .header-deck-name {
+    width: 120px;
+    min-width: 80px;
+  }
+  .editor-header {
+    padding: 4px 8px;
+    gap: 4px;
+    height: auto;
+    min-height: 36px;
+    flex-wrap: wrap;
+  }
+  .editor-toolbar {
+    padding: 4px 8px;
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 32px;
+  }
+  .btn-ghost {
+    font-size: 0.65rem;
+    padding: 2px 4px;
+  }
+  .toolbar-filter {
+    width: 80px;
+  }
+  .header-spacer {
+    display: none;
+  }
+  .sidebar-search {
+    flex-wrap: wrap;
+  }
+  .toast-container {
+    left: 12px;
+    right: 12px;
+    max-width: none;
+  }
+}

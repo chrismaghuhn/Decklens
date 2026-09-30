@@ -149,11 +149,11 @@ export function renderBudgetOptimizer(
       const maxBudget = Math.round(totalDeckPrice);
 
       const labelLeft = document.createElement('span');
-      labelLeft.style.color = 'var(--text-dim)';
+      labelLeft.style.color = 'var(--text-lo, #9aa0ae)';
       labelLeft.textContent = 'Target Budget';
 
       const labelRight = document.createElement('span');
-      labelRight.style.cssText = "font-family:'JetBrains Mono',monospace; color:var(--gold);";
+      labelRight.style.cssText = "font-family:'JetBrains Mono',monospace; color:var(--accent, #7c6cf6);";
       labelRight.textContent = `€${maxBudget}`;
 
       sliderLabel.append(labelLeft, labelRight);
@@ -164,7 +164,7 @@ export function renderBudgetOptimizer(
       slider.max = String(maxBudget);
       slider.value = String(maxBudget);
       slider.className = 'budget-slider';
-      slider.style.cssText = 'width:100%; accent-color:var(--gold, #e2b340);';
+      slider.style.cssText = 'width:100%; accent-color:var(--accent, #7c6cf6);';
 
       const previewBox = document.createElement('div');
       previewBox.className = 'budget-slider-preview';
@@ -204,7 +204,7 @@ export function renderBudgetOptimizer(
           const row = document.createElement('div');
           row.style.cssText = 'font-size:0.72rem; padding:2px 0; display:flex; justify-content:space-between;';
           const left = document.createElement('span');
-          left.style.color = 'var(--text-dim)';
+          left.style.color = 'var(--text-lo, #9aa0ae)';
           left.textContent = `${swap.cut} → ${swap.add}`;
           const right = document.createElement('span');
           right.style.cssText = "color:#34d399; font-family:'JetBrains Mono',monospace; font-size:0.68rem;";

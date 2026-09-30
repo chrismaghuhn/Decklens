@@ -49,22 +49,23 @@
   "author": { "@type": "Organization", "name": "DeckLens" }
 }
 </script>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/src/styles/theme.css" />
 <link href="shared.css" rel="stylesheet">
 <style>
 :root {
- --gold: #e2b340;
- --gold-light: #f0cc62;
- --gold-dark: #b8922e;
- --gold-glow: rgba(226,179,64,0.08);
- --bg-0: #09090b;
- --bg-1: #111113;
- --bg-2: #18181c;
- --bg-3: #222230;
- --bg-4: #2a2a3a;
- --text: #d4d4d8;
- --text-dim: #62626e;
- --text-bright: #fafafa;
+ --gold: var(--accent);
+ --gold-light: var(--accent-strong);
+ --gold-dark: var(--accent-dim);
+ --gold-glow: var(--accent-glow);
+ --bg-0: var(--surface-0);
+ --bg-1: var(--surface-1);
+ --bg-2: var(--surface-2);
+ --bg-3: var(--surface-3);
+ --bg-4: var(--surface-4);
+ --text: var(--text-mid);
+ --text-dim: var(--text-muted);
+ --text-bright: var(--text-hi);
  --monster: #f97316;
  --spell: #22c55e;
  --trap: #ec4899;
@@ -73,7 +74,7 @@
  --extra-s: #e4e4e7;
  --extra-x: #18181b;
  --extra-l: #3b82f6;
- --border: rgba(255,255,255,0.06);
+ --border: rgba(255,255,255,0.07);
  --border-light: rgba(255,255,255,0.1);
  --banned: #ef4444;
  --limited: #f59e0b;
@@ -81,25 +82,11 @@
  --radius: 14px;
  --radius-sm: 8px;
  --shadow: 0 4px 24px rgba(0,0,0,0.5);
- --font-display: 'Outfit', sans-serif;
- --font-body: 'DM Sans', sans-serif;
+ --font-display: var(--font-ui);
+ --font-body: var(--font-ui);
  --transition: 0.2s ease;
 }
 
-[data-theme="light"] {
- --bg-0: #f4f4f5;
- --bg-1: #fafafa;
- --bg-2: #fff;
- --bg-3: #e4e4e7;
- --bg-4: #d4d4d8;
- --text: #27272a;
- --text-dim: #71717a;
- --text-bright: #09090b;
- --border: rgba(0,0,0,0.08);
- --border-light: rgba(0,0,0,0.12);
- --gold-glow: rgba(226,179,64,0.1);
- --shadow: 0 4px 24px rgba(0,0,0,0.08);
-}
 
 * { margin:0; padding:0; box-sizing:border-box; }
 
@@ -170,7 +157,7 @@ body::before {
  transition:border var(--transition);
 }
 .import-alt input:focus,.import-alt textarea:focus { outline:none; border-color:rgba(255,255,255,0.2); box-shadow:0 0 0 3px rgba(255,255,255,0.04); }
-.import-alt textarea { resize:vertical; min-height:60px; font-family:'JetBrains Mono','Courier New',monospace; font-size:0.78rem; }
+.import-alt textarea { resize:vertical; min-height:60px; font-family: var(--font-mono); font-size:0.78rem; }
 
 .import-btn {
  background:var(--gold); border:none;
@@ -870,8 +857,6 @@ canvas.chart { width:100%!important; height:180px!important; }
    <span>⚙️ Settings</span>
    <span class="count" id="toolsActiveCount">0</span>
  </button>
- 
- <button class="icon-btn" id="btnTheme" title="Toggle Theme">☀</button>
  <button class="icon-btn" id="btnPrint" title="Print Deck">🖨</button>
  </div>
 </div>
