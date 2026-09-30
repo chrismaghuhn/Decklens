@@ -354,3 +354,17 @@ body {
   border-radius: 999px; width: 34px; height: 34px; cursor: pointer; margin: 0 10px; z-index: 3;
 }
 .pm-hand-page:hover { color: var(--accent-strong); border-color: var(--accent); }
+
+/* ── Drag ── */
+.pm-drag-ghost {
+  position: fixed; z-index: 150; pointer-events: none; opacity: 0.85;
+  transform: rotate(3deg) scale(0.95); filter: drop-shadow(0 12px 22px rgba(0,0,0,0.6));
+}
+.pm-snap-hint {
+  position: absolute; width: 144px; height: 200px; z-index: 1;
+  border: 2px dashed var(--accent); border-radius: 8px;
+  background: var(--accent-glow); pointer-events: none;
+  transition: left 0.08s, top 0.08s;
+}
+body.pm-dragging { cursor: grabbing; user-select: none; }
+body.pm-dragging .pm-hand-card:hover { transform: none !important; }

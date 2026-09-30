@@ -13,6 +13,7 @@ import type { SortMode } from './sort.js';
 import { initMat } from './mat.js';
 import { initHand } from './hand.js';
 import { initDrawers } from './drawers.js';
+import { initDrag } from './drag.js';
 
 function parseDeckIdFromPath(): string | null {
   const m = window.location.pathname.match(/\/decks\/id\/([^/?#]+)/);
@@ -195,6 +196,7 @@ async function boot(): Promise<void> {
   pushSnapshot(state.deck);
 
   initMat(document.getElementById('pmMat')!, state);
+  initDrag(document.getElementById('pmMat')!, state);
   initHand(state);
   initDrawers(state);
 
