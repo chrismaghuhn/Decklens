@@ -8,15 +8,15 @@
 
 :root {
   /* ── Design tokens (Phase R: values = old palette; flipped in Phase D) ── */
-  --surface-0: #08090f;
-  --surface-1: #0c0e16;
-  --surface-2: #12141e;
-  --surface-3: #1a1d2a;
-  --surface-4: #252838;
-  --accent: #c9a84c;
-  --accent-strong: #e8c84a;
-  --accent-dim: #8a7230;
-  --accent-glow: rgba(201, 168, 76, 0.12);
+  --surface-0: #08090a;
+  --surface-1: #0b0c10;
+  --surface-2: #111318;
+  --surface-3: #161920;
+  --surface-4: #1c2028;
+  --accent: #7c6cf6;
+  --accent-strong: #8f82f8;
+  --accent-dim: #5b4fc0;
+  --accent-glow: rgba(124, 108, 246, 0.22);
   --ok: #34d399;
   --ok-soft: #6ee7b7;
   --danger: #ef4444;
@@ -24,37 +24,19 @@
   --warn: #f59e0b;
   --info: #60a5fa;
   --info-violet: #a78bfa;
-  --text-hi: #e8e2d6;
-  --text-bright: #e2e8f0;
-  --text-lo: #9a94a8;
-  --text-muted: #706b7f;
+  --text-hi: #f4f5f8;
+  --text-bright: #eceef2;
+  --text-lo: #9aa0ae;
+  --text-muted: #7d8494;
   /* Arcane Forge palette */
-  --void: var(--surface-0);
-  --abyss: var(--surface-1);
-  --obsidian: var(--surface-2);
-  --smoke: var(--surface-3);
-  --slate: var(--surface-4);
   --line: rgba(255, 255, 255, 0.06);
   --line-light: rgba(255, 255, 255, 0.1);
 
   /* Accent spectrum */
-  --gold: var(--accent);
-  --gold-bright: var(--accent-strong);
-  --gold-dim: var(--accent-dim);
-  --gold-glow: rgba(201, 168, 76, 0.12);
-  --emerald: var(--ok);
-  --emerald-dim: #1a9a6a;
-  --emerald-glow: rgba(52, 211, 153, 0.1);
   --accent: var(--ok);
-  --crimson: var(--danger);
-  --crimson-glow: rgba(239, 68, 68, 0.12);
-  --amber: var(--warn);
-  --amber-glow: rgba(245, 158, 11, 0.1);
 
   /* Text */
   --text: var(--text-hi);
-  --text-dim: var(--text-lo);
-  --muted: var(--text-muted);
 
   /* Semantic */
   --danger: var(--danger);
@@ -77,10 +59,10 @@
 
   /* Aliases for legacy/component CSS */
   --border: rgba(255, 255, 255, 0.06);
-  --bg-1: var(--obsidian);
-  --bg-2: var(--smoke);
+  --bg-1: var(--surface-2);
+  --bg-2: var(--surface-3);
   --bg-card: rgba(18, 20, 30, 0.85);
-  --bg-deeper: var(--abyss);
+  --bg-deeper: var(--surface-1);
 
   /* Type scale */
   --text-xs: 0.65rem;
@@ -90,98 +72,12 @@
   --text-xl: 1.25rem;
 }
 
-/* F3: Light theme alternative */
-body.theme-light {
-  --void: #f5f3ef;
-  --abyss: #eae7e1;
-  --obsidian: #ddd9d1;
-  --smoke: #d0ccc4;
-  --slate: #c4bfb7;
-  --line: rgba(0, 0, 0, 0.08);
-  --line-light: rgba(0, 0, 0, 0.12);
-  --gold: #9a7c2e;
-  --gold-bright: #b8912a;
-  --gold-dim: #6b5620;
-  --gold-glow: rgba(154, 124, 46, 0.12);
-  --emerald: #1a9a6a;
-  --emerald-dim: #147a54;
-  --emerald-glow: rgba(26, 154, 106, 0.1);
-  --accent: #1a9a6a;
-  --crimson: #dc2626;
-  --crimson-glow: rgba(220, 38, 38, 0.12);
-  --amber: #d97706;
-  --amber-glow: rgba(217, 119, 6, 0.1);
-  --text: #1a1814;
-  --text-dim: #5a5650;
-  --muted: #8a867e;
-  --danger: #dc2626;
-  --warn: #d97706;
-  --ok: #1a9a6a;
-  --panel: rgba(234, 231, 225, 0.95);
-  --panel-hover: rgba(221, 217, 209, 0.98);
-  --input-bg: rgba(245, 243, 239, 0.8);
-  color-scheme: light;
-}
-
-body.theme-light .editor-header,
-body.theme-light .editor-toolbar {
-  background: var(--abyss);
-  border-color: var(--line);
-}
-
-body.theme-light input,
-body.theme-light textarea,
-body.theme-light select {
-  background: var(--input-bg);
-  color: var(--text);
-  border-color: var(--line);
-}
-
-body.theme-light .btn {
-  background: rgba(0, 0, 0, 0.04);
-  color: var(--text);
-  border-color: var(--line);
-}
-
-body.theme-light .btn:hover {
-  background: rgba(0, 0, 0, 0.08);
-}
-
-body.theme-light .btn.primary {
-  background: var(--gold);
-  color: #fff;
-}
-
-body.theme-light .collapsible-header {
-  background: rgba(0, 0, 0, 0.03);
-}
-
-body.theme-light .board-row:hover {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-body.theme-light .context-menu {
-  background: var(--obsidian);
-  border-color: var(--line);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-}
-
-body.theme-light .search-card {
-  background: var(--obsidian);
-}
-
-body.theme-light .toast {
-  background: var(--abyss);
-  color: var(--text);
-  border-color: var(--line);
-}
-
 html {
   scroll-behavior: smooth;
 }
 
 body {
-  background: var(--void);
+  background: var(--surface-0);
   color: var(--text);
   font-family: var(--font-ui);
   font-weight: 400;
@@ -230,14 +126,14 @@ body::after {
   width: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--void);
+  background: var(--surface-0);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--gold-dim);
+  background: var(--accent-dim);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--gold);
+  background: var(--accent);
 }
 
 /* ── Grid Hover Actions ── */
@@ -277,7 +173,7 @@ body::after {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--obsidian);
+  background: var(--surface-2);
   border: 1px solid var(--line-light);
   color: var(--text);
   border-radius: 50%;
@@ -288,10 +184,10 @@ body::after {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 .btn-overlay:hover {
-  background: var(--gold);
-  color: var(--void);
+  background: var(--accent);
+  color: var(--surface-0);
   transform: scale(1.1);
-  border-color: var(--gold);
+  border-color: var(--accent);
 }
 .btn-overlay.danger:hover {
   background: var(--danger);
@@ -307,10 +203,10 @@ body::after {
   border-radius: 12px;
   font-weight: 600;
   text-transform: uppercase;
-  background: var(--obsidian);
+  background: var(--surface-2);
   border: 1px solid var(--line-light);
 }
 .btn-overlay-text:hover {
-  background: var(--smoke);
-  border-color: var(--text-dim);
+  background: var(--surface-3);
+  border-color: var(--text-lo);
 }

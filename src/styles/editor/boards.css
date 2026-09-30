@@ -17,7 +17,7 @@
   border-color: var(--line);
 }
 .board-row.selected {
-  outline: 2px solid var(--gold);
+  outline: 2px solid var(--accent);
   outline-offset: -1px;
   background: rgba(201, 168, 76, 0.04);
 }
@@ -40,7 +40,7 @@
   font-family: var(--font-mono);
   font-size: 0.85rem;
   font-weight: 500;
-  color: var(--gold-bright);
+  color: var(--accent-strong);
 }
 .inline-select,
 .inline-tags {
@@ -104,7 +104,7 @@
   right: 5px;
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(4px);
-  color: var(--gold-bright);
+  color: var(--accent-strong);
   font-family: var(--font-mono);
   font-weight: 600;
   font-size: 0.72rem;
@@ -113,7 +113,7 @@
   border: 1px solid rgba(201, 168, 76, 0.2);
 }
 .gcard.selected {
-  border-color: var(--gold);
+  border-color: var(--accent);
   box-shadow: 0 0 16px rgba(201, 168, 76, 0.2);
 }
 
@@ -143,7 +143,7 @@
   font-family: var(--font-ui);
   font-size: 0.72rem;
   font-weight: 600;
-  color: var(--gold);
+  color: var(--accent);
   margin-bottom: 8px;
   text-align: center;
   text-transform: uppercase;
@@ -174,7 +174,7 @@
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.6);
 }
 .pile-card.selected {
-  outline: 2px solid var(--gold);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 .pile-card .gqty {
@@ -182,7 +182,7 @@
   top: 4px;
   right: 4px;
   background: rgba(0, 0, 0, 0.85);
-  color: var(--gold-bright);
+  color: var(--accent-strong);
   font-family: var(--font-mono);
   font-weight: 600;
   font-size: 0.68rem;
@@ -214,8 +214,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--obsidian);
-  color: var(--muted);
+  background: var(--surface-2);
+  color: var(--text-muted);
   font-size: 0.68rem;
   text-align: center;
   padding: 8px;
@@ -229,14 +229,14 @@
   opacity: 0.35;
 }
 .drop-target {
-  outline: 2px dashed var(--gold) !important;
+  outline: 2px dashed var(--accent) !important;
   outline-offset: -2px;
-  background: var(--gold-glow) !important;
+  background: var(--accent-glow) !important;
 }
 .board-tab.drop-target {
-  border-color: var(--gold) !important;
-  background: var(--gold-glow) !important;
-  color: var(--gold-bright) !important;
+  border-color: var(--accent) !important;
+  background: var(--accent-glow) !important;
+  color: var(--accent-strong) !important;
 }
 
 /* ═══ BULK BAR ═══ */
@@ -297,7 +297,7 @@
   }
 }
 .detail-modal {
-  background: var(--obsidian);
+  background: var(--surface-2);
   border: 1px solid var(--line-light);
   border-radius: 14px;
   max-width: 740px;
@@ -331,7 +331,7 @@
   font-family: var(--font-ui);
   margin: 0 0 4px;
   font-size: 0.78rem;
-  color: var(--gold-dim);
+  color: var(--accent-dim);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 600;
@@ -375,7 +375,7 @@
 }
 .ctx-label {
   font-size: 0.65rem;
-  color: var(--gold-dim);
+  color: var(--accent-dim);
   padding: 5px 10px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -398,7 +398,7 @@
 }
 .ctx-item:hover {
   background: rgba(201, 168, 76, 0.08);
-  color: var(--gold-bright);
+  color: var(--accent-strong);
 }
 .ctx-danger {
   color: var(--danger-soft);
@@ -435,7 +435,7 @@
 }
 .rule-suggestions-title {
   font-size: 0.72rem;
-  color: var(--text-dim);
+  color: var(--text-lo);
   margin-bottom: 4px;
 }
 .rule-suggestion-row {
@@ -457,7 +457,7 @@
   font-size: 0.68rem;
   border-radius: 50px;
   flex-shrink: 0;
-  background: var(--gold);
+  background: var(--accent);
   color: var(--surface-1);
   border: none;
   cursor: pointer;

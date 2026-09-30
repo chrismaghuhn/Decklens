@@ -16,13 +16,13 @@
   height: 44px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
-  background: var(--abyss);
+  background: var(--surface-1);
 }
 .editor-header-title {
   font-family: var(--font-ui);
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--gold);
+  color: var(--accent);
   white-space: nowrap;
   display: none;
 }
@@ -51,23 +51,23 @@
 .header-select {
   padding: 4px 8px;
   font-size: 0.75rem;
-  background: var(--smoke);
+  background: var(--surface-3);
   border: 1px solid var(--line);
   border-radius: 6px;
-  color: var(--text-dim);
+  color: var(--text-lo);
 }
 .header-spacer {
   flex: 1;
 }
 .header-counts {
   font-size: 0.72rem;
-  color: var(--muted);
+  color: var(--text-muted);
   font-family: var(--font-mono);
   white-space: nowrap;
 }
 .header-status {
   font-size: 0.72rem;
-  color: var(--muted);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
@@ -75,7 +75,7 @@
 .btn-ghost {
   background: transparent;
   border: none;
-  color: var(--text-dim);
+  color: var(--text-lo);
   padding: 4px 8px;
   font-size: 0.75rem;
   cursor: pointer;
@@ -87,14 +87,14 @@
 }
 .btn-ghost:hover {
   color: var(--text);
-  background: var(--smoke);
+  background: var(--surface-3);
 }
 
 /* Icon buttons */
 .btn-icon {
   background: none;
   border: 1px solid transparent;
-  color: var(--text-dim);
+  color: var(--text-lo);
   padding: 4px 6px;
   cursor: pointer;
   font-size: 0.9rem;
@@ -122,7 +122,7 @@
   top: calc(100% + 4px);
   right: 0;
   min-width: 200px;
-  background: var(--abyss);
+  background: var(--surface-1);
   border: 1px solid rgba(201,168,76,0.2);
   border-radius: 8px;
   box-shadow:
@@ -156,7 +156,7 @@
 
 .dropdown-item:hover {
   background: rgba(201,168,76,0.1);
-  color: var(--gold);
+  color: var(--accent);
 }
 
 .dropdown-divider {
@@ -179,7 +179,7 @@
 /* ── Layout Mode Toggle ── */
 .layout-mode-toggle {
   display: flex;
-  background: var(--abyss);
+  background: var(--surface-1);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 3px;
@@ -194,7 +194,7 @@
   background: transparent;
   border: none;
   border-radius: 6px;
-  color: var(--text-dim);
+  color: var(--text-lo);
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
@@ -204,13 +204,13 @@
 }
 
 .mode-btn:hover {
-  background: var(--obsidian);
+  background: var(--surface-2);
   color: var(--text);
 }
 
 .mode-btn.active {
-  background: linear-gradient(135deg, var(--gold) 0%, rgba(201,168,76,0.8) 100%);
-  color: var(--void);
+  background: linear-gradient(135deg, var(--accent) 0%, rgba(201,168,76,0.8) 100%);
+  color: var(--surface-0);
   box-shadow:
     0 2px 8px rgba(201,168,76,0.3),
     0 0 12px rgba(201,168,76,0.15);
@@ -240,7 +240,7 @@
   height: 36px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--line);
-  background: var(--obsidian);
+  background: var(--surface-2);
 }
 .toolbar-spacer {
   flex: 1;
@@ -262,31 +262,31 @@
   font-family: var(--font-ui);
 }
 .toolbar-filter:focus {
-  border-color: var(--gold-dim);
+  border-color: var(--accent-dim);
   outline: none;
 }
 .toolbar-filter::placeholder {
-  color: var(--muted);
+  color: var(--text-muted);
 }
 .toolbar-filter-count {
   font-size: 0.65rem;
-  color: var(--muted);
+  color: var(--text-muted);
   font-family: var(--font-mono);
   white-space: nowrap;
 }
 .toolbar-sort {
   padding: 3px 8px;
   font-size: 0.72rem;
-  background: var(--smoke);
+  background: var(--surface-3);
   border: 1px solid var(--line);
   border-radius: 6px;
-  color: var(--text-dim);
+  color: var(--text-lo);
 }
 
 /* View toggle segment control */
 .view-toggle {
   display: flex;
-  background: var(--abyss);
+  background: var(--surface-1);
   border-radius: 6px;
   padding: 2px;
   gap: 1px;
@@ -295,7 +295,7 @@
 .vt-btn {
   background: transparent;
   border: none;
-  color: var(--text-dim);
+  color: var(--text-lo);
   padding: 2px 8px;
   border-radius: 4px;
   cursor: pointer;
@@ -306,14 +306,14 @@
   color: var(--text);
 }
 .vt-btn.active {
-  background: var(--gold-glow);
-  color: var(--gold-bright);
+  background: var(--accent-glow);
+  color: var(--accent-strong);
 }
 
 /* Size toggle (card density) */
 .size-toggle {
   display: flex;
-  background: var(--abyss);
+  background: var(--surface-1);
   border-radius: 6px;
   padding: 2px;
   gap: 1px;
@@ -322,7 +322,7 @@
 .st-btn {
   background: transparent;
   border: none;
-  color: var(--text-dim);
+  color: var(--text-lo);
   padding: 2px 6px;
   border-radius: 4px;
   cursor: pointer;
@@ -335,8 +335,8 @@
   color: var(--text);
 }
 .st-btn.active {
-  background: var(--gold-glow);
-  color: var(--gold-bright);
+  background: var(--accent-glow);
+  color: var(--accent-strong);
 }
 
 /* ── Virtual Scroll ── */
@@ -512,7 +512,7 @@
 .search-syntax-hint {
   width: 100%;
   font-size: 0.68rem;
-  color: var(--text-dim);
+  color: var(--text-lo);
   padding: 2px 4px;
   opacity: 0;
   max-height: 0;
@@ -690,7 +690,7 @@
   font-family: var(--font-ui);
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--gold);
+  color: var(--accent);
   user-select: none;
   cursor: grab;
   letter-spacing: 0.06em;
@@ -815,7 +815,7 @@
   background: rgba(201,168,76,0.1);
   border: 1px solid rgba(201,168,76,0.2);
   border-radius: 6px;
-  color: var(--gold);
+  color: var(--accent);
   cursor: pointer;
   transition: all 0.2s;
   font-size: 0.75rem;
@@ -897,7 +897,7 @@
   color: var(--text-bright);
 }
 .doctor-intro {
-  color: var(--text-dim);
+  color: var(--text-lo);
   font-style: italic;
   margin-top: 4px;
 }
@@ -969,7 +969,7 @@
   background: linear-gradient(
     135deg,
     transparent 50%,
-    var(--gold, var(--accent)) 50%
+    var(--accent)) 50%
   );
   border-radius: 0 0 12px 0;
 }
@@ -991,7 +991,7 @@
 
 /* Placeholder (ghost during drag) */
 .layout-placeholder {
-  border: 2px dashed var(--gold, var(--accent));
+  border: 2px dashed var(--accent));
   border-radius: 12px;
   background: rgba(201, 168, 76, 0.04);
   pointer-events: none;
@@ -1031,7 +1031,7 @@
   font-family: var(--font-ui);
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--gold, var(--accent));
+  color: var(--accent));
   white-space: nowrap;
 }
 .layout-toolbar-btn {
@@ -1070,7 +1070,7 @@
 }
 .layout-widget-pill.lwp-active {
   background: rgba(201, 168, 76, 0.12);
-  color: var(--gold, var(--accent));
+  color: var(--accent));
   border-color: rgba(201, 168, 76, 0.3);
 }
 .layout-widget-pill:hover {
@@ -1095,7 +1095,7 @@
 .layout-toolbar-counter {
   font-family: var(--font-mono);
   font-size: 0.72rem;
-  color: var(--gold, var(--accent));
+  color: var(--accent));
   background: rgba(201, 168, 76, 0.08);
   padding: 2px 8px;
   border-radius: 50px;
@@ -1112,7 +1112,7 @@
 .layout-preset-btn:hover {
   background: rgba(201, 168, 76, 0.12) !important;
   border-color: rgba(201, 168, 76, 0.3) !important;
-  color: var(--gold, var(--accent)) !important;
+  color: var(--accent)) !important;
 }
 
 /* Collapse button chevron animation */
@@ -1129,7 +1129,7 @@
   transition: all 0.2s var(--ease, cubic-bezier(0.4, 0, 0.2, 1));
 }
 .layout-toggle-btn.layout-toggle-active {
-  color: var(--gold, var(--accent)) !important;
+  color: var(--accent)) !important;
   background: rgba(201, 168, 76, 0.12) !important;
   border-color: rgba(201, 168, 76, 0.3) !important;
   box-shadow: 0 0 8px rgba(201, 168, 76, 0.15);
@@ -1161,7 +1161,7 @@
 
 .preset-modal-content {
   position: relative;
-  background: var(--abyss);
+  background: var(--surface-1);
   border: 1px solid rgba(201,168,76,0.2);
   border-radius: 16px;
   max-width: 900px;
@@ -1186,14 +1186,14 @@
   font-family: var(--font-ui);
   font-size: 1.5rem;
   font-weight: 600;
-  color: var(--gold);
+  color: var(--accent);
   margin: 0;
 }
 
 .preset-modal-close {
   background: none;
   border: none;
-  color: var(--text-dim);
+  color: var(--text-lo);
   font-size: 2rem;
   line-height: 1;
   cursor: pointer;
@@ -1220,7 +1220,7 @@
 }
 
 .preset-card {
-  background: var(--obsidian);
+  background: var(--surface-2);
   border: 2px solid var(--line);
   border-radius: 12px;
   padding: 20px;
@@ -1230,7 +1230,7 @@
 }
 
 .preset-card:hover {
-  border-color: var(--gold);
+  border-color: var(--accent);
   background: rgba(201,168,76,0.05);
   transform: translateY(-4px);
   box-shadow:
@@ -1248,13 +1248,13 @@
   font-family: var(--font-ui);
   font-size: 1.1rem;
   font-weight: 600;
-  color: var(--gold);
+  color: var(--accent);
   margin-bottom: 8px;
 }
 
 .preset-desc {
   font-size: 0.85rem;
-  color: var(--text-dim);
+  color: var(--text-lo);
   line-height: 1.4;
 }
 

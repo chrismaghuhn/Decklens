@@ -4860,33 +4860,11 @@ async function fillBasicLands(): Promise<void> {
   }
 }
 
-function initThemeToggle(): void {
-  // Load persisted theme
-  const savedTheme = storageGet<string>(STORAGE_KEYS.THEME, 'dark');
-  if (savedTheme === 'light') {
-    document.body.classList.add('theme-light');
-  }
-
-  // Create toggle button in header
-  const header = document.querySelector('.editor-header-actions') || document.querySelector('.editor-header');
-  if (!header) return;
-
-  const toggleBtn = document.createElement('button');
-  toggleBtn.className = 'theme-toggle-btn';
-  toggleBtn.title = 'Toggle light/dark theme';
-  toggleBtn.textContent = savedTheme === 'light' ? '\u{1F319}' : '\u2600\uFE0F';
-  toggleBtn.addEventListener('click', () => {
-    const isLight = document.body.classList.toggle('theme-light');
-    storageSet(STORAGE_KEYS.THEME, isLight ? 'light' : 'dark');
-    toggleBtn.textContent = isLight ? '\u{1F319}' : '\u2600\uFE0F';
-  });
-  header.appendChild(toggleBtn);
-}
-
 function init(): void {
   initToastContainer();
   initSaveIndicator();
-  initThemeToggle();
+  // Dark only: clear any persisted light-theme preference from the old design
+  document.body.classList.remove('theme-light');
   initShortcutHelp();
   loadViewModePreference();
   loadCollection();

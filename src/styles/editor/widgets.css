@@ -48,7 +48,7 @@
 }
 .gf-line-tooltip-result {
   font-size: 0.62rem;
-  color: var(--gold, var(--accent));
+  color: var(--accent));
   margin-top: 2px;
 }
 
@@ -80,7 +80,7 @@
   font-family: var(--font-ui);
   font-size: 1rem;
   font-weight: 700;
-  color: var(--gold, var(--accent));
+  color: var(--accent));
 }
 .mp-phase-label {
   font-size: 0.78rem;
@@ -105,7 +105,7 @@
   align-items: center;
 }
 .gf-btn-phase {
-  background: var(--gold, var(--accent)) !important;
+  background: var(--accent)) !important;
   color: #000 !important;
   font-weight: 700 !important;
 }
@@ -291,7 +291,7 @@
   padding: 1px 4px;
   border-radius: 4px;
   background: rgba(0, 0, 0, 0.85);
-  color: var(--gold, var(--accent));
+  color: var(--accent));
   border: 1px solid rgba(201, 168, 76, 0.3);
   z-index: 5;
   white-space: nowrap;
@@ -562,7 +562,7 @@
   transition: border-color 0.15s;
 }
 .gf-zone-card:hover {
-  border-color: var(--gold, var(--accent));
+  border-color: var(--accent));
 }
 .gf-zone-card img {
   width: 100%;
@@ -608,7 +608,7 @@
   transition: border-color 0.15s, transform 0.1s;
 }
 .gf-token-grid-card:hover {
-  border-color: var(--gold, var(--accent));
+  border-color: var(--accent));
   transform: scale(1.03);
 }
 .gf-token-grid-card img {
@@ -652,7 +652,7 @@
   outline: none;
 }
 .gf-token-input:focus {
-  border-color: var(--gold, var(--accent));
+  border-color: var(--accent));
 }
 .gf-token-actions {
   display: flex;
@@ -675,7 +675,7 @@
   outline: none;
 }
 .gf-search-input:focus {
-  border-color: var(--gold, var(--accent));
+  border-color: var(--accent));
 }
 .gf-zone-modal-grid {
   display: grid;
@@ -693,7 +693,7 @@
   overflow: hidden;
 }
 .gf-zone-modal-card:hover {
-  border-color: var(--gold, var(--accent));
+  border-color: var(--accent));
   transform: scale(1.04);
 }
 .gf-zone-modal-card img {
@@ -705,7 +705,7 @@
   font-family: var(--font-ui);
   font-size: 1rem;
   font-weight: 700;
-  color: var(--gold, var(--accent));
+  color: var(--accent));
   margin-bottom: 10px;
 }
 
@@ -773,9 +773,9 @@
   transition: all 0.15s;
 }
 .gf-topn-dest-label.active {
-  background: var(--gold, var(--accent));
+  background: var(--accent));
   color: #000;
-  border-color: var(--gold, var(--accent));
+  border-color: var(--accent));
   font-weight: 600;
 }
 .gf-topn-dest-label input[type="radio"] {
@@ -809,7 +809,7 @@
 }
 .gf-help-modal {
   background: var(--abyss, var(--surface-1));
-  border: 1px solid var(--gold, var(--accent));
+  border: 1px solid var(--accent));
   border-radius: 16px;
   padding: 24px 28px;
   max-width: 400px;
@@ -820,7 +820,7 @@
   font-family: var(--font-ui);
   font-size: 1.1rem;
   font-weight: 700;
-  color: var(--gold, var(--accent));
+  color: var(--accent));
   margin: 0 0 16px 0;
   text-align: center;
 }
@@ -837,7 +837,7 @@
   border-radius: 4px;
   background: rgba(201, 168, 76, 0.12);
   border: 1px solid rgba(201, 168, 76, 0.25);
-  color: var(--gold, var(--accent));
+  color: var(--accent));
   text-align: center;
 }
 .gf-help-desc {
@@ -864,14 +864,14 @@
 }
 .gf-help-tips li::before {
   content: "\u2022 ";
-  color: var(--gold, var(--accent));
+  color: var(--accent));
 }
 
 /* ── Coach Toggle Button ── */
 .gf-btn-coach-on {
   background: rgba(201, 168, 76, 0.2) !important;
-  border-color: var(--gold, var(--accent)) !important;
-  color: var(--gold, var(--accent)) !important;
+  border-color: var(--accent)) !important;
+  color: var(--accent)) !important;
   box-shadow: 0 0 8px rgba(201, 168, 76, 0.15);
 }
 
@@ -1075,7 +1075,7 @@
   font-size: 0.75rem;
   text-align: center;
   background: rgba(0, 0, 0, 0.5);
-  border: 1px solid var(--gold, var(--accent));
+  border: 1px solid var(--accent));
   border-radius: 4px;
   color: #fff;
   padding: 1px 3px;
@@ -1596,7 +1596,7 @@
 }
 .mp-launch-modal {
   background: var(--abyss, var(--surface-1));
-  border: 1px solid var(--gold, var(--accent));
+  border: 1px solid var(--accent));
   border-radius: 16px;
   padding: 28px 32px;
   max-width: 500px;
@@ -1607,7 +1607,7 @@
   font-family: var(--font-ui);
   font-size: 1.4rem;
   font-weight: 700;
-  color: var(--gold, var(--accent));
+  color: var(--accent));
   margin-bottom: 16px;
   text-align: center;
 }
@@ -1665,7 +1665,7 @@
 .mp-launch-start {
   padding: 10px 28px;
   border-radius: 50px;
-  background: var(--gold, var(--accent));
+  background: var(--accent));
   color: #000;
   font-weight: 700;
   font-family: var(--font-ui);
@@ -1704,7 +1704,7 @@
 }
 .mp-launch-modal select:focus {
   outline: none;
-  border-color: var(--gold, var(--accent));
+  border-color: var(--accent));
   box-shadow: 0 0 0 2px rgba(201, 168, 76, 0.15);
 }
 .mp-launch-modal select option {
@@ -1722,7 +1722,7 @@
 }
 .mp-launch-modal input[type="text"]:focus {
   outline: none;
-  border-color: var(--gold, var(--accent));
+  border-color: var(--accent));
   box-shadow: 0 0 0 2px rgba(201, 168, 76, 0.15);
 }
 
@@ -1773,7 +1773,7 @@
 }
 .mp-tool-item:hover {
   background: rgba(201, 168, 76, 0.12);
-  color: var(--gold, var(--accent));
+  color: var(--accent));
 }
 .mp-tool-item.active {
   color: var(--ok);
