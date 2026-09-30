@@ -372,6 +372,16 @@ export function initMat(root: HTMLElement, state: PlaymatState): void {
   rootRef = root;
   loadCollapsedPiles();
 
+  // one-time layout reset: seeds before v2 wrapped piles into overlapping
+  // rows; re-seed once so every deck starts from the clean top-aligned row
+  try {
+    const versionKey = `dl_pm_layoutv_${state.deck.id}`;
+    if (localStorage.getItem(versionKey) !== '2') {
+      state.deck.matLayout = undefined;
+      localStorage.setItem(versionKey, '2');
+    }
+  } catch { /* storage unavailable */ }
+
   initContextMenu({
     onMoveTo: (name, from, to) => moveTo(name, from, to),
     onQtyChange: (name, board, delta) => changeQty(name, board, delta),

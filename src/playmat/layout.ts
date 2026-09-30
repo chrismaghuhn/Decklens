@@ -12,8 +12,6 @@ export const GRID_CELL = 72;
 const FIRST_FREE_COL = 2;
 /** Grid columns a pile occupies when seeding. */
 const PILE_SPAN = 2;
-/** Piles per seeded row before wrapping. */
-const SEED_COLS = 6;
 
 export function snapToGrid(xPx: number, yPx: number, cell = GRID_CELL): { col: number; row: number } {
   return {
@@ -23,19 +21,21 @@ export function snapToGrid(xPx: number, yPx: number, cell = GRID_CELL): { col: n
 }
 
 export function seedLayout(piles: Pile[]): MatLayout {
+  // one top-aligned row: piles vary a lot in height, so vertical
+  // wrapping always ends in overlaps — horizontal scroll does not
   return {
     piles: piles.map((pile, i) => ({
       id: pile.id,
-      col: FIRST_FREE_COL + (i % SEED_COLS) * PILE_SPAN,
-      row: Math.floor(i / SEED_COLS) * 3,
+      col: FIRST_FREE_COL + i * PILE_SPAN,
+      row: 0,
     })),
   };
 }
 
 /**
  * Reconcile a stored layout with the current pile set: keep known
- * positions, append new piles after the highest used row, drop entries
- * whose pile no longer exists.
+ * positions, append new piles top-aligned to the right of the occupied
+ * columns, drop entries whose pile no longer exists.
  */
 export function layoutFor(deck: DeckbuilderDeck, piles: Pile[]): MatLayout {
   const stored = deck.matLayout;
@@ -52,12 +52,12 @@ export function layoutFor(deck: DeckbuilderDeck, piles: Pile[]): MatLayout {
   }
 
   if (newPiles.length > 0) {
-    const maxRow = result.piles.reduce((m, p) => Math.max(m, p.row), 0);
+    const maxCol = result.piles.reduce((m, p) => Math.max(m, p.col), FIRST_FREE_COL - PILE_SPAN);
     newPiles.forEach((pile, i) => {
       result.piles.push({
         id: pile.id,
-        col: FIRST_FREE_COL + (i % SEED_COLS) * PILE_SPAN,
-        row: maxRow + 3 + Math.floor(i / SEED_COLS) * 3,
+        col: maxCol + PILE_SPAN * (i + 1),
+        row: 0,
       });
     });
   }

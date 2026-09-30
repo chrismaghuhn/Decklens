@@ -16,19 +16,25 @@ describe('playmat layout', () => {
     expect(snapToGrid(35, 36)).toEqual({ col: 0, row: 1 });
   });
 
-  test('seed reserves commander cols 0-1 and lays piles left to right', () => {
-    const layout = seedLayout([pile('a'), pile('b')]);
-    expect(layout.piles[0]).toMatchObject({ id: 'a', col: 2 });
-    expect(layout.piles[1].col).toBeGreaterThan(layout.piles[0].col);
-    for (const p of layout.piles) expect(p.col).toBeGreaterThanOrEqual(2);
+  test('seed lays all piles top-aligned in one row, no wrapping', () => {
+    const many = Array.from({ length: 9 }, (_, i) => pile(`p${i}`));
+    const layout = seedLayout(many);
+    expect(layout.piles[0]).toMatchObject({ id: 'p0', col: 2, row: 0 });
+    for (const p of layout.piles) {
+      expect(p.row).toBe(0);
+      expect(p.col).toBeGreaterThanOrEqual(2);
+    }
+    const cols = layout.piles.map((p) => p.col);
+    expect(new Set(cols).size).toBe(cols.length); // no column collisions
   });
 
-  test('reconcile keeps existing positions, appends new, drops vanished', () => {
+  test('reconcile keeps existing positions, appends new top-right, drops vanished', () => {
     const deck = createEmptyDeck('L');
     deck.matLayout = { piles: [{ id: 'a', col: 5, row: 3 }, { id: 'gone', col: 9, row: 9 }] } as MatLayout;
     const layout = layoutFor(deck, [pile('a'), pile('b')]);
     expect(layout.piles.find((p) => p.id === 'a')).toMatchObject({ col: 5, row: 3 });
-    expect(layout.piles.find((p) => p.id === 'b')).toBeTruthy();
+    // new piles start at row 0, right of the occupied columns
+    expect(layout.piles.find((p) => p.id === 'b')).toMatchObject({ row: 0, col: 7 });
     expect(layout.piles.find((p) => p.id === 'gone')).toBeUndefined();
   });
 
