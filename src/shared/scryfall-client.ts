@@ -293,7 +293,10 @@ export async function resolveDeckbuilderCards(names: string[]): Promise<{
     const response = await scryfallFetch(`${SCRYFALL_API}/cards/collection`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifiers: chunk.map((name) => ({ name })) }),
+      // Scryfall's collection endpoint does not match full double-faced
+      // names ("A // B") — it needs the front face; the response still
+      // carries the full name, which our key mapping handles below.
+      body: JSON.stringify({ identifiers: chunk.map((name) => ({ name: name.split('//')[0].trim() })) }),
     });
     if (!response.ok) {
       throw new Error('Failed to resolve cards.');
@@ -323,7 +326,8 @@ export async function resolveDeckbuilderCards(names: string[]): Promise<{
     for (const name of chunk) {
       const key = normalizeNameKey(name);
       if (resolvedMap[key]) continue;
-      if (notFound.has(key)) {
+      // not_found echoes the queried (front-face) identifier
+      if (notFound.has(key) || notFound.has(normalizeNameKey(name.split('//')[0]))) {
         missing.push(name);
         continue;
       }
@@ -338,4 +342,43 @@ export async function resolveDeckbuilderCards(names: string[]): Promise<{
   }
 
   return { resolved: resolvedMap, missing };
+}
+
+/** All paper printings of a card, newest first (for the artwork picker). */
+export async function fetchCardPrints(name: string): Promise<DeckbuilderSearchCard[]> {
+  const clean = name.trim().replace(/"/g, '');
+  if (!clean) return [];
+  const q = `!"${clean}" game:paper`;
+  const response = await scryfallFetch(
+    `${SCRYFALL_API}/cards/search?q=${encodeURIComponent(q)}&unique=prints&order=released&dir=desc`,
+  );
+  if (response.status === 404) return [];
+  if (!response.ok) throw new Error('Failed to load printings.');
+  const payload = await response.json() as { data?: unknown[] };
+  return Array.isArray(payload.data)
+    ? payload.data.map(mapScryfallCard).filter((c): c is DeckbuilderSearchCard => Boolean(c))
+    : [];
+}
+
+/** Resolve specific printings by set + collector number. */
+export async function resolveDeckbuilderPrintings(
+  refs: Array<{ set: string; collectorNumber: string }>,
+): Promise<DeckbuilderSearchCard[]> {
+  const clean = refs
+    .filter((r) => r.set.trim() && r.collectorNumber.trim())
+    .slice(0, COLLECTION_CHUNK_SIZE);
+  if (clean.length === 0) return [];
+
+  const response = await scryfallFetch(`${SCRYFALL_API}/cards/collection`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      identifiers: clean.map((r) => ({ set: r.set.trim(), collector_number: r.collectorNumber.trim() })),
+    }),
+  });
+  if (!response.ok) throw new Error('Failed to resolve printings.');
+  const payload = await response.json() as { data?: unknown[] };
+  return Array.isArray(payload.data)
+    ? payload.data.map(mapScryfallCard).filter((c): c is DeckbuilderSearchCard => Boolean(c))
+    : [];
 }

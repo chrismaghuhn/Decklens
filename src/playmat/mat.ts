@@ -13,6 +13,7 @@ import { initContextMenu, showContextMenu } from '../deckbuilder/context-menu.js
 import { showPromptModal } from '../deckbuilder/confirm-modal.js';
 import { showToast } from '../deckbuilder/toast.js';
 import { iconSvg } from '../shared/icons.js';
+import { openArtPicker } from './art-picker.js';
 
 const BOARD_LABELS: Record<DeckBoard, string> = {
   commander: 'Commander',
@@ -375,6 +376,7 @@ export function initMat(root: HTMLElement, state: PlaymatState): void {
     onQtyChange: (name, board, delta) => changeQty(name, board, delta),
     onRemove: (name, board) => changeQty(name, board, -9999),
     onEditTags: (name, board) => { void editTags(name, board); },
+    onChangeArt: (name, board) => { void openArtPicker(stateRef, name, board); },
     getScryfallUrl: (name) => {
       const c = cardFor(state, name);
       return c?.set && c?.collector_number

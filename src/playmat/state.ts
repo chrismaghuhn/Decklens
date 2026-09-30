@@ -4,7 +4,7 @@
 
 import type { DeckbuilderDeck } from '../deckbuilder/types.js';
 import type { DeckbuilderSearchCard } from '../shared/scryfall-client.js';
-import { resolveDeckbuilderCards } from '../shared/scryfall-client.js';
+import { resolveDeckbuilderCards, resolveDeckbuilderPrintings } from '../shared/scryfall-client.js';
 import { getDeckById, upsertDeck, setLastOpenedDeckId } from '../deckbuilder/storage.js';
 import { pushSnapshot } from '../deckbuilder/undo-stack.js';
 import type { SortMode } from './sort.js';
@@ -66,23 +66,47 @@ let resolveInFlight = false;
 
 export async function resolveMissing(state: PlaymatState): Promise<void> {
   if (resolveInFlight) return;
-  const names = [
+  const entries = [
     ...state.deck.boards.commander,
     ...state.deck.boards.mainboard,
     ...state.deck.boards.sideboard,
     ...state.deck.boards.maybeboard,
-  ]
+  ];
+  const names = entries
     .map((e) => e.name)
     .filter((n) => !state.cardByName[normalizeNameKey(n)]);
-  if (names.length === 0) return;
 
   resolveInFlight = true;
   try {
-    const { resolved } = await resolveDeckbuilderCards([...new Set(names)]);
-    for (const [key, card] of Object.entries(resolved)) {
-      state.cardByName[normalizeNameKey(key)] = card;
+    let changed = false;
+    if (names.length > 0) {
+      const { resolved } = await resolveDeckbuilderCards([...new Set(names)]);
+      for (const [key, card] of Object.entries(resolved)) {
+        state.cardByName[normalizeNameKey(key)] = card;
+        changed = true;
+      }
     }
-    document.dispatchEvent(new CustomEvent(EV_CARDS_RESOLVED));
+
+    // Entries with an explicitly chosen printing: swap the cached card
+    // for that exact set/number so the picked artwork survives reloads.
+    const printRefs = entries.filter((e) => {
+      if (!e.set || !e.collectorNumber) return false;
+      const cached = state.cardByName[normalizeNameKey(e.name)];
+      return !cached || cached.set !== e.set || cached.collector_number !== e.collectorNumber;
+    });
+    if (printRefs.length > 0) {
+      const prints = await resolveDeckbuilderPrintings(
+        printRefs.map((e) => ({ set: e.set!, collectorNumber: e.collectorNumber! })),
+      );
+      for (const card of prints) {
+        state.cardByName[normalizeNameKey(card.name)] = card;
+        const frontKey = normalizeNameKey(card.name.split('//')[0]);
+        if (frontKey) state.cardByName[frontKey] = card;
+        changed = true;
+      }
+    }
+
+    if (changed) document.dispatchEvent(new CustomEvent(EV_CARDS_RESOLVED));
   } finally {
     resolveInFlight = false;
   }

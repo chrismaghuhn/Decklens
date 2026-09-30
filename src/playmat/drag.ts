@@ -98,11 +98,18 @@ function fieldEl(): HTMLElement | null {
   return matRootRef.querySelector('.pm-field');
 }
 
+function matZoom(): number {
+  const z = Number(getComputedStyle(matRootRef).zoom);
+  return Number.isFinite(z) && z > 0 ? z : 1;
+}
+
 function fieldPoint(e: PointerEvent): { x: number; y: number } | null {
   const field = fieldEl();
   if (!field) return null;
   const r = field.getBoundingClientRect();
-  return { x: e.clientX - r.left, y: e.clientY - r.top };
+  // divide by the mat zoom so grid math stays in logical pixels
+  const z = matZoom();
+  return { x: (e.clientX - r.left) / z, y: (e.clientY - r.top) / z };
 }
 
 function pileIdAtPoint(x: number, y: number): string | null {

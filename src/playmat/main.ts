@@ -146,6 +146,28 @@ function openMoreMenu(anchor: HTMLElement, state: PlaymatState): void {
 
 type Density = 'compact' | 'normal' | 'loose';
 const DENSITY_KEY = 'dl_pm_density';
+const ZOOM_KEY = 'dl_pm_zoom';
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 1.2;
+
+function currentZoom(): number {
+  const v = Number(localStorage.getItem(ZOOM_KEY));
+  return Number.isFinite(v) && v >= ZOOM_MIN && v <= ZOOM_MAX ? v : 1;
+}
+
+function applyZoom(zoom: number): void {
+  // CSS zoom scales layout AND hit-testing consistently; drag.ts divides
+  // field-relative coordinates by this factor for the snap grid.
+  (document.getElementById('pmMat') as HTMLElement).style.zoom = String(zoom);
+  const label = document.querySelector<HTMLElement>('.pm-zoom-value');
+  if (label) label.textContent = `${Math.round(zoom * 100)}%`;
+}
+
+function setZoom(zoom: number): void {
+  const clamped = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(zoom * 10) / 10));
+  localStorage.setItem(ZOOM_KEY, String(clamped));
+  applyZoom(clamped);
+}
 
 function currentDensity(): Density {
   const v = localStorage.getItem(DENSITY_KEY);
@@ -192,6 +214,24 @@ function renderSortbar(root: HTMLElement, state: PlaymatState): void {
     density.appendChild(b);
   }
   root.appendChild(density);
+
+  const zoom = document.createElement('div');
+  zoom.className = 'pm-zoom';
+  zoom.title = 'Mat zoom';
+  const zoomBtn = (label: string, fn: () => void, cls = ''): HTMLButtonElement => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    if (cls) b.className = cls;
+    b.addEventListener('click', fn);
+    return b;
+  };
+  zoom.append(
+    zoomBtn('−', () => setZoom(currentZoom() - 0.1)),
+    zoomBtn(`${Math.round(currentZoom() * 100)}%`, () => setZoom(1), 'pm-zoom-value'),
+    zoomBtn('+', () => setZoom(currentZoom() + 0.1)),
+  );
+  root.appendChild(zoom);
 
   const hud = document.createElement('div');
   hud.className = 'pm-hud';
@@ -244,6 +284,7 @@ async function boot(): Promise<void> {
   pushSnapshot(state.deck);
 
   applyDensity(currentDensity());
+  applyZoom(currentZoom());
   initMat(document.getElementById('pmMat')!, state);
   initDrag(document.getElementById('pmMat')!, state);
   initHand(state);

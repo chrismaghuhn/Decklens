@@ -8,6 +8,8 @@ export interface ContextMenuCallbacks {
   onQtyChange(cardName: string, board: DeckBoard, delta: number): void;
   onRemove(cardName: string, board: DeckBoard): void;
   onEditTags(cardName: string, board: DeckBoard): void;
+  /** Pick a different printing/artwork for this card */
+  onChangeArt?(cardName: string, board: DeckBoard): void;
   onToggleOwned?(cardName: string): boolean;
   isOwned?(cardName: string): boolean;
   onAssignCategory?(cardName: string, board: DeckBoard, categoryId: string | undefined): void;
@@ -103,6 +105,14 @@ export function showContextMenu(cardName: string, board: DeckBoard, event: Mouse
       callbacks!.onEditTags(cardName, board);
       hideContextMenu();
     }}, 'Add / Edit Tags'),
+
+    // Artwork picker
+    ...(callbacks.onChangeArt ? [
+      h('button', { className: 'ctx-item', onClick: () => {
+        callbacks!.onChangeArt!(cardName, board);
+        hideContextMenu();
+      }}, 'Change Artwork …'),
+    ] : []),
 
     // Custom Category assignment
     ...(callbacks.onAssignCategory && callbacks.getCustomCategories ? (() => {
