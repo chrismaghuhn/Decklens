@@ -138,9 +138,51 @@ function clearHint(): void {
   hintEl = null;
 }
 
+function clearDropFeedback(): void {
+  matRootRef.classList.remove('pm-dropzone');
+  matRootRef.querySelectorAll('.pm-insert-before, .pm-insert-after, .pm-drop-target, .pm-drag-source')
+    .forEach((el) => el.classList.remove('pm-insert-before', 'pm-insert-after', 'pm-drop-target', 'pm-drag-source'));
+}
+
+function flowPiles(): HTMLElement[] {
+  return Array.from(matRootRef.querySelectorAll<HTMLElement>('.pm-field > [data-pile]'))
+    .filter((el) => el.dataset.pile !== 'pile-new');
+}
+
+/** Live preview of what a drop at the pointer would do. */
+function updateDropFeedback(e: PointerEvent): void {
+  if (!session?.active) return;
+  clearDropFeedback();
+
+  const matRect = matRootRef.getBoundingClientRect();
+  const inMat = e.clientX >= matRect.left && e.clientX <= matRect.right
+    && e.clientY >= matRect.top && e.clientY <= matRect.bottom;
+  const hovered = inMat ? pileIdAtPoint(e.clientX, e.clientY) : null;
+
+  if (session.kind === 'pile') {
+    matRootRef.querySelector(`[data-pile="${session.pileId}"]`)?.classList.add('pm-drag-source');
+    if (stateRef.sortMode === 'free' || !inMat) return;
+    if (hovered && hovered !== session.pileId) {
+      matRootRef.querySelector(`[data-pile="${hovered}"]`)?.classList.add('pm-insert-before');
+    } else if (!hovered) {
+      const piles = flowPiles().filter((el) => el.dataset.pile !== session!.pileId);
+      piles[piles.length - 1]?.classList.add('pm-insert-after');
+    }
+    return;
+  }
+
+  // hand cards and mat cards: glow the mat while a release would add,
+  // and highlight the pile a tag drop would land in
+  if (session.kind === 'hand-card') matRootRef.classList.toggle('pm-dropzone', inMat);
+  if (stateRef.sortMode === 'tags' && hovered) {
+    matRootRef.querySelector(`[data-pile="${hovered}"]`)?.classList.add('pm-drop-target');
+  }
+}
+
 function abort(): void {
   session?.ghost?.remove();
   clearHint();
+  clearDropFeedback();
   session = null;
 }
 
@@ -246,13 +288,14 @@ export function initDrag(matRoot: HTMLElement, state: PlaymatState): void {
       session.ghost.style.left = `${e.clientX + 10}px`;
       session.ghost.style.top = `${e.clientY + 10}px`;
     }
-    if (stateRef.sortMode === 'free') {
+    if (stateRef.sortMode === 'free' && session.kind === 'pile') {
       const pt = fieldPoint(e);
       if (pt) {
         const { col, row } = snapToGrid(pt.x, pt.y);
         showHint(col, row);
       }
     }
+    updateDropFeedback(e);
   });
 
   document.addEventListener('pointerup', (e) => {
