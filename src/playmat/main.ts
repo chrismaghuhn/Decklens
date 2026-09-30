@@ -1,7 +1,7 @@
 // ==================== Playmat Editor Entry ====================
 
 import { initState, mutateDeck, persistDeck, resolveMissing, setSortMode, cardFor,
-  EV_DECK_CHANGED, EV_CARDS_RESOLVED, EV_SORT_CHANGED, type PlaymatState } from './state.js';
+  EV_DECK_CHANGED, EV_CARDS_RESOLVED, EV_SORT_CHANGED, isTypingContext, type PlaymatState } from './state.js';
 import { initToastContainer, showToast } from '../deckbuilder/toast.js';
 import { initCardPreview } from '../deckbuilder/card-preview.js';
 import { initUndoStack, undo, redo, pushSnapshot } from '../deckbuilder/undo-stack.js';
@@ -168,6 +168,7 @@ async function boot(): Promise<void> {
 
   initUndoStack(() => { /* re-render happens via persistDeck below */ });
   document.addEventListener('keydown', (e) => {
+    if (isTypingContext(e.target)) return; // native text undo stays native
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
       e.preventDefault();
       if (undo(state.deck)) { persistDeck(state); showToast({ message: 'Rückgängig.', type: 'info', duration: 1500 }); }

@@ -24,6 +24,21 @@ export const ROLE_LABELS: Record<Role, string> = {
   land: 'Länder',
 };
 
+/** English keys the draw-probability presets expect (renderDrawProbability). */
+export const ROLE_PROB_KEYS: Record<Role, string> = {
+  wincon: 'Wincon',
+  wipe: 'Board Wipe',
+  counter: 'Counter',
+  removal: 'Removal',
+  tutor: 'Tutor',
+  ramp: 'Ramp',
+  draw: 'Draw',
+  recursion: 'Recursion',
+  protection: 'Protection',
+  utility: 'Utility',
+  land: 'Land',
+};
+
 /** Priority order for classification (first match wins). */
 export const ROLE_PRIORITY: Exclude<Role, 'utility' | 'land'>[] = [
   'wincon', 'wipe', 'counter', 'removal', 'tutor', 'ramp', 'draw', 'recursion', 'protection',

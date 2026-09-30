@@ -24,6 +24,15 @@ export function normalizeNameKey(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+/** True when keyboard input belongs to a field, not to global shortcuts. */
+export function isTypingContext(el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  return el.tagName === 'INPUT'
+    || el.tagName === 'TEXTAREA'
+    || el.tagName === 'SELECT'
+    || el.isContentEditable === true;
+}
+
 export function initState(deckId: string): PlaymatState | null {
   const deck = getDeckById(deckId);
   if (!deck) return null;

@@ -24,6 +24,11 @@ const BOARD_LABELS: Record<DeckBoard, string> = {
 let stateRef: PlaymatState;
 let rootRef: HTMLElement;
 let openDock: DeckBoard | null = null;
+const pendingTags = new Set<string>();
+
+function pileIdFor(label: string): string {
+  return `pile-${label.toLowerCase().replace(/[^a-z0-9+]+/g, '-')}`;
+}
 
 function entryOf(board: DeckBoard, name: string): DeckbuilderCardEntry | null {
   const key = normalizeNameKey(name);
@@ -247,6 +252,16 @@ export function renderMat(root: HTMLElement, state: PlaymatState): void {
   const mode = state.sortMode === 'free' ? 'type' : state.sortMode;
   const piles = projectPiles(state.deck, state.cardByName, mode);
 
+  // Freshly created (still empty) tag piles live only in this session;
+  // once a card carries the tag, the projection takes over.
+  if (state.sortMode === 'tags') {
+    for (const tag of [...pendingTags]) {
+      const id = pileIdFor(tag);
+      if (piles.some((p) => p.id === id)) pendingTags.delete(tag);
+      else piles.push({ id, label: tag, entries: [], count: 0 });
+    }
+  }
+
   const field = document.createElement('div');
   field.className = 'pm-field';
   root.appendChild(field);
@@ -278,12 +293,19 @@ export function renderMat(root: HTMLElement, state: PlaymatState): void {
     ghost.innerHTML = `${iconSvg('plus')}<span>Neuer Stapel</span>`;
     ghost.dataset.pile = 'pile-new';
     ghost.addEventListener('click', async () => {
-      const tag = await showPromptModal({
+      const tag = (await showPromptModal({
         title: 'Neuer Stapel',
         message: 'Name des Tags für diesen Stapel:',
         placeholder: 'z.B. Combo-Teile',
-      });
-      if (tag?.trim()) showToast({ message: `Stapel „${tag.trim()}“: Karten per Drag oder Kontextmenü taggen.`, type: 'info' });
+      }))?.trim();
+      if (!tag) return;
+      if (state.sortMode !== 'tags') {
+        showToast({ message: 'Wechsle zu „Eigene Tags“, um Tag-Stapel zu nutzen.', type: 'info' });
+        return;
+      }
+      pendingTags.add(tag);
+      renderMat(rootRef, stateRef);
+      showToast({ message: `Stapel „${tag}“ angelegt — Karten per Drag hinein taggen.`, type: 'success' });
     });
     field.appendChild(ghost);
   }

@@ -10,7 +10,7 @@ import { renderSynergyMap } from '../deckbuilder/synergy-map.js';
 import { renderDrawProbability } from '../deckbuilder/draw-probability.js';
 import { evaluateEdhRules } from '../deckbuilder/edh-rules.js';
 import { getFormatRules } from '../deckbuilder/live-validation.js';
-import { classifyRole, ROLE_LABELS } from '../deckbuilder/role-classifier.js';
+import { classifyRole, ROLE_PROB_KEYS } from '../deckbuilder/role-classifier.js';
 import { openGoldfishPlaytest } from '../deckbuilder/goldfish.js';
 import { serializeDeckForExport, type DeckExportFormat } from '../shared/deck-export.js';
 import { generateShareUrl } from '../shared/deck-sharing.js';
@@ -92,7 +92,7 @@ function roleTagTally(state: PlaymatState): Record<string, number> {
   for (const entry of state.deck.boards.mainboard) {
     const card = state.cardByName[normalizeNameKey(entry.name)];
     if (!card) continue;
-    const label = ROLE_LABELS[classifyRole(card)];
+    const label = ROLE_PROB_KEYS[classifyRole(card)];
     tags[label] = (tags[label] || 0) + entry.qty;
   }
   return tags;

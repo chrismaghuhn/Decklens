@@ -1842,3 +1842,119 @@
     max-width: 280px;
   }
 }
+
+/* ── moved from panels.css (health gauge + synergy map, used by playmat Analyse drawer) ── */
+.synergy-tooltip {
+  position: absolute;
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.78rem;
+  color: var(--text);
+  pointer-events: none;
+  z-index: 100;
+  max-width: 280px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+.synergy-tooltip-name {
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.synergy-tooltip-count {
+  font-size: 0.7rem;
+  color: var(--text-lo);
+  margin-bottom: 6px;
+}
+.synergy-tooltip-edge {
+  font-size: 0.72rem;
+  padding: 2px 0;
+}
+.synergy-tooltip-reason {
+  color: var(--text-lo);
+  font-style: italic;
+}
+.synergy-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.synergy-badge {
+  padding: 2px 8px;
+  border-radius: 50px;
+  font-size: 0.62rem;
+  background: rgba(224, 82, 44, 0.08);
+  border: 1px solid rgba(224, 82, 44, 0.2);
+  color: var(--accent-dim);
+  text-transform: capitalize;
+}
+.health-gauge {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+}
+.health-tooltip {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface-2);
+  border: 1px solid var(--line-light);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  min-width: 200px;
+  z-index: 20;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.health-gauge:hover .health-tooltip {
+  display: block;
+}
+.health-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.68rem;
+  color: var(--text-lo);
+  margin-bottom: 4px;
+}
+.health-tooltip-row span:first-child {
+  width: 70px;
+  flex-shrink: 0;
+}
+.health-tooltip-row span:last-child {
+  width: 24px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text);
+}
+.health-tooltip-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.health-tooltip-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s var(--ease);
+}
+.health-rec {
+  font-size: 0.68rem;
+  color: var(--accent-strong);
+  padding: 2px 0 2px 8px;
+  transition: color 0.15s;
+}
+.health-rec:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.health-rec::before {
+  content: "\203A ";
+  color: var(--accent-dim);
+  font-weight: 700;
+}

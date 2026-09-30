@@ -22,12 +22,13 @@ let handRoot: HTMLElement;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let searchSeq = 0;
 
-function rememberCard(card: DeckbuilderSearchCard): void {
-  stateRef.cardByName[normalizeNameKey(card.name)] = card;
+/** Register a search result so the mat can render it with full card data. */
+export function rememberCard(state: PlaymatState, card: DeckbuilderSearchCard): void {
+  state.cardByName[normalizeNameKey(card.name)] = card;
 }
 
 function addResult(card: DeckbuilderSearchCard): void {
-  rememberCard(card);
+  rememberCard(stateRef, card);
   if (commanderMode) {
     setCommander(card.name);
     commanderMode = false;

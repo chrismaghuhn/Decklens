@@ -3,11 +3,11 @@
 // free placement) and pile dragging with snap-to-grid in free mode.
 // Escape or pointercancel aborts without any state mutation.
 
-import type { MatLayout } from '../deckbuilder/types.js';
 import { snapToGrid, GRID_CELL } from './layout.js';
 import { mutateDeck, type PlaymatState } from './state.js';
 import type { SortMode } from './sort.js';
 import { addCardToDeck, assignTag } from './mat.js';
+import { handCardByName, rememberCard } from './hand.js';
 import { showToast } from '../deckbuilder/toast.js';
 
 const DRAG_THRESHOLD = 6;
@@ -34,10 +34,35 @@ export function resolveDrop(
   return null;
 }
 
-/** Test hook: the abort path must not mutate a layout. */
-export function __testAbortDrag(_layout: MatLayout): void {
-  // Aborting a drag only removes the ghost element; by construction it
-  // performs no data mutation. This no-op mirrors that contract.
+export type DropAction =
+  | { type: 'none' }
+  | { type: 'add' }
+  | { type: 'add-to-pile'; pileId: string }
+  | { type: 'assign-to-pile'; pileId: string }
+  | { type: 'move-pile'; col: number; row: number };
+
+/**
+ * Pure drop semantics: a release outside the mat cancels everything;
+ * inside, the session kind and mode decide what the drop does.
+ */
+export function planDrop(
+  kind: 'hand-card' | 'card' | 'pile',
+  inMat: boolean,
+  target: DropTarget,
+  mode: SortMode,
+): DropAction {
+  if (!inMat) return { type: 'none' };
+  if (kind === 'hand-card') {
+    if (target?.kind === 'pile' && mode === 'tags') return { type: 'add-to-pile', pileId: target.id };
+    return { type: 'add' };
+  }
+  if (kind === 'card') {
+    if (target?.kind === 'pile' && mode === 'tags') return { type: 'assign-to-pile', pileId: target.id };
+    return { type: 'none' };
+  }
+  // pile
+  if (target?.kind === 'cell') return { type: 'move-pile', col: target.col, row: target.row };
+  return { type: 'none' };
 }
 
 interface DragSession {
@@ -66,12 +91,7 @@ function fieldPoint(e: PointerEvent): { x: number; y: number } | null {
   return { x: e.clientX - r.left, y: e.clientY - r.top };
 }
 
-function pileIdAt(col: number, row: number): string | null {
-  const field = fieldEl();
-  if (!field) return null;
-  const fr = field.getBoundingClientRect();
-  const x = fr.left + col * GRID_CELL + GRID_CELL / 2;
-  const y = fr.top + row * GRID_CELL + GRID_CELL / 2;
+function pileIdAtPoint(x: number, y: number): string | null {
   for (const el of document.elementsFromPoint(x, y)) {
     const pile = (el as HTMLElement).closest?.('[data-pile]') as HTMLElement | null;
     if (pile?.dataset.pile && pile.dataset.pile !== 'pile-new') return pile.dataset.pile;
@@ -110,6 +130,11 @@ function abort(): void {
   session = null;
 }
 
+function pileLabelOf(pileId: string): string | undefined {
+  const label = matRootRef.querySelector<HTMLElement>(`[data-pile="${pileId}"]`)?.dataset.pileLabel;
+  return label && label !== 'Ohne Tag' ? label : undefined;
+}
+
 function finishDrop(e: PointerEvent): void {
   if (!session?.active) { abort(); return; }
   const pt = fieldPoint(e);
@@ -117,35 +142,38 @@ function finishDrop(e: PointerEvent): void {
   abort();
   if (!pt) return;
 
-  const target = resolveDrop(pt.x, pt.y, stateRef.sortMode, pileIdAt);
+  const matRect = matRootRef.getBoundingClientRect();
+  const inMat = e.clientX >= matRect.left && e.clientX <= matRect.right
+    && e.clientY >= matRect.top && e.clientY <= matRect.bottom;
+  // Pile hit-testing uses the real pointer position: snapped cell centers
+  // miss short piles (e.g. a freshly created empty tag pile).
+  const target = resolveDrop(pt.x, pt.y, stateRef.sortMode, () => pileIdAtPoint(e.clientX, e.clientY));
+  const action = planDrop(current.kind, inMat, target, stateRef.sortMode);
 
-  if (current.kind === 'hand-card') {
-    if (!target) { addCardToDeck(current.name); return; }
-    if (target.kind === 'pile' && stateRef.sortMode === 'tags') {
-      const label = matRootRef.querySelector<HTMLElement>(`[data-pile="${target.id}"]`)?.dataset.pileLabel;
-      addCardToDeck(current.name, 'mainboard', label && label !== 'Ohne Tag' ? label : undefined);
-    } else {
-      addCardToDeck(current.name);
-    }
+  if (action.type === 'none') return;
+
+  if (action.type === 'add' || action.type === 'add-to-pile') {
+    const card = handCardByName(current.name);
+    if (card) rememberCard(stateRef, card);
+    const tag = action.type === 'add-to-pile' ? pileLabelOf(action.pileId) : undefined;
+    addCardToDeck(current.name, 'mainboard', tag);
     showToast({ message: `${current.name} hinzugefügt.`, type: 'success', duration: 1500 });
     return;
   }
 
-  if (current.kind === 'card') {
-    if (target?.kind === 'pile' && stateRef.sortMode === 'tags') {
-      const label = matRootRef.querySelector<HTMLElement>(`[data-pile="${target.id}"]`)?.dataset.pileLabel;
-      if (label) assignTag(current.name, label);
-    }
+  if (action.type === 'assign-to-pile') {
+    const label = pileLabelOf(action.pileId);
+    if (label) assignTag(current.name, label);
     return;
   }
 
-  // pile drag (free mode only)
-  if (current.kind === 'pile' && current.pileId && target?.kind === 'cell') {
+  // move-pile (free mode only)
+  if (current.pileId) {
     mutateDeck(stateRef, (d) => {
       if (!d.matLayout) d.matLayout = { piles: [] };
       const entry = d.matLayout.piles.find((p) => p.id === current.pileId);
-      if (entry) { entry.col = target.col; entry.row = target.row; }
-      else d.matLayout.piles.push({ id: current.pileId!, col: target.col, row: target.row });
+      if (entry) { entry.col = action.col; entry.row = action.row; }
+      else d.matLayout.piles.push({ id: current.pileId!, col: action.col, row: action.row });
     });
   }
 }
