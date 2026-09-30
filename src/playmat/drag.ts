@@ -113,10 +113,14 @@ function pileIdAtPoint(x: number, y: number): string | null {
   return null;
 }
 
-function makeGhost(from: HTMLElement): HTMLElement {
+function makeGhost(from: HTMLElement, kind: DragSession['kind']): HTMLElement {
   const ghost = from.cloneNode(true) as HTMLElement;
-  ghost.className = 'pm-drag-ghost';
-  ghost.style.width = `${from.getBoundingClientRect().width}px`;
+  // keep the source classes so inner images stay constrained
+  ghost.className = `${from.className} pm-drag-ghost`;
+  ghost.style.transform = ''; // drop the hand fan tilt; the ghost class rotates
+  // single cards shrink to a small preview next to the cursor;
+  // piles keep their width so the insert position reads naturally
+  ghost.style.width = kind === 'pile' ? `${from.getBoundingClientRect().width}px` : '92px';
   document.body.appendChild(ghost);
   return ghost;
 }
@@ -281,7 +285,7 @@ export function initDrag(matRoot: HTMLElement, state: PlaymatState): void {
       const source = session.kind === 'pile'
         ? matRootRef.querySelector<HTMLElement>(`[data-pile="${session.pileId}"]`)
         : document.querySelector<HTMLElement>(`[data-drag][data-card="${CSS.escape(session.name)}"]`);
-      if (source) session.ghost = makeGhost(source);
+      if (source) session.ghost = makeGhost(source, session.kind);
       document.body.classList.add('pm-dragging');
     }
     if (session.ghost) {
