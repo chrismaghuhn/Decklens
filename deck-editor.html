@@ -10,7 +10,7 @@
     default-src 'self';
     script-src 'self';
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    connect-src 'self' https://decklens-api.chrisgarkisch.workers.dev wss://decklens-api.chrisgarkisch.workers.dev;
+    connect-src 'self' https://api.scryfall.com https://api2.moxfield.com https://archidekt.com;
     img-src 'self' data: https:;
     font-src 'self' data: https://fonts.gstatic.com;
     frame-ancestors 'none';
@@ -16539,14 +16539,6 @@
 
         <!-- Primary Actions -->
         <button
-          id="btnOptimize"
-          class="btn primary btn-optimize"
-          style="display: none"
-          title="Get top optimization moves for this deck"
-        >
-          Optimize
-        </button>
-        <button
           id="btnFillLands"
           class="btn primary"
           title="Automatically add basic lands based on mana needs"
@@ -16570,24 +16562,11 @@
             <button id="btnBackToDecks" class="dropdown-item">
               📚 My Decks
             </button>
-            <button id="btnBrowsePublic" class="dropdown-item">
-              🔍 Browse Public
-            </button>
           </div>
         </div>
 
-        <button
-          id="btnStartCollab"
-          class="btn-ghost"
-          title="Start collaborative editing session"
-        >
-          🤝 Collab
-        </button>
-        <div id="authButtonContainer" class="auth-container"></div>
       </header>
 
-      <!-- ═══ COLLAB TOOLBAR (hidden until session active) ═══ -->
-      <div id="collabToolbar" class="collab-toolbar hidden"></div>
 
       <!-- ═══ TOOLBAR: Board nav + Filter + View in one row ═══ -->
       <div id="viewModeBar" class="editor-toolbar">
@@ -16797,9 +16776,6 @@
             >
               &#9881;
             </button>
-            <button id="btnSuggestCards" class="btn btn-sm primary">
-              Suggest
-            </button>
             <button id="btnTestHand" class="btn-icon" title="Test Hand">
               &#127183;
             </button>
@@ -16971,22 +16947,6 @@
             >
               Strategy
             </button>
-            <button
-              class="btn"
-              data-tab="edhrec"
-              role="tab"
-              aria-selected="false"
-            >
-              EDHREC
-            </button>
-            <button
-              class="btn"
-              data-tab="repo"
-              role="tab"
-              aria-selected="false"
-            >
-              🔀 Repo
-            </button>
           </div>
 
           <div class="editor-right-content">
@@ -17027,19 +16987,6 @@
               </div>
 
               <!-- Commander Stats (collapsible, default open) -->
-              <div
-                class="collapsible-section open"
-                data-analytics-section="commander-stats"
-              >
-                <div class="collapsible-trigger">
-                  <h4>Commander Statistics</h4>
-                  <span class="collapsible-chevron">&#9656;</span>
-                </div>
-                <div class="collapsible-body">
-                  <div id="commanderStatsWidget"></div>
-                </div>
-              </div>
-
               <!-- Core Charts (collapsible, default open) -->
               <div
                 class="collapsible-section open"
@@ -17295,9 +17242,6 @@
                   <button id="btnGoldfishPlaytest" class="btn">
                     Goldfish Playtest
                   </button>
-                  <button id="btnMultiplayerGoldfish" class="btn" style="background:linear-gradient(135deg,rgba(201,168,76,0.15),rgba(52,211,153,0.15));border-color:rgba(201,168,76,0.3);">
-                    Multiplayer Goldfish
-                  </button>
                 </div>
               </div>
               <textarea
@@ -17305,36 +17249,6 @@
                 placeholder="Choose an export format"
                 style="min-height: 80px"
               ></textarea>
-              <div class="export-group mt-8">
-                <div class="export-group-label">Share &amp; Publish</div>
-                <div class="row">
-                  <button id="btnCreateShareSnapshot" class="btn primary">
-                    Create Share Snapshot
-                  </button>
-                  <button id="btnPublishCommunity" class="btn">
-                    Publish to Community
-                  </button>
-                </div>
-              </div>
-              <div id="shareStatus" class="muted mt-4"></div>
-              <div id="publishStatus" class="muted mt-4"></div>
-              <div class="export-group mt-8">
-                <div class="export-group-label">Cloud Sync</div>
-                <div style="display: flex; align-items: center; gap: 10px">
-                  <label class="cloud-toggle">
-                    <input type="checkbox" id="cloudSyncToggle" />
-                    <span class="cloud-toggle__slider"></span>
-                  </label>
-                  <span class="muted" style="font-size: 0.78rem"
-                    >Auto-sync this deck to cloud</span
-                  >
-                </div>
-                <div
-                  id="cloudSyncStatus"
-                  class="muted mt-4"
-                  style="font-size: 0.72rem"
-                ></div>
-              </div>
               <div class="collapsible-section mt-6">
                 <div class="collapsible-trigger">
                   <h4>Version History</h4>
@@ -17344,15 +17258,6 @@
                   <div id="deckHistoryBox"></div>
                 </div>
               </div>
-            </div>
-
-            <!-- ═══ EDHREC TAB ═══ -->
-            <div class="tab-panel" data-tab-panel="edhrec">
-              <p class="muted section-desc">
-                High-synergy cards, staples, and trending cards for your
-                commander.
-              </p>
-              <div id="edhrecPanelContainer"></div>
             </div>
 
             <!-- ═══ STRATEGY TAB ═══ -->
@@ -17377,11 +17282,6 @@
                 </select>
               </div>
               <div id="matchupPanelContainer"></div>
-              <!-- Widget containers for panel-layout system -->
-              <div id="matchupStrategyWidget" style="display:none;"></div>
-              <div id="deckSolverWidget" style="display:none;"></div>
-              <div id="cutSuggestionsWidget" style="display:none;"></div>
-              <div id="simulationWidget" style="display:none;"></div>
               <div class="mt-10">
                 <h3 style="font-size: 0.92rem">Smart Recommendations</h3>
                 <div
@@ -17405,11 +17305,6 @@
                 </div>
                 <div id="smartRecsContainer"></div>
               </div>
-              <div id="recHistoryContainer" class="mt-10"></div>
-            </div>
-            <!-- ═══ REPO TAB (GitHub for Decks) ═══ -->
-            <div class="tab-panel" data-tab-panel="repo">
-              <div id="repoPanelRoot"></div>
             </div>
           </div>
           <!-- /editor-right-content -->
@@ -17480,7 +17375,6 @@
     <div id="legalFooterContainer"></div>
 
     <script type="module" src="/src/deckbuilder/editor-main.ts"></script>
-    <script type="module" src="/src/shared/discord-popup.ts"></script>
     <script type="module">
       import { renderLegalFooter, injectLegalFooterStyles } from '/src/shared/legal-footer.ts';
       injectLegalFooterStyles();

@@ -8,7 +8,7 @@
  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
  font-src 'self' https://fonts.gstatic.com;
  img-src 'self' https://cards.scryfall.io https://images.ygoprodeck.com data:;
- connect-src 'self' https://api.scryfall.com https://api2.moxfield.com https://archidekt.com https://db.ygoprodeck.com https://json.commanderspellbook.com https://backend.commanderspellbook.com https://decklens-api.chrisgarkisch.workers.dev;
+ connect-src 'self' https://api.scryfall.com https://api2.moxfield.com https://archidekt.com https://db.ygoprodeck.com ;
  frame-src 'none';
  object-src 'none';
  base-uri 'none';
@@ -3119,7 +3119,6 @@ body { font-size: 15px; line-height: 1.65; }
       <button data-panel="buyPanel" data-close-menu><svg class="ui-icon"><use href="#i-cart"></use></svg>Buy Cards</button>
       <button data-panel="wishlistPanel" data-close-menu><svg class="ui-icon"><use href="#i-star"></use></svg>Wishlist</button>
       <button data-panel="goldfishPanel" data-close-menu><svg class="ui-icon"><use href="#i-fish"></use></svg>Goldfish</button>
-      <button data-panel="betaDashboardPanel" data-close-menu><svg class="ui-icon"><use href="#i-target"></use></svg>Beta Dashboard</button>
       <button data-action="show-share" data-close-menu><svg class="ui-icon"><use href="#i-link"></use></svg>Share</button>
    </div>
  </div>
@@ -3569,37 +3568,6 @@ Sideboard:
  </div>
  </div>
 
- <div class="beta-dashboard-panel" id="betaDashboardPanel">
- <div class="beta-dashboard-shell">
- <div class="beta-dashboard-header">
-  <h3>Beta Dashboard + Feedback Loop</h3>
-  <button class="hand-btn" id="btnRefreshBetaDashboard" data-action="refresh-beta-dashboard" type="button">Refresh KPIs</button>
- </div>
- <div class="beta-feedback-form-card">
-  <h4>Capture Beta Feedback</h4>
-  <div class="beta-feedback-form-grid">
-   <label for="betaFeedbackCategory">Category (optional)</label>
-   <select id="betaFeedbackCategory">
-    <option value="">No category</option>
-    <option value="bug">Bug</option>
-    <option value="ux">UX</option>
-    <option value="feature">Feature</option>
-    <option value="performance">Performance</option>
-    <option value="other">Other</option>
-   </select>
-   <label for="betaFeedbackInput">Short feedback</label>
-   <textarea id="betaFeedbackInput" maxlength="500" placeholder="What blocked you or felt unclear?"></textarea>
-   <div class="beta-feedback-actions">
-    <span class="beta-feedback-hint">Linked to anonymous session + analysis context. No personal data required.</span>
-    <button class="hand-btn primary" id="btnSubmitBetaFeedback" data-action="submit-beta-feedback" type="button">Submit Feedback</button>
-   </div>
-  </div>
- </div>
- <div id="betaDashboardContent">
-  <p class="tool-empty">Open this panel to load funnel KPIs and triage-ready feedback.</p>
- </div>
- </div>
- </div>
 
  <div class="export-panel" id="exportPanel">
  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
@@ -3851,7 +3819,6 @@ Sideboard:
 </div>
 
 <script type="module" src="/src/mtg/main.ts"></script>
-<script type="module" src="/src/shared/discord-popup.ts"></script>
 <script>
 // Import tab switcher
 (function() {

@@ -1,10 +1,6 @@
 import type { DeckbuilderDeck } from './types.js';
-import type { DeckbuilderSearchCard } from '../shared/api.js';
+import type { DeckbuilderSearchCard } from '../shared/scryfall-client.js';
 import { showHoverPreview, hideHoverPreview } from './card-preview.js';
-import { broadcastGoldfishStart, broadcastGoldfishAction, broadcastGoldfishEnd } from './collab-goldfish.js';
-import { initCoach, onCoachStateChange, savePrefs as saveCoachPrefs, type DeckCoach } from './goldfish-coach.js';
-import { renderCoachPanel, getRoleBadge, initCoachLines, updateCoachLines, destroyCoachLines } from './goldfish-coach-ui.js';
-import { renderCoachWidget } from './goldfish-coach-widget.js';
 
 type Phase = 'untap' | 'upkeep' | 'draw' | 'main1' | 'combat' | 'main2' | 'end';
 type GfZone = 'library' | 'hand' | 'battlefield' | 'graveyard' | 'exile' | 'commandZone';
@@ -246,10 +242,6 @@ export function openGoldfishPlaytest(
   let ctxMenuEl: HTMLElement | null = null;
   let zoneModalEl: HTMLElement | null = null;
 
-  // Deck Coach (optional — fails gracefully)
-  let coach: DeckCoach | null = null;
-  try { coach = initCoach(deck, cardByName); } catch { /* coach is optional */ }
-
   const overlay = document.createElement('div');
   overlay.className = 'goldfish-overlay';
 
@@ -259,8 +251,6 @@ export function openGoldfishPlaytest(
   if (previewEl) previewEl.style.zIndex = '10000';
 
   function cleanup(): void {
-    broadcastGoldfishEnd('completed', state.turn);
-    destroyCoachLines();
     if (previewEl) previewEl.style.zIndex = origPreviewZ;
     hideHoverPreview();
     overlay.remove();
@@ -471,8 +461,6 @@ export function openGoldfishPlaytest(
 
   function addLog(msg: string): void {
     state.log.push(`T${state.turn} ${PHASE_LABELS[state.phase]}: ${msg}`);
-    broadcastGoldfishAction(msg, `T${state.turn} ${PHASE_LABELS[state.phase]}: ${msg}`, state.turn);
-    if (coach) onCoachStateChange(coach, state);
   }
 
   function nextId(): string {
@@ -1507,12 +1495,6 @@ export function openGoldfishPlaytest(
       }
     }
 
-    // Coach role badge
-    if (coach?.enabled) {
-      const roleBadge = getRoleBadge(p.name, coach);
-      if (roleBadge) el.appendChild(roleBadge);
-    }
-
     // P/T badge for tokens
     if (p.isToken && p.power != null && p.toughness != null) {
       const ptBadge = document.createElement('span');
@@ -2110,9 +2092,6 @@ export function openGoldfishPlaytest(
     }
     sidePanel.appendChild(exSection);
 
-    // Coach panel
-    if (coach) renderCoachPanel(sidePanel, coach, state);
-
     // Log
     const logSection = document.createElement('div');
     logSection.className = 'gf-log';
@@ -2133,19 +2112,7 @@ export function openGoldfishPlaytest(
     requestAnimationFrame(() => { logScroll.scrollTop = logScroll.scrollHeight; });
     sidePanel.appendChild(logSection);
 
-    // Coach Widget (for panel-layout system)
-    if (coach) {
-      const coachWidgetContainer = document.createElement('div');
-      coachWidgetContainer.id = 'goldfishCoachWidget';
-      coachWidgetContainer.className = 'gf-coach-widget';
-      renderCoachWidget(coachWidgetContainer, coach);
-      sidePanel.appendChild(coachWidgetContainer);
-    }
-
     main.appendChild(sidePanel);
-
-    // Coach SVG lines overlay update
-    if (coach) updateCoachLines(coach, state);
 
     overlay.appendChild(main);
     overlay.appendChild(topBar);
@@ -2176,24 +2143,14 @@ export function openGoldfishPlaytest(
     if (e.key === 'g' || e.key === 'G') { if (state.graveyard.length > 0) showZoneModal('Graveyard', state.graveyard, 'graveyard'); }
     if (e.key === 'x' || e.key === 'X') { if (state.exile.length > 0) showZoneModal('Exile', state.exile, 'exile'); }
     if (e.key === '?') showKeybindsHelp();
-    if (e.key === 'c' && !e.ctrlKey && !e.metaKey) {
-      if (coach) { coach.enabled = !coach.enabled; saveCoachPrefs(coach); render(); }
-    }
   });
 
   // Close context menu on click outside
   overlay.addEventListener('click', () => { hideCtxMenu(); });
 
   document.body.appendChild(overlay);
-  broadcastGoldfishStart(deck.name);
   overlay.focus();
   render();
-
-  // Init SVG combo lines overlay (must run after first render so main element exists)
-  if (coach) {
-    const mainEl = overlay.querySelector('.gf-main') as HTMLElement | null;
-    if (mainEl) initCoachLines(mainEl, coach);
-  }
 
   // Pre-fetch token images for all token-producing cards in the deck
   const allDeckCards = [...(deck.boards.mainboard || []), ...(deck.boards.commander || [])];

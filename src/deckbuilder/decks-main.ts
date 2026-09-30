@@ -1,4 +1,3 @@
-import { trackAnalyticsEvent } from '../shared/analytics.js';
 import { showConfirmModal } from './confirm-modal.js';
 import {
   createDeck,
@@ -63,9 +62,6 @@ function renderDeckList(): void {
     cloneButton.addEventListener('click', () => {
       const clone = duplicateDeck(deck.id);
       if (!clone) return;
-      trackAnalyticsEvent('feature_used', {
-        feature: 'deckbuilder_duplicate_deck',
-      });
       renderDeckList();
     });
 
@@ -81,9 +77,6 @@ function renderDeckList(): void {
       });
       if (!confirmed) return;
       deleteDeck(deck.id);
-      trackAnalyticsEvent('feature_used', {
-        feature: 'deckbuilder_delete_deck',
-      });
       renderDeckList();
     });
 
@@ -97,9 +90,6 @@ function createDeckFromInput(): void {
   const input = byId<HTMLInputElement>('newDeckName');
   const name = input.value.trim() || 'Untitled Deck';
   const created = createDeck(name);
-  trackAnalyticsEvent('feature_used', {
-    feature: 'deckbuilder_create_deck',
-  });
   openDeck(created.id);
 }
 
@@ -110,10 +100,6 @@ function init(): void {
       event.preventDefault();
       createDeckFromInput();
     }
-  });
-
-  byId<HTMLButtonElement>('btnBrowsePublic').addEventListener('click', () => {
-    window.location.href = '/decks/public';
   });
 
   renderDeckList();

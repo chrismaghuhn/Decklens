@@ -1,5 +1,5 @@
 import type { DeckbuilderDeck } from './types.js';
-import type { DeckbuilderSearchCard } from '../shared/api.js';
+import type { DeckbuilderSearchCard } from '../shared/scryfall-client.js';
 
 // Official WotC Game Changers list (Feb 2026 update)
 const GAME_CHANGERS = new Set([

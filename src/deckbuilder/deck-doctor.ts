@@ -1,5 +1,5 @@
 import type { DeckbuilderDeck } from './types.js';
-import type { DeckbuilderSearchCard } from '../shared/api.js';
+import type { DeckbuilderSearchCard } from '../shared/scryfall-client.js';
 import { analyzeManaBase } from './mana-calc.js';
 import { parseDeckDSL } from './deck-dsl-parser.js';
 import { lintDeck } from './deck-linter.js';

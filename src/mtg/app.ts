@@ -6,17 +6,7 @@
 import { h, replaceChildren, fragment, mapChildren } from '../shared/dom.js';
 import { STORAGE_KEYS, storageGet, storageSet } from '../shared/storage.js';
 import { fetchRobust } from '../shared/fetch.js';
-import {
-  createCommunityDeck,
-  createPublicReportShare,
-  fetchCommunityDecks,
-  fetchPublicReport,
-  fetchRealtimeMeta,
-  importDeckFromUrl,
-  upvoteCommunityDeck,
-  type CommunityDeck,
-  type RealtimeMetaSnapshot,
-} from '../shared/api.js';
+import { importDeckFromUrl } from '../shared/api.js';
 import { formatDeckParseErrors, parseDeckInput, parseDeckInputUnsafe, type DeckParseResult } from '../shared/deck-parser.js';
 import { serializeDeckForExport, type DeckExportFormat } from '../shared/deck-export.js';
 import {
@@ -35,7 +25,6 @@ import {
   formatPriceAsOfTimestamp,
   type PriceQuote,
 } from '../shared/price-adapter.js';
-import { trackAnalyticsEvent } from '../shared/analytics.js';
 import { escapeHtml, sanitizeUrl } from '../shared/utils.js';
 import { analyzeDeckDNA, calculateSaltAnalysis, detectDeckSynergies, type DNAArchetype } from './engine/analyzers.js';
 import type { ArchetypeDetectionResult } from './engine/archetype-detector.js';
@@ -78,16 +67,10 @@ import {
   type MetaMode,
 } from './meta-mode.js';
 import {
-  buildPublicReportUrl,
-  gradePublicReportScore,
-  REPORT_CARD_SCHEMA_VERSION,
-  type PublicReportCardPayload,
-  type PublicReportRecommendation,
-} from '../shared/report-card.js';
-import { 
-  decodeSharedDeck, 
+  decodeSharedDeck,
+  generateShareUrl,
   InvalidShareLinkError,
-  type DecodedSharedDeck 
+  type DecodedSharedDeck,
 } from '../shared/deck-sharing.js';
 import {
   compareDecksDiff,
@@ -199,7 +182,6 @@ interface CollectionStorageV2 {
   unresolved: CollectionImportUnresolvedRow[];
 }
 
-type FeedbackCategory = 'bug' | 'ux' | 'feature' | 'performance' | 'other';
 
 interface RecommendationAnalysisContext {
   analysisId: string | null;
@@ -228,61 +210,6 @@ interface RecommendationApplyPreviewState {
     heuristicConsensus: number;
   };
   logicTags: RecommendationLogicTag[];
-}
-
-interface AnalyticsDashboardFunnelRow {
-  name: string;
-  sessions: number;
-  conversionFromPrevious: number | null;
-  conversionFromStart: number | null;
-}
-
-interface AnalyticsDashboardFeedbackRow {
-  occurredAt: string;
-  category: string;
-  message: string;
-  sessionRef: string;
-  userRef: string;
-  analysisId: string | null;
-  analysisStatus: string | null;
-  recommendationCount: number | null;
-  funnelStep: string | null;
-}
-
-interface AnalyticsDashboardResponse {
-  status: 'ok';
-  generatedAt: string;
-  window: {
-    days: number;
-    from: string;
-    to: string;
-    events: number;
-    sessions: number;
-    users: number;
-  };
-  funnel: AnalyticsDashboardFunnelRow[];
-  metrics: {
-    activation: {
-      sampleSize: number;
-      p50Ms: number | null;
-      p90Ms: number | null;
-    };
-    actionRate: {
-      numerator: number;
-      denominator: number;
-      value: number | null;
-    };
-    retentionProxy7d: {
-      returnedUsers: number;
-      eligibleUsers: number;
-      value: number | null;
-    };
-  };
-  feedback: {
-    total: number;
-    byCategory: Record<string, number>;
-    recent: AnalyticsDashboardFeedbackRow[];
-  };
 }
 
 type MatchupMetaMode = MetaMode;
@@ -330,9 +257,6 @@ let lastPriceSyncAt: number | null = null;
 let recommendationItemsCache: RecommendationItem[] = [];
 let recommendationDiscoveryStats: DynamicDiscoveryStats | null = null;
 let recommendationDiscoveryLoading = false;
-let communityDeckFeed: CommunityDeck[] = [];
-let realtimeMetaSnapshot: RealtimeMetaSnapshot | null = null;
-let realtimeMetaPollTimer: ReturnType<typeof setInterval> | null = null;
 let useDynamicDiscovery = storageGet<boolean>(
   STORAGE_KEYS.MTG_USE_DYNAMIC_DISCOVERY,
   true,
@@ -383,7 +307,6 @@ let recommendationIncludeMissingCards = storageGet<boolean>(
 );
 let currentArchetypeDetection: ArchetypeDetectionResult | null = null;
 let currentAntiMetaRecommendations: AntiMetaRecommendation[] = [];
-const FEEDBACK_TEXT_MAX_CHARS = 500;
 let recommendationAnalysisContext: RecommendationAnalysisContext = {
   analysisId: null,
   status: 'idle',
@@ -391,8 +314,6 @@ let recommendationAnalysisContext: RecommendationAnalysisContext = {
   startedAt: null,
   completedAt: null,
 };
-let analyticsDashboardCache: AnalyticsDashboardResponse | null = null;
-let analyticsDashboardLoading = false;
 
 const FLOW_STEP_ORDER: ImportFlowStep[] = ['import', 'analysis', 'recommend', 'apply', 'export'];
 let importFlowState: ImportFlowState = {
@@ -401,7 +322,6 @@ let importFlowState: ImportFlowState = {
   message: 'Start with Step 1: import a deck list or file.',
 };
 let retryImportAction: (() => Promise<void> | void) | null = null;
-let publicReportMode = false;
 
 const DEBUG_LOG_ENABLED = (globalThis as { DECKLENS_DEBUG?: boolean }).DECKLENS_DEBUG === true;
 const debugLog = (...args: unknown[]): void => {
@@ -561,225 +481,6 @@ function updateImportFlowUI(): void {
     primaryBtn.textContent = labels[importFlowState.step];
     primaryBtn.disabled = false;
   }
-}
-
-function formatMetricPercent(value: number | null): string {
-  if (value === null || !Number.isFinite(value)) return 'n/a';
-  return `${(value * 100).toFixed(1)}%`;
-}
-
-function formatMetricDuration(valueMs: number | null): string {
-  if (valueMs === null || !Number.isFinite(valueMs)) return 'n/a';
-  const totalSeconds = Math.max(0, Math.trunc(valueMs / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes === 0) return `${seconds}s`;
-  return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
-}
-
-function normalizeFeedbackCategory(raw: string): FeedbackCategory | null {
-  const value = raw.trim().toLowerCase();
-  if (value === 'bug' || value === 'ux' || value === 'feature' || value === 'performance' || value === 'other') {
-    return value;
-  }
-  return null;
-}
-
-function formatStepLabel(step: string): string {
-  return step
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function createDashboardMetricCard(label: string, value: string, detail: string): HTMLElement {
-  return h('div', { className: 'beta-kpi-card' },
-    h('div', { className: 'beta-kpi-label' }, label),
-    h('div', { className: 'beta-kpi-value' }, value),
-    h('div', { className: 'beta-kpi-detail' }, detail),
-  );
-}
-
-function createFeedbackContextProperties(): Record<string, unknown> {
-  const props: Record<string, unknown> = {
-    context_page: 'mtg_beta_dashboard',
-    funnel_step: importFlowState.step,
-    has_deck: Boolean(currentDeck),
-    recommendation_count: recommendationAnalysisContext.recommendationCount,
-    ...getMetaContextProperties(),
-  };
-
-  if (recommendationAnalysisContext.analysisId) {
-    props.analysis_id = recommendationAnalysisContext.analysisId;
-    props.analysis_tool = 'recommendations';
-  }
-
-  if (recommendationAnalysisContext.status !== 'idle') {
-    props.analysis_status = recommendationAnalysisContext.status === 'running'
-      ? 'pending'
-      : recommendationAnalysisContext.status;
-  }
-
-  return props;
-}
-
-function renderBetaDashboardLoading(message: string): void {
-  const container = $('betaDashboardContent');
-  if (!container) return;
-  replaceChildren(container, h('p', { className: 'tool-empty' }, message));
-}
-
-function renderBetaDashboard(data: AnalyticsDashboardResponse): void {
-  const container = $('betaDashboardContent');
-  if (!container) return;
-
-  const activation = data.metrics.activation;
-  const actionRate = data.metrics.actionRate;
-  const retention = data.metrics.retentionProxy7d;
-  const feedback = data.feedback;
-
-  const funnelRows = data.funnel.map((row) => h('tr', {},
-    h('td', {}, formatStepLabel(row.name)),
-    h('td', {}, String(row.sessions)),
-    h('td', {}, formatMetricPercent(row.conversionFromPrevious)),
-    h('td', {}, formatMetricPercent(row.conversionFromStart)),
-  ));
-
-  const feedbackRows = feedback.recent.slice(0, 8).map((entry) => {
-    const contextBits: string[] = [];
-    if (entry.analysisId) contextBits.push(`Analysis: ${entry.analysisId}`);
-    if (entry.funnelStep) contextBits.push(`Step: ${entry.funnelStep}`);
-    if (entry.analysisStatus) contextBits.push(`Status: ${entry.analysisStatus}`);
-    if (entry.recommendationCount !== null) contextBits.push(`Recs: ${entry.recommendationCount}`);
-
-    return h('li', { className: 'beta-feedback-item' },
-      h('div', { className: 'beta-feedback-head' },
-        h('span', { className: 'beta-feedback-category' }, entry.category || 'other'),
-        h('span', { className: 'beta-feedback-time' }, new Date(entry.occurredAt).toLocaleString()),
-      ),
-      h('p', { className: 'beta-feedback-message' }, entry.message || '(empty)'),
-      h('div', { className: 'beta-feedback-meta' },
-        `Session ${entry.sessionRef} | User ${entry.userRef}${contextBits.length > 0 ? ` | ${contextBits.join(' | ')}` : ''}`,
-      ),
-    );
-  });
-
-  const categorySummary = Object.entries(feedback.byCategory || {})
-    .filter(([, count]) => typeof count === 'number')
-    .map(([category, count]) => `${category}: ${count}`)
-    .join(' | ');
-
-  replaceChildren(container,
-    h('div', { className: 'beta-kpi-grid' },
-      createDashboardMetricCard(
-        'Activation (p50)',
-        formatMetricDuration(activation.p50Ms),
-        `p90 ${formatMetricDuration(activation.p90Ms)} • n=${activation.sampleSize}`,
-      ),
-      createDashboardMetricCard(
-        'Action Rate',
-        formatMetricPercent(actionRate.value),
-        `${actionRate.numerator}/${actionRate.denominator} sessions`,
-      ),
-      createDashboardMetricCard(
-        'Retention Proxy (7d)',
-        formatMetricPercent(retention.value),
-        `${retention.returnedUsers}/${retention.eligibleUsers} users`,
-      ),
-      createDashboardMetricCard(
-        'Feedback Volume',
-        String(feedback.total),
-        categorySummary || 'No categories yet',
-      ),
-    ),
-    h('div', { className: 'beta-funnel-card' },
-      h('h4', {}, `MVP Funnel (${data.window.days}d)`),
-      h('table', { className: 'beta-funnel-table' },
-        h('thead', {},
-          h('tr', {},
-            h('th', {}, 'Step'),
-            h('th', {}, 'Sessions'),
-            h('th', {}, 'Conv Prev'),
-            h('th', {}, 'Conv Start'),
-          ),
-        ),
-        h('tbody', {}, ...funnelRows),
-      ),
-      h('p', { className: 'beta-dashboard-note' },
-        `Window: ${new Date(data.window.from).toLocaleString()} - ${new Date(data.window.to).toLocaleString()} | Generated: ${new Date(data.generatedAt).toLocaleString()}`,
-      ),
-    ),
-    h('div', { className: 'beta-feedback-list-card' },
-      h('h4', {}, 'Recent Beta Feedback'),
-      feedbackRows.length > 0
-        ? h('ul', { className: 'beta-feedback-list' }, ...feedbackRows)
-        : h('p', { className: 'tool-empty' }, 'No feedback captured yet.'),
-    ),
-  );
-}
-
-export async function refreshBetaDashboard(days = 7): Promise<void> {
-  if (analyticsDashboardLoading) return;
-  analyticsDashboardLoading = true;
-  renderBetaDashboardLoading('Loading beta KPI dashboard...');
-
-  try {
-    const response = await fetchRobust(`/api/analytics/dashboard?days=${days}`, {
-      method: 'GET',
-      timeoutMs: 8000,
-      retries: 1,
-    });
-    const payload = await response.json() as AnalyticsDashboardResponse;
-    analyticsDashboardCache = payload;
-    renderBetaDashboard(payload);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to load beta dashboard.';
-    renderBetaDashboardLoading(message);
-  } finally {
-    analyticsDashboardLoading = false;
-  }
-}
-
-export function submitBetaFeedback(): void {
-  const input = $('betaFeedbackInput') as HTMLTextAreaElement | null;
-  const categoryInput = $('betaFeedbackCategory') as HTMLSelectElement | null;
-  const submitBtn = $('btnSubmitBetaFeedback') as HTMLButtonElement | null;
-  if (!input) return;
-
-  const text = input.value.trim();
-  if (text.length < 2) {
-    showToast('Please enter at least 2 characters of feedback');
-    input.focus();
-    return;
-  }
-
-  if (text.length > FEEDBACK_TEXT_MAX_CHARS) {
-    showToast(`Feedback too long (max ${FEEDBACK_TEXT_MAX_CHARS} chars)`);
-    input.focus();
-    return;
-  }
-
-  if (submitBtn) submitBtn.disabled = true;
-
-  const category = normalizeFeedbackCategory(categoryInput?.value || '');
-  const context = createFeedbackContextProperties();
-
-  trackAnalyticsEvent('feedback_submitted', {
-    feedback_text: text,
-    ...(category ? { feedback_category: category } : {}),
-    ...context,
-  }, {
-    dedupeKey: `feedback_submitted:${text.toLowerCase().slice(0, 80)}:${category || 'none'}:${recommendationAnalysisContext.analysisId || 'no_analysis'}`,
-    dedupeWindowMs: 1500,
-  });
-
-  input.value = '';
-  if (categoryInput) categoryInput.value = '';
-  showToast('Thanks! Feedback captured for weekly triage.');
-
-  setTimeout(() => {
-    if (submitBtn) submitBtn.disabled = false;
-    void refreshBetaDashboard();
-  }, 350);
 }
 
 function focusImportPanel(): void {
@@ -1023,49 +724,12 @@ function deckSignature(deck: Deck): string {
 
 function emitDeckImportedEvent(source: string, deck: Deck, details: Record<string, unknown> = {}): void {
   const signature = deckSignature(deck);
-  trackAnalyticsEvent('deck_imported', {
-    source,
-    deck_name: currentDeckName,
-    total_cards: deckTotalCards(deck),
-    unique_cards: deckUniqueCards(deck),
-    main_count: deck.main.reduce((sum, entry) => sum + entry.qty, 0),
-    sideboard_count: deck.sideboard.reduce((sum, entry) => sum + entry.qty, 0),
-    commander_count: deck.commander.reduce((sum, entry) => sum + entry.qty, 0),
-    ...details,
-  }, {
-    dedupeKey: `deck_imported:${source}:${signature}`,
-    dedupeWindowMs: 2500,
-  });
 }
 
 function emitExportClickedEvent(format: string, trigger: string): void {
-  trackAnalyticsEvent('export_clicked', {
-    format,
-    trigger,
-    deck_name: currentDeckName,
-    has_deck: Boolean(currentDeck),
-    total_cards: currentDeck ? deckTotalCards(currentDeck) : 0,
-  }, {
-    dedupeKey: `export_clicked:${trigger}:${format}`,
-    dedupeWindowMs: 600,
-  });
 }
 
 function emitWizardStepEvent(step: ImportFlowStep, phase: 'entered' | 'completed'): void {
-  trackAnalyticsEvent('analysis_started', {
-    tool: 'wizard',
-    wizard_event: 'step',
-    step,
-    phase,
-    status: importFlowState.status,
-    has_deck: Boolean(currentDeck),
-    recommendation_count: recommendationItemsCache.length,
-    applied_count: appliedRecommendationIds.size,
-    ...getMetaContextProperties(),
-  }, {
-    dedupeKey: `wizard_step:${step}:${phase}:${Boolean(currentDeck)}:${recommendationItemsCache.length}:${appliedRecommendationIds.size}`,
-    dedupeWindowMs: 900,
-  });
 }
 
 function canonicalIdForScryfallCard(card: ScryfallCard): string {
@@ -3390,9 +3054,6 @@ export function togglePanel(name: string): void {
     exportPanel: 'exportPanel',
     tools: 'toolsPanel',
     toolsPanel: 'toolsPanel',
-    beta: 'betaDashboardPanel',
-    betaDashboard: 'betaDashboardPanel',
-    betaDashboardPanel: 'betaDashboardPanel',
   };
   
   // Check if name is already a valid panel ID
@@ -3462,14 +3123,6 @@ export function togglePanel(name: string): void {
     );
   }
 
-  if (isOpen && panel.id === 'betaDashboardPanel') {
-    if (analyticsDashboardCache) {
-      renderBetaDashboard(analyticsDashboardCache);
-    } else {
-      renderBetaDashboardLoading('Loading beta KPI dashboard...');
-    }
-    void refreshBetaDashboard();
-  }
 }
 
 // ==================== VIEW ====================
@@ -4600,47 +4253,6 @@ function renderRecommendationPanels(): void {
               )
             )
           : null,
-        realtimeMetaSnapshot
-          ? (() => {
-              const age = realtimeMetaSnapshot.freshness.ageMinutes;
-              const freshnessLabel = age <= 0 ? 'just now' : `${age}m ago`;
-              const state = realtimeMetaSnapshot.freshness.state;
-              const confidenceLabel = `${formatConfidencePercent(realtimeMetaSnapshot.confidence.score)} (${realtimeMetaSnapshot.confidence.band.toUpperCase()})`;
-
-              return h('div', { className: 'meta-status-bar' },
-                h('span', { className: `meta-freshness meta-freshness-${state}` },
-                  h('span', { className: 'meta-freshness-dot' }),
-                  ` Meta: ${state} \u00B7 ${freshnessLabel}`,
-                ),
-                h('span', { className: 'meta-confidence-pill' }, `Confidence: ${confidenceLabel}`),
-                realtimeMetaSnapshot.quality.degraded
-                  ? h('span', { className: 'meta-fallback-label' },
-                      '\u26A0 ',
-                      realtimeMetaSnapshot.quality.fallbackMode === 'snapshot-fallback'
-                        ? 'Fallback mode \u2014 recommendations based on archetype patterns'
-                        : `Limited data \u2014 ${realtimeMetaSnapshot.quality.label}`,
-                    )
-                  : null,
-              );
-            })()
-          : null,
-        communityDeckFeed.length > 0
-          ? h('div', { className: 'community-feed', style: 'margin-top:0.75rem;' },
-              h('div', { style: 'font-weight:600;margin-bottom:0.35rem;' }, 'Community Decks'),
-              ...communityDeckFeed.slice(0, 3).map((deck) =>
-                h('div', { className: 'tool-note', style: 'display:flex;align-items:center;justify-content:space-between;gap:0.6rem;margin:0.2rem 0;padding:0.35rem 0.45rem;border:1px solid rgba(255,255,255,0.1);border-radius:6px;' },
-                  h('span', {}, `${deck.name} — ${deck.commander} (${deck.archetype})`),
-                  h('button', {
-                    className: 'hand-btn',
-                    type: 'button',
-                    'data-action': 'community-upvote',
-                    'data-deck-id': deck.id,
-                    title: 'Upvote this deck',
-                  }, `▲ ${deck.upvotes}`)
-                )
-              )
-            )
-          : null,
       ),
       visibleRecommendations.length > 0
         ? h('div', { className: 'recs-grid' }, ...visibleRecommendations.map((item) => createCardNode(item)))
@@ -4836,79 +4448,6 @@ export function showTrendDashboard(): void {
     console.error('Failed to load trend dashboard:', error);
     showToast('Failed to open trend dashboard');
   });
-}
-
-export function openCommunityPage(): void {
-  window.open('/community.html', '_blank', 'noopener,noreferrer');
-}
-
-export async function refreshCommunityFeatures(): Promise<void> {
-  try {
-    const [feed, snapshot] = await Promise.all([
-      fetchCommunityDecks({ limit: 8 }),
-      fetchRealtimeMeta(),
-    ]);
-    communityDeckFeed = feed;
-    realtimeMetaSnapshot = snapshot;
-  } catch (error) {
-    console.warn('[Community] Failed to refresh community/meta data:', error);
-  }
-  renderRecommendationPanels();
-}
-
-export async function shareCurrentDeckToCommunity(): Promise<void> {
-  if (!currentDeck) {
-    showToast('Load a deck first');
-    return;
-  }
-
-  const commander = currentDeck.commander[0]?.name || 'Unknown Commander';
-  const archetype = currentArchetypeDetection?.primaryArchetype || 'unknown';
-  const decklist = [
-    ...currentDeck.commander.map((e) => `${e.qty} ${e.name}`),
-    ...currentDeck.main.map((e) => `${e.qty} ${e.name}`),
-    ...currentDeck.sideboard.map((e) => `${e.qty} ${e.name}`),
-  ].join('\n');
-
-  try {
-    await createCommunityDeck({
-      name: currentDeckName || 'DeckLens Shared Deck',
-      format: recommendationMetaMode === 'fnm' ? 'cedh' : 'commander',
-      commander,
-      archetype: String(archetype),
-      decklist,
-      notes: `Shared from DeckLens on ${new Date().toISOString()}`,
-    });
-    showToast('Deck shared to community feed');
-    await refreshCommunityFeatures();
-  } catch (error) {
-    console.error('[Community] Share failed:', error);
-    showToast('Could not share deck right now');
-  }
-}
-
-export async function upvoteCommunityDeckById(deckId: string): Promise<void> {
-  if (!deckId) return;
-  try {
-    const upvotes = await upvoteCommunityDeck(deckId);
-    communityDeckFeed = communityDeckFeed.map((deck) => (
-      deck.id === deckId ? { ...deck, upvotes } : deck
-    ));
-    renderRecommendationPanels();
-    showToast('Upvoted community deck');
-  } catch (error) {
-    console.error('[Community] Upvote failed:', error);
-    showToast('Could not upvote right now');
-  }
-}
-
-function startRealtimeMetaPolling(): void {
-  if (realtimeMetaPollTimer) {
-    clearInterval(realtimeMetaPollTimer);
-  }
-  realtimeMetaPollTimer = setInterval(() => {
-    void refreshCommunityFeatures();
-  }, 30_000);
 }
 
 function formatCmc(value: number | null): string {
@@ -5361,28 +4900,6 @@ function applyRecommendationById(
     logicTags: recommendation.logicTags,
   });
 
-  trackAnalyticsEvent('recommendation_applied', {
-    recommendation_id: recommendation.id,
-    recommendation_card: recommendation.cardName,
-    suggested_cut: recommendation.suggestedCutName,
-    delta_price: recommendation.deltaPrice,
-    power_impact_score: recommendation.powerImpactScore,
-    power_impact_label: recommendation.powerImpactLabel,
-    selected_count: appliedRecommendationIds.size,
-    apply_mode: applyMode,
-    cut_applied: applyResult.mutation.removedCutName !== null,
-    action_id: applyResult.action.actionId,
-    deck_signature_before: applyResult.deckSignatureBefore,
-    deck_signature_after: applyResult.deckSignatureAfter,
-    main_count_before: applyResult.mainCountBefore,
-    main_count_after: applyResult.mainCountAfter,
-    undo_depth: lastRecommendationApplyAction ? 1 : 0,
-    deck_name: currentDeckName,
-    ...getMetaContextProperties(),
-  }, {
-    dedupeKey: `recommendation_applied:${applyResult.action.actionId}`,
-    dedupeWindowMs: 1200,
-  });
 
   if (!options.silent) {
     if (applyMode === 'swap') {
@@ -5469,17 +4986,6 @@ export async function getCardSuggestions(): Promise<void> {
     completedAt: null,
   };
 
-  trackAnalyticsEvent('analysis_started', {
-    analysis_id: analysisId,
-    deck_name: currentDeckName,
-    total_cards: deckTotalCards(currentDeck),
-    unique_cards: deckUniqueCards(currentDeck),
-    tool: 'recommendations',
-    ...metaContextProperties,
-  }, {
-    dedupeKey: `analysis_started:${analysisId}`,
-    dedupeWindowMs: 500,
-  });
 
   try {
     const adapter = createPriceAdapter({
@@ -5635,43 +5141,7 @@ export async function getCardSuggestions(): Promise<void> {
       startedAt,
       completedAt: Date.now(),
     };
-    trackAnalyticsEvent('analysis_completed', {
-      analysis_id: analysisId,
-      tool: 'recommendations',
-      status: 'ok',
-      recommendation_count: collectionView.visibleItems.length,
-      recommendation_candidates: recommendationItemsCache.length,
-      owned_recommendation_count: collectionView.ownedItems.length,
-      missing_recommendation_count: collectionView.missingItems.length,
-      strong_build_missing_count: collectionView.gap?.missingCount || 0,
-      duration_ms: Date.now() - startedAt,
-      missing_price_count: summary.missingPriceCount,
-      stale_price_count: summary.stalePriceCount,
-      unknown_delta_count: summary.unknownDeltaCount,
-      total_power_impact: summary.totalPowerImpact,
-      ...metaContextProperties,
-    }, {
-      dedupeKey: `analysis_completed:${analysisId}`,
-      dedupeWindowMs: 500,
-    });
 
-    trackAnalyticsEvent('recommendation_viewed', {
-      analysis_id: analysisId,
-      recommendation_count: collectionView.visibleItems.length,
-      recommendation_candidates: recommendationItemsCache.length,
-      owned_recommendation_count: collectionView.ownedItems.length,
-      missing_recommendation_count: collectionView.missingItems.length,
-      strong_build_missing_count: collectionView.gap?.missingCount || 0,
-      include_missing_cards: recommendationIncludeMissingCards,
-      missing_price_count: summary.missingPriceCount,
-      stale_price_count: summary.stalePriceCount,
-      total_known_delta: summary.totalKnownDelta,
-      deck_name: currentDeckName,
-      ...metaContextProperties,
-    }, {
-      dedupeKey: `recommendation_viewed:${analysisId}`,
-      dedupeWindowMs: 500,
-    });
 
     showToast('Recommendations ready');
     setImportFlowState(
@@ -5681,20 +5151,7 @@ export async function getCardSuggestions(): Promise<void> {
         ? `Top recommendations ready (${collectionView.visibleItems.length}). Continue to Apply to commit your first change.`
         : 'No recommendation candidates found. Try changing meta mode or include missing cards.',
     );
-    if ($('betaDashboardPanel')?.classList.contains('active')) {
-      void refreshBetaDashboard();
-    }
   } catch (error) {
-    trackAnalyticsEvent('analysis_completed', {
-      analysis_id: analysisId,
-      tool: 'recommendations',
-      status: 'error',
-      duration_ms: Date.now() - startedAt,
-      ...metaContextProperties,
-    }, {
-      dedupeKey: `analysis_completed:${analysisId}`,
-      dedupeWindowMs: 500,
-    });
 
     recommendationAnalysisContext = {
       analysisId,
@@ -5708,9 +5165,6 @@ export async function getCardSuggestions(): Promise<void> {
     showError('Could not generate recommendation impact right now. Try again.');
     setRecommendationLoading('Recommendation engine failed. Retry in a moment.');
     setImportFlowState('error', 'recommend', 'Recommendation step failed. Retry from Top 3.');
-    if ($('betaDashboardPanel')?.classList.contains('active')) {
-      void refreshBetaDashboard();
-    }
   }
 }
 
@@ -6354,188 +5808,6 @@ export function printProxy(): void {
 
 // ==================== SHARE URL ====================
 
-const REPORT_RECOMMENDATION_COUNT = 3;
-
-function summarizeReportRecommendationReason(reason: string): string {
-  const compact = reason.replace(/\s+/g, ' ').trim();
-  if (!compact) return 'Directional upgrade for this deck profile.';
-  if (compact.length <= 180) return compact;
-  return `${compact.slice(0, 177).trimEnd()}...`;
-}
-
-function scoreLabelFromTier(tier: PublicReportCardPayload['score']['tier']): string {
-  if (tier === 'A') return 'Tournament-ready shell';
-  if (tier === 'B') return 'Strong and cohesive';
-  if (tier === 'C') return 'Playable with clear upgrades';
-  if (tier === 'D') return 'Work in progress';
-  return 'Needs foundational tuning';
-}
-
-function getReportRecommendations(deck: Deck): RecommendationItem[] {
-  if (recommendationItemsCache.length > 0) {
-    return recommendationItemsCache.slice(0, REPORT_RECOMMENDATION_COUNT);
-  }
-
-  const adapter = createPriceAdapter({
-    resolveCard: (cardName) => resolveCard(cardName),
-    source: 'scryfall.prices',
-    asOf: lastPriceSyncAt,
-    preferredCurrency: 'EUR',
-    fallbackCurrency: 'USD',
-    staleAfterMs: 1000 * 60 * 60 * 24 * 2,
-  });
-
-  return buildRecommendations({
-    deckMain: deck.main.map((entry) => ({ name: entry.name, qty: entry.qty })),
-    getCard: (cardName) => resolveCard(cardName),
-    getPrice: (cardName) => adapter.getPrice(cardName),
-    metaMode: recommendationMetaMode,
-    maxRecommendations: REPORT_RECOMMENDATION_COUNT,
-  }).slice(0, REPORT_RECOMMENDATION_COUNT);
-}
-
-function buildPublicReportCardPayload(deck: Deck): PublicReportCardPayload {
-  const recommendationItems = getReportRecommendations(deck);
-  const recommendationSummary = summarizeRecommendations(recommendationItems);
-  const powerAnalysis = analyzeDeckPower(deck);
-  const saltAnalysis = calculateSaltAnalysis(deck.main, (name) => resolveCard(name) ?? undefined);
-
-  const confidenceScore = recommendationSummary.itemCount > 0
-    ? recommendationSummary.averageConfidence
-    : 0.55;
-  const normalizedImpact = recommendationSummary.itemCount > 0
-    ? Math.min(1, recommendationSummary.totalPowerImpact / (recommendationSummary.itemCount * 32))
-    : 0.35;
-  const normalizedSalt = Math.max(0, Math.min(1, 1 - (saltAnalysis.score / 10)));
-
-  const compositeScore = Math.round(
-    (powerAnalysis.score / 10) * 42
-    + confidenceScore * 30
-    + normalizedImpact * 18
-    + normalizedSalt * 10,
-  );
-  const boundedScore = Math.max(0, Math.min(100, compositeScore));
-  const scoreTier = gradePublicReportScore(boundedScore);
-
-  const recommendations: PublicReportRecommendation[] = recommendationItems
-    .slice(0, REPORT_RECOMMENDATION_COUNT)
-    .map((item) => ({
-      cardName: item.cardName,
-      reason: summarizeReportRecommendationReason(item.reason),
-      impact: item.powerImpactLabel,
-    }));
-
-  return {
-    version: REPORT_CARD_SCHEMA_VERSION,
-    deckName: (currentDeckName || 'Untitled Deck').trim().slice(0, 100),
-    totalCards: deckTotalCards(deck),
-    metaMode: recommendationMetaMode,
-    generatedAt: new Date().toISOString(),
-    score: {
-      value: boundedScore,
-      tier: scoreTier,
-      label: scoreLabelFromTier(scoreTier),
-    },
-    recommendations,
-  };
-}
-
-function activatePublicReportMode(): void {
-  if (publicReportMode) return;
-  publicReportMode = true;
-  document.body.classList.add('public-report-mode');
-  hide($('shareBar'));
-  hide($('deckOverview'));
-  hide($('toolbar'));
-  hide($('analysisPanel'));
-  hide($('exportPanel'));
-}
-
-function reportMetaModeLabel(mode: PublicReportCardPayload['metaMode']): string {
-  return formatMetaModeLabel(normalizeMetaMode(mode));
-}
-
-function renderPublicReportCard(report: PublicReportCardPayload): void {
-  const container = $('publicReportCard');
-  if (!container) return;
-
-  const generatedDate = new Date(report.generatedAt);
-  const generatedLabel = Number.isNaN(generatedDate.getTime())
-    ? 'Unknown'
-    : generatedDate.toLocaleString();
-
-  replaceChildren(
-    container,
-    h('section', { className: 'public-report-shell', 'aria-label': 'Public deck report card' },
-      h('div', { className: 'public-report-header' },
-        h('span', { className: 'public-report-kicker' }, 'Public Read-Only Report'),
-        h('h2', { className: 'public-report-title' }, report.deckName),
-        h('p', { className: 'public-report-subtitle' },
-          `${report.totalCards} cards • Meta mode: ${reportMetaModeLabel(report.metaMode)} • Generated: ${generatedLabel}`,
-        ),
-      ),
-      h('div', { className: 'public-report-grid' },
-        h('article', { className: 'public-report-score-card' },
-          h('span', { className: `public-report-tier tier-${report.score.tier.toLowerCase()}` }, `Tier ${report.score.tier}`),
-          h('div', { className: 'public-report-score' }, `${report.score.value}`),
-          h('div', { className: 'public-report-score-caption' }, '/ 100 Deck Score'),
-          h('p', { className: 'public-report-score-label' }, report.score.label),
-        ),
-        h('article', { className: 'public-report-recs-card' },
-          h('h3', { className: 'public-report-section-title' }, `Top ${report.recommendations.length} recommendations`),
-          report.recommendations.length > 0
-            ? h('ol', { className: 'public-report-rec-list' },
-                ...report.recommendations.map((recommendation) =>
-                  h('li', { className: 'public-report-rec-item' },
-                    h('div', { className: 'public-report-rec-top' },
-                      h('strong', { className: 'public-report-rec-name' }, recommendation.cardName),
-                      h('span', { className: `public-report-impact impact-${recommendation.impact}` }, recommendation.impact),
-                    ),
-                    h('p', { className: 'public-report-rec-reason' }, recommendation.reason),
-                  ),
-                ),
-              )
-            : h('p', { className: 'tool-empty' }, 'No recommendations available for this report.'),
-        ),
-      ),
-    ),
-  );
-  show(container);
-}
-
-function renderPublicReportError(message: string): void {
-  const container = $('publicReportCard');
-  if (!container) return;
-
-  replaceChildren(
-    container,
-    h('section', { className: 'public-report-shell public-report-shell-error', 'aria-label': 'Public report error' },
-      h('span', { className: 'public-report-kicker' }, 'Public Read-Only Report'),
-      h('h2', { className: 'public-report-title' }, 'Could not load this report link'),
-      h('p', { className: 'public-report-subtitle' }, message),
-      h('p', { className: 'tool-note' }, 'Check the URL or ask the owner to create a new share link.'),
-    ),
-  );
-  show(container);
-}
-
-async function handleSharedReportUrl(token: string): Promise<void> {
-  activatePublicReportMode();
-
-  try {
-    const report = await fetchPublicReport(token);
-    renderPublicReportCard(report);
-    hideLoader();
-    clearError();
-    setImportFlowState('ready', 'analysis', 'Public report loaded. This view is read-only.');
-  } catch (error) {
-    hideLoader();
-    const message = error instanceof Error ? error.message : 'Invalid public report link.';
-    showError('Invalid public report link');
-    renderPublicReportError(message);
-    setImportFlowState('error', 'analysis', 'Invalid public report link.');
-  }
-}
 
 export async function copyShareUrl(): Promise<void> {
   if (!currentDeck) {
@@ -6544,47 +5816,27 @@ export async function copyShareUrl(): Promise<void> {
   }
 
   try {
-    const reportPayload = buildPublicReportCardPayload(currentDeck);
-    const response = await createPublicReportShare(reportPayload);
-    const shareLink = buildPublicReportUrl(response.data.token, 'mtg');
+    const result = generateShareUrl({
+      name: currentDeckName || 'Shared Deck',
+      main: currentDeck.main,
+      sideboard: currentDeck.sideboard,
+      commander: currentDeck.commander,
+    }, 'mtg');
+    const shareLink = result.url;
 
     const shareUrl = $('shareUrl') as HTMLInputElement | null;
     if (shareUrl) {
       shareUrl.value = shareLink;
     }
-
     const shareBar = $('shareBar');
-    if (shareBar) {
-      const label = shareBar.querySelector('span');
-      if (label) {
-        label.textContent = 'Public report link';
-      }
-      show(shareBar);
-    }
+    if (shareBar) show(shareBar);
 
-    navigator.clipboard.writeText(shareLink).then(() => {
+    try {
+      await navigator.clipboard.writeText(shareLink);
       showToast('Share URL copied!');
-      trackAnalyticsEvent('report_shared', {
-        channel: 'clipboard',
-        deck_name: currentDeckName,
-        total_cards: currentDeck ? deckTotalCards(currentDeck) : 0,
-        share_type: 'public_report',
-      }, {
-        dedupeKey: `report_shared:${response.data.token}`,
-        dedupeWindowMs: 1000,
-      });
-    }).catch(() => {
-      showToast('URL generated – copy from the share bar');
-      trackAnalyticsEvent('report_shared', {
-        channel: 'share_bar',
-        deck_name: currentDeckName,
-        total_cards: currentDeck ? deckTotalCards(currentDeck) : 0,
-        share_type: 'public_report',
-      }, {
-        dedupeKey: `report_shared:${response.data.token}`,
-        dedupeWindowMs: 1000,
-      });
-    });
+    } catch {
+      showToast('URL generated - copy from the share bar');
+    }
   } catch (e) {
     showError(e instanceof Error ? e.message : 'Failed to generate share URL');
   }
@@ -6685,18 +5937,6 @@ async function importCollectionInternal(mode: 'replace' | 'merge'): Promise<void
     : '';
 
   showToast(`${modeLabel} ${mappedRows}/${Math.max(totalRows, 1)} rows (${autoMapPct}% auto-mapped${unresolvedLabel})`);
-  trackAnalyticsEvent('collection_imported', {
-    mode,
-    total_rows: totalRows,
-    mapped_rows: mappedRows,
-    unresolved_rows: finalUnresolved.length,
-    auto_map_rate: Number(autoMapRate.toFixed(4)),
-    unique_cards_after: Object.keys(userCollection).length,
-    duration_ms: Date.now() - startedAt,
-  }, {
-    dedupeKey: `collection_imported:${mode}:${mappedRows}:${totalRows}:${finalUnresolved.length}`,
-    dedupeWindowMs: 1200,
-  });
 }
 
 export async function importCollection(): Promise<void> {
@@ -6934,12 +6174,8 @@ export function init(): void {
   getOrCreateDeviceProfile();
   recommendationMetaMode = loadMetaModePreference();
   syncMetaModeSelectors();
-  publicReportMode = false;
-  document.body.classList.remove('public-report-mode');
-  hide($('publicReportCard'));
 
   const params = new URLSearchParams(window.location.search);
-  const reportParam = params.get('report');
   const deckParam = params.get('deck');
 
   loadCardCache();
@@ -6948,20 +6184,9 @@ export function init(): void {
   setRetryImportAction(null);
   updateImportFlowUI();
 
-  if (reportParam) {
-    setImportFlowState('loading', 'analysis', 'Loading public report...');
-    showLoader('Loading public report...');
-    void handleSharedReportUrl(reportParam);
-    return;
-  }
-
   loadCollectionState();
   updateCollectionDisplay();
   renderCollectionUnresolvedRows();
-  renderBetaDashboardLoading('Open Beta Dashboard to load KPI funnel and feedback queue.');
-  void refreshCommunityFeatures();
-  startRealtimeMetaPolling();
-
   if (deckParam) {
     setImportFlowState('loading', 'import', 'Loading shared deck...');
     showLoader('Loading shared deck...');

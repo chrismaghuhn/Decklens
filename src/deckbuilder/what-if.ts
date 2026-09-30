@@ -1,5 +1,5 @@
 import type { DeckbuilderDeck, DeckbuilderCardEntry } from './types.js';
-import type { DeckbuilderSearchCard } from '../shared/api.js';
+import type { DeckbuilderSearchCard } from '../shared/scryfall-client.js';
 import { computeFingerprint } from './deck-fingerprint.js';
 import { calculateBracket } from './bracket-calc.js';
 

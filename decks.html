@@ -8,7 +8,7 @@
     default-src 'self';
     script-src 'self';
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    connect-src 'self' https://decklens-api.chrisgarkisch.workers.dev;
+    connect-src 'self' https://api.scryfall.com;
     img-src 'self' data: https:;
     font-src 'self' data: https://fonts.gstatic.com;
     frame-ancestors 'none';
@@ -243,13 +243,11 @@
       <div class="create-row">
         <input id="newDeckName" placeholder="New deck name" maxlength="100" />
         <button id="btnCreateDeck" class="btn primary">Create Deck</button>
-        <button id="btnBrowsePublic" class="btn">Browse Public Decks</button>
       </div>
       <div id="decksList"></div>
     </section>
   </div>
 
   <script type="module" src="/src/deckbuilder/decks-main.ts"></script>
-<script type="module" src="/src/shared/discord-popup.ts"></script>
 </body>
 </html>

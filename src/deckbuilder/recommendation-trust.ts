@@ -9,7 +9,7 @@
  */
 
 import type { DeckbuilderDeck } from './types.js';
-import type { DeckbuilderSearchCard } from '../shared/api.js';
+import type { DeckbuilderSearchCard } from '../shared/scryfall-client.js';
 import type { RecSource } from '../mtg/engine/recommendation-v1.js';
 import { simulateSwap, type WhatIfMetrics } from './what-if.js';
 

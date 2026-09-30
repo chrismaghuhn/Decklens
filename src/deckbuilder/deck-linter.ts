@@ -6,7 +6,7 @@
  */
 
 import type { DeckbuilderDeck, DeckbuilderCardEntry } from './types.js';
-import type { DeckbuilderSearchCard } from '../shared/api.js';
+import type { DeckbuilderSearchCard } from '../shared/scryfall-client.js';
 import type { DeckRequirement } from './deck-dsl-parser.js';
 
 export interface LintViolation {

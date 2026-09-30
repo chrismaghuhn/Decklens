@@ -1,5 +1,5 @@
 import type { DeckbuilderDeck } from './types.js';
-import type { DeckbuilderSearchCard } from '../shared/api.js';
+import type { DeckbuilderSearchCard } from '../shared/scryfall-client.js';
 import { analyzeDeckDNA, calculateSaltAnalysis, type AnalyzerCardView } from '../mtg/engine/analyzers.js';
 
 interface FingerprintAxis {

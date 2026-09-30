@@ -1,5 +1,5 @@
 import type { DeckbuilderDeck } from './types.js';
-import type { DeckbuilderSearchCard } from '../shared/api.js';
+import type { DeckbuilderSearchCard } from '../shared/scryfall-client.js';
 import type { Deck } from '../shared/types.js';
 import {
   generateRecommendationEngineV1,
@@ -12,13 +12,7 @@ import {
 import { generateRecsViaWorker } from './rec-worker-client.js';
 import { isOwned, getOwnedQty } from './collection.js';
 import { simulateSwap, renderWhatIfPreview } from './what-if.js';
-import { getTeamOwnership } from './collab-collection.js';
-import { isCollabActive } from './collab-ui.js';
-import { getMaxCardPrice } from './collab-constraints.js';
-import { renderTrustRow, renderDiffToggle, renderMetaFreshnessIndicator, renderFallbackLabel, renderDistrustButton } from './recommendation-trust.js';
-import { getMetaFreshness, getMetaQuality } from './meta-badges.js';
-import { trackRecInteraction } from './activation-funnel.js';
-import { trackAnalyticsEvent } from '../shared/analytics.js';
+import { renderTrustRow, renderDiffToggle } from './recommendation-trust.js';
 import type { RecommendationLogicTag } from '../mtg/recommendation-impact.js';
 
 // ───── Category → LogicTag Mapper ─────
@@ -111,14 +105,6 @@ export function renderSmartRecs(
     if (ownedQty > 0) {
       collectionByName[normalizeKey(entry.name)] = ownedQty;
     }
-    // Merge team collection data when in collab
-    if (isCollabActive()) {
-      const teamData = getTeamOwnership(entry.name);
-      if (teamData && teamData.total > 0) {
-        const key = normalizeKey(entry.name);
-        collectionByName[key] = Math.max(collectionByName[key] || 0, teamData.total);
-      }
-    }
   }
 
   const input: RecommendationEngineInput = {
@@ -179,19 +165,6 @@ function renderRecommendationResults(
   cardMetrics: Record<string, RecommendationCardMetrics>,
   callbacks: SmartRecsCallbacks,
 ): void {
-  // Filter by team constraints (max card price)
-  if (isCollabActive()) {
-    const maxPrice = getMaxCardPrice();
-    if (maxPrice !== null && result.recommendations) {
-      result.recommendations = result.recommendations.filter((rec) => {
-        const card = cardMetrics[normalizeKey(rec.add.name)];
-        if (!card?.prices) return true;
-        const price = parseFloat(card.prices.eur || card.prices.usd || '0');
-        return price <= maxPrice;
-      });
-    }
-  }
-
   // Stats row
   if (result.stats) {
     const statsRow = document.createElement('div');
@@ -217,19 +190,6 @@ function renderRecommendationResults(
       statsRow.appendChild(el);
     }
     container.appendChild(statsRow);
-  }
-
-  // Meta freshness indicator
-  const freshness = getMetaFreshness();
-  if (freshness) {
-    container.appendChild(renderMetaFreshnessIndicator(freshness));
-  }
-
-  // Fallback behavior label (when meta data is degraded)
-  const metaQuality = getMetaQuality();
-  if (metaQuality) {
-    const fallbackEl = renderFallbackLabel(metaQuality);
-    if (fallbackEl) container.appendChild(fallbackEl);
   }
 
   if (result.recommendations.length === 0) {
@@ -338,25 +298,6 @@ function createRecItem(
   // Trust badges (confidence + source)
   const trustRow = renderTrustRow(rec.confidence, rec.source);
 
-  // Distrust feedback button
-  const distrustBtn = renderDistrustButton(() => {
-    trackRecInteraction('distrust', rec.id, 'strategy_tab', {
-      addName: rec.add.name,
-      cutName: rec.cut?.name ?? null,
-      confidence: rec.confidence,
-      source: rec.source,
-    });
-    trackAnalyticsEvent('recommendation_distrusted', {
-      recId: rec.id,
-      addName: rec.add.name,
-      cutName: rec.cut?.name ?? null,
-      confidence: rec.confidence,
-      source: rec.source,
-      metaFreshness: getMetaFreshness()?.state ?? 'unknown',
-      metaDegraded: getMetaQuality()?.degraded ?? null,
-    });
-  });
-
   // Diff preview toggle
   const diffToggle = renderDiffToggle(deck, cardByName, rec.cut?.name || null, rec.add.name);
 
@@ -404,7 +345,6 @@ function createRecItem(
   item.append(cutEl, arrow, addEl, applyBtn);
   item.appendChild(bars);
   item.appendChild(trustRow);
-  item.appendChild(distrustBtn);
   item.appendChild(diffToggle);
   item.appendChild(whatIfBox);
   return item;

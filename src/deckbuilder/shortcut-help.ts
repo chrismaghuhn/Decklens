@@ -26,22 +26,6 @@ const SHORTCUTS: Array<{ keys: string; description: string }> = [
   { keys: '\u2191 / \u2193', description: 'Navigate search results' },
   { keys: 'Enter', description: 'Add highlighted search card' },
   { keys: '?', description: 'Toggle this help overlay' },
-  { keys: '', description: '\u2500\u2500 Collab Panels \u2500\u2500' },
-  { keys: 'Alt+C', description: 'Toggle Chat' },
-  { keys: 'Alt+A', description: 'Toggle Activity' },
-  { keys: 'Alt+T', description: 'Toggle Timeline' },
-  { keys: 'Alt+D', description: 'Toggle Diff' },
-  { keys: 'Alt+P', description: 'Toggle Proposals' },
-  { keys: 'Alt+H', description: 'Toggle Threads' },
-  { keys: 'Alt+L', description: 'Toggle Decisions' },
-  { keys: 'Alt+K', description: 'Toggle Tasks' },
-  { keys: 'Alt+O', description: 'Toggle Collection' },
-  { keys: 'Alt+N', description: 'Toggle Constraints' },
-  { keys: 'Alt+G', description: 'Toggle Packages' },
-  { keys: 'Alt+S', description: 'Toggle Spectator' },
-  { keys: 'Alt+E', description: 'Toggle Tests' },
-  { keys: 'Alt+B', description: 'Toggle Sideboard' },
-  { keys: 'Esc', description: 'Close open collab panel' },
 ];
 
 // ==================== F4: Custom Shortcut Mapping ====================
@@ -145,7 +129,7 @@ function createOverlay(): HTMLElement {
 
   // Build shortcut rows
   const rows = effective.map((sc) => {
-    const isSection = sc.keys === '' || sc.keys === '\u2500\u2500 Collab Panels \u2500\u2500';
+    const isSection = sc.keys === '';
     const rowClass = sc.customized ? 'shortcut-help-row shortcut-customized' : 'shortcut-help-row';
 
     const keyEl = h('kbd', { className: 'shortcut-key' }, sc.keys);

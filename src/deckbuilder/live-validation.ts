@@ -339,7 +339,7 @@ export function explainCard(
   // Find the card
   let card: DeckbuilderCardEntry | null = null;
   for (const board of Object.values(boards)) {
-    card = board.find(c => c.name === cardName) || card;
+    card = board.find((c: DeckbuilderCardEntry) => c.name === cardName) || card;
   }
 
   const roles = card?.tags || [];
@@ -409,7 +409,7 @@ export function validateCardAdd(
   if (rules.singleton && !SINGLETON_EXEMPT.has(cardName)) {
     // Check if already in deck
     for (const b of Object.values(boards)) {
-      if (b.some(c => c.name === cardName)) {
+      if (b.some((c: DeckbuilderCardEntry) => c.name === cardName)) {
         issues.push({
           severity: 'error',
           code: 'SINGLETON_VIOLATION',

@@ -5,7 +5,7 @@
  */
 
 import type { DeckbuilderDeck } from './types.js';
-import type { DeckbuilderSearchCard } from '../shared/api.js';
+import type { DeckbuilderSearchCard } from '../shared/scryfall-client.js';
 import { categorizeCard, type CardCategory } from './auto-categories.js';
 
 // ==================== Types ====================
