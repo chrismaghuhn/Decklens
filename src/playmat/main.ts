@@ -182,7 +182,10 @@ function currentZoom(): number {
 function applyZoom(zoom: number): void {
   // CSS zoom scales layout AND hit-testing consistently; drag.ts divides
   // field-relative coordinates by this factor for the snap grid.
-  (document.getElementById('pmMat') as HTMLElement).style.zoom = String(zoom);
+  const mat = document.getElementById('pmMat') as HTMLElement;
+  mat.style.zoom = String(zoom);
+  // keep the background raster at a crisp visual 1px at any zoom
+  mat.style.setProperty('--pm-grid-line', `${1 / zoom}px`);
   const label = document.querySelector<HTMLElement>('.pm-zoom-value');
   if (label) label.textContent = `${Math.round(zoom * 100)}%`;
 }

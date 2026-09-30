@@ -220,11 +220,15 @@ body {
   flex: 1;
   padding: 22px 18px 140px;
   overflow: auto;
+  /* --pm-grid-line is set by applyZoom to 1px / zoom so the raster
+     renders crisp 1px lines at every zoom level; position 158px aligns
+     the lines with the free-mode snap field (field margin-left). */
   background:
     radial-gradient(ellipse 120% 80% at 50% 0%, rgba(224, 82, 44, 0.04), transparent 55%),
-    repeating-linear-gradient(90deg, transparent 0 71px, rgba(120, 140, 110, 0.1) 71px 72px),
-    repeating-linear-gradient(0deg, transparent 0 71px, rgba(120, 140, 110, 0.1) 71px 72px),
+    repeating-linear-gradient(90deg, transparent 0 calc(72px - var(--pm-grid-line, 1px)), rgba(120, 140, 110, 0.12) calc(72px - var(--pm-grid-line, 1px)) 72px),
+    repeating-linear-gradient(0deg, transparent 0 calc(72px - var(--pm-grid-line, 1px)), rgba(120, 140, 110, 0.12) calc(72px - var(--pm-grid-line, 1px)) 72px),
     linear-gradient(160deg, #191c17, #171a16 55%, #131510);
+  background-position: 0 0, 159px 0, 0 0, 0 0;
   border-top: 1px solid rgba(120, 140, 110, 0.14);
 }
 
