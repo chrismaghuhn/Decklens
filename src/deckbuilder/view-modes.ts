@@ -1,4 +1,5 @@
 import { h, replaceChildren, mapChildren } from '../shared/dom.js';
+import { iconEl } from '../shared/icons.js';
 import { normalizeNameKey } from '../shared/utils.js';
 import { STORAGE_KEYS, storageGet, storageSet } from '../shared/storage.js';
 import type { DeckBoard, DeckbuilderCardEntry, DeckbuilderDeck, DeckbuilderCardView, CustomCategory } from './types.js';
@@ -365,7 +366,7 @@ function renderGridView(container: HTMLElement, ctx: ViewModeContext): void {
     lastGridRenderHash = ''; // Reset cache
     replaceChildren(container,
       h('div', { className: 'empty-state' },
-        h('div', { className: 'empty-state-icon' }, '\uD83C\uDCCF'),
+        iconEl('cards', 'empty-state-icon'),
         h('p', { className: 'empty-state-text' }, `No cards in ${ctx.boardLabels[ctx.activeBoard]}. Search for cards or import a decklist to get started.`),
         h('div', { className: 'empty-state-actions' },
           h('button', { className: 'btn btn-sm', onClick: () => {
@@ -545,7 +546,7 @@ function renderListView(container: HTMLElement, ctx: ViewModeContext): void {
     lastListRenderHash = ''; // Reset cache
     replaceChildren(container,
       h('div', { className: 'empty-state' },
-        h('div', { className: 'empty-state-icon' }, '\uD83C\uDCCF'),
+        iconEl('cards', 'empty-state-icon'),
         h('p', { className: 'empty-state-text' }, `No cards in ${ctx.boardLabels[ctx.activeBoard]}. Search for cards or import a decklist to get started.`),
         h('div', { className: 'empty-state-actions' },
           h('button', { className: 'btn btn-sm', onClick: () => {
@@ -662,7 +663,7 @@ function renderPileView(container: HTMLElement, ctx: ViewModeContext): void {
     lastPileRenderHash = ''; // Reset cache
     replaceChildren(container,
       h('div', { className: 'empty-state' },
-        h('div', { className: 'empty-state-icon' }, '\uD83C\uDCCF'),
+        iconEl('cards', 'empty-state-icon'),
         h('p', { className: 'empty-state-text' }, `No cards in ${ctx.boardLabels[ctx.activeBoard]}. Search for cards or import a decklist to get started.`),
         h('div', { className: 'empty-state-actions' },
           h('button', { className: 'btn btn-sm', onClick: () => {

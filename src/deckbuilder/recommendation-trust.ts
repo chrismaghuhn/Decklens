@@ -9,6 +9,7 @@
  */
 
 import type { DeckbuilderDeck } from './types.js';
+import { iconSvg } from '../shared/icons.js';
 import type { DeckbuilderSearchCard } from '../shared/scryfall-client.js';
 import type { RecSource } from '../mtg/engine/recommendation-v1.js';
 import { simulateSwap, type WhatIfMetrics } from './what-if.js';
@@ -76,22 +77,22 @@ export function renderConfidenceBadge(confidence: number): HTMLElement {
 
 const SOURCE_CONFIG: Record<RecSource, { icon: string; label: string; tooltip: string }> = {
   discovery: {
-    icon: '\uD83D\uDD0D',
+    icon: 'search',
     label: 'Discovered',
     tooltip: 'Found via dynamic card search — a fresh pick based on your deck profile.',
   },
   archetype: {
-    icon: '\uD83C\uDFAF',
+    icon: 'target',
     label: 'Archetype Match',
     tooltip: 'Matches your deck\'s archetype profile and strategic role needs.',
   },
   anti_meta: {
-    icon: '\uD83D\uDEE1\uFE0F',
+    icon: 'shield',
     label: 'Meta Counter',
     tooltip: 'Counters popular strategies in the current metagame.',
   },
   learned: {
-    icon: '\uD83D\uDCDA',
+    icon: 'book',
     label: 'Learned',
     tooltip: 'Recommended based on your past feedback and preferences.',
   },
@@ -112,7 +113,7 @@ export function renderSourceBadge(source: RecSource): HTMLElement {
   badge.className = `source-badge source-badge-${source}`;
   badge.title = config.tooltip;
 
-  badge.textContent = `${config.icon} ${config.label}`;
+  badge.innerHTML = `${iconSvg(config.icon)} ${config.label}`;
   return badge;
 }
 
@@ -302,7 +303,7 @@ export function renderDistrustButton(
   btn.className = 'rec-distrust-btn';
   btn.type = 'button';
   btn.title = 'This recommendation does not seem right';
-  btn.textContent = '\uD83D\uDC4E';
+  btn.innerHTML = iconSvg('thumbs-down');
 
   let fired = false;
   btn.addEventListener('click', (e) => {

@@ -148,29 +148,10 @@ export function showContextMenu(cardName: string, board: DeckBoard, event: Mouse
     ] : []),
 
     // Ping Card (collab only)
-    ...(callbacks.onPingCard && callbacks.isCollabActive?.() ? [
-      h('div', { className: 'ctx-divider' }),
-      h('button', { className: 'ctx-item ctx-ping', onClick: () => {
-        callbacks!.onPingCard!(cardName, board);
-        hideContextMenu();
-      }}, '\uD83D\uDCE1 Ping Card'),
-    ] : []),
 
     // Discuss Card (collab only, Phase 2)
-    ...(callbacks.onDiscussCard && callbacks.isCollabActive?.() ? [
-      h('button', { className: 'ctx-item ctx-discuss', onClick: () => {
-        callbacks!.onDiscussCard!(cardName, board);
-        hideContextMenu();
-      }}, '\uD83D\uDCAC Discuss Card'),
-    ] : []),
 
     // Add Decision Note (collab only, Phase 2)
-    ...(callbacks.onAddDecision && callbacks.isCollabActive?.() ? [
-      h('button', { className: 'ctx-item ctx-decision', onClick: () => {
-        callbacks!.onAddDecision!(cardName, board);
-        hideContextMenu();
-      }}, '\uD83D\uDCD6 Add Decision Note'),
-    ] : []),
     h('div', { className: 'ctx-divider' }),
 
     // View on Scryfall

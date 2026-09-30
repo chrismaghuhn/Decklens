@@ -1885,14 +1885,14 @@ function mapProducesToCategory(produces: string[]): ComboCategory | 'API' {
 }
 
 const COMBO_ICONS: Record<ComboCategory | 'API', string> = {
-  'Win Con': '\u26A1',
-  'Infinite Mana': '\uD83D\uDC8E',
-  'Infinite Damage': '\uD83D\uDD25',
-  'Infinite Tokens': '\uD83D\uDC7E',
-  'Card Advantage': '\uD83C\uDCCF',
-  'Lock': '\uD83D\uDD12',
-  'Infinite Combat': '\u2694\uFE0F',
-  'API': '\u2728',
+  'Win Con': 'bolt',
+  'Infinite Mana': 'gem',
+  'Infinite Damage': 'bolt',
+  'Infinite Tokens': 'cards',
+  'Card Advantage': 'book',
+  'Lock': 'shield',
+  'Infinite Combat': 'sword',
+  'API': 'sparkle',
 };
 
 const KNOWN_COMBOS: KnownCombo[] = [
@@ -2032,7 +2032,7 @@ function renderCombos(deck: DeckbuilderDeck): void {
   for (const [category, catCombos] of byCategory) {
     const header = document.createElement('div');
     header.className = 'combo-category-header';
-    header.textContent = `${COMBO_ICONS[category] || ''} ${category}`;
+    header.innerHTML = `${iconSvg(COMBO_ICONS[category] || 'sparkle')} ${escapeHtml(category)}`;
     container.appendChild(header);
 
     for (const entry of catCombos) {
@@ -2169,7 +2169,7 @@ function renderAnalytics(): void {
     empty.innerHTML = '';
     const icon = document.createElement('div');
     icon.className = 'empty-state-icon';
-    icon.textContent = '\uD83D\uDCCA';
+    icon.innerHTML = iconSvg('chart');
     const msg = document.createElement('p');
     msg.className = 'empty-state-text';
     msg.textContent = 'Add cards to your deck to see analytics, mana curve, and power level.';
@@ -2818,7 +2818,7 @@ function showStorageWarningBanner(usagePercent: number): void {
 
   const exportBtn = document.createElement('button');
   exportBtn.className = 'btn';
-  exportBtn.textContent = '\uD83D\uDCE5 Download All Decks';
+  exportBtn.textContent = 'Download All Decks';
   exportBtn.addEventListener('click', () => {
     exportAllDecksAsJson();
   });
