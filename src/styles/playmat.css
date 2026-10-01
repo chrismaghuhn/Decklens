@@ -929,6 +929,29 @@ body.pm-dragging .pm-card-qtybar { opacity: 0 !important; }
   border-radius: 12px;
   display: block;
 }
+.pm-inspect-art {
+  all: unset;
+  pointer-events: auto;
+  cursor: pointer;
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px;
+  font: 600 0.64rem var(--font-mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-hi);
+  background: rgba(10, 8, 7, 0.88);
+  border: 1px solid var(--line-light);
+  border-radius: 999px;
+  transition: border-color 0.14s;
+}
+.pm-inspect-art:hover { border-color: var(--accent); color: #fff; }
+.pm-inspect-art .ui-ic { width: 0.95em; height: 0.95em; }
 @keyframes pm-inspect-in {
   from { opacity: 0; transform: translateY(-50%) translateX(12px); }
   to { opacity: 1; transform: translateY(-50%); }

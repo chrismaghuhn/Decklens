@@ -6,6 +6,8 @@
 
 import { isTypingContext, normalizeNameKey, type PlaymatState } from './state.js';
 import { isDragging } from './drag.js';
+import { openArtPicker } from './art-picker.js';
+import { iconSvg } from '../shared/icons.js';
 
 export const EV_SELECTION_CHANGED = 'pm-selection-changed';
 
@@ -131,6 +133,13 @@ function renderInspector(): void {
     document.body.appendChild(panel);
   }
   panel.innerHTML = `<img src="${img}" alt="${name.replace(/"/g, '&quot;')}">`;
+  const artBtn = document.createElement('button');
+  artBtn.type = 'button';
+  artBtn.className = 'pm-inspect-art';
+  artBtn.innerHTML = `${iconSvg('image')} Artwork`;
+  artBtn.title = 'Choose a different printing';
+  artBtn.addEventListener('click', () => { void openArtPicker(stateRef, name, 'mainboard'); });
+  panel.appendChild(artBtn);
 }
 
 function renderBar(): void {
