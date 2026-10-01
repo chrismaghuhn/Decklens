@@ -829,6 +829,29 @@ body {
   border-color: rgba(245, 192, 74, 0.35) !important;
 }
 
+.pm-cardzoom {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  display: grid;
+  place-items: center;
+  background: rgba(8, 6, 5, 0.78);
+  cursor: zoom-out;
+  animation: pm-zoom-in 0.12s var(--ease);
+}
+@keyframes pm-zoom-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.pm-cardzoom img {
+  width: min(430px, 86vw);
+  max-height: 92vh;
+  object-fit: contain;
+  border-radius: 18px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7);
+}
+.pm-combo-thumb { cursor: zoom-in; }
+
 /* step player */
 .pm-combo-stage { max-width: 1100px; margin: 0 auto; }
 .pm-combo-back { margin-bottom: 20px; }

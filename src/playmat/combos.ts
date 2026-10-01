@@ -184,6 +184,32 @@ function resetDiscover(): void {
   discoverHasMore = true;
 }
 
+/** Lightbox: show one card large enough to read its text. */
+function openCardZoom(name: string): void {
+  const card = stateRef.cardByName[normalizeNameKey(name)];
+  const img = card?.image_uris?.large || card?.image_uris?.normal;
+  if (!img) return;
+  document.querySelector('.pm-cardzoom')?.remove();
+  const zoom = document.createElement('div');
+  zoom.className = 'pm-cardzoom';
+  zoom.innerHTML = `<img src="${img}" alt="${name.replace(/"/g, '&quot;')}">`;
+  const onZoomKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      e.preventDefault();
+      close();
+    }
+  };
+  const close = (): void => {
+    zoom.remove();
+    document.removeEventListener('keydown', onZoomKey, true);
+  };
+  zoom.addEventListener('click', close);
+  // capture phase so Escape closes the zoom, not the whole combo mat
+  document.addEventListener('keydown', onZoomKey, true);
+  document.body.appendChild(zoom);
+}
+
 function cardImg(name: string): string | undefined {
   const card = stateRef.cardByName[normalizeNameKey(name)];
   return card?.image_uris?.normal || card?.image_uris?.small;
@@ -315,6 +341,10 @@ function renderList(): void {
           ${img ? `<img src="${img}" alt="" loading="lazy">` : ''}
           <span class="pm-bestadd-name">${name.replace(/</g, '&lt;')}</span>
           <span class="pm-bestadd-count">unlocks ${list.length} combo${list.length === 1 ? '' : 's'}${Number.isFinite(eur) ? ` · €${eur.toFixed(2)}` : ''}</span>`;
+        chip.querySelector('img')?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openCardZoom(name);
+        });
         chip.title = 'Click to show only these combos';
         chip.addEventListener('click', () => {
           bestAddFilter = bestAddFilter === name ? null : name;
@@ -439,6 +469,11 @@ function comboTile(combo: ComboData): HTMLElement {
     const el = document.createElement('div');
     el.className = 'pm-combo-thumb' + (isMissing ? ' missing' : '');
     el.innerHTML = img ? `<img src="${img}" alt="" loading="lazy">` : `<span>${use.name.replace(/</g, '&lt;')}</span>`;
+    el.title = `Read ${use.name}`;
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openCardZoom(use.name);
+    });
     fan.appendChild(el);
   }
   tile.appendChild(fan);
@@ -507,6 +542,8 @@ function renderPlayer(combo: ComboData): void {
     el.className = 'pm-combo-bigcard' + (missing.has(normalizeNameKey(use.name)) ? ' missing' : '');
     el.innerHTML = (img ? `<img src="${img}" alt="" draggable="false">` : `<span>${use.name.replace(/</g, '&lt;')}</span>`)
       + `<label>${use.name.replace(/</g, '&lt;')}</label>`;
+    el.title = `Click to read ${use.name}`;
+    el.addEventListener('click', () => openCardZoom(use.name));
     cardEls.set(normalizeNameKey(use.name), el);
     table.appendChild(el);
   }
