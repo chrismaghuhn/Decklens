@@ -6,8 +6,8 @@
 import { iconSvg } from '../shared/icons.js';
 import { showToast } from '../deckbuilder/toast.js';
 import { renderHealthScore, calculateDeckHealth } from '../deckbuilder/health-score.js';
-import { renderSynergyMap } from '../deckbuilder/synergy-map.js';
 import { renderDrawProbability } from '../deckbuilder/draw-probability.js';
+import { openComboMat } from './combos.js';
 import { evaluateEdhRules } from '../deckbuilder/edh-rules.js';
 import { getFormatRules } from '../deckbuilder/live-validation.js';
 import { classifyRole, ROLE_PROB_KEYS } from '../deckbuilder/role-classifier.js';
@@ -267,19 +267,13 @@ function renderAnalyse(body: HTMLElement): void {
   more.addEventListener('toggle', () => {
     if (!more.open || moreRendered) return;
     moreRendered = true;
-    const syn = document.createElement('div');
-    syn.className = 'pm-analyse-section';
-    syn.innerHTML = '<h3>Synergies</h3>';
-    const synHost = document.createElement('div');
-    renderSynergyMap(synHost, stateRef.deck, stateRef.cardByName);
-    syn.appendChild(synHost);
     const draw = document.createElement('div');
     draw.className = 'pm-analyse-section';
     draw.innerHTML = '<h3>Draw Probability</h3>';
     const drawHost = document.createElement('div');
     renderDrawProbability(drawHost, roleTagTally(stateRef), deckStats(stateRef).total, stateRef.deck.boards.mainboard);
     draw.appendChild(drawHost);
-    moreBody.append(syn, draw);
+    moreBody.append(draw);
   });
   body.appendChild(more);
 }
@@ -853,13 +847,15 @@ export function initDrawers(state: PlaymatState): void {
   analyseBtn.addEventListener('click', () => openDrawerPanel('analyse'));
   const goldfishBtn = actionBtn('goldfish', 'dice', 'Goldfish');
   goldfishBtn.addEventListener('click', () => openGoldfishPlaytest(state.deck, state.cardByName));
+  const comboBtn = actionBtn('combos', 'infinity', 'Combos');
+  comboBtn.addEventListener('click', () => { void openComboMat(state); });
   const shareBtn = actionBtn('share', 'export', 'Share');
   shareBtn.addEventListener('click', () => openDrawerPanel('share'));
   const importBtn = actionBtn('import', 'import', 'Import');
   importBtn.addEventListener('click', () => openDrawerPanel('import'));
   const historyBtn = actionBtn('history', 'save', 'Versions');
   historyBtn.addEventListener('click', () => openDrawerPanel('history'));
-  actions.append(analyseBtn, goldfishBtn, historyBtn, shareBtn, importBtn);
+  actions.append(analyseBtn, comboBtn, goldfishBtn, historyBtn, shareBtn, importBtn);
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape' || !openDrawer) return;

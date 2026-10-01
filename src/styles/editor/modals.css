@@ -1843,53 +1843,7 @@
   }
 }
 
-/* ── moved from panels.css (health gauge + synergy map, used by playmat Analyse drawer) ── */
-.synergy-tooltip {
-  position: absolute;
-  background: var(--surface-2);
-  border: 1px solid var(--accent);
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-size: 0.78rem;
-  color: var(--text);
-  pointer-events: none;
-  z-index: 100;
-  max-width: 280px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-}
-.synergy-tooltip-name {
-  font-weight: 700;
-  color: var(--accent);
-  margin-bottom: 4px;
-}
-.synergy-tooltip-count {
-  font-size: 0.7rem;
-  color: var(--text-lo);
-  margin-bottom: 6px;
-}
-.synergy-tooltip-edge {
-  font-size: 0.72rem;
-  padding: 2px 0;
-}
-.synergy-tooltip-reason {
-  color: var(--text-lo);
-  font-style: italic;
-}
-.synergy-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 6px;
-}
-.synergy-badge {
-  padding: 2px 8px;
-  border-radius: 50px;
-  font-size: 0.62rem;
-  background: rgba(224, 82, 44, 0.08);
-  border: 1px solid rgba(224, 82, 44, 0.2);
-  color: var(--accent-dim);
-  text-transform: capitalize;
-}
+/* ── moved from panels.css (health gauge, used by playmat Analyse drawer) ── */
 .health-gauge {
   position: relative;
   display: inline-block;
