@@ -8,6 +8,7 @@ import { isTypingContext, normalizeNameKey, type PlaymatState } from './state.js
 import { isDragging } from './drag.js';
 import { openArtPicker } from './art-picker.js';
 import { iconSvg } from '../shared/icons.js';
+import { showContextMenu } from '../deckbuilder/context-menu.js';
 
 export const EV_SELECTION_CHANGED = 'pm-selection-changed';
 
@@ -133,6 +134,14 @@ function renderInspector(): void {
     document.body.appendChild(panel);
   }
   panel.innerHTML = `<img src="${img}" alt="${name.replace(/"/g, '&quot;')}">`;
+  const image = panel.querySelector('img')!;
+  image.title = 'Click to choose a different printing';
+  image.addEventListener('click', () => { void openArtPicker(stateRef, name, 'mainboard'); });
+  panel.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    showContextMenu(name, 'mainboard', e);
+  });
   const artBtn = document.createElement('button');
   artBtn.type = 'button';
   artBtn.className = 'pm-inspect-art';

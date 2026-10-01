@@ -672,9 +672,12 @@ export function initMat(root: HTMLElement, state: PlaymatState): void {
   root.addEventListener('contextmenu', (e) => {
     const t = e.target as HTMLElement;
     if (t.closest('.pm-card, .pm-dock-row, input, select, textarea, a')) return;
-    if (selectionSize() > 0) {
+    if (selectionSize() > 1) {
       e.preventDefault();
       showBulkMenu(e);
+    } else if (selectionSize() === 1) {
+      e.preventDefault();
+      showContextMenu(selectedNames()[0], 'mainboard', e);
     }
   });
   document.addEventListener('keydown', (e) => {
