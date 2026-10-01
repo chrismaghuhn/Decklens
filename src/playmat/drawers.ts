@@ -303,10 +303,24 @@ function bracketSection(): HTMLElement {
   }
   const gcCount = gameChangers.reduce((s, e) => s + e.qty, 0);
 
-  const estimate = gcCount === 0 ? '1–2' : gcCount <= 3 ? '3' : '4–5';
-  const reason = gcCount === 0
+  // extra heuristics the bracket rules care about beyond Game Changers
+  let mldCount = 0;
+  let extraTurnCount = 0;
+  for (const entry of [...stateRef.deck.boards.commander, ...stateRef.deck.boards.mainboard]) {
+    const text = (stateRef.cardByName[normalizeNameKey(entry.name)]?.oracle_text || '').toLowerCase();
+    if (/destroy all lands|each player sacrifices? all lands|destroy all .{0,30}lands/.test(text)) mldCount += entry.qty;
+    if (/extra turn/.test(text)) extraTurnCount += entry.qty;
+  }
+
+  let estimate = gcCount === 0 ? '1–2' : gcCount <= 3 ? '3' : '4–5';
+  if (mldCount > 0) estimate = '4–5'; // brackets 1-3 disallow mass land destruction
+  const reasons: string[] = [];
+  reasons.push(gcCount === 0
     ? 'No Game Changers in commander or mainboard.'
-    : `${gcCount} Game Changer${gcCount === 1 ? '' : 's'} (bracket 3 allows up to 3, brackets 1–2 none).`;
+    : `${gcCount} Game Changer${gcCount === 1 ? '' : 's'} (bracket 3 allows up to 3, brackets 1–2 none).`);
+  if (mldCount > 0) reasons.push(`${mldCount} mass land destruction card${mldCount === 1 ? '' : 's'} — not allowed below bracket 4.`);
+  if (extraTurnCount > 0) reasons.push(`${extraTurnCount} extra-turn card${extraTurnCount === 1 ? '' : 's'} — chaining them is a bracket 4–5 behavior.`);
+  const reason = reasons.join(' ');
 
   const override = localStorage.getItem(bracketOverrideKey()) || '';
 

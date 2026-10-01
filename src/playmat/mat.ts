@@ -19,7 +19,7 @@ import {
   initSelection, applySelectionStyles, isSelected, selectedNames, selectionSize,
   selectOnly, ctrlToggle, shiftSelect, clearSelection,
 } from './selection.js';
-import { classifyRole, ROLE_LABELS, type Role } from '../deckbuilder/role-classifier.js';
+import { classifyRoles, ROLE_LABELS, type Role } from '../deckbuilder/role-classifier.js';
 import type { DeckbuilderSearchParams } from '../shared/scryfall-client.js';
 
 const BOARD_LABELS: Record<DeckBoard, string> = {
@@ -222,9 +222,19 @@ function showBulkMenu(event: MouseEvent): void {
 
 // ── Role targets (Command Zone style template, editable per deck) ──
 
-const DEFAULT_TARGETS: Partial<Record<Role, number>> = {
-  ramp: 10, draw: 12, removal: 12, wipe: 6, land: 38,
+const TARGET_TEMPLATES: Record<string, Partial<Record<Role, number>>> = {
+  'command-zone': { ramp: 10, draw: 12, removal: 12, wipe: 6, land: 38 },
+  '8x8': { ramp: 8, draw: 8, removal: 8, wipe: 8, counter: 8, recursion: 8, protection: 8, wincon: 8, land: 35 },
+  '7x9': { ramp: 9, draw: 9, removal: 9, wipe: 9, recursion: 9, protection: 9, wincon: 9, land: 36 },
 };
+const TEMPLATE_LABELS: Record<string, string> = {
+  'command-zone': 'Command Zone', '8x8': '8×8', '7x9': '7×9', custom: 'Custom',
+};
+const DEFAULT_TARGETS = TARGET_TEMPLATES['command-zone'];
+
+function templateKey(): string {
+  return `dl_pm_template_${stateRef.deck.id}`;
+}
 
 // Scryfall's curated oracle tags give far better role hits than
 // hand-rolled oracle-text heuristics.
@@ -258,8 +268,10 @@ function roleCounts(): Partial<Record<Role, number>> {
   for (const entry of stateRef.deck.boards.mainboard) {
     const card = cardFor(stateRef, entry.name);
     if (!card) continue;
-    const role = classifyRole(card);
-    counts[role] = (counts[role] || 0) + entry.qty;
+    // multi-role: a removal spell that draws counts toward both targets
+    for (const role of classifyRoles(card)) {
+      counts[role] = (counts[role] || 0) + entry.qty;
+    }
   }
   return counts;
 }
@@ -276,6 +288,27 @@ function targetsStrip(): HTMLElement {
   label.textContent = 'TARGETS';
   label.title = 'Click a chip to search for that role · double-click to edit the target';
   strip.appendChild(label);
+
+  const template = document.createElement('select');
+  template.className = 'pm-targets-template';
+  template.setAttribute('aria-label', 'Target template');
+  const currentTemplate = localStorage.getItem(templateKey()) || 'command-zone';
+  for (const [value, name] of Object.entries(TEMPLATE_LABELS)) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = name;
+    if (value === currentTemplate) opt.selected = true;
+    template.appendChild(opt);
+  }
+  template.addEventListener('change', () => {
+    try {
+      localStorage.setItem(templateKey(), template.value);
+      const preset = TARGET_TEMPLATES[template.value];
+      if (preset) localStorage.setItem(targetsKey(), JSON.stringify(preset));
+    } catch { /* quota */ }
+    renderMat(rootRef, stateRef);
+  });
+  strip.appendChild(template);
 
   for (const role of roles) {
     const have = counts[role] || 0;
@@ -301,7 +334,10 @@ function targetsStrip(): HTMLElement {
       const n = Math.max(0, Math.min(99, Math.round(Number(input)) || 0));
       const next = loadTargets();
       next[role] = n;
-      try { localStorage.setItem(targetsKey(), JSON.stringify(next)); } catch { /* quota */ }
+      try {
+        localStorage.setItem(targetsKey(), JSON.stringify(next));
+        localStorage.setItem(templateKey(), 'custom'); // manual edit leaves the preset
+      } catch { /* quota */ }
       renderMat(rootRef, stateRef);
     });
     strip.appendChild(chip);
@@ -327,7 +363,10 @@ function targetsStrip(): HTMLElement {
       .find((r) => ROLE_LABELS[r].toLowerCase() === input.trim().toLowerCase());
     if (!role) { showToast({ message: 'Unknown role.', type: 'error' }); return; }
     targetsNow[role] = targetsNow[role] || 5;
-    try { localStorage.setItem(targetsKey(), JSON.stringify(targetsNow)); } catch { /* quota */ }
+    try {
+      localStorage.setItem(targetsKey(), JSON.stringify(targetsNow));
+      localStorage.setItem(templateKey(), 'custom');
+    } catch { /* quota */ }
     renderMat(rootRef, stateRef);
   });
   strip.appendChild(add);

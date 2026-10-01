@@ -10,6 +10,7 @@ import { showHoverPreview, hideHoverPreview } from '../deckbuilder/card-preview.
 import { iconSvg } from '../shared/icons.js';
 import { EV_OPEN_COMMANDER_SEARCH, normalizeNameKey, type PlaymatState } from './state.js';
 import { addCardToDeck, setCommander } from './mat.js';
+import { setSelection } from './selection.js';
 
 const PAGE_SIZE = 7;
 const DEFAULT_PLACEHOLDER = 'Search cards … Enter adds the top hit';
@@ -24,6 +25,33 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let searchSeq = 0;
 let hideInDeck = localStorage.getItem('dl_pm_filter_indeck') === '1';
 let ciOnly = localStorage.getItem('dl_pm_filter_ci') === '1';
+let searchInDeck = false; // session-only: query the deck, highlight on the mat
+
+/** Minimal Scryfall-ish matcher against a resolved deck card. */
+function deckCardMatches(query: string, name: string, card: DeckbuilderSearchCard | undefined): boolean {
+  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const typeLine = (card?.type_line || '').toLowerCase();
+  const oracle = (card?.oracle_text || '').toLowerCase();
+  const lowerName = name.toLowerCase();
+  for (const token of tokens) {
+    if (token.startsWith('t:')) {
+      if (!typeLine.includes(token.slice(2))) return false;
+    } else if (token.startsWith('o:')) {
+      if (!oracle.includes(token.slice(2))) return false;
+    } else {
+      const mv = token.match(/^mv(<=|>=|=|<|>)(\d+)$/);
+      if (mv && card) {
+        const n = Number(mv[2]);
+        const c = card.cmc;
+        const ok = mv[1] === '<=' ? c <= n : mv[1] === '>=' ? c >= n : mv[1] === '<' ? c < n : mv[1] === '>' ? c > n : c === n;
+        if (!ok) return false;
+      } else if (!lowerName.includes(token) && !oracle.includes(token)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
 
 function deckNameKeys(): Set<string> {
   const keys = new Set<string>();
@@ -67,6 +95,17 @@ async function runSearch(query: string): Promise<void> {
   const seq = ++searchSeq;
   const q = query.trim();
   if (q.length < 2) {
+    results = [];
+    renderHand();
+    if (searchInDeck) setSelection([]);
+    return;
+  }
+  if (searchInDeck && !commanderMode) {
+    // query the deck itself: highlight matches on the mat via selection
+    const matches = stateRef.deck.boards.mainboard
+      .filter((e) => deckCardMatches(q, e.name, stateRef.cardByName[normalizeNameKey(e.name)]))
+      .map((e) => e.name);
+    setSelection(matches);
     results = [];
     renderHand();
     return;
@@ -169,6 +208,7 @@ export function initHand(state: PlaymatState): void {
     <div class="pm-search-filters">
       <button type="button" data-filter="indeck" class="${hideInDeck ? 'on' : ''}" title="Hide cards already in this deck">Hide in deck</button>
       <button type="button" data-filter="ci" class="${ciOnly ? 'on' : ''}" title="Only cards inside your commander's color identity">Color identity</button>
+      <button type="button" data-filter="indeckmode" title="Search the deck instead of Scryfall — matches highlight on the mat (supports t: o: mv<=)">In deck</button>
     </div>`;
   inputEl = slot.querySelector('input')!;
 
@@ -178,6 +218,10 @@ export function initHand(state: PlaymatState): void {
         hideInDeck = !hideInDeck;
         localStorage.setItem('dl_pm_filter_indeck', hideInDeck ? '1' : '0');
         btn.classList.toggle('on', hideInDeck);
+      } else if (btn.dataset.filter === 'indeckmode') {
+        searchInDeck = !searchInDeck;
+        btn.classList.toggle('on', searchInDeck);
+        if (!searchInDeck) setSelection([]);
       } else {
         ciOnly = !ciOnly;
         localStorage.setItem('dl_pm_filter_ci', ciOnly ? '1' : '0');

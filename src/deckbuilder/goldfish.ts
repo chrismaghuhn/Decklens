@@ -1295,6 +1295,8 @@ export function openGoldfishPlaytest(
     const bindings: [string, string][] = [
       ['Space', 'Next Phase'],
       ['D', 'Draw a Card'],
+      ['N', 'New Turn (Untap All + Draw)'],
+      ['C / Shift+C', '+1/+1 Counter on All Creatures / Remove'],
       ['U', 'Untap All Permanents'],
       ['T', 'Create Token (Custom)'],
       ['S', 'Search Library'],
@@ -1414,6 +1416,81 @@ export function openGoldfishPlaytest(
       { life: 40, cmdDmg: 0 },
       { life: 40, cmdDmg: 0 },
     ];
+    render();
+  }
+
+  function newTurn(): void {
+    pushUndo();
+    for (const p of state.battlefield) p.tapped = false;
+    state.turn += 1;
+    state.phase = 'main1';
+    state.landPlayedThisTurn = false;
+    addLog(`Turn ${state.turn} — untap, draw.`);
+    drawCard();
+    render();
+  }
+
+  function massCounter(delta: number): void {
+    const creatures = state.battlefield.filter((p) => p.isCreature);
+    if (creatures.length === 0) return;
+    pushUndo();
+    for (const p of creatures) {
+      const next = (p.counters['+1/+1'] || 0) + delta;
+      if (next <= 0) delete p.counters['+1/+1'];
+      else p.counters['+1/+1'] = next;
+    }
+    addLog(`${delta > 0 ? '+1/+1 counter on' : '+1/+1 counter removed from'} ${creatures.length} creature${creatures.length === 1 ? '' : 's'}.`);
+    render();
+  }
+
+  const SAVE_KEY = `dl_gf_save_${deck.id}`;
+
+  function saveState(): void {
+    try {
+      const { undoStack: _omit, ...rest } = state;
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ state: rest, opponents, mullCount }));
+      addLog('Game state saved.');
+      render();
+    } catch {
+      addLog('Could not save (storage full?).');
+      render();
+    }
+  }
+
+  function loadState(): void {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) { addLog('No saved state for this deck.'); render(); return; }
+      const parsed = JSON.parse(raw) as { state: Omit<GoldfishState, 'undoStack'>; opponents: typeof opponents; mullCount: number };
+      if (!Array.isArray(parsed.state?.library)) throw new Error('bad save');
+      pushUndo();
+      state = { ...parsed.state, undoStack: state.undoStack };
+      if (Array.isArray(parsed.opponents) && parsed.opponents.length === 3) opponents = parsed.opponents;
+      mullCount = parsed.mullCount || 0;
+      bottomsPending = 0;
+      addLog('Game state loaded.');
+      render();
+    } catch {
+      addLog('Saved state is unreadable.');
+      render();
+    }
+  }
+
+  function guaranteedOpener(): void {
+    const query = window.prompt('Card that must be in your opening hand:');
+    const q = query?.trim().toLowerCase();
+    if (!q) return;
+    const matchIn = (list: string[]): number => list.findIndex((n) => n.toLowerCase().includes(q));
+    resetGame();
+    if (matchIn(state.hand) >= 0) { addLog(`Opener: ${state.hand[matchIn(state.hand)]} was already in hand.`); render(); return; }
+    const li = matchIn(state.library);
+    if (li < 0) { addLog(`No card matching "${query}" in the deck.`); render(); return; }
+    const [card] = state.library.splice(li, 1);
+    const swapped = state.hand.pop();
+    if (swapped) state.library.push(swapped);
+    state.library = shuffle(state.library);
+    state.hand.unshift(card);
+    addLog(`Opener: ${card} guaranteed in hand.`);
     render();
   }
 
@@ -1806,6 +1883,24 @@ export function openGoldfishPlaytest(
     mulliganBtn.textContent = 'Mulligan';
     mulliganBtn.addEventListener('click', mulliganHand);
 
+    const openerBtn = document.createElement('button');
+    openerBtn.className = 'btn gf-btn';
+    openerBtn.textContent = 'Opener';
+    openerBtn.title = 'Restart with a guaranteed card in the opening hand';
+    openerBtn.addEventListener('click', guaranteedOpener);
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn gf-btn';
+    saveBtn.textContent = 'Save';
+    saveBtn.title = 'Save the game state for this deck';
+    saveBtn.addEventListener('click', saveState);
+
+    const loadBtn = document.createElement('button');
+    loadBtn.className = 'btn gf-btn';
+    loadBtn.textContent = 'Load';
+    loadBtn.title = 'Load the saved game state';
+    loadBtn.addEventListener('click', loadState);
+
     const resetBtn = document.createElement('button');
     resetBtn.className = 'btn gf-btn';
     resetBtn.textContent = 'Reset';
@@ -1822,7 +1917,7 @@ export function openGoldfishPlaytest(
     closeBtn.textContent = 'Exit';
     closeBtn.addEventListener('click', cleanup);
 
-    topBar.append(turnInfo, phaseInfo, nextBtn, drawBtn, libDrop, lifeDisplay, lifeMinus, lifePlus, poisonBtn, undoBtn, untapBtn, tokenBtn, searchBtn, topNBtn, shuffleBtn, mulliganBtn, resetBtn, helpBtn, closeBtn);
+    topBar.append(turnInfo, phaseInfo, nextBtn, drawBtn, libDrop, lifeDisplay, lifeMinus, lifePlus, poisonBtn, undoBtn, untapBtn, tokenBtn, searchBtn, topNBtn, shuffleBtn, mulliganBtn, openerBtn, saveBtn, loadBtn, resetBtn, helpBtn, closeBtn);
 
     // ── Main area ──
     const main = document.createElement('div');
@@ -2206,6 +2301,8 @@ export function openGoldfishPlaytest(
     if (e.key === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); performUndo(); }
     if (e.key === 'z' || e.key === 'Z') { if (!e.ctrlKey && !e.metaKey) performUndo(); }
     if (e.key === 'u' || e.key === 'U') untapAll();
+    if (e.key === 'n' || e.key === 'N') newTurn();
+    if (e.key === 'c' || e.key === 'C') massCounter(e.shiftKey ? -1 : 1);
     if (e.key === 't' || e.key === 'T') createToken();
     if (e.key === 's' || e.key === 'S') showLibrarySearch();
     if (e.key === 'l' || e.key === 'L') { if (state.library.length > 0) showTopNModal(); }

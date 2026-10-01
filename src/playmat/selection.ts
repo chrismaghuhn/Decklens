@@ -87,6 +87,13 @@ export function shiftSelect(name: string): void {
   emit();
 }
 
+/** Replace the whole selection (e.g. from the in-deck search). */
+export function setSelection(names: string[]): void {
+  selected = new Set(names);
+  anchor = null;
+  emit();
+}
+
 export function selectAll(): void {
   selected = new Set(stateRef.deck.boards.mainboard.map((e) => e.name));
   anchor = null;

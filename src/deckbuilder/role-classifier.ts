@@ -122,3 +122,19 @@ export function classifyRole(card: { type_line?: string; oracle_text?: string })
   }
   return 'utility';
 }
+
+/** Every role the card qualifies for — a draw spell stapled to removal
+ * counts toward both targets. Lands stay single-role. */
+export function classifyRoles(card: { type_line?: string; oracle_text?: string }): Role[] {
+  const typeLine = (card.type_line || '').toLowerCase();
+  if (typeLine.includes('land')) return ['land'];
+  const text = (card.oracle_text || '').toLowerCase();
+  if (!text) return ['utility'];
+
+  const roles: Role[] = [];
+  for (const role of ROLE_PRIORITY) {
+    if (role === 'tutor' && MATCHERS.ramp.some((rx) => rx.test(text) && /land/.test(text))) continue;
+    if (MATCHERS[role].some((rx) => rx.test(text))) roles.push(role);
+  }
+  return roles.length > 0 ? roles : ['utility'];
+}

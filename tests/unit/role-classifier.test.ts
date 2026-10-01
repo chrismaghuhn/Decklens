@@ -40,3 +40,18 @@ describe('classifyRole', () => {
     for (const r of roles) expect(ROLE_LABELS[r]).toBeTruthy();
   });
 });
+
+describe('classifyRoles (multi-role)', () => {
+  test('a card matching several roles counts for each', async () => {
+    const { classifyRoles } = await import('../../src/deckbuilder/role-classifier.js');
+    const roles = classifyRoles({ type_line: 'Sorcery', oracle_text: 'Destroy target creature. Draw a card.' });
+    expect(roles).toContain('removal');
+    expect(roles).toContain('draw');
+  });
+
+  test('lands stay single-role and no match falls back to utility', async () => {
+    const { classifyRoles } = await import('../../src/deckbuilder/role-classifier.js');
+    expect(classifyRoles({ type_line: 'Basic Land — Forest', oracle_text: '' })).toEqual(['land']);
+    expect(classifyRoles({ type_line: 'Creature', oracle_text: 'Flying.' })).toEqual(['utility']);
+  });
+});

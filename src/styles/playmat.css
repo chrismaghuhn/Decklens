@@ -730,7 +730,13 @@ body {
    visible sliver per stacked card, set by the sortbar spacing slider */
 .pm-stack .pm-card { margin-top: calc(var(--pm-strip, 44px) - 182px); }
 .pm-stack .pm-card:first-child { margin-top: 0; }
-.pm-stack .pm-card:hover { transform: translateY(-16px) rotate(-1deg); z-index: 9; outline: 2px solid var(--accent); }
+/* NO lift/reveal on stack hover: a raised full card would cover the
+   strips below it and the pointer would skip cards. The floating hover
+   preview already shows the card in full — here only the strip glows. */
+.pm-stack .pm-card:hover {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
 
 .pm-pile-collapsed .pm-pile-head { opacity: 0.75; }
 .pm-pile-collapsed .pm-pile-head b { color: var(--text-hi); }

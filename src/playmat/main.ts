@@ -165,7 +165,11 @@ function currentStrip(): number {
 }
 
 function applyStrip(px: number): void {
-  (document.getElementById('pmMat') as HTMLElement).style.setProperty('--pm-strip', `${px}px`);
+  // at low zoom a thin strip shrinks below what a pointer can hit and
+  // cards get "skipped" — enforce a minimum VISUAL strip of ~14px
+  const zoom = currentZoom();
+  const effective = Math.max(px, Math.ceil(14 / zoom));
+  (document.getElementById('pmMat') as HTMLElement).style.setProperty('--pm-strip', `${effective}px`);
 }
 
 function setStrip(px: number): void {
@@ -186,6 +190,7 @@ function applyZoom(zoom: number): void {
   mat.style.zoom = String(zoom);
   // keep the background raster at a crisp visual 1px at any zoom
   mat.style.setProperty('--pm-grid-line', `${1 / zoom}px`);
+  applyStrip(currentStrip()); // re-clamp the stack strip for the new zoom
   const label = document.querySelector<HTMLElement>('.pm-zoom-value');
   if (label) label.textContent = `${Math.round(zoom * 100)}%`;
 }
@@ -278,6 +283,10 @@ function toggleShortcutOverlay(): void {
         <dt>Double-click a pile header</dt><dd>Collapse / expand the pile</dd>
         <dt>Right-click a card</dt><dd>Quantity, boards, tags, artwork, Scryfall</dd>
         <dt>Hover a card</dt><dd>+ / − quantity buttons</dd>
+        <dt>Click / Ctrl / Shift</dt><dd>Select cards like files; drag empty space for a rubber band</dd>
+        <dt>Ctrl+A · Del · Ctrl+C</dt><dd>Select all · remove selection · copy as list</dd>
+        <dt>Right-click selection</dt><dd>Bulk menu: move, tag, remove</dd>
+        <dt>"In deck" chip</dt><dd>Search highlights matches on the mat (t: o: mv&lt;=)</dd>
         <dt>?</dt><dd>This overlay (Goldfish has its own under ?)</dd>
       </dl>
       <span class="pm-muted">Click anywhere or press ? to close.</span>
