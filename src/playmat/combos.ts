@@ -143,8 +143,11 @@ export async function fetchDiscoverCombos(
   offset: number,
   ordering = '-popularity',
   twoCardsOnly = false,
+  finiteOnly = false,
 ): Promise<{ combos: ComboData[]; hasMore: boolean }> {
-  const q = `legal:commander ci<=${identity.toLowerCase() || 'c'}${twoCardsOnly ? ' cards:2' : ''}`;
+  const q = `legal:commander ci<=${identity.toLowerCase() || 'c'}`
+    + (twoCardsOnly ? ' cards:2' : '')
+    + (finiteOnly ? ' -result:infinite' : '');
   const response = await fetch(
     `${VARIANTS_API}?q=${encodeURIComponent(q)}&limit=${DISCOVER_PAGE}&offset=${offset}&ordering=${encodeURIComponent(ordering)}`,
   );
@@ -170,6 +173,10 @@ let discoverHasMore = true;
 let discoverLoading = false;
 let discoverSort = '-popularity';
 let discoverTwoOnly = false;
+/** hide infinite loops, keep finite finishers (wins, burst plays) */
+let finiteOnly = false;
+/** almost tab: filter to combos unlocked by this one missing card */
+let bestAddFilter: string | null = null;
 
 function resetDiscover(): void {
   discoverList = [];
@@ -266,12 +273,72 @@ function renderList(): void {
     renderDiscover(body);
     return;
   }
-  const combos = activeTab === 'included' ? combosData.included : combosData.almost;
+  let combos = activeTab === 'included' ? combosData.included : combosData.almost;
+
+  const bar = document.createElement('div');
+  bar.className = 'pm-combo-sortbar';
+  const finiteBtn = document.createElement('button');
+  finiteBtn.type = 'button';
+  finiteBtn.className = finiteOnly ? 'on' : '';
+  finiteBtn.textContent = 'No infinites';
+  finiteBtn.title = 'Only finite finishers — combos that win or swing the game without an endless loop';
+  finiteBtn.addEventListener('click', () => { finiteOnly = !finiteOnly; resetDiscover(); renderList(); });
+  bar.appendChild(finiteBtn);
+  body.appendChild(bar);
+
+  if (finiteOnly) {
+    combos = combos.filter((c) => !c.produces.some((p) => /infinite/i.test(p)));
+  }
+
+  // "Best adds": which single card unlocks the most combos
+  if (activeTab === 'almost' && combos.length > 0) {
+    const unlocks = new Map<string, ComboData[]>();
+    for (const combo of combos) {
+      const name = combo.missing[0];
+      if (!name) continue;
+      unlocks.set(name, [...(unlocks.get(name) || []), combo]);
+    }
+    const ranking = [...unlocks.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 8);
+    if (ranking.length > 0) {
+      const strip = document.createElement('div');
+      strip.className = 'pm-bestadds';
+      strip.innerHTML = '<h3>Best adds — one card, most combos</h3>';
+      const row = document.createElement('div');
+      row.className = 'pm-bestadds-row';
+      for (const [name, list] of ranking) {
+        const eur = Number(stateRef.cardByName[normalizeNameKey(name)]?.prices?.eur);
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'pm-bestadd' + (bestAddFilter === name ? ' on' : '');
+        const img = cardImg(name);
+        chip.innerHTML = `
+          ${img ? `<img src="${img}" alt="" loading="lazy">` : ''}
+          <span class="pm-bestadd-name">${name.replace(/</g, '&lt;')}</span>
+          <span class="pm-bestadd-count">unlocks ${list.length} combo${list.length === 1 ? '' : 's'}${Number.isFinite(eur) ? ` · €${eur.toFixed(2)}` : ''}</span>`;
+        chip.title = 'Click to show only these combos';
+        chip.addEventListener('click', () => {
+          bestAddFilter = bestAddFilter === name ? null : name;
+          renderList();
+        });
+        row.appendChild(chip);
+      }
+      strip.appendChild(row);
+      body.appendChild(strip);
+    }
+    if (bestAddFilter) {
+      combos = combos.filter((c) => c.missing[0] === bestAddFilter);
+    }
+  }
 
   if (combos.length === 0) {
-    body.innerHTML = `<div class="pm-combomat-loading">${activeTab === 'included'
-      ? 'No known combos in this deck yet — check the "One card away" tab for ideas.'
-      : 'No near-miss combos found.'}</div>`;
+    const empty = document.createElement('div');
+    empty.className = 'pm-combomat-loading';
+    empty.textContent = finiteOnly
+      ? 'No finite combos here — turn off "No infinites" or check Discover.'
+      : activeTab === 'included'
+        ? 'No known combos in this deck yet — check the "One card away" tab for ideas.'
+        : 'No near-miss combos found.';
+    body.appendChild(empty);
     return;
   }
 
@@ -302,6 +369,7 @@ function renderDiscover(body: HTMLElement): void {
     sortChip('Popular', discoverSort === '-popularity', () => { discoverSort = '-popularity'; }),
     sortChip('New', discoverSort === '-created', () => { discoverSort = '-created'; }),
     sortChip('2 cards only', discoverTwoOnly, () => { discoverTwoOnly = !discoverTwoOnly; }),
+    sortChip('No infinites', finiteOnly, () => { finiteOnly = !finiteOnly; }),
   );
   body.appendChild(bar);
 
@@ -331,7 +399,7 @@ async function loadDiscoverPage(): Promise<void> {
   discoverLoading = true;
   if (activeTab === 'discover') renderList();
   try {
-    const page = await fetchDiscoverCombos(stateRef.deck, combosData.identity, discoverOffset, discoverSort, discoverTwoOnly);
+    const page = await fetchDiscoverCombos(stateRef.deck, combosData.identity, discoverOffset, discoverSort, discoverTwoOnly, finiteOnly);
     discoverList = [...discoverList, ...page.combos];
     discoverOffset += DISCOVER_PAGE;
     discoverHasMore = page.hasMore;
