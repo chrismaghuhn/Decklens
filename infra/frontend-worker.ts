@@ -42,6 +42,15 @@ export default {
         });
       }
 
+      // Same reason: proxy Spellbook's variants search (GET).
+      if (path === '/api/spellbook/variants' && request.method === 'GET') {
+        const upstream = await fetch(`https://backend.commanderspellbook.com/variants${url.search}`);
+        return new Response(upstream.body, {
+          status: upstream.status,
+          headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' },
+        });
+      }
+
       // Check SPA rewrite rules
       for (const [pattern, target] of REWRITES) {
         if (pattern.test(path)) {

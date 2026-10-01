@@ -12,11 +12,16 @@ import { iconSvg } from '../shared/icons.js';
 import { normalizeNameKey, type PlaymatState } from './state.js';
 import { addCardToDeck } from './mat.js';
 
-// In production the call goes through our worker proxy (Spellbook sends
+// In production the calls go through our worker proxy (Spellbook sends
 // no CORS headers for our origin); the dev server talks to it directly.
-const API = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+const DIRECT = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const API = DIRECT
   ? 'https://backend.commanderspellbook.com/find-my-combos'
   : '/api/spellbook/find-my-combos';
+const VARIANTS_API = DIRECT
+  ? 'https://backend.commanderspellbook.com/variants'
+  : '/api/spellbook/variants';
+const DISCOVER_PAGE = 24;
 
 export interface ComboData {
   id: string;
@@ -92,14 +97,14 @@ export function groupCombos(combos: ComboData[]): ComboGroup[] {
 // ── fetching (cached per deck signature) ──
 
 let cacheSig = '';
-let cacheResult: { included: ComboData[]; almost: ComboData[] } | null = null;
+let cacheResult: { included: ComboData[]; almost: ComboData[]; identity: string } | null = null;
 
 function deckSignature(deck: DeckbuilderDeck): string {
   return [...deck.boards.commander, ...deck.boards.mainboard]
     .map((e) => normalizeNameKey(e.name)).sort().join('|');
 }
 
-export async function fetchDeckCombos(deck: DeckbuilderDeck): Promise<{ included: ComboData[]; almost: ComboData[] }> {
+export async function fetchDeckCombos(deck: DeckbuilderDeck): Promise<{ included: ComboData[]; almost: ComboData[]; identity: string }> {
   const sig = deckSignature(deck);
   if (sig === cacheSig && cacheResult) return cacheResult;
 
@@ -114,7 +119,7 @@ export async function fetchDeckCombos(deck: DeckbuilderDeck): Promise<{ included
   });
   if (!response.ok) throw new Error('Commander Spellbook is not reachable.');
   const data = await response.json() as {
-    results?: { included?: RawCombo[]; almostIncluded?: RawCombo[] };
+    results?: { included?: RawCombo[]; almostIncluded?: RawCombo[]; identity?: string };
   };
 
   const deckKeys = new Set([...deck.boards.commander, ...deck.boards.mainboard]
@@ -127,16 +132,50 @@ export async function fetchDeckCombos(deck: DeckbuilderDeck): Promise<{ included
     .slice(0, 40);
 
   cacheSig = sig;
-  cacheResult = { included, almost };
+  cacheResult = { included, almost, identity: data.results?.identity || 'wubrg' };
   return cacheResult;
+}
+
+/** Browse Spellbook's whole database within a color identity, by popularity. */
+export async function fetchDiscoverCombos(
+  deck: DeckbuilderDeck,
+  identity: string,
+  offset: number,
+  ordering = '-popularity',
+  twoCardsOnly = false,
+): Promise<{ combos: ComboData[]; hasMore: boolean }> {
+  const q = `legal:commander ci<=${identity.toLowerCase() || 'c'}${twoCardsOnly ? ' cards:2' : ''}`;
+  const response = await fetch(
+    `${VARIANTS_API}?q=${encodeURIComponent(q)}&limit=${DISCOVER_PAGE}&offset=${offset}&ordering=${encodeURIComponent(ordering)}`,
+  );
+  if (!response.ok) throw new Error('Commander Spellbook is not reachable.');
+  const data = await response.json() as { next?: string | null; results?: RawCombo[] };
+  const deckKeys = new Set([...deck.boards.commander, ...deck.boards.mainboard]
+    .map((e) => normalizeNameKey(e.name)));
+  return {
+    combos: (data.results || []).map((r) => normalizeCombo(r, deckKeys)),
+    hasMore: Boolean(data.next),
+  };
 }
 
 // ── UI ──
 
 let overlayEl: HTMLElement | null = null;
 let stateRef: PlaymatState;
-let activeTab: 'included' | 'almost' = 'included';
-let combosData: { included: ComboData[]; almost: ComboData[] } | null = null;
+let activeTab: 'included' | 'almost' | 'discover' = 'included';
+let combosData: { included: ComboData[]; almost: ComboData[]; identity: string } | null = null;
+let discoverList: ComboData[] = [];
+let discoverOffset = 0;
+let discoverHasMore = true;
+let discoverLoading = false;
+let discoverSort = '-popularity';
+let discoverTwoOnly = false;
+
+function resetDiscover(): void {
+  discoverList = [];
+  discoverOffset = 0;
+  discoverHasMore = true;
+}
 
 function cardImg(name: string): string | undefined {
   const card = stateRef.cardByName[normalizeNameKey(name)];
@@ -168,6 +207,7 @@ export async function openComboMat(state: PlaymatState): Promise<void> {
       <nav class="pm-combomat-tabs">
         <button type="button" data-tab="included" class="on">In deck</button>
         <button type="button" data-tab="almost">One card away</button>
+        <button type="button" data-tab="discover">Discover</button>
       </nav>
       <span class="pm-combomat-credit">data: Commander Spellbook</span>
       <button type="button" class="pm-drawer-close" aria-label="Close">✕</button>
@@ -222,6 +262,10 @@ function renderList(): void {
   if (!overlayEl || !combosData) return;
   const body = overlayEl.querySelector<HTMLElement>('.pm-combomat-body')!;
   body.textContent = '';
+  if (activeTab === 'discover') {
+    renderDiscover(body);
+    return;
+  }
   const combos = activeTab === 'included' ? combosData.included : combosData.almost;
 
   if (combos.length === 0) {
@@ -240,6 +284,76 @@ function renderList(): void {
     for (const combo of group.combos) grid.appendChild(comboTile(combo));
     section.appendChild(grid);
     body.appendChild(section);
+  }
+}
+
+function renderDiscover(body: HTMLElement): void {
+  const bar = document.createElement('div');
+  bar.className = 'pm-combo-sortbar';
+  const sortChip = (label: string, on: boolean, fn: () => void): HTMLButtonElement => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = on ? 'on' : '';
+    b.textContent = label;
+    b.addEventListener('click', () => { fn(); resetDiscover(); void loadDiscoverPage(); });
+    return b;
+  };
+  bar.append(
+    sortChip('Popular', discoverSort === '-popularity', () => { discoverSort = '-popularity'; }),
+    sortChip('New', discoverSort === '-created', () => { discoverSort = '-created'; }),
+    sortChip('2 cards only', discoverTwoOnly, () => { discoverTwoOnly = !discoverTwoOnly; }),
+  );
+  body.appendChild(bar);
+
+  const section = document.createElement('section');
+  section.className = 'pm-combo-group';
+  const identity = combosData!.identity.toUpperCase();
+  section.innerHTML = `<h3>All Spellbook combos in ${identity || 'C'} <b>${discoverSort === '-created' ? 'newest first' : 'by popularity'}</b></h3>`;
+  const grid = document.createElement('div');
+  grid.className = 'pm-combo-grid';
+  for (const combo of discoverList) grid.appendChild(comboTile(combo));
+  section.appendChild(grid);
+  body.appendChild(section);
+
+  const more = document.createElement('button');
+  more.type = 'button';
+  more.className = 'pm-btn pm-combo-more';
+  more.textContent = discoverLoading ? 'Loading …' : discoverHasMore ? 'Load more' : 'No more combos';
+  more.disabled = discoverLoading || !discoverHasMore;
+  more.addEventListener('click', () => { void loadDiscoverPage(); });
+  body.appendChild(more);
+
+  if (discoverList.length === 0 && !discoverLoading) void loadDiscoverPage();
+}
+
+async function loadDiscoverPage(): Promise<void> {
+  if (!combosData || discoverLoading || !discoverHasMore) return;
+  discoverLoading = true;
+  if (activeTab === 'discover') renderList();
+  try {
+    const page = await fetchDiscoverCombos(stateRef.deck, combosData.identity, discoverOffset, discoverSort, discoverTwoOnly);
+    discoverList = [...discoverList, ...page.combos];
+    discoverOffset += DISCOVER_PAGE;
+    discoverHasMore = page.hasMore;
+    // resolve thumbnails for the new cards
+    const unknown = new Set<string>();
+    for (const combo of page.combos) {
+      for (const use of combo.uses) {
+        if (!stateRef.cardByName[normalizeNameKey(use.name)]) unknown.add(use.name);
+      }
+    }
+    if (unknown.size > 0) {
+      const { resolved } = await resolveDeckbuilderCards([...unknown]);
+      for (const [key, card] of Object.entries(resolved)) {
+        stateRef.cardByName[normalizeNameKey(key)] = card as DeckbuilderSearchCard;
+      }
+    }
+  } catch (err) {
+    showToast({ message: err instanceof Error ? err.message : 'Could not load combos.', type: 'error' });
+    discoverHasMore = false;
+  } finally {
+    discoverLoading = false;
+    if (activeTab === 'discover') renderList();
   }
 }
 
@@ -263,9 +377,10 @@ function comboTile(combo: ComboData): HTMLElement {
 
   const meta = document.createElement('div');
   meta.className = 'pm-combo-meta';
+  const have = combo.uses.length - combo.missing.length;
   meta.innerHTML = `
     <div class="pm-combo-names">${combo.uses.map((u) => u.name.replace(/</g, '&lt;')).join(' + ')}</div>
-    <div class="pm-combo-produces">${combo.produces.slice(0, 3).map((p) => `<em>${p.replace(/</g, '&lt;')}</em>`).join('')}</div>`;
+    <div class="pm-combo-produces">${combo.missing.length > 0 ? `<em class="pm-combo-have">${have}/${combo.uses.length} in deck</em>` : ''}${combo.produces.slice(0, 3).map((p) => `<em>${p.replace(/</g, '&lt;')}</em>`).join('')}</div>`;
   tile.appendChild(meta);
 
   if (combo.missing.length === 1) {

@@ -772,6 +772,26 @@ body {
 }
 .pm-combo-add:hover { background: var(--accent-strong); }
 
+.pm-combo-sortbar { display: flex; gap: 7px; margin-bottom: 20px; }
+.pm-combo-sortbar button {
+  all: unset;
+  cursor: pointer;
+  padding: 5px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font: 600 0.64rem var(--font-mono);
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.pm-combo-sortbar button:hover { color: var(--text-hi); border-color: var(--accent); }
+.pm-combo-sortbar button.on { color: #fff; background: var(--accent); border-color: var(--accent); }
+.pm-combo-more { display: block; margin: 10px auto 0; }
+.pm-combo-have {
+  color: var(--warn) !important;
+  background: rgba(245, 192, 74, 0.1) !important;
+  border-color: rgba(245, 192, 74, 0.35) !important;
+}
+
 /* step player */
 .pm-combo-stage { max-width: 1100px; margin: 0 auto; }
 .pm-combo-back { margin-bottom: 20px; }
