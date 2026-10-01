@@ -223,6 +223,21 @@ function renderSortbar(root: HTMLElement, state: PlaymatState): void {
     root.appendChild(b);
   }
 
+  if (state.sortMode === 'tags' || (state.sortMode === 'free' && state.freeBase === 'tags')) {
+    const autoKey = `dl_pm_autotags_${state.deck.id}`;
+    const autoOn = localStorage.getItem(autoKey) !== '0'; // default ON
+    const auto = document.createElement('button');
+    auto.type = 'button';
+    auto.className = 'pm-sort-opt pm-autotags' + (autoOn ? ' on' : '');
+    auto.textContent = 'Auto-tags';
+    auto.title = 'Bucket untagged cards into their role piles (a view — nothing is written to your cards)';
+    auto.addEventListener('click', () => {
+      localStorage.setItem(autoKey, autoOn ? '0' : '1');
+      document.dispatchEvent(new CustomEvent(EV_SORT_CHANGED)); // re-renders sortbar + mat
+    });
+    root.appendChild(auto);
+  }
+
   const strip = document.createElement('div');
   strip.className = 'pm-zoom pm-stripctl';
   strip.title = 'Stack spacing — how much of each card peeks out';

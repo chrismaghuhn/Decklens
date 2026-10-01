@@ -1021,6 +1021,13 @@ body {
 }
 
 .pm-pile-collapsed .pm-pile-head { opacity: 0.75; }
+.pm-pile-auto .pm-pile-head {
+  opacity: 0.8;
+  border-style: dashed;
+  color: var(--text-muted);
+}
+.pm-pile-auto .pm-pile-head .ui-ic { width: 0.85em; height: 0.85em; opacity: 0.7; vertical-align: -1px; }
+.pm-autotags { margin-left: 14px; }
 .pm-pile-collapsed .pm-pile-head b { color: var(--text-hi); }
 
 .pm-card-qtybar {

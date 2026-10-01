@@ -66,3 +66,61 @@ describe('projectPiles', () => {
     expect(find(piles, 'Unknown')?.entries[0].name).toBe('Mystery Card');
   });
 });
+
+describe('tags mode with auto-tags', () => {
+  const mixed = [
+    entry('Sol Ring'),                      // ramp, no user tags
+    entry('Wrath of God'),                  // wipe, no user tags
+    entry('Counterspell', 1, ['Combo']),    // user-tagged
+    entry('Mystery Card'),                  // unresolved
+  ];
+
+  test('untagged cards bucket into auto role piles, user piles stay', () => {
+    const piles = projectPiles(deckWith(mixed), cards, 'tags', { autoTags: true });
+    const auto = piles.filter((p) => p.auto);
+    expect(auto.map((p) => p.label)).toEqual(expect.arrayContaining(['Ramp', 'Board Wipes', 'Utility']));
+    expect(find(piles, 'Combo')?.auto).toBeFalsy();
+    expect(find(piles, 'Combo')?.entries[0].name).toBe('Counterspell');
+    expect(labels(piles)).not.toContain('Untagged');
+    // auto pile ids are namespaced so they never collide with user tags
+    expect(auto.every((p) => p.id.startsWith('pile-auto-'))).toBe(true);
+  });
+
+  test('toggle off keeps exact current behavior', () => {
+    const piles = projectPiles(deckWith(mixed), cards, 'tags');
+    expect(labels(piles)).toEqual(['Combo', 'Untagged']);
+  });
+
+  test('a multi-role card appears in every matching auto pile', () => {
+    const multi = { ...cards, 'value kill': sc({ name: 'Value Kill', cmc: 3, type_line: 'Sorcery', oracle_text: 'Destroy target creature. Draw a card.' }) };
+    const piles = projectPiles(deckWith([entry('Value Kill')]), multi, 'tags', { autoTags: true });
+    expect(find(piles, 'Removal')?.entries[0].name).toBe('Value Kill');
+    expect(find(piles, 'Card Draw')?.entries[0].name).toBe('Value Kill');
+  });
+});
+
+describe('tag rename/delete on boards', () => {
+  test('rename replaces the tag everywhere and merges case-insensitively', async () => {
+    const { renameTagInBoards } = await import('../../src/playmat/sort.js');
+    const boards = deckWith([
+      entry('Sol Ring', 1, ['combo']),
+      entry('Counterspell', 1, ['combo', 'Ramp']),
+      entry('Forest', 1, ['Ramp']),
+    ]).boards;
+    renameTagInBoards(boards, 'combo', 'ramp');
+    expect(boards.mainboard[0].tags).toEqual(['ramp']);
+    expect(boards.mainboard[1].tags).toEqual(['Ramp']); // merged, no duplicate
+    expect(boards.mainboard[2].tags).toEqual(['Ramp']);
+  });
+
+  test('delete removes the tag from every card', async () => {
+    const { deleteTagInBoards } = await import('../../src/playmat/sort.js');
+    const boards = deckWith([
+      entry('Sol Ring', 1, ['Combo', 'Keep']),
+      entry('Forest', 1, ['Combo']),
+    ]).boards;
+    deleteTagInBoards(boards, 'combo');
+    expect(boards.mainboard[0].tags).toEqual(['Keep']);
+    expect(boards.mainboard[1].tags).toEqual([]);
+  });
+});

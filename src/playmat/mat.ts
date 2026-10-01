@@ -4,13 +4,13 @@
 // maybeboard/sideboard docks and the "New pile" target.
 
 import type { DeckBoard, DeckbuilderCardEntry } from '../deckbuilder/types.js';
-import { projectPiles, applyPileOrder, type Pile } from './sort.js';
+import { projectPiles, applyPileOrder, renameTagInBoards, deleteTagInBoards, type Pile } from './sort.js';
 import { layoutFor, GRID_CELL } from './layout.js';
 import { mutateDeck, cardFor, normalizeNameKey, isTypingContext,
   EV_OPEN_COMMANDER_SEARCH, type PlaymatState } from './state.js';
 import { showDetailModal, showHoverPreview, hideHoverPreview } from '../deckbuilder/card-preview.js';
 import { initContextMenu, showContextMenu } from '../deckbuilder/context-menu.js';
-import { showPromptModal } from '../deckbuilder/confirm-modal.js';
+import { showPromptModal, showConfirmModal } from '../deckbuilder/confirm-modal.js';
 import { showToast } from '../deckbuilder/toast.js';
 import { iconSvg } from '../shared/icons.js';
 import { openArtPicker } from './art-picker.js';
@@ -221,6 +221,68 @@ function showBulkMenu(event: MouseEvent): void {
 
   menu.style.top = `${Math.min(event.clientY, window.innerHeight - 240)}px`;
   menu.style.left = `${Math.min(event.clientX, window.innerWidth - 200)}px`;
+  menu.style.right = 'auto';
+  document.body.appendChild(menu);
+  const close = (e: MouseEvent): void => {
+    if (!menu.contains(e.target as Node)) { menu.remove(); document.removeEventListener('mousedown', close); }
+  };
+  setTimeout(() => document.addEventListener('mousedown', close), 0);
+}
+
+// ── Pile header menu (tag management lives here) ──
+
+function showPileMenu(event: MouseEvent, pile: Pile): void {
+  document.querySelector('.pm-menu')?.remove();
+  const menu = document.createElement('div');
+  menu.className = 'pm-menu';
+  const item = (label: string, fn: () => void): void => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.addEventListener('click', () => { menu.remove(); fn(); });
+    menu.appendChild(b);
+  };
+
+  const isUserTag = stateRef.sortMode !== 'free'
+    ? (stateRef.sortMode === 'tags' && !pile.auto && pile.label !== 'Untagged')
+    : false;
+
+  if (isUserTag) {
+    item('Rename tag …', async () => {
+      const next = (await showPromptModal({
+        title: `Rename tag "${pile.label}"`,
+        message: 'New name (an existing tag of that name merges):',
+        defaultValue: pile.label,
+      }))?.trim();
+      if (!next || next === pile.label) return;
+      const exists = new Set<string>();
+      for (const e of stateRef.deck.boards.mainboard) for (const t of e.tags || []) exists.add(t.toLowerCase());
+      if (exists.has(next.toLowerCase()) && next.toLowerCase() !== pile.label.toLowerCase()) {
+        const ok = await showConfirmModal({
+          title: 'Merge tags?',
+          message: `"${next}" already exists — cards from "${pile.label}" will join that pile.`,
+          confirmLabel: 'Merge',
+        });
+        if (!ok) return;
+      }
+      mutateDeck(stateRef, (d) => renameTagInBoards(d.boards, pile.label, next));
+      showToast({ message: `Tag renamed to "${next}".`, type: 'success' });
+    });
+    item('Delete tag …', async () => {
+      const ok = await showConfirmModal({
+        title: `Delete tag "${pile.label}"?`,
+        message: 'The tag is removed from every card (the cards stay in the deck).',
+        confirmLabel: 'Delete',
+      });
+      if (!ok) return;
+      mutateDeck(stateRef, (d) => deleteTagInBoards(d.boards, pile.label));
+      showToast({ message: `Tag "${pile.label}" deleted.`, type: 'info' });
+    });
+  }
+  item(collapsedPiles.has(pile.id) ? 'Expand' : 'Collapse', () => toggleCollapsed(pile.id));
+
+  menu.style.top = `${Math.min(event.clientY, window.innerHeight - 160)}px`;
+  menu.style.left = `${Math.min(event.clientX, window.innerWidth - 190)}px`;
   menu.style.right = 'auto';
   document.body.appendChild(menu);
   const close = (e: MouseEvent): void => {
@@ -466,13 +528,23 @@ function pileEl(pile: Pile, opts: { free: boolean }): HTMLElement {
 
   const collapsed = collapsedPiles.has(pile.id);
   if (collapsed) el.classList.add('pm-pile-collapsed');
+  if (pile.auto) el.classList.add('pm-pile-auto');
 
   const head = document.createElement('header');
   head.className = 'pm-pile-head';
   head.dataset.drag = 'pile';
-  head.title = 'Drag to move · double-click to collapse';
-  head.innerHTML = `<span>${escapeHtml(pile.label.toUpperCase())}</span><b>${pile.count}</b>`;
+  head.title = pile.auto
+    ? 'Auto pile (role guess) — drop a card here to make the tag real'
+    : 'Drag to move · double-click to collapse · right-click for tag actions';
+  head.innerHTML = pile.auto
+    ? `<span>${escapeHtml(pile.label.toUpperCase())} ${iconSvg('gear')}</span><b>${pile.count}</b>`
+    : `<span>${escapeHtml(pile.label.toUpperCase())}</span><b>${pile.count}</b>`;
   head.addEventListener('dblclick', () => toggleCollapsed(pile.id));
+  head.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    showPileMenu(e, pile);
+  });
   el.appendChild(head);
 
   if (!collapsed) {
@@ -583,7 +655,9 @@ export function renderMat(root: HTMLElement, state: PlaymatState): void {
   // free mode inherits the grouping of the last non-free sort mode
   const mode = state.sortMode === 'free' ? state.freeBase : state.sortMode;
   if (mode === 'role') root.appendChild(targetsStrip());
-  let piles = projectPiles(state.deck, state.cardByName, mode);
+  const autoTags = mode === 'tags'
+    && localStorage.getItem(`dl_pm_autotags_${state.deck.id}`) !== '0';
+  let piles = projectPiles(state.deck, state.cardByName, mode, { autoTags });
   if (state.sortMode !== 'free') {
     piles = applyPileOrder(piles, state.deck.pileOrders?.[state.sortMode]);
   }

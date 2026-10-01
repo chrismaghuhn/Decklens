@@ -6,7 +6,8 @@
 
 import type { DeckbuilderDeck, DeckbuilderCardEntry } from '../deckbuilder/types.js';
 import type { DeckbuilderSearchCard } from '../shared/scryfall-client.js';
-import { classifyRole, ROLE_LABELS, ROLE_PRIORITY, type Role } from '../deckbuilder/role-classifier.js';
+import { classifyRole, classifyRoles, ROLE_LABELS, ROLE_PRIORITY, type Role } from '../deckbuilder/role-classifier.js';
+import type { DeckbuilderBoards } from '../deckbuilder/types.js';
 
 export type SortMode = 'type' | 'mana' | 'color' | 'role' | 'tags' | 'free';
 
@@ -15,6 +16,8 @@ export interface Pile {
   label: string;
   entries: DeckbuilderCardEntry[];
   count: number;
+  /** virtual role pile from auto-tagging — a view, not user data */
+  auto?: boolean;
 }
 
 const TYPE_ORDER: Array<[string, string]> = [
@@ -104,8 +107,10 @@ export function projectPiles(
   deck: DeckbuilderDeck,
   cardByName: Record<string, DeckbuilderSearchCard | undefined>,
   mode: Exclude<SortMode, 'free'>,
+  opts?: { autoTags?: boolean },
 ): Pile[] {
   const buckets = new Map<string, DeckbuilderCardEntry[]>();
+  const autoBuckets = new Map<Role, DeckbuilderCardEntry[]>();
   const put = (label: string, entry: DeckbuilderCardEntry) => {
     const list = buckets.get(label) || [];
     list.push(entry);
@@ -118,6 +123,11 @@ export function projectPiles(
       const tags = entry.tags?.length ? entry.tags : null;
       if (tags) {
         for (const t of tags) put(t, entry);
+      } else if (opts?.autoTags) {
+        // virtual role piles: a guess shown as a view, never stored
+        for (const role of card ? classifyRoles(card) : (['utility'] as Role[])) {
+          autoBuckets.set(role, [...(autoBuckets.get(role) || []), entry]);
+        }
       } else {
         put('Untagged', entry);
       }
@@ -134,14 +144,65 @@ export function projectPiles(
     labels = orderFor(mode).filter((l) => buckets.has(l));
   }
 
-  return labels.map((label) => {
+  const slug = (label: string): string => label.toLowerCase().replace(/[^a-z0-9+]+/g, '-');
+  const piles: Pile[] = labels.map((label) => {
     const entries = buckets.get(label)!;
     entries.sort((a, b) => a.name.localeCompare(b.name));
     return {
-      id: `pile-${label.toLowerCase().replace(/[^a-z0-9+]+/g, '-')}`,
+      id: `pile-${slug(label)}`,
       label,
       entries,
       count: entries.reduce((s, e) => s + e.qty, 0),
     };
   });
+
+  const autoOrder: Role[] = [...ROLE_PRIORITY, 'utility', 'land'];
+  for (const role of autoOrder) {
+    const entries = autoBuckets.get(role);
+    if (!entries) continue;
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+    piles.push({
+      id: `pile-auto-${slug(ROLE_LABELS[role])}`,
+      label: ROLE_LABELS[role],
+      entries,
+      count: entries.reduce((s, e) => s + e.qty, 0),
+      auto: true,
+    });
+  }
+
+  return piles;
+}
+
+/** Rename a user tag on every entry, merging case-insensitively with an
+ * existing tag of the new name (the existing casing wins). */
+export function renameTagInBoards(boards: DeckbuilderBoards, oldTag: string, newTag: string): void {
+  const oldKey = oldTag.trim().toLowerCase();
+  const newKey = newTag.trim().toLowerCase();
+  for (const board of Object.values(boards)) {
+    for (const entry of board) {
+      if (!entry.tags?.length) continue;
+      const existingTarget = entry.tags.find((t: string) => t.toLowerCase() === newKey && t.toLowerCase() !== oldKey);
+      const seen = new Set<string>();
+      const next: string[] = [];
+      for (const tag of entry.tags) {
+        const mapped = tag.toLowerCase() === oldKey ? (existingTarget ?? newTag) : tag;
+        const key = mapped.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        next.push(mapped);
+      }
+      entry.tags = next;
+    }
+  }
+}
+
+/** Remove a user tag from every entry (case-insensitive). */
+export function deleteTagInBoards(boards: DeckbuilderBoards, tag: string): void {
+  const key = tag.trim().toLowerCase();
+  for (const board of Object.values(boards)) {
+    for (const entry of board) {
+      if (!entry.tags?.length) continue;
+      entry.tags = entry.tags.filter((t: string) => t.toLowerCase() !== key);
+    }
+  }
 }
