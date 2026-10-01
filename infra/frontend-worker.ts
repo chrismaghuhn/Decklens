@@ -24,6 +24,24 @@ export default {
       const url = new URL(request.url);
       const path = url.pathname;
 
+      // Proxy for Commander Spellbook: their API sends no CORS headers
+      // for our origin, so the browser calls us and we call them.
+      if (path === '/api/spellbook/find-my-combos' && request.method === 'POST') {
+        const body = await request.text();
+        if (body.length > 200_000) {
+          return new Response('Payload too large', { status: 413 });
+        }
+        const upstream = await fetch('https://backend.commanderspellbook.com/find-my-combos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+        });
+        return new Response(upstream.body, {
+          status: upstream.status,
+          headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+        });
+      }
+
       // Check SPA rewrite rules
       for (const [pattern, target] of REWRITES) {
         if (pattern.test(path)) {

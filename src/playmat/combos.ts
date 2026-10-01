@@ -12,7 +12,11 @@ import { iconSvg } from '../shared/icons.js';
 import { normalizeNameKey, type PlaymatState } from './state.js';
 import { addCardToDeck } from './mat.js';
 
-const API = 'https://backend.commanderspellbook.com/find-my-combos';
+// In production the call goes through our worker proxy (Spellbook sends
+// no CORS headers for our origin); the dev server talks to it directly.
+const API = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+  ? 'https://backend.commanderspellbook.com/find-my-combos'
+  : '/api/spellbook/find-my-combos';
 
 export interface ComboData {
   id: string;
