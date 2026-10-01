@@ -114,6 +114,23 @@ export function applySelectionStyles(): void {
     el.classList.toggle('pm-selected', selected.has(el.dataset.card!));
   });
   renderBar();
+  renderInspector();
+}
+
+/** A single selected card shows big in a pinned panel on the right. */
+function renderInspector(): void {
+  let panel = document.querySelector<HTMLElement>('.pm-inspect');
+  if (selected.size !== 1) { panel?.remove(); return; }
+  const name = [...selected][0];
+  const card = stateRef.cardByName[normalizeNameKey(name)];
+  const img = card?.image_uris?.large || card?.image_uris?.normal;
+  if (!img) { panel?.remove(); return; }
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.className = 'pm-inspect';
+    document.body.appendChild(panel);
+  }
+  panel.innerHTML = `<img src="${img}" alt="${name.replace(/"/g, '&quot;')}">`;
 }
 
 function renderBar(): void {

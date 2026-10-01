@@ -221,6 +221,7 @@ export function initHand(state: PlaymatState): void {
       } else if (btn.dataset.filter === 'indeckmode') {
         searchInDeck = !searchInDeck;
         btn.classList.toggle('on', searchInDeck);
+        inputEl.placeholder = searchInDeck ? 'Find in deck … (t: o: mv<= and words)' : DEFAULT_PLACEHOLDER;
         if (!searchInDeck) setSelection([]);
       } else {
         ciOnly = !ciOnly;
@@ -242,6 +243,11 @@ export function initHand(state: PlaymatState): void {
     }
     if (e.key === 'Escape') {
       commanderMode = false;
+      if (searchInDeck) {
+        searchInDeck = false;
+        document.querySelector('.pm-search-filters button[data-filter="indeckmode"]')?.classList.remove('on');
+        setSelection([]);
+      }
       inputEl.value = '';
       inputEl.placeholder = DEFAULT_PLACEHOLDER;
       results = [];
@@ -256,6 +262,16 @@ export function initHand(state: PlaymatState): void {
       && !(document.activeElement instanceof HTMLTextAreaElement)) {
       e.preventDefault();
       inputEl.focus();
+    }
+    // Ctrl+F: find in THIS deck — matches highlight on the mat
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      searchInDeck = true;
+      document.querySelector('.pm-search-filters button[data-filter="indeckmode"]')?.classList.add('on');
+      inputEl.placeholder = 'Find in deck … (t: o: mv<= and words)';
+      inputEl.focus();
+      inputEl.select();
+      if (inputEl.value.trim().length >= 2) void runSearch(inputEl.value);
     }
   });
 

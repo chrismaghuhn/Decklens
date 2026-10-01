@@ -286,7 +286,7 @@ function toggleShortcutOverlay(): void {
         <dt>Click / Ctrl / Shift</dt><dd>Select cards like files; drag empty space for a rubber band</dd>
         <dt>Ctrl+A · Del · Ctrl+C</dt><dd>Select all · remove selection · copy as list</dd>
         <dt>Right-click selection</dt><dd>Bulk menu: move, tag, remove</dd>
-        <dt>"In deck" chip</dt><dd>Search highlights matches on the mat (t: o: mv&lt;=)</dd>
+        <dt>Ctrl+F</dt><dd>Find in deck — matches highlight on the mat (t: o: mv&lt;=)</dd>
         <dt>?</dt><dd>This overlay (Goldfish has its own under ?)</dd>
       </dl>
       <span class="pm-muted">Click anywhere or press ? to close.</span>
