@@ -118,11 +118,20 @@ export function addCardToDeck(name: string, board: DeckBoard = 'mainboard', tag?
   });
 }
 
-export function setCommander(name: string): void {
+export function setCommander(name: string, opts?: { partner?: boolean }): void {
   mutateDeck(stateRef, (d) => {
-    d.boards.commander = [{ name, qty: 1, set: null, collectorNumber: null, tags: [] }];
+    const entry = { name, qty: 1, set: null, collectorNumber: null, tags: [] };
+    if (opts?.partner && d.boards.commander.length === 1
+      && normalizeNameKey(d.boards.commander[0].name) !== normalizeNameKey(name)) {
+      d.boards.commander.push(entry);
+    } else {
+      d.boards.commander = [entry];
+    }
   });
-  showToast({ message: `${name} is now your commander.`, type: 'success' });
+  showToast({
+    message: opts?.partner ? `${name} joins as partner commander.` : `${name} is now your commander.`,
+    type: 'success',
+  });
 }
 
 /** Assign a tag by dropping onto a pile in tags mode. */
@@ -491,8 +500,8 @@ function commanderZone(): HTMLElement {
   label.textContent = 'COMMANDER';
   zone.appendChild(label);
 
-  const cmd = stateRef.deck.boards.commander[0];
-  if (cmd) {
+  const commanders = stateRef.deck.boards.commander;
+  for (const cmd of commanders) {
     const card = cardFor(stateRef, cmd.name);
     const el = document.createElement('div');
     el.className = 'pm-cmdcard';
@@ -503,12 +512,22 @@ function commanderZone(): HTMLElement {
     el.addEventListener('click', () => { if (card) showDetailModal(cmd.name, card, cmd, 'commander'); });
     el.addEventListener('contextmenu', (e) => { e.preventDefault(); showContextMenu(cmd.name, 'commander', e); });
     zone.appendChild(el);
-  } else {
+  }
+  if (commanders.length === 0) {
     const slot = document.createElement('button');
     slot.type = 'button';
     slot.className = 'pm-cmdslot';
     slot.innerHTML = `${iconSvg('sparkle')}<span>Choose<br>commander</span>`;
     slot.addEventListener('click', () => document.dispatchEvent(new CustomEvent(EV_OPEN_COMMANDER_SEARCH)));
+    zone.appendChild(slot);
+  } else if (commanders.length === 1) {
+    const slot = document.createElement('button');
+    slot.type = 'button';
+    slot.className = 'pm-cmdslot pm-cmdslot-partner';
+    slot.innerHTML = `${iconSvg('plus')}<span>Partner</span>`;
+    slot.title = 'Add a partner commander';
+    slot.addEventListener('click', () =>
+      document.dispatchEvent(new CustomEvent(EV_OPEN_COMMANDER_SEARCH, { detail: { partner: true } })));
     zone.appendChild(slot);
   }
   return zone;

@@ -19,6 +19,7 @@ let stateRef: PlaymatState;
 let results: DeckbuilderSearchCard[] = [];
 let page = 0;
 let commanderMode = false;
+let commanderPartner = false;
 let inputEl: HTMLInputElement;
 let handRoot: HTMLElement;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -79,8 +80,9 @@ export function rememberCard(state: PlaymatState, card: DeckbuilderSearchCard): 
 function addResult(card: DeckbuilderSearchCard): void {
   rememberCard(stateRef, card);
   if (commanderMode) {
-    setCommander(card.name);
+    setCommander(card.name, { partner: commanderPartner });
     commanderMode = false;
+    commanderPartner = false;
     inputEl.value = '';
     inputEl.placeholder = DEFAULT_PLACEHOLDER;
     results = [];
@@ -275,10 +277,13 @@ export function initHand(state: PlaymatState): void {
     }
   });
 
-  document.addEventListener(EV_OPEN_COMMANDER_SEARCH, () => {
+  document.addEventListener(EV_OPEN_COMMANDER_SEARCH, (e) => {
     commanderMode = true;
+    commanderPartner = (e as CustomEvent).detail?.partner === true;
     inputEl.focus();
-    inputEl.placeholder = 'Search commander (legendary creature) …';
+    inputEl.placeholder = commanderPartner
+      ? 'Search partner commander …'
+      : 'Search commander (legendary creature) …';
     if (inputEl.value.trim().length >= 2) void runSearch(inputEl.value);
     else showToast({ message: 'Type a name — only legendary creatures are searched.', type: 'info' });
   });

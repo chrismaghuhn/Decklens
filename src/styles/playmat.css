@@ -884,7 +884,16 @@ body {
 }
 
 /* ── Commander zone ── */
-.pm-cmdzone { position: absolute; left: 18px; top: 22px; width: 122px; z-index: 5; }
+.pm-cmdzone { position: absolute; left: 18px; top: 22px; width: 122px; z-index: 5; display: grid; gap: 10px; }
+.pm-cmdslot-partner {
+  min-height: 40px !important;
+  aspect-ratio: auto !important;
+  flex-direction: row !important;
+  gap: 6px;
+  font-size: 0.6rem;
+  opacity: 0.75;
+}
+.pm-cmdslot-partner:hover { opacity: 1; }
 .pm-cmdzone.hidden { display: none; }
 .pm-zone-label { font: 600 0.56rem var(--font-mono); letter-spacing: 0.16em; color: var(--text-muted); margin-bottom: 6px; }
 .pm-cmdslot {
